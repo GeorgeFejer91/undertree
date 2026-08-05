@@ -6,6 +6,7 @@ import { defaultKeymap, indentWithTab, redo, undo } from "@codemirror/commands";
 import { openSearchPanel, searchKeymap } from "@codemirror/search";
 import { StreamLanguage } from "@codemirror/language";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
+import { xml } from "@codemirror/legacy-modes/mode/xml";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
@@ -26,6 +27,7 @@ const elements = {
   editorTabs: $("#editor-tabs"),
   saveState: $("#save-state"),
   pdfViewer: $("#pdf-viewer"),
+  htmlProof: $("#html-proof"),
   pdfCanvas: $("#pdf-canvas"),
   previewStage: $("#preview-stage"),
   pdfPlaceholder: $("#pdf-placeholder"),
@@ -43,6 +45,10 @@ const elements = {
   workspace: $("#workspace"),
   toastRegion: $("#toast-region"),
 };
+
+function isLayoutSource(path = state.activePath) {
+  return String(path).toLowerCase().endsWith(".layout.xml");
+}
 
 const state = {
   projects: [],
@@ -220,7 +226,7 @@ function basenamePath(path) {
 function editorExtensions() {
   const extensions = [
     basicSetup,
-    StreamLanguage.define(stex),
+    StreamLanguage.define(isLayoutSource() ? xml : stex),
     keymap.of([...defaultKeymap, ...searchKeymap, indentWithTab]),
     EditorView.updateListener.of((update) => {
       if (!update.docChanged || state.replacingEditor || !state.activePath) return;
@@ -283,6 +289,7 @@ function activateTab(path, line = 0) {
   refreshTreeSelection();
   renderOutline(tab.content);
   setSaveState(tab.dirty ? "Unsaved" : "Saved locally", tab.dirty ? "dirty" : "saved");
+  elements.compileButton.textContent = isLayoutSource(path) ? "Render layout" : "Recompile";
   if (line > 0) goToLine(line);
 }
 
@@ -342,6 +349,18 @@ async function saveActiveFile() {
 
 function renderOutline(content) {
   const headings = [];
+  if (isLayoutSource()) {
+    const pattern = /<heading(?:\s[^>]*)?>([\s\S]*?)<\/heading>/gi;
+    let match;
+    while ((match = pattern.exec(content))) {
+      const line = content.slice(0, match.index).split("\n").length;
+      const title = match[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      headings.push({ title, line, level: 1 });
+    }
+    elements.fileOutline.innerHTML = headings.length ? headings.map((heading) => `<button class="outline-item level-1" data-line="${heading.line}">${escapeHtml(heading.title)}</button>`).join("") : "<p>No layout headings in this file.</p>";
+    elements.fileOutline.querySelectorAll("[data-line]").forEach((button) => button.addEventListener("click", () => goToLine(Number(button.dataset.line))));
+    return;
+  }
   const pattern = /^\s*\\(part|chapter|section|subsection|subsubsection|paragraph)\*?\{([^}]*)\}/gm;
   let match;
   while ((match = pattern.exec(content))) {
@@ -447,6 +466,8 @@ async function refreshPdf() {
     state.pdfProjectId = state.currentProject.id;
     state.pdfPage = sameProject ? Math.min(previousPage, nextDocument.numPages) : 1;
     state.pdfScale = sameProject ? previousScale : null;
+    elements.htmlProof.hidden = true;
+    elements.htmlProof.removeAttribute("src");
     elements.pdfViewer.classList.add("visible");
     elements.pdfPlaceholder.classList.add("hidden");
     elements.downloadPdf.href = `${projectApi("pdf")}?download=1`;
@@ -477,6 +498,22 @@ async function refreshPdf() {
       $("#page-status").textContent = "No PDF yet";
     }
     return false;
+  }
+}
+
+async function showHtmlProof() {
+  if (!state.currentProject) return;
+  try {
+    const info = await api(projectApi("layout-info"));
+    if (!info.available) throw new Error("Compile a .layout.xml source before opening its HTML proof.");
+    elements.pdfViewer.classList.remove("visible");
+    elements.pdfPlaceholder.classList.add("hidden");
+    elements.htmlProof.src = `${projectApi("layout-html")}?v=${Date.now()}`;
+    elements.htmlProof.hidden = false;
+    $("#page-status").textContent = `HTML proof · ${info.name}`;
+    status(`Viewing adaptive HTML proof for ${info.sourcePath}`);
+  } catch (error) {
+    toast(error.message, "error", 6500);
   }
 }
 
@@ -552,13 +589,16 @@ async function compileProject({ clean = false } = {}) {
     await saveActiveFile();
     elements.compileButton.disabled = true;
     elements.compileButton.classList.add("busy");
-    elements.compileButton.textContent = clean ? "Cleaning…" : "Compiling…";
-    status(`${clean ? "Cleaning and compiling" : "Compiling"} ${state.build?.rootDocument || "project"}…`);
-    const result = await api(projectApi("build"), { method: "POST", body: JSON.stringify({ clean }) });
+    const layoutSource = isLayoutSource() ? state.activePath : "";
+    elements.compileButton.textContent = clean ? "Cleaning…" : layoutSource ? "Rendering…" : "Compiling…";
+    const buildLabel = layoutSource || state.build?.rootDocument || "project";
+    status(`${clean ? "Cleaning and compiling" : layoutSource ? "Rendering adaptive layout" : "Compiling"} ${buildLabel}…`);
+    const result = await api(projectApi("build"), { method: "POST", body: JSON.stringify({ clean, sourcePath: layoutSource }) });
     elements.compileLog.textContent = result.output || "Compilation finished without output.";
     if (!result.pdfAvailable) throw new Error("Compilation did not produce a PDF. Open the log for details.");
     if (!(await refreshPdf())) throw new Error("The PDF compiled, but its preview could not be refreshed.");
-    toast(result.code === 0 ? "PDF compiled successfully." : "PDF produced with warnings; inspect the log.", result.code === 0 ? "success" : "error");
+    const successMessage = result.layout ? "Adaptive HTML, LuaLaTeX, and PDF generated." : "PDF compiled successfully.";
+    toast(result.code === 0 ? successMessage : "PDF produced with warnings; inspect the log.", result.code === 0 ? "success" : "error");
     status(`Compiled at ${new Date(result.compiledAt).toLocaleTimeString()}`);
     if (result.code !== 0) showLogs(true);
   } catch (error) {
@@ -569,7 +609,7 @@ async function compileProject({ clean = false } = {}) {
   } finally {
     elements.compileButton.disabled = false;
     elements.compileButton.classList.remove("busy");
-    elements.compileButton.textContent = "Recompile";
+    elements.compileButton.textContent = isLayoutSource() ? "Render layout" : "Recompile";
   }
 }
 
@@ -719,9 +759,9 @@ function bindEvents() {
   $("#new-folder").addEventListener("click", () => createEntry("directory"));
   $("#undo").addEventListener("click", () => state.editor && undo(state.editor));
   $("#redo").addEventListener("click", () => state.editor && redo(state.editor));
-  $("#bold").addEventListener("click", () => wrapSelection("\\textbf{", "}"));
-  $("#italic").addEventListener("click", () => wrapSelection("\\emph{", "}"));
-  $("#insert-cite").addEventListener("click", () => wrapSelection("\\cite{", "}"));
+  $("#bold").addEventListener("click", () => isLayoutSource() ? wrapSelection("<strong>", "</strong>") : wrapSelection("\\textbf{", "}"));
+  $("#italic").addEventListener("click", () => isLayoutSource() ? wrapSelection("<em>", "</em>") : wrapSelection("\\emph{", "}"));
+  $("#insert-cite").addEventListener("click", () => isLayoutSource() ? toast("Use a semantic <link> or plain citation text in adaptive layouts.") : wrapSelection("\\cite{", "}"));
   $("#search-file").addEventListener("click", () => state.editor && openSearchPanel(state.editor));
   elements.compileButton.addEventListener("click", (event) => { event.preventDefault(); compileProject(); });
   $("#compile-menu").addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); showCompileMenu(); });
@@ -730,6 +770,7 @@ function bindEvents() {
     showCompileMenu(false);
     if (action === "normal") compileProject();
     else if (action === "clean") compileProject({ clean: true });
+    else if (action === "proof") showHtmlProof();
     else if (action === "logs") showLogs(true);
   }));
   $("#toggle-logs").addEventListener("click", () => showLogs());

@@ -122,6 +122,7 @@
               <div class="compile-popover" id="compile-popover" role="menu" hidden>
                 <button type="button" role="menuitem" data-compile-action="normal"><strong>Recompile PDF</strong><small>Keep the current build cache</small></button>
                 <button type="button" role="menuitem" data-compile-action="clean"><strong>Recompile from scratch</strong><small>Clear auxiliary build files first</small></button>
+                <button type="button" role="menuitem" data-compile-action="proof"><strong>View adaptive HTML proof</strong><small>For the latest compiled .layout.xml source</small></button>
                 <button type="button" role="menuitem" data-compile-action="logs"><strong>View compile log</strong><small>Show the most recent compiler output</small></button>
               </div>
             </div>
@@ -145,6 +146,7 @@
             <div id="pdf-viewer" aria-label="Compiled PDF preview">
               <div class="pdf-canvas-wrap"><canvas id="pdf-canvas"></canvas></div>
             </div>
+            <iframe id="html-proof" title="Adaptive HTML layout proof" sandbox="allow-scripts allow-same-origin allow-modals" hidden></iframe>
             <section class="logs-panel" id="logs-panel" aria-label="Compile logs">
               <div class="logs-heading"><strong>Compile log</strong><button id="close-logs">×</button></div>
               <pre id="compile-log">No compilation has run in this session.</pre>

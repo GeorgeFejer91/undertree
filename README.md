@@ -13,7 +13,11 @@ profile already installed on this computer.
   formatting helpers, search, dirty indicators, atomic auto-save, and conflict
   protection;
 - green Recompile control, build logs, download, and embedded PDF preview;
-- a real compile-options menu for normal rebuilds, clean rebuilds, and logs;
+- an original, PreTeXt-inspired LocalTeX Layout source type for adaptive fixed
+  boxes, with semantic XML, runtime validation, HTML and LuaLaTeX targets,
+  bounded per-box font/spacing fitting, and visible overflow failures;
+- a real compile-options menu for normal rebuilds, clean rebuilds, embedded
+  adaptive HTML proofs, and logs;
 - bundled offline PDF.js rendering with page navigation, fit-width, and zoom;
 - project-wide text search;
 - local Git state and explicit safe bridge pull/push controls;
@@ -54,7 +58,14 @@ download handling.
 The green **Recompile** button never navigates the workspace: it saves the
 active source, runs the configured local build, and atomically replaces only
 the PDF canvas. Its arrow opens options for a normal rebuild, a clean rebuild,
-or the most recent compile log.
+the latest adaptive HTML proof, or the most recent compile log. When the active
+file ends in `.layout.xml`, the same button becomes **Render layout** and builds
+that semantic source instead of the project's ordinary TeX root.
+
+See `LAYOUT_FORMAT.md` and `examples/adaptive-boxes.layout.xml` for the adaptive
+box format. Generated HTML, LuaLaTeX, and PDF files remain in the ignored
+`.localtex-layout/` build directory, while the editable `.layout.xml` source
+stays in the project repository.
 
 Manual remote synchronization is deliberately commit-based. **GitHub Sync**
 and **Overleaf Sync** push the current committed checkpoint to their named

@@ -8,6 +8,7 @@ import {
   readdir,
   realpath,
   rename,
+  rm,
   stat,
   writeFile,
 } from "node:fs/promises";
@@ -15,6 +16,7 @@ import { createServer } from "node:http";
 import { basename, dirname, extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { compileLayout } from "./layout/compiler.mjs";
 
 const APP_ROOT = dirname(fileURLToPath(import.meta.url));
 const DIST_ROOT = join(APP_ROOT, "dist");
@@ -37,7 +39,7 @@ const TEXT_EXTENSIONS = new Set([
   ".py", ".r", ".rnw", ".sh", ".lua", ".xml",
 ]);
 const IGNORED_DIRECTORIES = new Set([
-  ".git", ".tex-build", "node_modules", ".cache", ".idea", ".vscode", "tmp",
+  ".git", ".tex-build", ".localtex-layout", "node_modules", ".cache", ".idea", ".vscode", "tmp",
 ]);
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -55,6 +57,8 @@ const MIME_TYPES = {
 
 let projectCache = { at: 0, projects: [] };
 const builds = new Map();
+const previewPdfs = new Map();
+const layoutOutputs = new Map();
 
 function idForPath(localPath) {
   return createHash("sha256").update(localPath).digest("hex").slice(0, 16);
@@ -319,6 +323,8 @@ async function buildInfo(project) {
 }
 
 async function locatePdf(project) {
+  const preview = previewPdfs.get(project.id);
+  if (preview && await exists(preview)) return preview;
   const { rootDocument } = await buildInfo(project);
   if (!rootDocument) return null;
   const pdfName = `${basename(rootDocument, extname(rootDocument))}.pdf`;
@@ -344,9 +350,46 @@ async function locatePdf(project) {
   return null;
 }
 
-async function buildProject(project, cleanFirst = false) {
+async function buildLayoutProject(project, sourcePath, cleanFirst = false) {
+  const resolvedSource = await resolveExisting(project, sourcePath);
+  if (!resolvedSource.relativePath.toLowerCase().endsWith(".layout.xml")) throw httpError(415, "Adaptive layout sources must end in .layout.xml");
+  const stem = basename(resolvedSource.relativePath).replace(/\.layout\.xml$/i, "");
+  const outputDirectory = join(project.localPath, ".localtex-layout", stem);
+  if (cleanFirst) await rm(outputDirectory, { recursive: true, force: true });
+  let generated;
+  try {
+    generated = await compileLayout(resolvedSource.path, outputDirectory);
+  } catch (error) {
+    throw httpError(422, `${error.name || "LayoutError"}: ${error.message}`);
+  }
+  const result = await command("latexmk", [
+    "-norc", "-lualatex", "-interaction=nonstopmode", "-file-line-error", "-halt-on-error",
+    `-outdir=${generated.outDir}`, generated.texPath,
+  ], project.localPath, { timeout: 240000, maxOutput: 4 * 1024 * 1024 });
+  const pdfAvailable = await exists(generated.pdfPath);
+  if (pdfAvailable) previewPdfs.set(project.id, generated.pdfPath);
+  const layout = {
+    sourcePath: resolvedSource.relativePath,
+    htmlName: basename(generated.htmlPath),
+    texName: basename(generated.texPath),
+    pdfName: basename(generated.pdfPath),
+  };
+  layoutOutputs.set(project.id, { ...generated, ...layout });
+  return {
+    ...result,
+    output: `LocalTeX Layout validated and generated two targets.\nHTML: ${generated.htmlPath}\nLuaLaTeX: ${generated.texPath}\n\n${result.stdout}${result.stderr}`,
+    pdfAvailable,
+    compiledAt: new Date().toISOString(),
+    layout,
+  };
+}
+
+async function buildProject(project, cleanFirst = false, layoutSource = "") {
   if (builds.has(project.id)) return builds.get(project.id);
   const buildPromise = (async () => {
+    if (layoutSource) return buildLayoutProject(project, layoutSource, cleanFirst);
+    previewPdfs.delete(project.id);
+    layoutOutputs.delete(project.id);
     const bridge = join(project.localPath, "scripts", "tex-sync");
     let result;
     if (await exists(bridge)) {
@@ -538,7 +581,19 @@ async function handleApi(req, res, url) {
   if (action === "search" && req.method === "GET") return json(res, 200, { results: await searchProject(project, url.searchParams.get("q") || "") });
   if (action === "build" && req.method === "POST") {
     const body = await readJson(req);
-    return json(res, 200, await buildProject(project, body.clean === true));
+    const layoutSource = typeof body.sourcePath === "string" && body.sourcePath.toLowerCase().endsWith(".layout.xml") ? body.sourcePath : "";
+    return json(res, 200, await buildProject(project, body.clean === true, layoutSource));
+  }
+  if (action === "layout-info" && req.method === "GET") {
+    const output = layoutOutputs.get(project.id);
+    return json(res, 200, { available: Boolean(output && await exists(output.htmlPath)), sourcePath: output?.sourcePath || "", name: output?.htmlName || "" });
+  }
+  if (action === "layout-html" && req.method === "GET") {
+    const output = layoutOutputs.get(project.id);
+    if (!output || !(await exists(output.htmlPath))) throw httpError(404, "Compile a .layout.xml source to create its HTML proof");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("Content-Security-Policy", "default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'self'");
+    return serveFile(res, output.htmlPath, { contentType: "text/html; charset=utf-8" });
   }
   if (action === "pdf-info" && req.method === "GET") {
     const pdf = await locatePdf(project);

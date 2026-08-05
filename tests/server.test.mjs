@@ -52,6 +52,8 @@ Offline fixture text.
 Local compilation works.
 \end{document}
 `);
+  await writeFile(join(project, "adaptive.layout.xml"), `<?xml version="1.0"?>
+<layout-document version="1" title="Server layout"><page size="A4" margin="10mm"><grid columns="1fr" rows="1fr"><box id="adaptive" min-font-size="8.5pt" max-font-size="14pt"><heading>Adaptive server proof</heading><p>The selected semantic layout compiles through the authenticated local API.</p></box></grid></page></layout-document>`);
   await writeFile(join(project, ".tex-sync.conf"), `[sync]\n\tgithubRemote = origin\n\tgithubBranch = main\n\toverleafProjectUrl = https://www.overleaf.com/project/fixture\n\tmode = direct-git\n\toverleafRemote = overleaf\n[build]\n\troot = main.tex\n\tengine = pdflatex\n\tworkingDirectory = repository-root\n\tshellEscape = false\n`);
   const bridge = `#!/usr/bin/env bash\nset -euo pipefail\nif [[ \"\${1:-}\" == build ]]; then\n  mkdir -p .tex-build\n  latexmk -norc -pdf -interaction=nonstopmode -halt-on-error -outdir=.tex-build main.tex\nelif [[ \"\${1:-}\" == pull || \"\${1:-}\" == push ]]; then\n  echo \"fixture \$1 completed safely\"\nelse\n  echo \"unsupported fixture action\" >&2\n  exit 2\nfi\n`;
   const bridgeWithClean = bridge.replace(
@@ -167,6 +169,25 @@ Local compilation works.
   assert.equal(pdf.status, 200);
   assert.equal(pdf.headers.get("content-type"), "application/pdf");
   assert.ok((await pdf.arrayBuffer()).byteLength > 1000);
+
+  const adaptiveBuildResponse = await fetch(`${baseUrl}/api/project/${projectId}/build`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ sourcePath: "adaptive.layout.xml" }),
+  });
+  assert.equal(adaptiveBuildResponse.status, 200);
+  const adaptiveBuild = await adaptiveBuildResponse.json();
+  assert.equal(adaptiveBuild.pdfAvailable, true, `${serverOutput}\n${adaptiveBuild.output || ""}`);
+  assert.equal(adaptiveBuild.layout.sourcePath, "adaptive.layout.xml");
+  const layoutInfo = await (await fetch(`${baseUrl}/api/project/${projectId}/layout-info`, { headers })).json();
+  assert.equal(layoutInfo.available, true);
+  assert.equal(layoutInfo.sourcePath, "adaptive.layout.xml");
+  const htmlProof = await fetch(`${baseUrl}/api/project/${projectId}/layout-html`, { headers });
+  assert.equal(htmlProof.status, 200);
+  assert.match(await htmlProof.text(), /Adaptive server proof/);
+  const adaptivePdf = await fetch(`${baseUrl}/api/project/${projectId}/pdf`, { headers });
+  assert.equal(adaptivePdf.status, 200);
+  assert.ok((await adaptivePdf.arrayBuffer()).byteLength > 1000);
 
   for (const action of ["pull", "push"]) {
     const sync = await fetch(`${baseUrl}/api/project/${projectId}/sync`, {
