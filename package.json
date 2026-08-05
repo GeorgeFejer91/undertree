@@ -1,0 +1,20 @@
+{
+  "name": "localtex-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline Overleaf-style desktop workspace for local TeX projects",
+  "scripts": {
+    "build": "vite build",
+    "start": "node server.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@codemirror/language": "^6.11.3",
+    "@codemirror/legacy-modes": "^6.5.3",
+    "codemirror": "^6.0.2"
+  },
+  "devDependencies": {
+    "vite": "^7.1.1"
+  }
+}

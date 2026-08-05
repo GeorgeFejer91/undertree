@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=LocalTeX Studio
+GenericName=Offline LaTeX Editor
+Comment=Open the offline Overleaf-style local TeX workspace
+Exec=@APP_ROOT@/bin/localtex-studio
+Icon=localtex-studio
+Terminal=false
+Categories=Office;Publishing;
+Keywords=LaTeX;TeX;PDF;Overleaf;TeXstudio;offline;
+StartupNotify=true
+StartupWMClass=LocalTeXStudio
+Actions=OpenPilot;
+
+[Desktop Action OpenPilot]
+Name=Open HTML/LaTeX parity project
+Exec=@APP_ROOT@/bin/localtex-studio pretext-a4-layout-compiler

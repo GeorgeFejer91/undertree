@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231b222c'/%3E%3Cpath d='M8 4h11l5 5v19H8z' fill='none' stroke='%2338cc89' stroke-width='2'/%3E%3Cpath d='M12 14h9M16.5 14v9' stroke='%23f4f5f6' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <title>LocalTeX Studio</title>
+  </head>
+  <body>
+    <main id="app" aria-label="LocalTeX Studio offline editor">
+      <header class="topbar">
+        <div class="brand-and-menu">
+          <button class="brand-mark" id="home-button" title="Choose a project" aria-label="Choose a project">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 3h13l6 6v20H7z"/><path class="fold" d="M20 3v7h6"/><path class="glyph" d="M11 15h11M11 20h8M11 25h6"/></svg>
+          </button>
+          <nav class="menubar" aria-label="Application menus">
+            <button data-menu="file">File</button>
+            <button data-menu="edit">Edit</button>
+            <button data-menu="view">View</button>
+            <button data-menu="build">Build</button>
+            <button data-menu="help">Help</button>
+          </nav>
+        </div>
+        <label class="project-picker-wrap" title="Switch local project">
+          <img id="project-icon" alt="" />
+          <select id="project-picker" aria-label="Current project"></select>
+          <span aria-hidden="true">⌄</span>
+        </label>
+        <div class="top-actions">
+          <span class="offline-pill"><span class="status-dot"></span>Offline ready</span>
+          <button class="round-button" id="refresh-project" title="Refresh project">↻</button>
+          <button class="pill-button subdued" id="open-texstudio">Open TeXstudio</button>
+        </div>
+      </header>
+
+      <section class="workspace" id="workspace">
+        <aside class="rail" aria-label="Workspace navigation">
+          <button class="rail-button active" data-panel="files" title="File tree" aria-label="File tree">▤</button>
+          <button class="rail-button" data-panel="search" title="Project search" aria-label="Project search">⌕</button>
+          <button class="rail-button" data-panel="git" title="Git and synchronization" aria-label="Git and synchronization">↔</button>
+          <span class="rail-spacer"></span>
+          <button class="rail-button" data-panel="settings" title="Settings" aria-label="Settings">⚙</button>
+        </aside>
+
+        <aside class="left-panel" id="left-panel">
+          <section class="left-view active" data-view="files">
+            <div class="panel-heading">
+              <button class="heading-title" id="collapse-files">⌄ <strong>File tree</strong></button>
+              <div class="heading-actions">
+                <button id="new-file" title="New file">＋</button>
+                <button id="new-folder" title="New folder">▱</button>
+              </div>
+            </div>
+            <div class="tree-scroll" id="file-tree" role="tree"></div>
+            <section class="outline-panel">
+              <div class="panel-heading compact"><span>⌄ <strong>File outline</strong></span></div>
+              <div id="file-outline" class="outline-list"><p>Open a TeX file to see its structure.</p></div>
+            </section>
+          </section>
+
+          <section class="left-view" data-view="search">
+            <div class="panel-heading"><strong>Project search</strong></div>
+            <div class="search-box"><span>⌕</span><input id="project-search" type="search" placeholder="Search all project text" /></div>
+            <div class="search-results" id="search-results"><p>Enter at least two characters.</p></div>
+          </section>
+
+          <section class="left-view" data-view="git">
+            <div class="panel-heading"><strong>Git &amp; bridge</strong><button id="refresh-status" title="Refresh status">↻</button></div>
+            <div class="git-summary" id="git-summary"></div>
+            <div class="sync-actions">
+              <button class="pill-button subdued" id="sync-pull">Pull safely</button>
+              <button class="pill-button primary" id="sync-push">Push commits</button>
+            </div>
+            <pre class="mini-log" id="sync-log"></pre>
+          </section>
+
+          <section class="left-view" data-view="settings">
+            <div class="panel-heading"><strong>Local settings</strong></div>
+            <div class="settings-list">
+              <label><span>Editor font size</span><input id="font-size" type="range" min="11" max="22" value="14" /></label>
+              <label><span>Auto-save edits</span><input id="auto-save" type="checkbox" checked /></label>
+              <label><span>Word wrap</span><input id="word-wrap" type="checkbox" checked /></label>
+              <p>All files stay in the canonical local Git project. No internet connection is required to edit or compile.</p>
+            </div>
+          </section>
+        </aside>
+
+        <div class="resizer" id="left-resizer" role="separator" aria-orientation="vertical" aria-label="Resize file panel"></div>
+
+        <section class="editor-pane" id="editor-pane">
+          <div class="editor-tabs" id="editor-tabs"><span class="empty-tab">No file open</span></div>
+          <div class="editor-toolbar" role="toolbar" aria-label="Editor toolbar">
+            <button id="undo" title="Undo">↶</button>
+            <button id="redo" title="Redo">↷</button>
+            <span class="toolbar-divider"></span>
+            <button id="bold" title="Bold"><strong>B</strong></button>
+            <button id="italic" title="Italic"><em>I</em></button>
+            <button id="insert-cite" title="Insert citation">Cite</button>
+            <span class="toolbar-spacer"></span>
+            <span class="save-state" id="save-state">No file</span>
+            <button id="search-file" title="Search current file">⌕</button>
+          </div>
+          <div class="editor-host" id="editor-host">
+            <div class="empty-editor">
+              <div class="empty-document-icon">T</div>
+              <h1>LocalTeX Studio</h1>
+              <p>Choose a source file from the project tree.</p>
+            </div>
+          </div>
+        </section>
+
+        <div class="resizer" id="right-resizer" role="separator" aria-orientation="vertical" aria-label="Resize PDF panel"></div>
+
+        <section class="preview-pane" id="preview-pane">
+          <div class="preview-toolbar" role="toolbar" aria-label="PDF toolbar">
+            <div class="compile-control">
+              <button class="compile-button" id="compile">Recompile</button>
+              <button class="compile-menu-button" id="compile-menu" title="Compile options">⌄</button>
+            </div>
+            <button id="toggle-logs" title="View compile logs">▤</button>
+            <a id="download-pdf" class="toolbar-link disabled" title="Download PDF" aria-disabled="true">⇩</a>
+            <span class="toolbar-spacer"></span>
+            <span id="page-status">PDF preview</span>
+            <button id="reload-pdf" title="Reload PDF">↻</button>
+            <button id="hide-preview" title="Hide PDF preview">›</button>
+          </div>
+          <div class="preview-stage" id="preview-stage">
+            <div class="pdf-placeholder" id="pdf-placeholder">
+              <div class="pdf-sheet"></div>
+              <p>Compile the project to render its PDF.</p>
+            </div>
+            <iframe id="pdf-frame" title="Compiled PDF preview"></iframe>
+            <section class="logs-panel" id="logs-panel" aria-label="Compile logs">
+              <div class="logs-heading"><strong>Compile log</strong><button id="close-logs">×</button></div>
+              <pre id="compile-log">No compilation has run in this session.</pre>
+            </section>
+          </div>
+        </section>
+      </section>
+
+      <footer class="statusbar">
+        <span id="status-message">Starting local workspace…</span>
+        <span class="status-spacer"></span>
+        <span id="build-config">No project selected</span>
+        <span id="git-state">Git status unavailable</span>
+      </footer>
+
+      <div class="toast-region" id="toast-region" aria-live="polite"></div>
+      <div class="modal-backdrop" id="project-modal" hidden>
+        <section class="project-dialog" role="dialog" aria-modal="true" aria-labelledby="project-dialog-title">
+          <div class="dialog-heading"><h2 id="project-dialog-title">Open local TeX project</h2><button id="close-project-modal">×</button></div>
+          <input id="project-filter" type="search" placeholder="Search 82 local projects by name, topic, or repository" autofocus />
+          <div class="project-list" id="project-list"></div>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
