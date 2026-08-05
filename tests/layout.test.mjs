@@ -11,7 +11,7 @@ const VALID_LAYOUT = `<?xml version="1.0"?>
   <page size="A4" margin="10mm">
     <grid columns="1fr 2fr" rows="35mm 1fr" gap="4mm">
       <box id="heading" row="1" column="1" column-span="2" min-font-size="8.5pt" max-font-size="15pt">
-        <heading>Adaptive title</heading><p>Short semantic text.</p>
+        <heading scale="1.4" leading="1.5" color="#006c76">Adaptive title</heading><p>Short semantic text.</p>
       </box>
       <box id="details" row="2" column="1" padding="3mm"><p>Left panel.</p></box>
       <box id="notes" row="2" column="2" padding="3mm"><list><item>First</item><item>Second</item></list></box>
@@ -41,8 +41,10 @@ test("semantic layout validates and emits physical HTML and LuaLaTeX targets", (
   assert.match(html, /data-min-font="8\.5"/);
   assert.match(html, /CONTENT DOES NOT FIT/);
   assert.match(html, /function fitBox/);
+  assert.match(html, /font-size:1\.4em;line-height:1\.5;color:#006c76/);
   const latex = renderLatex(model);
   assert.match(latex, /\\newcommand\{\\LocalTeXAdaptiveBox\}\[6\]/);
+  assert.match(latex, /\\LocalTeXScaledFont\{140\}\{150\}/);
   assert.match(latex, /paperwidth=210mm,paperheight=297mm/);
   assert.match(latex, /Content overflow in an adaptive box/);
 });
@@ -52,6 +54,8 @@ test("validator rejects overlapping boxes and minimum sizes above maximum sizes"
   assert.throws(() => parseLayout(overlap), LayoutError);
   const inverted = VALID_LAYOUT.replace('min-font-size="8.5pt" max-font-size="15pt"', 'min-font-size="16pt" max-font-size="15pt"');
   assert.throws(() => parseLayout(inverted), /minimum font size exceeds/);
+  const excessiveScale = VALID_LAYOUT.replace('scale="1.4"', 'scale="4.1"');
+  assert.throws(() => parseLayout(excessiveScale), /scale must be between 0 and 4/);
 });
 
 test("compiler writes both targets and the generated LuaLaTeX produces one A4 PDF", async (context) => {

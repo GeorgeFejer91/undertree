@@ -74,6 +74,7 @@ try {
   assert.equal(await page.locator("#pdf-viewer.visible #pdf-canvas").count(), 1);
   assert.equal(await page.locator("#logs-panel.visible").count(), 0);
 
+  await page.getByRole("button", { name: "File tree" }).click();
   await page.locator('.tree-row[title="layout-experiments"]').click();
   await page.locator('.tree-row[title="layout-experiments/adaptive-boxes.layout.xml"]').click();
   await page.getByRole("button", { name: "Render layout", exact: true }).waitFor({ timeout: 15000 });
@@ -85,7 +86,23 @@ try {
   await page.waitForSelector("#html-proof:not([hidden])", { timeout: 15000 });
   const proofFrame = page.frameLocator("#html-proof");
   await proofFrame.locator("#short-box").waitFor({ timeout: 15000 });
-  assert.equal(await proofFrame.locator(".fit-error").count(), 0, "example HTML boxes should fit above their declared minimums");
+  const exampleFitErrors = await proofFrame.locator(".fit-error").evaluateAll((boxes) => boxes.map((box) => {
+    const content = box.querySelector(".box-content");
+    return { id: box.id, client: [content.clientWidth, content.clientHeight], scroll: [content.scrollWidth, content.scrollHeight], rect: [box.clientWidth, box.clientHeight] };
+  }));
+  assert.deepEqual(exampleFitErrors, [], `example HTML boxes should fit above their declared minimums: ${JSON.stringify(exampleFitErrors)}`);
+
+  await page.locator('.tree-row[title="layout-experiments/ethics-participant-information-sheet.layout.xml"]').click();
+  await page.getByRole("button", { name: "Render layout", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector("#compile")?.textContent === "Render layout" && !document.querySelector("#compile")?.disabled, null, { timeout: 240000 });
+  await page.locator("#compile-menu").click();
+  await page.locator('[data-compile-action="proof"]').click();
+  await page.waitForSelector("#html-proof:not([hidden])", { timeout: 15000 });
+  const ethicsProof = page.frameLocator("#html-proof");
+  await ethicsProof.locator("#intro-copy[data-fitted-font]").waitFor({ timeout: 30000 });
+  assert.equal(await ethicsProof.locator(".page").count(), 1, "ethics HTML proof should stay on one page");
+  const ethicsFitErrors = await ethicsProof.locator(".fit-error").evaluateAll((boxes) => boxes.map((box) => box.id));
+  assert.deepEqual(ethicsFitErrors, [], `ethics HTML boxes should fit above their declared minimums: ${ethicsFitErrors.join(", ")}`);
   assert.equal(errors.length, 0, `browser console errors: ${errors.join(" | ")}`);
   assert.equal(externalRequests.length, 0, `offline UI made external requests: ${externalRequests.join(" | ")}`);
   if (process.env.LOCALTEX_SCREENSHOT) await page.screenshot({ path: process.env.LOCALTEX_SCREENSHOT, fullPage: false });

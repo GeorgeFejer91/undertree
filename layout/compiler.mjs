@@ -120,6 +120,9 @@ function parseBlocks(children, context) {
   return entries.map((entry) => {
     if (!BLOCK_TAGS.has(entry.tag)) fail(`${context} contains unsupported block <${entry.tag}>.`);
     if (["heading", "p", "label"].includes(entry.tag)) {
+      if (entry.attrs.scale !== undefined && (!Number.isFinite(Number(entry.attrs.scale)) || Number(entry.attrs.scale) <= 0 || Number(entry.attrs.scale) > 4)) fail(`${context} <${entry.tag}> scale must be between 0 and 4.`);
+      if (entry.attrs.leading !== undefined && (!Number.isFinite(Number(entry.attrs.leading)) || Number(entry.attrs.leading) <= 0 || Number(entry.attrs.leading) > 5)) fail(`${context} <${entry.tag}> leading must be between 0 and 5.`);
+      if (entry.attrs.color) entry.attrs.color = safeColor(entry.attrs.color, `${context} <${entry.tag}> color`, "#172b36");
       return { type: entry.tag, attrs: entry.attrs, children: parseInline(entry.children, `${context} <${entry.tag}>`) };
     }
     if (entry.tag === "list") {
@@ -250,11 +253,15 @@ function renderHtmlInline(nodes) {
 }
 
 function renderHtmlBlock(block) {
-  if (block.type === "heading") return `<h2>${renderHtmlInline(block.children)}</h2>`;
-  if (block.type === "p") return `<p>${renderHtmlInline(block.children)}</p>`;
-  if (block.type === "label") return `<div class="label">${renderHtmlInline(block.children)}</div>`;
+  const defaultScale = block.type === "heading" ? 1.22 : block.type === "label" ? 0.78 : 1;
+  const scale = Number(block.attrs?.scale || defaultScale);
+  const leading = Number(block.attrs?.leading || (block.type === "heading" ? scale * 1.1 : block.type === "label" ? scale * 1.14 : 1.2));
+  const blockStyle = `font-size:${scale}em;line-height:${leading};${block.attrs?.color ? `color:${block.attrs.color};` : ""}`;
+  if (block.type === "heading") return `<h2 style="${blockStyle}">${renderHtmlInline(block.children)}</h2>`;
+  if (block.type === "p") return `<p style="${blockStyle}">${renderHtmlInline(block.children)}</p>`;
+  if (block.type === "label") return `<div class="label" style="${blockStyle}">${renderHtmlInline(block.children)}</div>`;
   if (block.type === "list") return `<ul>${block.items.map((item) => `<li>${renderHtmlInline(item)}</li>`).join("")}</ul>`;
-  if (block.type === "image") return `<figure><img src="${htmlEscape(block.dataUri || block.attrs.src)}" alt="${htmlEscape(block.attrs.alt || "")}" style="max-height:${htmlEscape(block.attrs.height || "28mm")}">${block.attrs.caption ? `<figcaption>${htmlEscape(block.attrs.caption)}</figcaption>` : ""}</figure>`;
+  if (block.type === "image") return `<figure><img src="${htmlEscape(block.dataUri || block.attrs.src)}" alt="${htmlEscape(block.attrs.alt || "")}" style="${block.attrs.width ? `width:${htmlEscape(block.attrs.width)};` : ""}max-height:${htmlEscape(block.attrs.height || "28mm")}">${block.attrs.caption ? `<figcaption>${htmlEscape(block.attrs.caption)}</figcaption>` : ""}</figure>`;
   if (block.type === "rule") return "<hr>";
   if (block.type === "spacer") return `<div class="spacer" style="height:${htmlEscape(block.attrs.height || "1mm")}"></div>`;
   return "";
@@ -275,7 +282,7 @@ export function renderHtml(model) {
 </style></head><body><div class="controls"><button type="button" onclick="fitAll()">Refit boxes</button><button type="button" onclick="window.print()">Print / Save PDF</button></div><div id="fit-report" class="fit-report" hidden></div>${pages}
 <script>
 const mm=(value)=>value+'mm';
-function fits(content){return content.scrollHeight<=content.clientHeight+.75&&content.scrollWidth<=content.clientWidth+.75}
+function fits(content){return content.scrollHeight<=content.clientHeight+1.25&&content.scrollWidth<=content.clientWidth+1.25}
 function setFit(box,font,comfort){const minLead=+box.dataset.minLeading,maxLead=+box.dataset.maxLeading,minGap=+box.dataset.minGap,maxGap=+box.dataset.maxGap;box.style.setProperty('--fit-font',font.toFixed(3)+'pt');box.style.setProperty('--fit-leading',(minLead+(maxLead-minLead)*comfort).toFixed(4));box.style.setProperty('--fit-gap',mm((minGap+(maxGap-minGap)*comfort).toFixed(3)))}
 function fitBox(box){box.classList.remove('fit-error');box.querySelector('.fit-error-banner')?.remove();const content=box.querySelector('.box-content'),min=+box.dataset.minFont,max=+box.dataset.maxFont;setFit(box,min,0);if(!fits(content)){box.classList.add('fit-error');const banner=document.createElement('div');banner.className='fit-error-banner';banner.textContent='CONTENT DOES NOT FIT AT '+min+' PT';box.append(banner);return false}let low=min,high=max;for(let i=0;i<18;i++){const mid=(low+high)/2;setFit(box,mid,0);if(fits(content))low=mid;else high=mid}let bestFont=low;low=0;high=1;for(let i=0;i<16;i++){const mid=(low+high)/2;setFit(box,bestFont,mid);if(fits(content))low=mid;else high=mid}setFit(box,bestFont,low);box.dataset.fittedFont=bestFont.toFixed(2);return true}
 function fitAll(){const failed=[...document.querySelectorAll('[data-fit]')].filter((box)=>!fitBox(box));const report=document.getElementById('fit-report');report.hidden=!failed.length;report.textContent=failed.length?failed.length+' box'+(failed.length===1?'':'es')+' cannot fit above the declared minimum: '+failed.map((box)=>box.id).join(', '):'';return failed.length===0}
@@ -300,15 +307,30 @@ function renderTexInline(nodes) {
   }).join("");
 }
 
-function renderTexBlock(block, box, headingColorName) {
-  if (block.type === "heading") return `{\\bfseries\\color{${headingColorName}}\\LocalTeXHeadingFont ${renderTexInline(block.children)}}\\par`;
-  if (block.type === "p") return `${renderTexInline(block.children)}\\par`;
-  if (block.type === "label") return `{\\bfseries\\footnotesize ${renderTexInline(block.children)}}\\par`;
+function scaleParts(block) {
+  const defaultScale = block.type === "heading" ? 1.22 : block.type === "label" ? 0.78 : 1;
+  const scale = Number(block.attrs?.scale || defaultScale);
+  const leading = Number(block.attrs?.leading || (block.type === "heading" ? scale * 1.1 : block.type === "label" ? scale * 1.14 : 1.2));
+  // A centesimal ratio is precise enough for type and keeps TeX's intermediate
+  // dimension below its hard 16383.99999pt limit while the fit loop runs.
+  return { scale: Math.round(scale * 100), leading: Math.round(leading * 100) };
+}
+
+function renderTexBlock(block, box, headingColorName, colorName) {
+  const sizing = scaleParts(block);
+  const blockColor = block.attrs?.color ? colorName(block.attrs.color) : block.type === "heading" ? headingColorName : "";
+  if (block.type === "heading") return `{\\bfseries${blockColor ? `\\color{${blockColor}}` : ""}\\LocalTeXScaledFont{${sizing.scale}}{${sizing.leading}} ${renderTexInline(block.children)}}\\par`;
+  if (block.type === "p") return `{${blockColor ? `\\color{${blockColor}}` : ""}\\LocalTeXScaledFont{${sizing.scale}}{${sizing.leading}} ${renderTexInline(block.children)}}\\par`;
+  if (block.type === "label") return `{\\bfseries${blockColor ? `\\color{${blockColor}}` : ""}\\LocalTeXScaledFont{${sizing.scale}}{${sizing.leading}} ${renderTexInline(block.children)}}\\par`;
   if (block.type === "list") return `\\begin{itemize}[leftmargin=1.25em,topsep=0pt,itemsep=.25em,parsep=0pt]${block.items.map((item) => `\\item ${renderTexInline(item)}`).join("")}\\end{itemize}`;
   if (block.type === "image") {
     const requestedHeight = parseLength(block.attrs.height, `${box.id} image height`, Math.min(28, box.height / 2));
+    const requestedWidth = parseLength(block.attrs.width, `${box.id} image width`, box.width - box.padding * 2);
     const path = texEscape(block.absolutePath || block.attrs.src);
-    return `\\begin{center}\\includegraphics[width=${num(box.width - box.padding * 2)}mm,height=${num(requestedHeight)}mm,keepaspectratio]{\\detokenize{${path}}}${block.attrs.caption ? `\\par{\\scriptsize ${texEscape(block.attrs.caption)}}` : ""}\\end{center}`;
+    // Avoid LaTeX's center environment here: its implicit vertical skips make
+    // physical image regions disagree with the HTML target and the declared
+    // box height. A scoped centering declaration has no hidden block margins.
+    return `{\\centering\\includegraphics[width=${num(Math.min(requestedWidth, box.width - box.padding * 2))}mm,height=${num(requestedHeight)}mm,keepaspectratio]{\\detokenize{${path}}}${block.attrs.caption ? `\\par{\\scriptsize ${texEscape(block.attrs.caption)}}` : ""}\\par}`;
   }
   if (block.type === "rule") return "\\hrule height .2mm";
   if (block.type === "spacer") return `\\vskip ${num(parseLength(block.attrs.height, `${box.id} spacer height`, 1))}mm`;
@@ -331,7 +353,10 @@ export function renderLatex(model) {
   };
   model.pages.forEach((candidate) => {
     colorName(candidate.background);
-    candidate.boxes.forEach((box) => [box.background, box.color, box.headingColor, box.borderColor].forEach(colorName));
+    candidate.boxes.forEach((box) => {
+      [box.background, box.color, box.headingColor, box.borderColor].forEach(colorName);
+      box.blocks.forEach((block) => { if (block.attrs?.color) colorName(block.attrs.color); });
+    });
   });
   const pageBodies = model.pages.map((candidate) => {
     const drawings = [`\\fill[${colorName(candidate.background)}] (current page.north west) rectangle (current page.south east);`];
@@ -339,7 +364,7 @@ export function renderLatex(model) {
       const x = num(box.x), y = num(box.y), width = num(box.width), height = num(box.height);
       const innerX = num(box.x + box.padding), innerY = num(box.y + box.padding), innerWidth = num(box.width - box.padding * 2), innerHeight = num(box.height - box.padding * 2);
       drawings.push(`\\path[fill=${colorName(box.background)},draw=${colorName(box.borderColor)},line width=${num(box.borderWidth)}mm,rounded corners=${num(box.radius)}mm] ([xshift=${x}mm,yshift=-${y}mm]current page.north west) rectangle ++(${width}mm,-${height}mm);`);
-      const blocks = box.blocks.map((block) => renderTexBlock(block, box, colorName(box.headingColor))).join(`\\LocalTeXGap{${num(box.minGap)}mm}`);
+      const blocks = box.blocks.map((block) => renderTexBlock(block, box, colorName(box.headingColor), colorName)).join(`\\LocalTeXGap{${num(box.minGap)}mm}`);
       drawings.push(`\\begin{scope}\\clip ([xshift=${innerX}mm,yshift=-${innerY}mm]current page.north west) rectangle ++(${innerWidth}mm,-${innerHeight}mm);\\node[anchor=north west,inner sep=0pt,outer sep=0pt,text=${colorName(box.color)}] at ([xshift=${innerX}mm,yshift=-${innerY}mm]current page.north west) {\\LocalTeXAdaptiveBox{${innerWidth}mm}{${innerHeight}mm}{${box.maxFontSize}pt}{${box.minFontSize}pt}{${blocks}}{${box.valign}}};\\end{scope}`);
     });
     return `\\begin{tikzpicture}[remember picture,overlay]${drawings.join("\n")}\\end{tikzpicture}\\null`;
@@ -354,6 +379,7 @@ export function renderLatex(model) {
 \\usepackage{tikz}
 \\usepackage{enumitem}
 \\usepackage{etoolbox}
+\\usepackage{ragged2e}
 \\usepackage{hyperref}
 \\setmainfont{Noto Sans}
 \\pagestyle{empty}
@@ -376,9 +402,10 @@ ${definitions}
 \\newif\\ifLocalTeXDistribute
 \\newcommand{\\LocalTeXSetFont}{\\LocalTeXLeading=\\dimexpr 6\\LocalTeXFontSize/5\\relax\\fontsize{\\strip@pt\\LocalTeXFontSize}{\\strip@pt\\LocalTeXLeading}\\selectfont}
 \\newcommand{\\LocalTeXHeadingFont}{\\LocalTeXHeadingSize=\\dimexpr 61\\LocalTeXFontSize/50\\relax\\LocalTeXHeadingLeading=\\dimexpr 68\\LocalTeXFontSize/50\\relax\\fontsize{\\strip@pt\\LocalTeXHeadingSize}{\\strip@pt\\LocalTeXHeadingLeading}\\selectfont}
+\\newcommand{\\LocalTeXScaledFont}[2]{\\LocalTeXHeadingSize=\\dimexpr #1\\LocalTeXFontSize/100\\relax\\LocalTeXHeadingLeading=\\dimexpr #2\\LocalTeXFontSize/100\\relax\\fontsize{\\strip@pt\\LocalTeXHeadingSize}{\\strip@pt\\LocalTeXHeadingLeading}\\selectfont}
 \\newcommand{\\LocalTeXGap}[1]{\\ifLocalTeXFinal\\ifLocalTeXDistribute\\vskip #1 plus 1fill\\else\\vskip #1\\fi\\else\\vskip #1\\fi}
 \\newcommand{\\LocalTeXFitLoop}{%
-  \\setbox\\LocalTeXMeasureBox=\\vbox{\\hsize=\\LocalTeXTargetWidth\\linewidth=\\LocalTeXTargetWidth\\emergencystretch=1.5em\\sloppy\\LocalTeXSetFont\\LocalTeXContent}%
+  \\setbox\\LocalTeXMeasureBox=\\vbox{\\hsize=\\LocalTeXTargetWidth\\linewidth=\\LocalTeXTargetWidth\\emergencystretch=1.5em\\RaggedRight\\LocalTeXSetFont\\LocalTeXContent}%
   \\ifdim\\dimexpr\\ht\\LocalTeXMeasureBox+\\dp\\LocalTeXMeasureBox\\relax>\\LocalTeXTargetHeight
     \\advance\\LocalTeXFontSize by -.25pt
     \\ifdim\\LocalTeXFontSize<\\LocalTeXMinFontSize\\LocalTeXOverflowtrue\\else\\expandafter\\LocalTeXFitLoop\\fi
@@ -386,7 +413,7 @@ ${definitions}
 \\newcommand{\\LocalTeXAdaptiveBox}[6]{\\begingroup
   \\LocalTeXTargetWidth=#1\\LocalTeXTargetHeight=#2\\LocalTeXFontSize=#3\\LocalTeXMinFontSize=#4\\def\\LocalTeXContent{#5}\\LocalTeXCenterfalse\\LocalTeXDistributefalse\\ifstrequal{#6}{center}{\\LocalTeXCentertrue}{}\\ifstrequal{#6}{distribute}{\\LocalTeXDistributetrue}{}\\LocalTeXOverflowfalse\\LocalTeXFinalfalse\\LocalTeXFitLoop
   \\ifLocalTeXOverflow\\LocalTeXFontSize=\\LocalTeXMinFontSize\\PackageWarning{localtex-layout}{Content overflow in an adaptive box at minimum size}\\fi
-  \\LocalTeXFinaltrue\\vbox to\\LocalTeXTargetHeight{\\hsize=\\LocalTeXTargetWidth\\linewidth=\\LocalTeXTargetWidth\\emergencystretch=1.5em\\sloppy\\LocalTeXSetFont\\ifLocalTeXCenter\\vfil\\fi\\ifLocalTeXOverflow\\colorbox{red}{\\parbox{\\dimexpr\\LocalTeXTargetWidth-2mm\\relax}{\\centering\\color{white}\\bfseries\\fontsize{7.5}{8}\\selectfont CONTENT DOES NOT FIT}}\\LocalTeXGap{.8mm}\\fi\\LocalTeXContent\\vfil}\\endgroup}
+  \\LocalTeXFinaltrue\\vbox to\\LocalTeXTargetHeight{\\hsize=\\LocalTeXTargetWidth\\linewidth=\\LocalTeXTargetWidth\\emergencystretch=1.5em\\RaggedRight\\LocalTeXSetFont\\ifLocalTeXCenter\\vfil\\fi\\ifLocalTeXOverflow\\colorbox{red}{\\parbox{\\dimexpr\\LocalTeXTargetWidth-2mm\\relax}{\\centering\\color{white}\\bfseries\\fontsize{7.5}{8}\\selectfont CONTENT DOES NOT FIT}}\\LocalTeXGap{.8mm}\\fi\\LocalTeXContent\\vfil}\\endgroup}
 \\makeatother
 \\begin{document}
 ${pageBodies.join("\n\\newpage\n")}

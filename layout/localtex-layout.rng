@@ -45,9 +45,9 @@
 
   <define name="block">
     <choice>
-      <element name="heading"><ref name="inline"/></element>
-      <element name="p"><ref name="inline"/></element>
-      <element name="label"><ref name="inline"/></element>
+      <element name="heading"><zeroOrMore><attribute><anyName/><text/></attribute></zeroOrMore><ref name="inline"/></element>
+      <element name="p"><zeroOrMore><attribute><anyName/><text/></attribute></zeroOrMore><ref name="inline"/></element>
+      <element name="label"><zeroOrMore><attribute><anyName/><text/></attribute></zeroOrMore><ref name="inline"/></element>
       <element name="list"><oneOrMore><element name="item"><ref name="inline"/></element></oneOrMore></element>
       <element name="image">
         <attribute name="src"><text/></attribute>

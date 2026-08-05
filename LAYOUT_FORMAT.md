@@ -9,7 +9,7 @@ It is not PreTeXt and does not claim compatibility with PreTeXt documents. The s
 1. Create or open a file ending in `.layout.xml`.
 2. Select the file in the editor.
 3. Press **Recompile**. LocalTeX Studio validates the XML, creates HTML and LuaLaTeX in `.localtex-layout/<name>/`, compiles the generated LuaLaTeX, and refreshes only the PDF pane.
-4. Use **Open HTML proof** in the Recompile menu to inspect browser fitting or print from HTML.
+4. Use **View adaptive HTML proof** in the Recompile menu to inspect browser fitting or print from HTML.
 
 The normal TeX root is compiled whenever the selected file is not a `.layout.xml` source.
 
@@ -52,6 +52,13 @@ HTML fitting first maximizes the font with minimum spacing, then restores the la
 ## Semantic content
 
 Boxes accept `heading`, `p`, `label`, `list`/`item`, `image`, `rule`, and `spacer`. Inline markup supports `strong`, `em`, `code`, `link`, and `br`.
+
+`heading`, `p`, and `label` may override their size relative to the box's fitted base font with `scale`, set a unitless `leading`, and set `color`. Images accept physical `width` and `height`; both renderers preserve the image's aspect ratio inside those bounds.
+
+```xml
+<heading scale="1.4" leading="1.5" color="#006c76">Section title</heading>
+<image src="illustration.png" width="42mm" height="28mm" alt="Description"/>
+```
 
 The runtime validator gives contextual errors before rendering. The accompanying RELAX NG grammar is at `layout/localtex-layout.rng` for XML-aware editors.
 
