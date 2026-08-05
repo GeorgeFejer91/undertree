@@ -121,7 +121,12 @@
             <button id="toggle-logs" title="View compile logs">▤</button>
             <a id="download-pdf" class="toolbar-link disabled" title="Download PDF" aria-disabled="true">⇩</a>
             <span class="toolbar-spacer"></span>
+            <button id="pdf-previous" title="Previous PDF page" disabled>‹</button>
             <span id="page-status">PDF preview</span>
+            <button id="pdf-next" title="Next PDF page" disabled>›</button>
+            <button id="pdf-zoom-out" title="Zoom out">−</button>
+            <button id="pdf-fit-width" title="Fit PDF to pane width">↔</button>
+            <button id="pdf-zoom-in" title="Zoom in">+</button>
             <button id="reload-pdf" title="Reload PDF">↻</button>
             <button id="hide-preview" title="Hide PDF preview">›</button>
           </div>
@@ -130,7 +135,9 @@
               <div class="pdf-sheet"></div>
               <p>Compile the project to render its PDF.</p>
             </div>
-            <iframe id="pdf-frame" title="Compiled PDF preview"></iframe>
+            <div id="pdf-viewer" aria-label="Compiled PDF preview">
+              <div class="pdf-canvas-wrap"><canvas id="pdf-canvas"></canvas></div>
+            </div>
             <section class="logs-panel" id="logs-panel" aria-label="Compile logs">
               <div class="logs-heading"><strong>Compile log</strong><button id="close-logs">×</button></div>
               <pre id="compile-log">No compilation has run in this session.</pre>

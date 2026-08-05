@@ -59,7 +59,8 @@ try {
 
   await page.getByRole("button", { name: "Recompile", exact: true }).click();
   await page.waitForFunction(() => document.querySelector("#compile")?.textContent === "Recompile" && !document.querySelector("#compile")?.disabled, null, { timeout: 240000 });
-  assert.equal(await page.locator("#pdf-frame.visible").count(), 1);
+  await page.waitForFunction(() => document.querySelector("#pdf-canvas")?.width > 0, null, { timeout: 30000 });
+  assert.equal(await page.locator("#pdf-viewer.visible #pdf-canvas").count(), 1);
   assert.equal(errors.length, 0, `browser console errors: ${errors.join(" | ")}`);
   assert.equal(externalRequests.length, 0, `offline UI made external requests: ${externalRequests.join(" | ")}`);
   if (process.env.LOCALTEX_SCREENSHOT) await page.screenshot({ path: process.env.LOCALTEX_SCREENSHOT, fullPage: false });

@@ -11,6 +11,7 @@ Categories=Office;Publishing;
 Keywords=LaTeX;TeX;PDF;Overleaf;TeXstudio;offline;
 StartupNotify=true
 StartupWMClass=LocalTeXStudio
+DBusActivatable=false
 Actions=OpenPilot;
 
 [Desktop Action OpenPilot]

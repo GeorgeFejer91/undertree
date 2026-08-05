@@ -42,6 +42,7 @@ const IGNORED_DIRECTORIES = new Set([
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
@@ -525,7 +526,7 @@ async function handleStatic(req, res, url) {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${HOST}:${PORT}`);
   try {
-    res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; frame-src 'self'; connect-src 'self'; object-src 'self'; frame-ancestors 'none'");
+    res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; frame-src 'self'; connect-src 'self'; object-src 'self'; frame-ancestors 'none'");
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader("X-Frame-Options", "DENY");
     if (url.pathname === "/api/health") return json(res, 200, { ok: true, app: "LocalTeX Studio", version: "0.1.0", libraryRoot: LIBRARY_ROOT });
@@ -540,7 +541,7 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, HOST, async () => {
   const projects = await loadProjects().catch(() => []);
-  process.stdout.write(`${JSON.stringify({ ready: true, host: HOST, port: PORT, token: ACCESS_TOKEN, projects: projects.length })}\n`);
+  process.stdout.write(`${JSON.stringify({ ready: true, host: HOST, port: PORT, projects: projects.length })}\n`);
 });
 
 for (const signal of ["SIGINT", "SIGTERM"]) {

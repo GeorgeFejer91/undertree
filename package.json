@@ -12,7 +12,8 @@
   "dependencies": {
     "@codemirror/language": "^6.11.3",
     "@codemirror/legacy-modes": "^6.5.3",
-    "codemirror": "^6.0.2"
+    "codemirror": "^6.0.2",
+    "pdfjs-dist": "5.6.205"
   },
   "devDependencies": {
     "vite": "^7.1.1"

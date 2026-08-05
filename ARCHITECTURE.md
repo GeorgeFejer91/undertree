@@ -8,7 +8,8 @@ code.
 ## Process model
 
 ```text
-Brave app window (bundled HTML/CSS/CodeMirror)
+Native LocalTeX Studio GTK/WebKit window
+        (bundled HTML/CSS/CodeMirror/PDF.js)
                     │ localhost HTTP + authenticated JSON
                     ▼
 Node standard-library service on 127.0.0.1:37371
@@ -23,12 +24,18 @@ Node standard-library service on 127.0.0.1:37371
 ```
 
 The systemd user service keeps the local API available without internet. The
-desktop launcher opens a separate Brave app profile, so ordinary browsing is
-not navigated or closed.
+desktop launcher starts an independent GTK application backed by the operating
+system's WebKitGTK runtime. Brave and the user's ordinary browser session are
+not involved. A single-instance application identity raises the existing
+LocalTeX Studio window when it is launched again.
 
 ## Security boundary
 
 - The service binds only to `127.0.0.1`.
+- The native shell permits in-app navigation only to the localhost origin and
+  delegates external links to the operating system.
+- The WebKit context is ephemeral, so the bootstrap cookie is not kept in a
+  general-purpose browser profile.
 - A random user-only token bootstraps an `HttpOnly`, `SameSite=Strict` cookie.
 - Mutating APIs require same-origin JSON requests.
 - Every path is resolved below an inventory-approved project root.

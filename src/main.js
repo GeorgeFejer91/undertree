@@ -6,6 +6,10 @@ import { defaultKeymap, indentWithTab, redo, undo } from "@codemirror/commands";
 import { openSearchPanel, searchKeymap } from "@codemirror/search";
 import { StreamLanguage } from "@codemirror/language";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -21,7 +25,9 @@ const elements = {
   editorHost: $("#editor-host"),
   editorTabs: $("#editor-tabs"),
   saveState: $("#save-state"),
-  pdfFrame: $("#pdf-frame"),
+  pdfViewer: $("#pdf-viewer"),
+  pdfCanvas: $("#pdf-canvas"),
+  previewStage: $("#preview-stage"),
   pdfPlaceholder: $("#pdf-placeholder"),
   downloadPdf: $("#download-pdf"),
   compileButton: $("#compile"),
@@ -49,7 +55,13 @@ const state = {
   replacingEditor: false,
   saveTimer: null,
   searchTimer: null,
-  pdfObjectUrl: "",
+  pdfDocument: null,
+  pdfPage: 1,
+  pdfScale: null,
+  pdfCurrentScale: 1,
+  pdfRenderTask: null,
+  pdfRenderVersion: 0,
+  pdfResizeTimer: null,
   autoSave: true,
   wordWrap: true,
 };
@@ -419,22 +431,86 @@ async function refreshPdf() {
   try {
     const info = await api(projectApi("pdf-info"));
     if (!info.available) throw new Error("No PDF available");
-    elements.pdfFrame.src = `${projectApi("pdf")}?v=${Date.now()}#toolbar=0&navpanes=0&zoom=page-width`;
-    elements.pdfFrame.classList.add("visible");
+    const response = await fetch(`${projectApi("pdf")}?v=${Date.now()}`, { cache: "no-store", credentials: "same-origin" });
+    if (!response.ok) throw new Error(`PDF request failed (${response.status})`);
+    if (state.pdfDocument) await state.pdfDocument.destroy();
+    const loadingTask = pdfjsLib.getDocument({ data: await response.arrayBuffer() });
+    state.pdfDocument = await loadingTask.promise;
+    state.pdfPage = 1;
+    state.pdfScale = null;
+    elements.pdfViewer.classList.add("visible");
     elements.pdfPlaceholder.classList.add("hidden");
     elements.downloadPdf.href = `${projectApi("pdf")}?download=1`;
     elements.downloadPdf.classList.remove("disabled");
     elements.downloadPdf.removeAttribute("aria-disabled");
-    $("#page-status").textContent = "Compiled PDF";
+    await renderPdfPage();
   } catch {
-    elements.pdfFrame.removeAttribute("src");
-    elements.pdfFrame.classList.remove("visible");
+    if (state.pdfRenderTask) state.pdfRenderTask.cancel();
+    state.pdfRenderTask = null;
+    state.pdfDocument = null;
+    elements.pdfViewer.classList.remove("visible");
+    const context = elements.pdfCanvas.getContext("2d");
+    context.clearRect(0, 0, elements.pdfCanvas.width, elements.pdfCanvas.height);
+    elements.pdfCanvas.width = 0;
+    elements.pdfCanvas.height = 0;
     elements.pdfPlaceholder.classList.remove("hidden");
     elements.downloadPdf.removeAttribute("href");
     elements.downloadPdf.classList.add("disabled");
     elements.downloadPdf.setAttribute("aria-disabled", "true");
     $("#page-status").textContent = "No PDF yet";
   }
+}
+
+async function renderPdfPage() {
+  if (!state.pdfDocument) return;
+  const version = ++state.pdfRenderVersion;
+  if (state.pdfRenderTask) state.pdfRenderTask.cancel();
+  const page = await state.pdfDocument.getPage(state.pdfPage);
+  if (version !== state.pdfRenderVersion) return;
+  const natural = page.getViewport({ scale: 1 });
+  const fitScale = Math.max(0.2, (elements.previewStage.clientWidth - 34) / natural.width);
+  const scale = state.pdfScale || fitScale;
+  state.pdfCurrentScale = scale;
+  const viewport = page.getViewport({ scale });
+  const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+  const canvas = elements.pdfCanvas;
+  const context = canvas.getContext("2d", { alpha: false });
+  canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
+  canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
+  canvas.style.width = `${Math.floor(viewport.width)}px`;
+  canvas.style.height = `${Math.floor(viewport.height)}px`;
+  const transform = outputScale === 1 ? null : [outputScale, 0, 0, outputScale, 0, 0];
+  state.pdfRenderTask = page.render({ canvasContext: context, viewport, transform });
+  try {
+    await state.pdfRenderTask.promise;
+  } catch (error) {
+    if (error?.name !== "RenderingCancelledException") throw error;
+    return;
+  } finally {
+    if (version === state.pdfRenderVersion) state.pdfRenderTask = null;
+  }
+  if (version !== state.pdfRenderVersion) return;
+  $("#page-status").textContent = `${state.pdfPage} of ${state.pdfDocument.numPages} · ${Math.round(scale * 100)}%`;
+  $("#pdf-previous").disabled = state.pdfPage <= 1;
+  $("#pdf-next").disabled = state.pdfPage >= state.pdfDocument.numPages;
+}
+
+function schedulePdfFit() {
+  clearTimeout(state.pdfResizeTimer);
+  if (!state.pdfDocument || state.pdfScale !== null) return;
+  state.pdfResizeTimer = setTimeout(() => renderPdfPage().catch((error) => toast(error.message, "error")), 120);
+}
+
+function changePdfPage(delta) {
+  if (!state.pdfDocument) return;
+  state.pdfPage = Math.max(1, Math.min(state.pdfDocument.numPages, state.pdfPage + delta));
+  renderPdfPage().catch((error) => toast(error.message, "error"));
+}
+
+function zoomPdf(factor) {
+  if (!state.pdfDocument) return;
+  state.pdfScale = Math.max(0.25, Math.min(4, state.pdfCurrentScale * factor));
+  renderPdfPage().catch((error) => toast(error.message, "error"));
 }
 
 async function compileProject() {
@@ -579,6 +655,7 @@ function setupResizer(element, side) {
 }
 
 function bindEvents() {
+  new ResizeObserver(schedulePdfFit).observe(elements.previewStage);
   elements.projectPicker.addEventListener("change", () => selectProject(elements.projectPicker.value));
   $("#home-button").addEventListener("click", openProjectModal);
   $("#close-project-modal").addEventListener("click", closeProjectModal);
@@ -604,6 +681,11 @@ function bindEvents() {
   $("#toggle-logs").addEventListener("click", () => showLogs());
   $("#close-logs").addEventListener("click", () => showLogs(false));
   $("#reload-pdf").addEventListener("click", refreshPdf);
+  $("#pdf-previous").addEventListener("click", () => changePdfPage(-1));
+  $("#pdf-next").addEventListener("click", () => changePdfPage(1));
+  $("#pdf-zoom-out").addEventListener("click", () => zoomPdf(0.82));
+  $("#pdf-zoom-in").addEventListener("click", () => zoomPdf(1.22));
+  $("#pdf-fit-width").addEventListener("click", () => { state.pdfScale = null; renderPdfPage().catch((error) => toast(error.message, "error")); });
   $("#hide-preview").addEventListener("click", () => elements.workspace.classList.toggle("preview-hidden"));
   $("#refresh-status").addEventListener("click", refreshGitStatus);
   $("#sync-pull").addEventListener("click", () => syncProject("pull"));

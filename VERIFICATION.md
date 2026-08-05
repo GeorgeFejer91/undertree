@@ -41,6 +41,20 @@ none of its HTML or JavaScript is included here.
 - zero application console errors;
 - zero external HTTP, HTTPS, WebSocket, or secure WebSocket requests.
 
+## Native program shell
+
+- The desktop entry launches a dedicated GTK application rather than Brave or
+  Chromium.
+- The native WebKitGTK smoke test requires the complete editor DOM, populated
+  file tree, source tab, three-pane workspace, and rendered PDF canvas to load
+  successfully.
+- The application has its own process identity, taskbar icon, window title,
+  remembered window dimensions, full-screen shortcut, and download handling.
+- Authentication is injected inside the process and is not exposed in the
+  command line.
+- The native smoke test records every loaded resource and fails if the editor
+  or PDF renderer contacts a non-local network origin.
+
 ## Real-project acceptance
 
 - 88 synchronized local TeX projects are discoverable.
