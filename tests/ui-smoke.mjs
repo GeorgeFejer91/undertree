@@ -42,6 +42,12 @@ try {
   assert.ok(await page.locator(".tree-row").count() > 0);
   assert.ok(await page.locator(".editor-tab").count() > 0);
   assert.equal(await page.getByRole("button", { name: "Recompile", exact: true }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "GitHub Sync", exact: true }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "Overleaf Sync", exact: true }).count(), 1);
+
+  await page.locator("#compile-menu").click();
+  assert.equal(await page.locator("#compile-popover:not([hidden]) [data-compile-action]").count(), 3);
+  await page.locator("#compile-menu").click();
 
   await page.getByRole("button", { name: "Project search" }).click();
   await page.locator("#project-search").fill("Informationsblatt");
@@ -57,10 +63,14 @@ try {
   assert.ok(await page.locator(".project-row").count() > 10);
   await page.locator("#close-project-modal").click();
 
+  const navigationMarker = `localtex-ui-${Date.now()}`;
+  await page.evaluate((marker) => { window.__localtexNavigationMarker = marker; }, navigationMarker);
   await page.getByRole("button", { name: "Recompile", exact: true }).click();
   await page.waitForFunction(() => document.querySelector("#compile")?.textContent === "Recompile" && !document.querySelector("#compile")?.disabled, null, { timeout: 240000 });
   await page.waitForFunction(() => document.querySelector("#pdf-canvas")?.width > 0, null, { timeout: 30000 });
+  assert.equal(await page.evaluate(() => window.__localtexNavigationMarker), navigationMarker, "Recompile must not reload the workspace");
   assert.equal(await page.locator("#pdf-viewer.visible #pdf-canvas").count(), 1);
+  assert.equal(await page.locator("#logs-panel.visible").count(), 0);
   assert.equal(errors.length, 0, `browser console errors: ${errors.join(" | ")}`);
   assert.equal(externalRequests.length, 0, `offline UI made external requests: ${externalRequests.join(" | ")}`);
   if (process.env.LOCALTEX_SCREENSHOT) await page.screenshot({ path: process.env.LOCALTEX_SCREENSHOT, fullPage: false });

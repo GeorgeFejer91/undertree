@@ -54,7 +54,11 @@ Local compilation works.
 `);
   await writeFile(join(project, ".tex-sync.conf"), `[sync]\n\tgithubRemote = origin\n\tgithubBranch = main\n\toverleafProjectUrl = https://www.overleaf.com/project/fixture\n\tmode = direct-git\n\toverleafRemote = overleaf\n[build]\n\troot = main.tex\n\tengine = pdflatex\n\tworkingDirectory = repository-root\n\tshellEscape = false\n`);
   const bridge = `#!/usr/bin/env bash\nset -euo pipefail\nif [[ \"\${1:-}\" == build ]]; then\n  mkdir -p .tex-build\n  latexmk -norc -pdf -interaction=nonstopmode -halt-on-error -outdir=.tex-build main.tex\nelif [[ \"\${1:-}\" == pull || \"\${1:-}\" == push ]]; then\n  echo \"fixture \$1 completed safely\"\nelse\n  echo \"unsupported fixture action\" >&2\n  exit 2\nfi\n`;
-  await writeFile(join(project, "scripts", "tex-sync"), bridge);
+  const bridgeWithClean = bridge.replace(
+    'elif [[ "${1:-}" == pull',
+    'elif [[ "${1:-}" == clean ]]; then\n  latexmk -norc -C -outdir=.tex-build main.tex\nelif [[ "${1:-}" == pull',
+  );
+  await writeFile(join(project, "scripts", "tex-sync"), bridgeWithClean);
   await chmod(join(project, "scripts", "tex-sync"), 0o755);
   await writeFile(join(library, "PROJECTS.tsv"), `type\tname\tlocalPath\trepository\tbranch\troot\tengine\toverleafUrl\nactive-overleaf\tFixture Project\t${project}\texample/fixture\tmain\tmain.tex\tpdflatex\thttps://www.overleaf.com/project/fixture\n`);
   await writeFile(join(library, "PROJECT_DOMAINS.tsv"), `id\ttype\tname\tprojectTitle\tsemanticDomain\tthemes\tdocumentFunction\tprojectFamily\treuseRole\tlocalPath\trepository\troot\tengine\toverleafUrl\nfixture\tactive-overleaf\tFixture Project\tFixture\ttesting\toffline\tverification\tfixture\ttest\t${project}\texample/fixture\tmain.tex\tpdflatex\thttps://www.overleaf.com/project/fixture\n`);
@@ -64,6 +68,14 @@ Local compilation works.
   await run("git", ["config", "user.email", "localtex@example.invalid"], project);
   await run("git", ["add", "."], project);
   await run("git", ["commit", "-m", "Fixture"], project);
+  const githubRemote = join(temporaryRoot, "github.git");
+  const overleafRemote = join(temporaryRoot, "overleaf.git");
+  await run("git", ["init", "--bare", githubRemote], temporaryRoot);
+  await run("git", ["init", "--bare", overleafRemote], temporaryRoot);
+  await run("git", ["remote", "add", "origin", githubRemote], project);
+  await run("git", ["remote", "add", "overleaf", overleafRemote], project);
+  await run("git", ["push", "-u", "origin", "main"], project);
+  await run("git", ["push", "-u", "overleaf", "main"], project);
 
   const port = await freePort();
   const token = "integration-test-token";
@@ -147,6 +159,8 @@ Local compilation works.
 
   const build = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, { method: "POST", headers: mutationHeaders, body: "{}" })).json();
   assert.equal(build.pdfAvailable, true, `expected PDF; server output was ${serverOutput}\n${build.output || ""}`);
+  const cleanBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, { method: "POST", headers: mutationHeaders, body: JSON.stringify({ clean: true }) })).json();
+  assert.equal(cleanBuild.pdfAvailable, true, "clean rebuild must produce a PDF");
   const pdfInfo = await (await fetch(`${baseUrl}/api/project/${projectId}/pdf-info`, { headers })).json();
   assert.equal(pdfInfo.available, true);
   const pdf = await fetch(`${baseUrl}/api/project/${projectId}/pdf`, { headers });
@@ -164,8 +178,21 @@ Local compilation works.
     assert.match((await sync.json()).output, new RegExp(`fixture ${action} completed safely`));
   }
 
+  await rm(join(project, "outside-link.txt"));
+  await run("git", ["add", "."], project);
+  await run("git", ["commit", "-m", "Edited fixture"], project);
+  for (const action of ["github", "overleaf"]) {
+    const sync = await fetch(`${baseUrl}/api/project/${projectId}/sync`, {
+      method: "POST",
+      headers: mutationHeaders,
+      body: JSON.stringify({ action }),
+    });
+    assert.equal(sync.status, 200);
+    assert.match((await sync.json()).output, new RegExp(`${action === "github" ? "GitHub" : "Overleaf"} synchronized`));
+  }
+
   const status = await (await fetch(`${baseUrl}/api/project/${projectId}/status`, { headers })).json();
   assert.equal(status.rootDocument, "main.tex");
   assert.equal(status.engine, "pdflatex");
-  assert.equal(status.clean, false);
+  assert.equal(status.clean, true);
 });

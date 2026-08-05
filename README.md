@@ -13,9 +13,12 @@ profile already installed on this computer.
   formatting helpers, search, dirty indicators, atomic auto-save, and conflict
   protection;
 - green Recompile control, build logs, download, and embedded PDF preview;
+- a real compile-options menu for normal rebuilds, clean rebuilds, and logs;
 - bundled offline PDF.js rendering with page navigation, fit-width, and zoom;
 - project-wide text search;
 - local Git state and explicit safe bridge pull/push controls;
+- dedicated manual GitHub Sync and Overleaf Sync buttons for committed
+  checkpoints;
 - one-click native TeXstudio opening for the same configured root document;
 - draggable panes inside a dedicated native GTK application window;
 - localhost-only authenticated service that remains available offline.
@@ -47,5 +50,16 @@ download handling.
 - `Ctrl+Shift+R`: reload the native workspace shell;
 - `Ctrl+Q`: close LocalTeX Studio;
 - the standard CodeMirror undo, redo, and search shortcuts remain available.
+
+The green **Recompile** button never navigates the workspace: it saves the
+active source, runs the configured local build, and atomically replaces only
+the PDF canvas. Its arrow opens options for a normal rebuild, a clean rebuild,
+or the most recent compile log.
+
+Manual remote synchronization is deliberately commit-based. **GitHub Sync**
+and **Overleaf Sync** push the current committed checkpoint to their named
+remote after fetching and checking ancestry. They stop on uncommitted work,
+newer remote changes, or divergence; use **Pull remote changes** from the Git
+panel before pushing a newer remote state.
 
 See `ARCHITECTURE.md` for the clean-room design and security boundary.

@@ -199,6 +199,11 @@ class LocalTeXWindow(Gtk.ApplicationWindow):
             else:
                 self.fullscreen()
             return True
+        if event.keyval == Gdk.KEY_F5 or (control and event.keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter)):
+            self.webview.evaluate_javascript(
+                "document.querySelector('#compile')?.click()", -1, None, None, None, None, None
+            )
+            return True
         if control and shift and event.keyval in (Gdk.KEY_R, Gdk.KEY_r):
             self.webview.reload_bypass_cache()
             return True
@@ -293,6 +298,8 @@ class LocalTeXApplication(Gtk.Application):
         self.window: LocalTeXWindow | None = None
         self.pending_project: str | None = None
         self.smoke_attempts = 0
+        self.smoke_phase = "workspace"
+        self.smoke_marker = f"localtex-smoke-{os.getpid()}-{time.time_ns()}"
         self.external_requests: list[str] = []
         self.set_resource_base_path("/io/github/george/LocalTeXStudio")
 
@@ -330,6 +337,9 @@ class LocalTeXApplication(Gtk.Application):
         if self.window is None:
             return False
         self.smoke_attempts += 1
+        if self.smoke_phase == "compile":
+            self._poll_compile_ready()
+            return False
         script = """
           JSON.stringify({
             ready: Boolean(document.querySelector('.cm-editor')),
@@ -338,6 +348,9 @@ class LocalTeXApplication(Gtk.Application):
             editor: Boolean(document.querySelector('.editor-pane')),
             preview: Boolean(document.querySelector('.preview-pane')),
             recompile: Boolean(document.querySelector('#compile')),
+            compileActions: document.querySelectorAll('[data-compile-action]').length,
+            githubSync: Boolean(document.querySelector('#github-sync')),
+            overleafSync: Boolean(document.querySelector('#overleaf-sync')),
             pdf: (document.querySelector('#pdf-canvas')?.width || 0) > 0,
             treeRows: document.querySelectorAll('.tree-row').length,
             editorTabs: document.querySelectorAll('.editor-tab').length
@@ -363,6 +376,9 @@ class LocalTeXApplication(Gtk.Application):
             and payload.get("editor")
             and payload.get("preview")
             and payload.get("recompile")
+            and payload.get("compileActions") == 3
+            and payload.get("githubSync")
+            and payload.get("overleafSync")
             and payload.get("pdf")
             and payload.get("treeRows", 0) > 0
             and payload.get("editorTabs", 0) > 0
@@ -372,7 +388,89 @@ class LocalTeXApplication(Gtk.Application):
             self._smoke_retry_or_fail(f"workspace not ready: {payload}")
             return
 
-        GLib.timeout_add(3500, self._complete_smoke)
+        self._start_compile_smoke()
+
+    def _start_compile_smoke(self) -> None:
+        if self.window is None:
+            return
+        self.smoke_phase = "compile"
+        self.smoke_attempts = 0
+        marker = json.dumps(self.smoke_marker)
+        script = f"""
+          (() => {{
+            window.__localtexCompileSmoke = {{
+              marker: {marker},
+              project: document.querySelector('#project-picker')?.value || '',
+              tab: document.querySelector('.editor-tab.active .editor-tab-label')?.textContent || '',
+              started: false
+            }};
+            const button = document.querySelector('#compile');
+            button?.click();
+            window.__localtexCompileSmoke.started = true;
+            return true;
+          }})()
+        """
+        self.window.webview.evaluate_javascript(
+            script, -1, None, None, None, self._compile_started, None
+        )
+
+    def _compile_started(self, webview, result, _data) -> None:
+        try:
+            webview.evaluate_javascript_finish(result)
+        except GLib.Error as error:
+            self._smoke_retry_or_fail(f"could not click Recompile: {error}")
+            return
+        GLib.timeout_add(250, self._poll_smoke_ready)
+
+    def _poll_compile_ready(self) -> None:
+        if self.window is None:
+            return
+        script = """
+          JSON.stringify({
+            marker: window.__localtexCompileSmoke?.marker || '',
+            initialProject: window.__localtexCompileSmoke?.project || '',
+            initialTab: window.__localtexCompileSmoke?.tab || '',
+            project: document.querySelector('#project-picker')?.value || '',
+            tab: document.querySelector('.editor-tab.active .editor-tab-label')?.textContent || '',
+            started: Boolean(window.__localtexCompileSmoke?.started),
+            busy: Boolean(document.querySelector('#compile')?.disabled),
+            button: document.querySelector('#compile')?.textContent || '',
+            status: document.querySelector('#status-message')?.textContent || '',
+            pdf: (document.querySelector('#pdf-canvas')?.width || 0) > 0
+          })
+        """
+        self.window.webview.evaluate_javascript(
+            script, -1, None, None, None, self._finish_compile_poll, None
+        )
+
+    def _finish_compile_poll(self, webview, result, _data) -> None:
+        try:
+            javascript = webview.evaluate_javascript_finish(result)
+            payload = json.loads(javascript.to_string())
+        except (GLib.Error, ValueError, TypeError) as error:
+            self._smoke_retry_or_fail(f"compile poll failed: {error}")
+            return
+        if payload.get("marker") != self.smoke_marker:
+            self._fail_smoke("Recompile navigated or reloaded the editor document")
+            return
+        if payload.get("status") == "Compilation failed":
+            self._fail_smoke("the real project did not compile")
+            return
+        done = (
+            payload.get("started")
+            and not payload.get("busy")
+            and payload.get("button") == "Recompile"
+            and str(payload.get("status", "")).startswith("Compiled at ")
+            and payload.get("pdf")
+            and payload.get("project")
+            and payload.get("tab")
+            and payload.get("project") == payload.get("initialProject")
+            and payload.get("tab") == payload.get("initialTab")
+        )
+        if done:
+            GLib.timeout_add(800, self._complete_smoke)
+            return
+        self._smoke_retry_or_fail(f"compile still pending: {payload}")
 
     def _complete_smoke(self) -> bool:
         screenshot = os.environ.get("LOCALTEX_NATIVE_SCREENSHOT")
@@ -389,9 +487,12 @@ class LocalTeXApplication(Gtk.Application):
         return False
 
     def _smoke_retry_or_fail(self, reason: str) -> None:
-        if self.smoke_attempts < 240:
+        if self.smoke_attempts < 960:
             GLib.timeout_add(250, self._poll_smoke_ready)
             return
+        self._fail_smoke(reason)
+
+    def _fail_smoke(self, reason: str) -> None:
         print(f"NATIVE_SMOKE_FAIL: {reason}", flush=True)
         self.quit()
 

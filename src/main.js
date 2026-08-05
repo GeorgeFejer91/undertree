@@ -56,6 +56,7 @@ const state = {
   saveTimer: null,
   searchTimer: null,
   pdfDocument: null,
+  pdfProjectId: "",
   pdfPage: 1,
   pdfScale: null,
   pdfCurrentScale: 1,
@@ -428,40 +429,58 @@ async function selectProject(id) {
 
 async function refreshPdf() {
   if (!state.currentProject) return;
+  const previousDocument = state.pdfDocument;
+  const previousProjectId = state.pdfProjectId;
+  const previousPage = state.pdfPage;
+  const previousScale = state.pdfScale;
+  const preserveExisting = Boolean(previousDocument && previousProjectId === state.currentProject.id);
+  let nextDocument = null;
   try {
     const info = await api(projectApi("pdf-info"));
     if (!info.available) throw new Error("No PDF available");
     const response = await fetch(`${projectApi("pdf")}?v=${Date.now()}`, { cache: "no-store", credentials: "same-origin" });
     if (!response.ok) throw new Error(`PDF request failed (${response.status})`);
-    if (state.pdfDocument) await state.pdfDocument.destroy();
     const loadingTask = pdfjsLib.getDocument({ data: await response.arrayBuffer() });
-    state.pdfDocument = await loadingTask.promise;
-    state.pdfPage = 1;
-    state.pdfScale = null;
+    nextDocument = await loadingTask.promise;
+    const sameProject = previousProjectId === state.currentProject.id;
+    state.pdfDocument = nextDocument;
+    state.pdfProjectId = state.currentProject.id;
+    state.pdfPage = sameProject ? Math.min(previousPage, nextDocument.numPages) : 1;
+    state.pdfScale = sameProject ? previousScale : null;
     elements.pdfViewer.classList.add("visible");
     elements.pdfPlaceholder.classList.add("hidden");
     elements.downloadPdf.href = `${projectApi("pdf")}?download=1`;
     elements.downloadPdf.classList.remove("disabled");
     elements.downloadPdf.removeAttribute("aria-disabled");
-    await renderPdfPage();
-  } catch {
-    if (state.pdfRenderTask) state.pdfRenderTask.cancel();
-    state.pdfRenderTask = null;
-    state.pdfDocument = null;
-    elements.pdfViewer.classList.remove("visible");
-    const context = elements.pdfCanvas.getContext("2d");
-    context.clearRect(0, 0, elements.pdfCanvas.width, elements.pdfCanvas.height);
-    elements.pdfCanvas.width = 0;
-    elements.pdfCanvas.height = 0;
-    elements.pdfPlaceholder.classList.remove("hidden");
-    elements.downloadPdf.removeAttribute("href");
-    elements.downloadPdf.classList.add("disabled");
-    elements.downloadPdf.setAttribute("aria-disabled", "true");
-    $("#page-status").textContent = "No PDF yet";
+    await renderPdfPage({ atomic: preserveExisting });
+    if (previousDocument && previousDocument !== nextDocument) await previousDocument.destroy();
+    return true;
+  } catch (error) {
+    if (nextDocument && nextDocument !== previousDocument) await nextDocument.destroy().catch(() => {});
+    state.pdfDocument = preserveExisting ? previousDocument : null;
+    state.pdfProjectId = preserveExisting ? previousProjectId : "";
+    state.pdfPage = preserveExisting ? previousPage : 1;
+    state.pdfScale = preserveExisting ? previousScale : null;
+    if (!preserveExisting) {
+      if (previousDocument) await previousDocument.destroy().catch(() => {});
+      if (state.pdfRenderTask) state.pdfRenderTask.cancel();
+      state.pdfRenderTask = null;
+      elements.pdfViewer.classList.remove("visible");
+      const context = elements.pdfCanvas.getContext("2d");
+      context.clearRect(0, 0, elements.pdfCanvas.width, elements.pdfCanvas.height);
+      elements.pdfCanvas.width = 0;
+      elements.pdfCanvas.height = 0;
+      elements.pdfPlaceholder.classList.remove("hidden");
+      elements.downloadPdf.removeAttribute("href");
+      elements.downloadPdf.classList.add("disabled");
+      elements.downloadPdf.setAttribute("aria-disabled", "true");
+      $("#page-status").textContent = "No PDF yet";
+    }
+    return false;
   }
 }
 
-async function renderPdfPage() {
+async function renderPdfPage({ atomic = false } = {}) {
   if (!state.pdfDocument) return;
   const version = ++state.pdfRenderVersion;
   if (state.pdfRenderTask) state.pdfRenderTask.cancel();
@@ -473,12 +492,10 @@ async function renderPdfPage() {
   state.pdfCurrentScale = scale;
   const viewport = page.getViewport({ scale });
   const outputScale = Math.min(window.devicePixelRatio || 1, 2);
-  const canvas = elements.pdfCanvas;
+  const canvas = atomic ? document.createElement("canvas") : elements.pdfCanvas;
   const context = canvas.getContext("2d", { alpha: false });
   canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
   canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
-  canvas.style.width = `${Math.floor(viewport.width)}px`;
-  canvas.style.height = `${Math.floor(viewport.height)}px`;
   const transform = outputScale === 1 ? null : [outputScale, 0, 0, outputScale, 0, 0];
   state.pdfRenderTask = page.render({ canvasContext: context, viewport, transform });
   try {
@@ -490,6 +507,14 @@ async function renderPdfPage() {
     if (version === state.pdfRenderVersion) state.pdfRenderTask = null;
   }
   if (version !== state.pdfRenderVersion) return;
+  if (atomic) {
+    const visible = elements.pdfCanvas;
+    visible.width = canvas.width;
+    visible.height = canvas.height;
+    visible.getContext("2d", { alpha: false }).drawImage(canvas, 0, 0);
+  }
+  elements.pdfCanvas.style.width = `${Math.floor(viewport.width)}px`;
+  elements.pdfCanvas.style.height = `${Math.floor(viewport.height)}px`;
   $("#page-status").textContent = `${state.pdfPage} of ${state.pdfDocument.numPages} · ${Math.round(scale * 100)}%`;
   $("#pdf-previous").disabled = state.pdfPage <= 1;
   $("#pdf-next").disabled = state.pdfPage >= state.pdfDocument.numPages;
@@ -513,18 +538,26 @@ function zoomPdf(factor) {
   renderPdfPage().catch((error) => toast(error.message, "error"));
 }
 
-async function compileProject() {
-  if (!state.currentProject) return;
+function showCompileMenu(show = $("#compile-popover").hidden) {
+  const popover = $("#compile-popover");
+  popover.hidden = !show;
+  $("#compile-menu").setAttribute("aria-expanded", String(show));
+}
+
+async function compileProject({ clean = false } = {}) {
+  if (!state.currentProject || elements.compileButton.disabled) return;
   try {
+    showCompileMenu(false);
+    showLogs(false);
     await saveActiveFile();
     elements.compileButton.disabled = true;
     elements.compileButton.classList.add("busy");
-    elements.compileButton.textContent = "Compiling…";
-    status(`Compiling ${state.build?.rootDocument || "project"}…`);
-    const result = await api(projectApi("build"), { method: "POST", body: "{}" });
+    elements.compileButton.textContent = clean ? "Cleaning…" : "Compiling…";
+    status(`${clean ? "Cleaning and compiling" : "Compiling"} ${state.build?.rootDocument || "project"}…`);
+    const result = await api(projectApi("build"), { method: "POST", body: JSON.stringify({ clean }) });
     elements.compileLog.textContent = result.output || "Compilation finished without output.";
     if (!result.pdfAvailable) throw new Error("Compilation did not produce a PDF. Open the log for details.");
-    await refreshPdf();
+    if (!(await refreshPdf())) throw new Error("The PDF compiled, but its preview could not be refreshed.");
     toast(result.code === 0 ? "PDF compiled successfully." : "PDF produced with warnings; inspect the log.", result.code === 0 ? "success" : "error");
     status(`Compiled at ${new Date(result.compiledAt).toLocaleTimeString()}`);
     if (result.code !== 0) showLogs(true);
@@ -569,16 +602,30 @@ function scheduleStatusRefresh() {
 
 async function syncProject(action) {
   if (!state.currentProject) return;
+  const labels = {
+    pull: ["Pulling remote changes", "Remote changes pulled"],
+    push: ["Synchronizing GitHub and Overleaf", "GitHub and Overleaf synchronized"],
+    github: ["Synchronizing GitHub", "GitHub synchronized"],
+    overleaf: ["Synchronizing Overleaf", "Overleaf synchronized"],
+  };
+  const [progressLabel, successLabel] = labels[action] || ["Synchronizing", "Synchronization completed"];
+  const remoteButtons = [$("#github-sync"), $("#overleaf-sync")];
   try {
+    remoteButtons.forEach((button) => { button.disabled = true; });
     await saveActiveFile();
-    elements.syncLog.textContent = `${action === "pull" ? "Pulling" : "Pushing"} through the direct Git bridge…`;
+    elements.syncLog.textContent = `${progressLabel} through the direct Git bridge…`;
+    status(`${progressLabel}…`);
     const result = await api(projectApi("sync"), { method: "POST", body: JSON.stringify({ action }) });
     elements.syncLog.textContent = result.output || "Synchronization completed.";
-    toast(`${action === "pull" ? "Pull" : "Push"} completed.`);
+    toast(`${successLabel}.`);
+    status(successLabel);
     await Promise.all([refreshTree(), refreshGitStatus()]);
   } catch (error) {
     elements.syncLog.textContent += `\n${error.message}`;
     toast(error.message, "error", 7000);
+    status("Synchronization stopped safely");
+  } finally {
+    remoteButtons.forEach((button) => { button.disabled = false; });
   }
 }
 
@@ -676,8 +723,15 @@ function bindEvents() {
   $("#italic").addEventListener("click", () => wrapSelection("\\emph{", "}"));
   $("#insert-cite").addEventListener("click", () => wrapSelection("\\cite{", "}"));
   $("#search-file").addEventListener("click", () => state.editor && openSearchPanel(state.editor));
-  elements.compileButton.addEventListener("click", compileProject);
-  $("#compile-menu").addEventListener("click", () => showLogs());
+  elements.compileButton.addEventListener("click", (event) => { event.preventDefault(); compileProject(); });
+  $("#compile-menu").addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); showCompileMenu(); });
+  $$("[data-compile-action]").forEach((button) => button.addEventListener("click", () => {
+    const action = button.dataset.compileAction;
+    showCompileMenu(false);
+    if (action === "normal") compileProject();
+    else if (action === "clean") compileProject({ clean: true });
+    else if (action === "logs") showLogs(true);
+  }));
   $("#toggle-logs").addEventListener("click", () => showLogs());
   $("#close-logs").addEventListener("click", () => showLogs(false));
   $("#reload-pdf").addEventListener("click", refreshPdf);
@@ -690,6 +744,8 @@ function bindEvents() {
   $("#refresh-status").addEventListener("click", refreshGitStatus);
   $("#sync-pull").addEventListener("click", () => syncProject("pull"));
   $("#sync-push").addEventListener("click", () => syncProject("push"));
+  $("#github-sync").addEventListener("click", () => syncProject("github"));
+  $("#overleaf-sync").addEventListener("click", () => syncProject("overleaf"));
   elements.projectSearch.addEventListener("input", () => {
     clearTimeout(state.searchTimer);
     state.searchTimer = setTimeout(runProjectSearch, 350);
@@ -708,6 +764,9 @@ function bindEvents() {
     else if (action === "build") compileProject();
     else toast("LocalTeX Studio works entirely on your local project library.");
   }));
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".compile-control")) showCompileMenu(false);
+  });
   setupResizer($("#left-resizer"), "left");
   setupResizer($("#right-resizer"), "right");
   window.addEventListener("keydown", (event) => {

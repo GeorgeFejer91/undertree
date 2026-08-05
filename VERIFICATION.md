@@ -54,6 +54,11 @@ none of its HTML or JavaScript is included here.
   command line.
 - The native smoke test records every loaded resource and fails if the editor
   or PDF renderer contacts a non-local network origin.
+- The native regression test clicks Recompile on the real ethics project and
+  requires the same loaded document, selected project, and active source tab
+  to survive until a newly rendered PDF canvas appears.
+- Clean rebuild and separate GitHub/Overleaf synchronization paths are tested
+  against disposable local Git remotes; no live remote is mutated by tests.
 
 ## Real-project acceptance
 

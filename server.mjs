@@ -344,13 +344,20 @@ async function locatePdf(project) {
   return null;
 }
 
-async function buildProject(project) {
+async function buildProject(project, cleanFirst = false) {
   if (builds.has(project.id)) return builds.get(project.id);
   const buildPromise = (async () => {
     const bridge = join(project.localPath, "scripts", "tex-sync");
     let result;
     if (await exists(bridge)) {
+      let cleanOutput = "";
+      if (cleanFirst) {
+        const cleaned = await command("bash", [bridge, "clean"], project.localPath, { timeout: 60000, maxOutput: 1024 * 1024 });
+        cleanOutput = `${cleaned.stdout}${cleaned.stderr}`;
+        if (cleaned.code !== 0) throw httpError(409, `Could not clean the previous build:\n${cleanOutput}`);
+      }
       result = await command("bash", [bridge, "build"], project.localPath, { timeout: 240000, maxOutput: 4 * 1024 * 1024 });
+      result.stdout = `${cleanOutput}${result.stdout}`;
     } else {
       const { rootDocument, engine } = await buildInfo(project);
       if (!rootDocument) throw httpError(400, "No root TeX document is configured");
@@ -360,6 +367,10 @@ async function buildProject(project) {
       else args.push("-pdf");
       args.push(rootDocument);
       await mkdir(join(project.localPath, ".tex-build"), { recursive: true });
+      if (cleanFirst) {
+        const cleaned = await command("latexmk", ["-norc", "-C", `-outdir=${join(project.localPath, ".tex-build")}`, rootDocument], project.localPath, { timeout: 60000, maxOutput: 1024 * 1024 });
+        if (cleaned.code !== 0) throw httpError(409, `Could not clean the previous build:\n${cleaned.stdout}${cleaned.stderr}`);
+      }
       result = await command("latexmk", args, project.localPath, { timeout: 240000, maxOutput: 4 * 1024 * 1024 });
     }
     const pdf = await locatePdf(project);
@@ -385,6 +396,58 @@ async function gitStatus(project) {
     engine,
     repository: project.repository || (originResult.code === 0 ? originResult.stdout.trim().replace(/^https:\/\/github\.com\//, "").replace(/\.git$/, "") : ""),
     overleafUrl,
+  };
+}
+
+async function synchronizeRemote(project, target) {
+  const bridge = join(project.localPath, "scripts", "tex-sync");
+  if (!(await exists(bridge))) throw httpError(400, "This project has no synchronization bridge");
+  const branch = await configValue(project, "sync", "githubBranch", project.branch || "main");
+  const mode = await configValue(project, "sync", "mode", "browser");
+  const label = target === "github" ? "GitHub" : "Overleaf";
+
+  if (target === "overleaf" && mode !== "direct-git") {
+    const result = await command("bash", [bridge, "push"], project.localPath, { timeout: 240000, maxOutput: 3 * 1024 * 1024 });
+    return { ...result, output: `${result.stdout}${result.stderr}`, target, direction: "push" };
+  }
+
+  const remote = target === "github"
+    ? await configValue(project, "sync", "githubRemote", "origin")
+    : await configValue(project, "sync", "overleafRemote", "overleaf");
+  const worktree = await command("git", ["status", "--porcelain"], project.localPath, { timeout: 8000, maxOutput: 500000 });
+  if (worktree.code !== 0) throw httpError(409, `Could not inspect the ${label} worktree state.`);
+  if (worktree.stdout.trim()) throw httpError(409, `Commit the local changes before synchronizing ${label}.`);
+  const remoteUrl = await command("git", ["remote", "get-url", remote], project.localPath, { timeout: 5000, maxOutput: 10000 });
+  if (remoteUrl.code !== 0) throw httpError(400, `${label} remote “${remote}” is not configured.`);
+  const fetched = await command("git", ["fetch", "--prune", remote, branch], project.localPath, { timeout: 120000, maxOutput: 2 * 1024 * 1024 });
+  if (fetched.code !== 0) throw httpError(409, `${label} fetch failed:\n${fetched.stdout}${fetched.stderr}`);
+  const head = await command("git", ["rev-parse", "HEAD"], project.localPath, { timeout: 5000, maxOutput: 10000 });
+  const remoteRef = `refs/remotes/${remote}/${branch}`;
+  const remoteHead = await command("git", ["rev-parse", "--verify", remoteRef], project.localPath, { timeout: 5000, maxOutput: 10000 });
+
+  if (remoteHead.code === 0 && remoteHead.stdout.trim() === head.stdout.trim()) {
+    return { code: 0, stdout: fetched.stdout, stderr: fetched.stderr, output: `${label} is already synchronized at ${head.stdout.trim().slice(0, 12)}.`, target, direction: "current", head: head.stdout.trim() };
+  }
+  if (remoteHead.code === 0) {
+    const ancestor = await command("git", ["merge-base", "--is-ancestor", remoteRef, "HEAD"], project.localPath, { timeout: 5000, maxOutput: 10000 });
+    if (ancestor.code !== 0) throw httpError(409, `${label} contains changes that are not integrated locally. Use “Pull remote changes” before pushing.`);
+  }
+
+  const pushed = await command("git", ["push", remote, `HEAD:refs/heads/${branch}`], project.localPath, { timeout: 120000, maxOutput: 2 * 1024 * 1024 });
+  if (pushed.code !== 0) throw httpError(409, `${label} push failed:\n${pushed.stdout}${pushed.stderr}`);
+  const verifiedFetch = await command("git", ["fetch", remote, branch], project.localPath, { timeout: 120000, maxOutput: 2 * 1024 * 1024 });
+  const verifiedHead = await command("git", ["rev-parse", "--verify", remoteRef], project.localPath, { timeout: 5000, maxOutput: 10000 });
+  if (verifiedFetch.code !== 0 || verifiedHead.code !== 0 || verifiedHead.stdout.trim() !== head.stdout.trim()) {
+    throw httpError(409, `${label} verification failed after pushing.`);
+  }
+  return {
+    code: 0,
+    stdout: `${fetched.stdout}${pushed.stdout}${verifiedFetch.stdout}`,
+    stderr: `${fetched.stderr}${pushed.stderr}${verifiedFetch.stderr}`,
+    output: `${label} synchronized to ${head.stdout.trim().slice(0, 12)}.`,
+    target,
+    direction: "push",
+    head: head.stdout.trim(),
   };
 }
 
@@ -473,7 +536,10 @@ async function handleApi(req, res, url) {
   }
   if (action === "status" && req.method === "GET") return json(res, 200, await gitStatus(project));
   if (action === "search" && req.method === "GET") return json(res, 200, { results: await searchProject(project, url.searchParams.get("q") || "") });
-  if (action === "build" && req.method === "POST") return json(res, 200, await buildProject(project));
+  if (action === "build" && req.method === "POST") {
+    const body = await readJson(req);
+    return json(res, 200, await buildProject(project, body.clean === true));
+  }
   if (action === "pdf-info" && req.method === "GET") {
     const pdf = await locatePdf(project);
     return json(res, 200, { available: Boolean(pdf), name: pdf ? basename(pdf) : "" });
@@ -488,7 +554,11 @@ async function handleApi(req, res, url) {
   if (action === "sync" && req.method === "POST") {
     const body = await readJson(req);
     if (!(await exists(join(project.localPath, "scripts", "tex-sync")))) throw httpError(400, "This project has no synchronization bridge");
-    if (!["pull", "push"].includes(body.action)) throw httpError(400, "Sync action must be pull or push");
+    if (["github", "overleaf"].includes(body.action)) {
+      const result = await synchronizeRemote(project, body.action);
+      return json(res, result.code === 0 ? 200 : 409, result);
+    }
+    if (!["pull", "push"].includes(body.action)) throw httpError(400, "Unknown synchronization action");
     const result = await command("bash", [join(project.localPath, "scripts", "tex-sync"), body.action], project.localPath, { timeout: 240000, maxOutput: 3 * 1024 * 1024 });
     return json(res, result.code === 0 ? 200 : 409, { ...result, output: `${result.stdout}${result.stderr}` });
   }

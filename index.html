@@ -30,6 +30,8 @@
         <div class="top-actions">
           <span class="offline-pill"><span class="status-dot"></span>Offline ready</span>
           <button class="round-button" id="refresh-project" title="Refresh project">↻</button>
+          <button class="pill-button remote-sync github-sync" id="github-sync" title="Push the committed local checkpoint safely to GitHub">GitHub Sync</button>
+          <button class="pill-button remote-sync overleaf-sync" id="overleaf-sync" title="Push the committed local checkpoint safely to Overleaf">Overleaf Sync</button>
           <button class="pill-button subdued" id="open-texstudio">Open TeXstudio</button>
         </div>
       </header>
@@ -69,8 +71,8 @@
             <div class="panel-heading"><strong>Git &amp; bridge</strong><button id="refresh-status" title="Refresh status">↻</button></div>
             <div class="git-summary" id="git-summary"></div>
             <div class="sync-actions">
-              <button class="pill-button subdued" id="sync-pull">Pull safely</button>
-              <button class="pill-button primary" id="sync-push">Push commits</button>
+              <button class="pill-button subdued" id="sync-pull">Pull remote changes</button>
+              <button class="pill-button primary" id="sync-push">Sync both remotes</button>
             </div>
             <pre class="mini-log" id="sync-log"></pre>
           </section>
@@ -115,8 +117,13 @@
         <section class="preview-pane" id="preview-pane">
           <div class="preview-toolbar" role="toolbar" aria-label="PDF toolbar">
             <div class="compile-control">
-              <button class="compile-button" id="compile">Recompile</button>
-              <button class="compile-menu-button" id="compile-menu" title="Compile options">⌄</button>
+              <button type="button" class="compile-button" id="compile">Recompile</button>
+              <button type="button" class="compile-menu-button" id="compile-menu" title="Compile options" aria-haspopup="menu" aria-expanded="false">⌄</button>
+              <div class="compile-popover" id="compile-popover" role="menu" hidden>
+                <button type="button" role="menuitem" data-compile-action="normal"><strong>Recompile PDF</strong><small>Keep the current build cache</small></button>
+                <button type="button" role="menuitem" data-compile-action="clean"><strong>Recompile from scratch</strong><small>Clear auxiliary build files first</small></button>
+                <button type="button" role="menuitem" data-compile-action="logs"><strong>View compile log</strong><small>Show the most recent compiler output</small></button>
+              </div>
             </div>
             <button id="toggle-logs" title="View compile logs">▤</button>
             <a id="download-pdf" class="toolbar-link disabled" title="Download PDF" aria-disabled="true">⇩</a>

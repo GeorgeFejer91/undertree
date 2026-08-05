@@ -159,6 +159,12 @@ button {
 .pill-button.primary { background: var(--green); color: white; }
 .pill-button.primary:hover { background: var(--green-hover); }
 .pill-button.subdued { background: var(--toolbar); color: var(--light); }
+.pill-button.remote-sync { min-height: 25px; padding: 0 10px; border: 1px solid var(--divider); font-size: 12px; white-space: nowrap; }
+.pill-button.github-sync { background: #242a32; }
+.pill-button.github-sync:hover { background: #333b46; }
+.pill-button.overleaf-sync { border-color: #19a663; background: var(--green-selected); }
+.pill-button.overleaf-sync:hover { background: var(--green-hover); }
+.pill-button.remote-sync:disabled { opacity: .55; cursor: wait; }
 
 .workspace {
   height: calc(100% - 64px);
@@ -422,12 +428,29 @@ button {
 
 .preview-pane { background: #3a4557; }
 .preview-toolbar { height: 34px; }
-.compile-control { display: flex; margin-right: 3px; }
+.compile-control { position: relative; display: flex; margin-right: 3px; }
 .compile-button, .compile-menu-button { height: 24px; background: var(--green); color: white; font-weight: 600; }
 .compile-button { padding: 0 16px; border-radius: 9999px 0 0 9999px; }
 .compile-menu-button { width: 28px; border-left: 1px solid rgb(27 34 44 / 18%); border-radius: 0 9999px 9999px 0; }
 .compile-button:hover, .compile-menu-button:hover { background: var(--green-hover); }
 .compile-button.busy { background: #7a4304; }
+.compile-popover {
+  position: absolute;
+  z-index: 40;
+  top: 29px;
+  left: 0;
+  width: 255px;
+  padding: 5px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-large);
+  background: var(--chrome);
+  box-shadow: 0 14px 34px rgb(0 0 0 / 45%);
+}
+.compile-popover[hidden] { display: none; }
+.compile-popover button { width: 100%; display: block; padding: 8px 9px; border-radius: var(--radius); text-align: left; }
+.compile-popover button:hover { background: var(--toolbar); }
+.compile-popover strong, .compile-popover small { display: block; }
+.compile-popover small { margin-top: 2px; color: var(--disabled); font-size: 11px; }
 .preview-toolbar #page-status { color: var(--disabled); font-size: 12px; }
 .toolbar-link.disabled { opacity: .35; pointer-events: none; }
 
@@ -494,4 +517,9 @@ button {
   :root { --left-width: 240px; --editor-width: 48%; }
   .offline-pill, #open-texstudio { display: none; }
   .menubar button:nth-child(3), .menubar button:nth-child(5) { display: none; }
+}
+
+@media (max-width: 1250px) {
+  .offline-pill { display: none; }
+  .pill-button.remote-sync { padding: 0 8px; }
 }
