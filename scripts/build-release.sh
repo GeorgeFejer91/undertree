@@ -30,5 +30,5 @@ chmod +x bin/localtex-studio native/localtex_studio.py scripts/install.sh script
 
 cd "$staging_root"
 tar -czf "$release_root/$archive_base.tar.gz" "$archive_base"
-sha256sum "$release_root/$archive_base.tar.gz" > "$release_root/$archive_base.tar.gz.sha256"
+(cd "$release_root" && sha256sum "$archive_base.tar.gz" > "$archive_base.tar.gz.sha256")
 printf '%s\n' "$release_root/$archive_base.tar.gz"
