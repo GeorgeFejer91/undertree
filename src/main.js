@@ -7,11 +7,20 @@ import { openSearchPanel, searchKeymap } from "@codemirror/search";
 import { StreamLanguage } from "@codemirror/language";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { xml } from "@codemirror/legacy-modes/mode/xml";
-import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { clampPdfPage, nextPdfScale } from "./pdf-viewer-state.js";
+import { boundedPdfOutputScale, clampPdfPage, nextPdfScale } from "./pdf-viewer-state.js";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+let pdfjsPromise = null;
+
+async function loadPdfjs() {
+  if (!pdfjsPromise) {
+    pdfjsPromise = import("pdfjs-dist").then((pdfjs) => {
+      pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+      return pdfjs;
+    });
+  }
+  return pdfjsPromise;
+}
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -467,7 +476,8 @@ async function refreshPdf() {
     if (!info.available) throw new Error("No PDF available");
     const response = await fetch(`${projectApi("pdf")}?v=${Date.now()}`, { cache: "no-store", credentials: "same-origin" });
     if (!response.ok) throw new Error(`PDF request failed (${response.status})`);
-    const loadingTask = pdfjsLib.getDocument({ data: await response.arrayBuffer() });
+    const pdfjs = await loadPdfjs();
+    const loadingTask = pdfjs.getDocument({ data: await response.arrayBuffer() });
     nextDocument = await loadingTask.promise;
     const sameProject = previousProjectId === state.currentProject.id;
     state.pdfDocument = nextDocument;
@@ -569,7 +579,7 @@ async function renderPdfPage({ viewAnchor = null, resetScroll = false } = {}) {
   state.pdfCurrentScale = scale;
   updatePdfToolbar();
   const viewport = page.getViewport({ scale });
-  const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+  const outputScale = boundedPdfOutputScale(viewport.width, viewport.height, window.devicePixelRatio || 1);
   // Every request gets a private canvas. Cancelled PDF.js renders therefore
   // never contend for the visible canvas when zoom/page clicks arrive quickly.
   const canvas = window.document.createElement("canvas");

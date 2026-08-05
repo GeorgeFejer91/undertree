@@ -5,9 +5,9 @@ After=graphical-session.target
 [Service]
 Type=simple
 Environment=LOCALTEX_PORT=37371
-Environment=LOCALTEX_LIBRARY_ROOT=/home/George/Documents/Overleaf-projects
+Environment=LOCALTEX_LIBRARY_ROOT=%h/Documents/Overleaf-projects
 Environment=LOCALTEX_TOKEN_FILE=%h/.config/localtex-studio/token
-ExecStart=/usr/bin/node @APP_ROOT@/server.mjs
+ExecStart=@NODE_EXECUTABLE@ @APP_ROOT@/server.mjs
 WorkingDirectory=@APP_ROOT@
 Restart=on-failure
 RestartSec=2

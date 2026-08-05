@@ -1,0 +1,13 @@
+{
+  "name": "localtex-studio-runtime",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal runtime dependencies for the LocalTeX Studio release bundle",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "fast-xml-parser": "5.10.1"
+  }
+}

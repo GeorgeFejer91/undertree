@@ -1,9 +1,9 @@
 # LocalTeX Studio
 
-LocalTeX Studio is a standalone offline LaTeX workspace for the canonical local
-project library. It provides an Overleaf-style three-pane interface while using
-the same `tex-sync`, `latexmk`, TeX engines, Git repositories, and TeXstudio
-profile already installed on this computer.
+LocalTeX Studio is a standalone Linux desktop workspace for local LaTeX
+projects. It provides an Overleaf-style three-pane interface while using your
+existing Git repositories, `latexmk`, TeX engines, and optional TeXstudio
+installation. Editing and compilation remain fully offline.
 
 ## Included workflow
 
@@ -27,10 +27,37 @@ profile already installed on this computer.
 - draggable panes inside a dedicated native GTK application window;
 - localhost-only authenticated service that remains available offline.
 
-## Install or update
+## Install a release
+
+The private GitHub release contains a self-contained application archive with
+the compiled interface and its one small server dependency. It does not bundle
+the much larger TeX distribution or operating-system web view.
+
+Required system components are Node.js 20 or newer, Python GTK/WebKitGTK
+bindings, Git, `latexmk`, and a TeX distribution. TeXstudio is optional but
+enables the **Open TeXstudio** action. Install the equivalent packages from your
+Linux distribution, extract the archive into a permanent location, and run:
 
 ```bash
-npm install
+./scripts/install.sh
+```
+
+This adds a user-level desktop entry and background service. It does not need
+administrator access. You can also run `./bin/localtex-studio` directly; on a
+system without a user systemd session, the launcher starts the localhost
+service itself. `./scripts/uninstall.sh` removes the launcher integration while
+keeping projects and settings.
+
+Projects default to `~/Documents/Overleaf-projects`. The directory is created
+on first start. Repositories listed in `PROJECTS.tsv`, plus Git repositories
+with a `.tex-sync.conf` bridge file, appear in the project switcher. Set
+`LOCALTEX_LIBRARY_ROOT` when launching manually, or add a systemd user override,
+to use another library directory.
+
+## Build from source
+
+```bash
+npm ci
 npm run build
 ./scripts/install.sh
 ```
@@ -38,12 +65,13 @@ npm run build
 Then launch **LocalTeX Studio** from the desktop application menu or run
 `./bin/localtex-studio`.
 
-Runtime operation does not use npm or the internet: the JavaScript editor is
-compiled into `dist/`, the backend uses Node's standard library, and compilation
-uses the local TeX distribution. The installed program uses the operating
-system's lightweight WebKitGTK component rather than Brave, Chromium, or
-Electron. It has its own application identity, process, icon, window state, and
-download handling.
+Create the lean downloadable archive with `./scripts/build-release.sh`. Runtime
+operation does not use npm or the internet: the JavaScript editor is compiled
+into `dist/`, the backend uses Node's standard library apart from the small XML
+layout parser, and compilation uses the local TeX distribution. The installed
+program uses the operating system's lightweight WebKitGTK component rather than
+Brave, Chromium, or Electron. It has its own application identity, process,
+icon, window state, and download handling.
 
 ## Keyboard shortcuts
 
@@ -76,4 +104,6 @@ remote after fetching and checking ancestry. They stop on uncommitted work,
 newer remote changes, or divergence; use **Pull remote changes** from the Git
 panel before pushing a newer remote state.
 
-See `ARCHITECTURE.md` for the clean-room design and security boundary.
+See `ARCHITECTURE.md` for the clean-room design and security boundary,
+`PERFORMANCE.md` for the measured efficiency audit, and `VERIFICATION.md` for
+the test evidence.

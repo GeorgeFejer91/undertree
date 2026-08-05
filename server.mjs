@@ -13,6 +13,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { createServer } from "node:http";
+import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
@@ -20,8 +21,9 @@ import { compileLayout } from "./layout/compiler.mjs";
 
 const APP_ROOT = dirname(fileURLToPath(import.meta.url));
 const DIST_ROOT = join(APP_ROOT, "dist");
+const APP_VERSION = "0.2.0";
 const LIBRARY_ROOT = resolve(
-  process.env.LOCALTEX_LIBRARY_ROOT || "/home/George/Documents/Overleaf-projects",
+  process.env.LOCALTEX_LIBRARY_ROOT || join(homedir(), "Documents", "Overleaf-projects"),
 );
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.LOCALTEX_PORT || process.argv.find((arg) => arg.startsWith("--port="))?.split("=")[1] || 37371);
@@ -85,6 +87,7 @@ async function exists(path) {
 
 async function loadProjects(force = false) {
   if (!force && Date.now() - projectCache.at < PROJECT_CACHE_MS) return projectCache.projects;
+  await mkdir(LIBRARY_ROOT, { recursive: true });
   const catalogPath = join(LIBRARY_ROOT, "PROJECTS.tsv");
   const domainsPath = join(LIBRARY_ROOT, "PROJECT_DOMAINS.tsv");
   const iconManifestPath = join(LIBRARY_ROOT, "_icons", "manifest.json");
@@ -620,8 +623,20 @@ async function handleApi(req, res, url) {
   if (action === "open-texstudio" && req.method === "POST") {
     const { rootDocument } = await buildInfo(project);
     if (!rootDocument) throw httpError(400, "No root TeX document is configured");
-    const launcher = "/home/George/.local/bin/texstudio-overleaf";
+    const configuredLauncher = process.env.LOCALTEX_TEXSTUDIO_LAUNCHER || "";
+    const launcherCandidates = configuredLauncher
+      ? [configuredLauncher]
+      : [join(homedir(), ".local", "bin", "texstudio-overleaf"), "/usr/bin/texstudio", "/usr/local/bin/texstudio"];
+    let launcher = "";
+    for (const candidate of launcherCandidates) {
+      if (await exists(candidate)) {
+        launcher = candidate;
+        break;
+      }
+    }
+    if (!launcher) throw httpError(501, "TeXstudio is not installed or LOCALTEX_TEXSTUDIO_LAUNCHER is not configured");
     const child = spawn(launcher, [join(project.localPath, rootDocument)], { cwd: project.localPath, detached: true, stdio: "ignore" });
+    child.on("error", () => {});
     child.unref();
     return json(res, 202, { opened: true, rootDocument });
   }
@@ -654,7 +669,7 @@ const server = createServer(async (req, res) => {
     res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; frame-src 'self'; connect-src 'self'; object-src 'self'; frame-ancestors 'none'");
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader("X-Frame-Options", "DENY");
-    if (url.pathname === "/api/health") return json(res, 200, { ok: true, app: "LocalTeX Studio", version: "0.1.0", libraryRoot: LIBRARY_ROOT });
+    if (url.pathname === "/api/health") return json(res, 200, { ok: true, app: "LocalTeX Studio", version: APP_VERSION, libraryRoot: LIBRARY_ROOT });
     if (url.pathname.startsWith("/api/")) return await handleApi(req, res, url);
     return await handleStatic(req, res, url);
   } catch (error) {

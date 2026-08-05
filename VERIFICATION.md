@@ -14,7 +14,8 @@ none of its HTML or JavaScript is included here.
 
 ## Automated API and security test
 
-`npm test` passes a disposable Git/TeX project through:
+All eight `npm test` cases pass. They exercise a disposable Git/TeX project
+through:
 
 - authenticated project discovery and unauthenticated rejection;
 - strict same-origin mutation checks;
@@ -25,6 +26,9 @@ none of its HTML or JavaScript is included here.
 - local `latexmk` compilation and PDF streaming;
 - safe bridge pull/push command routing;
 - Git and build-configuration status.
+
+The PDF state tests also verify page boundaries, accumulated rapid zoom, and
+the 10-megapixel high-zoom render budget.
 
 ## Installed UI test
 
@@ -59,6 +63,26 @@ none of its HTML or JavaScript is included here.
   to survive until a newly rendered PDF canvas appears.
 - Clean rebuild and separate GitHub/Overleaf synchronization paths are tested
   against disposable local Git remotes; no live remote is mutated by tests.
+
+The 0.2.0 native smoke test passed after the portability and lazy-PDF changes;
+it loaded the complete editor, rendered a PDF, clicked Recompile, and verified
+that the window, project, and active document did not reload.
+
+## Standalone release
+
+- `scripts/build-release.sh` produces a 1.2 MB compressed Linux archive whose
+  extracted application occupies about 4.5 MB on disk.
+- The archive excludes all 144 MB of development dependencies and includes
+  only the compiled client, service, native shell, documentation, and minimal
+  XML parser dependency.
+- `scripts/test-release.sh` extracts the archive into a clean temporary
+  directory, starts its own server against an empty library, checks version
+  0.2.0 health, completes authenticated bootstrap, verifies required files,
+  and rejects personal absolute paths or credential-shaped content.
+- The generated systemd unit and desktop entry validate successfully, and the
+  installed service reports version 0.2.0 from the portable project path.
+- Both the complete dependency audit and runtime-only dependency audit report
+  zero known vulnerabilities.
 
 ## Real-project acceptance
 

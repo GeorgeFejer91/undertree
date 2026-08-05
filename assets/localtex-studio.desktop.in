@@ -12,8 +12,3 @@ Keywords=LaTeX;TeX;PDF;Overleaf;TeXstudio;offline;
 StartupNotify=true
 StartupWMClass=LocalTeXStudio
 DBusActivatable=false
-Actions=OpenPilot;
-
-[Desktop Action OpenPilot]
-Name=Open HTML/LaTeX parity project
-Exec=@APP_ROOT@/bin/localtex-studio pretext-a4-layout-compiler

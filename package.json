@@ -1,9 +1,14 @@
 {
   "name": "localtex-studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Offline Overleaf-style desktop workspace for local TeX projects",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GeorgeFejer91/localtex-studio.git"
+  },
   "scripts": {
     "build": "vite build",
     "layout:example": "node layout/compiler.mjs examples/adaptive-boxes.layout.xml",

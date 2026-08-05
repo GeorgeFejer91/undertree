@@ -6,6 +6,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import secrets
+import shutil
 import subprocess
 import sys
 import time
@@ -24,7 +26,7 @@ gi.require_version("WebKit2", "4.1")
 from gi.repository import Gdk, Gio, GLib, Gtk, WebKit2  # noqa: E402
 
 
-APP_ID = "io.github.george.LocalTeXStudio"
+APP_ID = "io.github.georgefejer91.LocalTeXStudio"
 APP_NAME = "LocalTeX Studio"
 APP_ORIGIN = "http://127.0.0.1:37371"
 PROJECT_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -33,6 +35,15 @@ CONFIG_ROOT = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) /
 STATE_ROOT = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "localtex-studio"
 TOKEN_FILE = CONFIG_ROOT / "token"
 WINDOW_STATE_FILE = CONFIG_ROOT / "window-state.json"
+
+
+def ensure_token() -> None:
+    """Create the user-only bootstrap token on first standalone launch."""
+    if TOKEN_FILE.exists() and TOKEN_FILE.stat().st_size:
+        return
+    CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
+    TOKEN_FILE.write_text(secrets.token_hex(24), encoding="utf-8")
+    TOKEN_FILE.chmod(0o600)
 
 
 def health_available() -> bool:
@@ -45,6 +56,7 @@ def health_available() -> bool:
 
 def ensure_service() -> None:
     """Start the installed local API without exposing its token in argv."""
+    ensure_token()
     if health_available():
         return
 
@@ -60,15 +72,16 @@ def ensure_service() -> None:
         STATE_ROOT.mkdir(parents=True, exist_ok=True)
         server_log = (STATE_ROOT / "server.log").open("ab")
         environment = os.environ.copy()
-        environment.update(
-            {
-                "LOCALTEX_PORT": "37371",
-                "LOCALTEX_TOKEN_FILE": str(TOKEN_FILE),
-                "LOCALTEX_LIBRARY_ROOT": str(Path.home() / "Documents/Overleaf-projects"),
-            }
+        node_executable = shutil.which("node")
+        if not node_executable:
+            raise RuntimeError("Node.js 20 or newer is required to run LocalTeX Studio.")
+        environment["LOCALTEX_PORT"] = "37371"
+        environment["LOCALTEX_TOKEN_FILE"] = str(TOKEN_FILE)
+        environment.setdefault(
+            "LOCALTEX_LIBRARY_ROOT", str(Path.home() / "Documents/Overleaf-projects")
         )
         subprocess.Popen(
-            ["/usr/bin/node", str(APP_ROOT / "server.mjs")],
+            [node_executable, str(APP_ROOT / "server.mjs")],
             cwd=APP_ROOT,
             env=environment,
             stdin=subprocess.DEVNULL,
@@ -301,7 +314,7 @@ class LocalTeXApplication(Gtk.Application):
         self.smoke_phase = "workspace"
         self.smoke_marker = f"localtex-smoke-{os.getpid()}-{time.time_ns()}"
         self.external_requests: list[str] = []
-        self.set_resource_base_path("/io/github/george/LocalTeXStudio")
+        self.set_resource_base_path("/io/github/georgefejer91/LocalTeXStudio")
 
     def do_startup(self) -> None:
         Gtk.Application.do_startup(self)
@@ -376,7 +389,7 @@ class LocalTeXApplication(Gtk.Application):
             and payload.get("editor")
             and payload.get("preview")
             and payload.get("recompile")
-            and payload.get("compileActions") == 3
+            and payload.get("compileActions") == 4
             and payload.get("githubSync")
             and payload.get("overleafSync")
             and payload.get("pdf")
