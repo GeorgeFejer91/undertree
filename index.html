@@ -124,19 +124,31 @@
                 <button type="button" role="menuitem" data-compile-action="clean"><strong>Recompile from scratch</strong><small>Clear auxiliary build files first</small></button>
                 <button type="button" role="menuitem" data-compile-action="proof"><strong>View adaptive HTML proof</strong><small>For the latest compiled .layout.xml source</small></button>
                 <button type="button" role="menuitem" data-compile-action="logs"><strong>View compile log</strong><small>Show the most recent compiler output</small></button>
+                <div class="compile-option-group">
+                  <label for="auto-compile-interval">Automatic recompile</label>
+                  <select id="auto-compile-interval" aria-label="Automatic recompile interval">
+                    <option value="0">Off</option>
+                    <option value="5">Every 5 seconds</option>
+                    <option value="10">Every 10 seconds</option>
+                    <option value="30">Every 30 seconds</option>
+                    <option value="60">Every minute</option>
+                    <option value="120">Every 2 minutes</option>
+                  </select>
+                  <small>Saved per project; overlapping builds are skipped.</small>
+                </div>
               </div>
             </div>
             <button id="toggle-logs" title="View compile logs">▤</button>
             <a id="download-pdf" class="toolbar-link disabled" title="Download PDF" aria-disabled="true">⇩</a>
             <span class="toolbar-spacer"></span>
-            <button id="pdf-previous" title="Previous PDF page" disabled>‹</button>
+            <button id="pdf-previous" title="Previous PDF page" aria-label="Previous PDF page" disabled>‹</button>
             <span id="page-status">PDF preview</span>
-            <button id="pdf-next" title="Next PDF page" disabled>›</button>
-            <button id="pdf-zoom-out" title="Zoom out">−</button>
-            <button id="pdf-fit-width" title="Fit PDF to pane width">↔</button>
-            <button id="pdf-zoom-in" title="Zoom in">+</button>
-            <button id="reload-pdf" title="Reload PDF">↻</button>
-            <button id="hide-preview" title="Hide PDF preview">›</button>
+            <button id="pdf-next" title="Next PDF page" aria-label="Next PDF page" disabled>›</button>
+            <button id="pdf-zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+            <button id="pdf-fit-width" title="Fit PDF to pane width" aria-label="Fit PDF to pane width">↔</button>
+            <button id="pdf-zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+            <button id="reload-pdf" title="Reload PDF" aria-label="Reload PDF">↻</button>
+            <button id="hide-preview" title="Hide PDF pane" aria-label="Hide PDF pane">×</button>
           </div>
           <div class="preview-stage" id="preview-stage">
             <div class="pdf-placeholder" id="pdf-placeholder">

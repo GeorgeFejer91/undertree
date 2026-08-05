@@ -17,7 +17,7 @@ profile already installed on this computer.
   boxes, with semantic XML, runtime validation, HTML and LuaLaTeX targets,
   bounded per-box font/spacing fitting, and visible overflow failures;
 - a real compile-options menu for normal rebuilds, clean rebuilds, embedded
-  adaptive HTML proofs, and logs;
+  adaptive HTML proofs, logs, and project-specific automatic recompilation;
 - bundled offline PDF.js rendering with page navigation, fit-width, and zoom;
 - project-wide text search;
 - local Git state and explicit safe bridge pull/push controls;
@@ -58,9 +58,12 @@ download handling.
 The green **Recompile** button never navigates the workspace: it saves the
 active source, runs the configured local build, and atomically replaces only
 the PDF canvas. Its arrow opens options for a normal rebuild, a clean rebuild,
-the latest adaptive HTML proof, or the most recent compile log. When the active
-file ends in `.layout.xml`, the same button becomes **Render layout** and builds
-that semantic source instead of the project's ordinary TeX root.
+the latest adaptive HTML proof, the most recent compile log, and automatic
+recompilation every 5, 10, 30, 60, or 120 seconds. The interval is off by
+default, remembered separately for each project, and skips overlapping builds.
+When the active file ends in `.layout.xml`, the same button becomes **Render
+layout** and builds that semantic source instead of the project's ordinary TeX
+root.
 
 See `LAYOUT_FORMAT.md` and `examples/adaptive-boxes.layout.xml` for the adaptive
 box format. Generated HTML, LuaLaTeX, and PDF files remain in the ignored

@@ -74,6 +74,27 @@ try {
   assert.equal(await page.locator("#pdf-viewer.visible #pdf-canvas").count(), 1);
   assert.equal(await page.locator("#logs-panel.visible").count(), 0);
 
+  const initialPdfWidth = await page.locator("#pdf-canvas").evaluate((canvas) => Number.parseFloat(canvas.style.width));
+  const initialPdfPercent = Number.parseInt((await page.locator("#page-status").textContent()).match(/(\d+)%/)?.[1] || "0", 10);
+  await page.locator("#pdf-zoom-in").evaluate((button) => { button.click(); button.click(); });
+  await page.waitForFunction((minimumWidth) => Number.parseFloat(document.querySelector("#pdf-canvas")?.style.width || "0") > minimumWidth && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), initialPdfWidth * 1.4, { timeout: 30000 });
+  const rapidZoomPercent = Number.parseInt((await page.locator("#page-status").textContent()).match(/(\d+)%/)?.[1] || "0", 10);
+  assert.ok(rapidZoomPercent > initialPdfPercent * 1.4, "two immediate zoom clicks should accumulate");
+  assert.equal(await page.locator("#pdf-previous").isDisabled(), true);
+  assert.equal(await page.locator("#pdf-next").isDisabled(), true);
+  assert.equal(await page.locator("#pdf-next").getAttribute("title"), "This PDF has only one page");
+  await page.locator("#pdf-fit-width").click();
+  await page.waitForFunction((expectedWidth) => Math.abs(Number.parseFloat(document.querySelector("#pdf-canvas")?.style.width || "0") - expectedWidth) < 2 && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), initialPdfWidth, { timeout: 30000 });
+
+  await page.locator("#compile-menu").click();
+  await page.locator("#auto-compile-interval").selectOption("5");
+  assert.match(await page.locator("#compile").getAttribute("title"), /every 5 seconds/);
+  await page.waitForFunction(() => document.querySelector("#status-message")?.textContent?.startsWith("Auto-compiled at") && !document.querySelector("#compile")?.disabled, null, { timeout: 240000 });
+  await page.locator("#auto-compile-interval").selectOption("0");
+  assert.equal(await page.locator("#compile").getAttribute("title"), "Recompile PDF");
+  assert.equal(await page.evaluate(() => localStorage.getItem(`localtex-auto-compile:${document.querySelector("#project-picker")?.value}`)), "0");
+  await page.locator("#compile-menu").click();
+
   await page.getByRole("button", { name: "File tree" }).click();
   await page.locator('.tree-row[title="layout-experiments"]').click();
   await page.locator('.tree-row[title="layout-experiments/adaptive-boxes.layout.xml"]').click();
