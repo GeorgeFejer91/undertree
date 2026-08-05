@@ -16,6 +16,16 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Install TeX verification dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            fonts-noto-core \
+            latexmk \
+            texlive-fonts-recommended \
+            texlive-latex-extra \
+            texlive-luatex \
+            texlive-pictures
       - run: npm ci
       - run: npm test
       - run: ./scripts/build-release.sh
