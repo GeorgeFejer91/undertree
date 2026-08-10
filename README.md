@@ -108,8 +108,11 @@ The green **Recompile** button never navigates the workspace: it saves and
 compiles the active `.tex` document, then atomically replaces the PDF page stack
 after its current page is ready. Selecting another `.tex` tab switches the
 preview to that document's existing PDF when available; recompiling updates
-only that selected document. When a non-TeX file is active, the configured
-project root remains the build target. Its arrow opens options for a normal
+only that selected document. A standalone source's `% !TeX program = ...`
+directive selects pdfLaTeX, LuaLaTeX, or XeLaTeX for that file; the project's
+configured engine is the fallback. This also permits **All PDFs** to compile a
+mixed-engine document set correctly. When a non-TeX file is active, the
+configured project root remains the build target. Its arrow opens options for a normal
 rebuild, a clean rebuild, the latest adaptive HTML proof, the most
 recent compile log, and automatic recompilation after one second without edits
 or every 5, 10, 30, 60, or 120 seconds. Automatic recompilation is off by

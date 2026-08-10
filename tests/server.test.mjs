@@ -67,7 +67,9 @@ Offline fixture text.
 Local compilation works.
 \end{document}
 `);
-  await writeFile(join(project, "supplement.tex"), String.raw`\documentclass{article}
+  await writeFile(join(project, "supplement.tex"), String.raw`% !TeX program = lualatex
+\documentclass{article}
+\usepackage{fontspec}
 \begin{document}
 Supplementary document.
 \end{document}
@@ -238,7 +240,7 @@ printf '\n%%%% LocalTeX preview normalized\n' >> "$output"
   assert.match(selectedMainPdf.headers.get("content-disposition") || "", /filename="main\.pdf"/);
   const bundleResponse = await fetch(`${baseUrl}/api/project/${projectId}/pdf-bundle`, { method: "POST", headers: mutationHeaders, body: "{}" });
   assert.equal(bundleResponse.status, 200, serverOutput);
-  assert.equal(bundleResponse.headers.get("x-localtex-compiled"), "2");
+  assert.equal(bundleResponse.headers.get("x-localtex-compiled"), "2", "mixed-engine standalone documents must compile with their own TeX directives");
   assert.equal(bundleResponse.headers.get("x-localtex-failed"), "1");
   assert.equal(decodeURIComponent(bundleResponse.headers.get("x-localtex-failed-sources") || ""), "broken.tex");
   const bundledPdfs = storedZipEntries(Buffer.from(await bundleResponse.arrayBuffer()));

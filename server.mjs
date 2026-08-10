@@ -59,6 +59,7 @@ const MIME_TYPES = {
   ".woff2": "font/woff2",
   ".pdf": "application/pdf",
 };
+const TEX_ENGINES = new Set(["pdflatex", "lualatex", "xelatex"]);
 
 let projectCache = { at: 0, projects: [] };
 const builds = new Map();
@@ -362,6 +363,24 @@ async function configValue(project, section, key, fallback = "") {
   return result.code === 0 ? result.stdout.trim() : fallback;
 }
 
+function texEngineDirective(content) {
+  const header = content.split(/\r?\n/, 50).join("\n");
+  const match = header.match(/^\s*%\s*!\s*TeX\s+(?:TS-)?program\s*=\s*((?:pdf|lua|xe)latex)\s*$/im);
+  const engine = match?.[1]?.toLowerCase() || "";
+  return TEX_ENGINES.has(engine) ? engine : "";
+}
+
+async function texEngineForFile(path, fallback) {
+  const content = await readFile(path, "utf8").catch(() => "");
+  return texEngineDirective(content) || fallback;
+}
+
+function addLatexmkEngine(args, engine) {
+  if (engine === "lualatex") args.push("-lualatex");
+  else if (engine === "xelatex") args.push("-xelatex");
+  else args.push("-pdf");
+}
+
 async function buildInfo(project) {
   let rootDocument = await configValue(project, "build", "root", project.rootDocument);
   let engine = await configValue(project, "build", "engine", project.engine || "pdflatex");
@@ -495,9 +514,8 @@ async function buildProject(project, cleanFirst = false, sourcePath = "") {
       const args = ["-norc", "-interaction=nonstopmode", "-file-line-error", "-synctex=1", `-outdir=${outputDirectory}`];
       const shellEscape = (await configValue(project, "build", "shellEscape", "false")).toLowerCase() === "true";
       if (shellEscape) args.push("-shell-escape");
-      if (engine === "lualatex") args.push("-lualatex");
-      else if (engine === "xelatex") args.push("-xelatex");
-      else args.push("-pdf");
+      const sourceEngine = await texEngineForFile(resolvedSource.path, engine);
+      addLatexmkEngine(args, sourceEngine);
       args.push(resolvedSource.relativePath);
       await mkdir(outputDirectory, { recursive: true });
       if (cleanFirst) {
@@ -588,7 +606,7 @@ async function buildPdfBundle(project) {
     temporary = await mkdtemp(join(tmpdir(), "localtex-pdf-bundle-"));
     const sources = await standaloneTexFiles(project);
     if (!sources.length) throw httpError(400, "No standalone .tex files with a document class were found");
-    const engine = await configValue(project, "build", "engine", project.engine || "pdflatex");
+    const defaultEngine = await configValue(project, "build", "engine", project.engine || "pdflatex");
     const shellEscape = (await configValue(project, "build", "shellEscape", "false")).toLowerCase() === "true";
     const entries = [];
     const failures = [];
@@ -598,8 +616,10 @@ async function buildPdfBundle(project) {
       await mkdir(outputDirectory, { recursive: true });
       const args = ["-norc", "-cd", "-interaction=nonstopmode", "-file-line-error", "-halt-on-error", `-outdir=${outputDirectory}`];
       if (shellEscape) args.push("-shell-escape");
-      if (engine === "lualatex") args.push("-lualatex"); else if (engine === "xelatex") args.push("-xelatex"); else args.push("-pdf");
-      args.push(join(project.localPath, source));
+      const sourcePath = join(project.localPath, source);
+      const sourceEngine = await texEngineForFile(sourcePath, defaultEngine);
+      addLatexmkEngine(args, sourceEngine);
+      args.push(sourcePath);
       await command("latexmk", args, project.localPath, { timeout: 240000, maxOutput: 2 * 1024 * 1024 });
       const pdfPath = join(outputDirectory, `${basename(source, extname(source))}.pdf`);
       if (await exists(pdfPath)) entries.push({ name: source.slice(0, -extname(source).length) + ".pdf", data: await readFile(pdfPath) });

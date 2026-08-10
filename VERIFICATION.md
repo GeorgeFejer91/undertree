@@ -1,6 +1,6 @@
 # Verification report
 
-Verified on 2026-08-05 against the installed LocalTeX Studio service and the
+Verified on 2026-08-10 against the installed LocalTeX Studio service and the
 `pretext-a4-layout-compiler` project.
 
 ## Reference analysis
@@ -25,6 +25,8 @@ Git/TeX project through:
 - atomic source saving and stale-modification conflict rejection;
 - full-project search;
 - local `latexmk` compilation and PDF streaming;
+- per-file TeX-engine directives for selected standalone documents and
+  mixed-engine PDF bundles;
 - safe bridge pull/push command routing;
 - Git and build-configuration status.
 
@@ -93,6 +95,8 @@ that the window, project, and active document did not reload.
 - 88 synchronized local TeX projects are discoverable.
 - The software repository itself is correctly excluded from the TeX list.
 - The real ethics sheet compiles through LocalTeX Studio's project bridge.
+- The active ZANV standalone information sheet honors its LuaLaTeX magic
+  comment even though the project's configured root uses pdfLaTeX.
 - The resulting PDF is one A4 page.
 - The pilot worktree remains clean.
 - Local, GitHub, and Overleaf resolve to the same commit
