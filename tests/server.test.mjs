@@ -40,6 +40,21 @@ async function waitForHealth(baseUrl) {
   throw new Error("Test server did not become healthy");
 }
 
+function storedZipEntries(buffer) {
+  const entries = new Map();
+  let offset = 0;
+  while (buffer.readUInt32LE(offset) === 0x04034b50) {
+    const compressedSize = buffer.readUInt32LE(offset + 18);
+    const nameLength = buffer.readUInt16LE(offset + 26);
+    const extraLength = buffer.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const dataStart = nameStart + nameLength + extraLength;
+    entries.set(buffer.subarray(nameStart, nameStart + nameLength).toString("utf8"), buffer.subarray(dataStart, dataStart + compressedSize));
+    offset = dataStart + compressedSize;
+  }
+  return entries;
+}
+
 test("authenticated API safely edits, searches, compiles, and serves a local TeX project", async (context) => {
   const temporaryRoot = await mkdtemp(join(tmpdir(), "localtex-test-"));
   const library = join(temporaryRoot, "library");
@@ -52,6 +67,15 @@ Offline fixture text.
 Local compilation works.
 \end{document}
 `);
+  await writeFile(join(project, "supplement.tex"), String.raw`\documentclass{article}
+\begin{document}
+Supplementary document.
+\end{document}
+`);
+  await writeFile(join(project, "broken.tex"), String.raw`\documentclass{article}
+\begin{document}
+This source intentionally does not end.
+`);
   await writeFile(join(project, "adaptive.layout.xml"), `<?xml version="1.0"?>
 <layout-document version="1" title="Server layout"><page size="A4" margin="10mm"><grid columns="1fr" rows="1fr"><box id="adaptive" min-font-size="8.5pt" max-font-size="14pt"><heading>Adaptive server proof</heading><p>The selected semantic layout compiles through the authenticated local API.</p></box></grid></page></layout-document>`);
   await writeFile(join(project, ".tex-sync.conf"), `[sync]\n\tgithubRemote = origin\n\tgithubBranch = main\n\toverleafProjectUrl = https://www.overleaf.com/project/fixture\n\tmode = direct-git\n\toverleafRemote = overleaf\n[build]\n\troot = main.tex\n\tengine = pdflatex\n\tworkingDirectory = repository-root\n\tshellEscape = false\n`);
@@ -62,6 +86,21 @@ Local compilation works.
   );
   await writeFile(join(project, "scripts", "tex-sync"), bridgeWithClean);
   await chmod(join(project, "scripts", "tex-sync"), 0o755);
+  const previewNormalizer = join(temporaryRoot, "preview-normalizer");
+  await writeFile(previewNormalizer, `#!/usr/bin/env bash
+set -euo pipefail
+output=""
+input=""
+for argument in "$@"; do
+  case "$argument" in
+    -sOutputFile=*) output="\${argument#*=}" ;;
+    *.pdf) input="$argument" ;;
+  esac
+done
+cp "$input" "$output"
+printf '\n%%%% LocalTeX preview normalized\n' >> "$output"
+`);
+  await chmod(previewNormalizer, 0o755);
   await writeFile(join(library, "PROJECTS.tsv"), `type\tname\tlocalPath\trepository\tbranch\troot\tengine\toverleafUrl\nactive-overleaf\tFixture Project\t${project}\texample/fixture\tmain\tmain.tex\tpdflatex\thttps://www.overleaf.com/project/fixture\n`);
   await writeFile(join(library, "PROJECT_DOMAINS.tsv"), `id\ttype\tname\tprojectTitle\tsemanticDomain\tthemes\tdocumentFunction\tprojectFamily\treuseRole\tlocalPath\trepository\troot\tengine\toverleafUrl\nfixture\tactive-overleaf\tFixture Project\tFixture\ttesting\toffline\tverification\tfixture\ttest\t${project}\texample/fixture\tmain.tex\tpdflatex\thttps://www.overleaf.com/project/fixture\n`);
 
@@ -83,7 +122,7 @@ Local compilation works.
   const token = "integration-test-token";
   const server = spawn(process.execPath, [join(APP_ROOT, "server.mjs")], {
     cwd: APP_ROOT,
-    env: { ...process.env, LOCALTEX_PORT: String(port), LOCALTEX_TOKEN: token, LOCALTEX_LIBRARY_ROOT: library },
+    env: { ...process.env, LOCALTEX_PORT: String(port), LOCALTEX_TOKEN: token, LOCALTEX_LIBRARY_ROOT: library, LOCALTEX_GHOSTSCRIPT: previewNormalizer },
   });
   let serverOutput = "";
   server.stdout.on("data", (chunk) => { serverOutput += chunk; });
@@ -104,9 +143,13 @@ Local compilation works.
   assert.equal(bootstrap.status, 302);
   assert.match(bootstrap.headers.get("set-cookie") || "", /HttpOnly/);
   assert.match(bootstrap.headers.get("set-cookie") || "", /SameSite=Strict/);
+  const fileBootstrap = await fetch(`${baseUrl}/?token=${token}&project=fixture-project&file=main.tex`, { redirect: "manual" });
+  assert.equal(fileBootstrap.headers.get("location"), "/app?project=fixture-project&file=main.tex");
 
   const projectData = await (await fetch(`${baseUrl}/api/projects`, { headers })).json();
   assert.equal(projectData.projects.length, 1);
+  assert.ok(Number.isFinite(projectData.projects[0].createdAt) && projectData.projects[0].createdAt > 0);
+  assert.ok(Number.isFinite(projectData.projects[0].modifiedAt) && projectData.projects[0].modifiedAt > 0);
   const projectId = projectData.projects[0].id;
   const tree = await (await fetch(`${baseUrl}/api/project/${projectId}/tree`, { headers })).json();
   assert.equal(tree.build.rootDocument, "main.tex");
@@ -165,10 +208,42 @@ Local compilation works.
   assert.equal(cleanBuild.pdfAvailable, true, "clean rebuild must produce a PDF");
   const pdfInfo = await (await fetch(`${baseUrl}/api/project/${projectId}/pdf-info`, { headers })).json();
   assert.equal(pdfInfo.available, true);
+  assert.equal(pdfInfo.name, "main.pdf");
   const pdf = await fetch(`${baseUrl}/api/project/${projectId}/pdf`, { headers });
   assert.equal(pdf.status, 200);
   assert.equal(pdf.headers.get("content-type"), "application/pdf");
-  assert.ok((await pdf.arrayBuffer()).byteLength > 1000);
+  const pdfPreviewBuffer = Buffer.from(await pdf.arrayBuffer());
+  assert.ok(pdfPreviewBuffer.byteLength > 1000);
+  assert.match(pdfPreviewBuffer.subarray(-80).toString("latin1"), /LocalTeX preview normalized/);
+  const pdfDownload = await fetch(`${baseUrl}/api/project/${projectId}/pdf?download=1`, { headers });
+  assert.match(pdfDownload.headers.get("content-disposition") || "", /filename="main\.pdf"/);
+  const pdfDownloadBuffer = Buffer.from(await pdfDownload.arrayBuffer());
+  assert.doesNotMatch(pdfDownloadBuffer.subarray(-80).toString("latin1"), /LocalTeX preview normalized/);
+  const supplementBuildResponse = await fetch(`${baseUrl}/api/project/${projectId}/build`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ sourcePath: "supplement.tex" }),
+  });
+  assert.equal(supplementBuildResponse.status, 200, serverOutput);
+  const supplementBuild = await supplementBuildResponse.json();
+  assert.equal(supplementBuild.sourcePath, "supplement.tex");
+  assert.equal(supplementBuild.pdfAvailable, true, `${serverOutput}\n${supplementBuild.output || ""}`);
+  const supplementPdfInfo = await (await fetch(`${baseUrl}/api/project/${projectId}/pdf-info?sourcePath=supplement.tex`, { headers })).json();
+  assert.deepEqual(supplementPdfInfo, { available: true, name: "supplement.pdf", sourcePath: "supplement.tex" });
+  const supplementPdf = await fetch(`${baseUrl}/api/project/${projectId}/pdf?sourcePath=supplement.tex&download=1`, { headers });
+  assert.equal(supplementPdf.status, 200);
+  assert.match(supplementPdf.headers.get("content-disposition") || "", /filename="supplement\.pdf"/);
+  assert.ok((await supplementPdf.arrayBuffer()).byteLength > 1000);
+  const selectedMainPdf = await fetch(`${baseUrl}/api/project/${projectId}/pdf?sourcePath=main.tex&download=1`, { headers });
+  assert.match(selectedMainPdf.headers.get("content-disposition") || "", /filename="main\.pdf"/);
+  const bundleResponse = await fetch(`${baseUrl}/api/project/${projectId}/pdf-bundle`, { method: "POST", headers: mutationHeaders, body: "{}" });
+  assert.equal(bundleResponse.status, 200, serverOutput);
+  assert.equal(bundleResponse.headers.get("x-localtex-compiled"), "2");
+  assert.equal(bundleResponse.headers.get("x-localtex-failed"), "1");
+  assert.equal(decodeURIComponent(bundleResponse.headers.get("x-localtex-failed-sources") || ""), "broken.tex");
+  const bundledPdfs = storedZipEntries(Buffer.from(await bundleResponse.arrayBuffer()));
+  assert.deepEqual([...bundledPdfs.keys()].sort(), ["main.pdf", "supplement.pdf"]);
+  assert.equal(bundledPdfs.get("main.pdf").subarray(0, 4).toString(), "%PDF");
 
   const adaptiveBuildResponse = await fetch(`${baseUrl}/api/project/${projectId}/build`, {
     method: "POST",

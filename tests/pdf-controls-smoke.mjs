@@ -93,26 +93,49 @@ try {
   await session.detach();
   page = await pagePromise;
   await page.goto(`${baseUrl}/?token=${token}`, { waitUntil: "domcontentloaded", timeout: 30000 });
-  await page.waitForSelector("#pdf-viewer.visible #pdf-canvas", { timeout: 30000 });
+  await page.waitForSelector('#pdf-viewer.visible .pdf-page[data-page-number="1"] canvas', { timeout: 30000 });
   await page.waitForFunction(() => document.querySelector("#page-status")?.textContent?.startsWith("1 of 3") && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), null, { timeout: 30000 });
+  assert.equal(await page.locator("#pdf-pages .pdf-page").count(), 3, "every PDF page should be present in the continuous scroll stack");
 
-  const initialWidth = await page.locator("#pdf-canvas").evaluate((canvas) => Number.parseFloat(canvas.style.width));
-  await page.locator("#pdf-next").evaluate((button) => { button.click(); button.click(); });
-  await page.waitForFunction(() => document.querySelector("#page-status")?.textContent?.startsWith("3 of 3") && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), null, { timeout: 30000 });
+  const initialWidth = await page.locator('.pdf-page[data-page-number="1"] canvas').evaluate((canvas) => Number.parseFloat(canvas.style.width));
+  await page.locator("#pdf-viewer").evaluate((viewer) => { viewer.scrollTop = viewer.scrollHeight; });
+  await page.waitForFunction(() => document.querySelector("#page-status")?.textContent?.startsWith("3 of 3") && document.querySelector('.pdf-page[data-page-number="3"] canvas'), null, { timeout: 30000 });
   assert.equal(await page.locator("#pdf-next").isDisabled(), true);
   assert.equal(await page.locator("#pdf-previous").isEnabled(), true);
 
   await page.locator("#pdf-previous").click();
-  await page.waitForFunction(() => document.querySelector("#page-status")?.textContent?.startsWith("2 of 3") && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), null, { timeout: 30000 });
+  await page.waitForFunction(() => {
+    const viewer = document.querySelector("#pdf-viewer");
+    const second = document.querySelector('.pdf-page[data-page-number="2"]');
+    return document.querySelector("#page-status")?.textContent?.startsWith("2 of 3")
+      && second?.querySelector("canvas")
+      && Math.abs(second.getBoundingClientRect().top - viewer.getBoundingClientRect().top - 16) < 3;
+  }, null, { timeout: 30000 });
 
   await page.locator("#pdf-zoom-in").evaluate((button) => { button.click(); button.click(); });
-  await page.waitForFunction((minimumWidth) => Number.parseFloat(document.querySelector("#pdf-canvas")?.style.width || "0") > minimumWidth && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), initialWidth * 1.4, { timeout: 30000 });
+  await page.waitForFunction((minimumWidth) => Number.parseFloat(document.querySelector('.pdf-page[data-page-number="2"] canvas')?.style.width || "0") > minimumWidth && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), initialWidth * 1.4, { timeout: 30000 });
   await page.locator("#pdf-fit-width").click();
-  await page.waitForFunction((expectedWidth) => Math.abs(Number.parseFloat(document.querySelector("#pdf-canvas")?.style.width || "0") - expectedWidth) < 2 && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), initialWidth, { timeout: 30000 });
+  await page.waitForFunction((expectedWidth) => Math.abs(Number.parseFloat(document.querySelector('.pdf-page[data-page-number="2"] canvas')?.style.width || "0") - expectedWidth) < 2 && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), initialWidth, { timeout: 30000 });
 
   await page.locator("#reload-pdf").click();
   await page.waitForFunction(() => document.querySelector("#page-status")?.textContent?.startsWith("2 of 3") && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), null, { timeout: 30000 });
-  process.stdout.write("LocalTeX PDF page, zoom, fit, and reload controls passed.\n");
+  await page.locator("#compile-menu").click();
+  await page.locator("#auto-compile-interval").selectOption("changes");
+  assert.match(await page.locator("#compile").getAttribute("title"), /one second after editing stops/);
+  await page.locator(".cm-content").click();
+  await page.locator(".cm-content").press("Control+End");
+  await page.keyboard.insertText("\n% edit-aware compile smoke test");
+  await page.waitForFunction(() => document.querySelector("#status-message")?.textContent?.startsWith("Auto-compiled at") && !document.querySelector("#compile")?.disabled, null, { timeout: 240000 });
+  await page.locator("#compile-menu").click();
+  await page.locator("#auto-compile-interval").selectOption("0");
+  if (process.env.LOCALTEX_SCREENSHOT) {
+    await page.locator("#compile-menu").click();
+    await page.locator("#pdf-zoom-out").evaluate((button) => { button.click(); button.click(); });
+    await page.waitForFunction(() => !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), null, { timeout: 30000 });
+    await page.locator("#toast-region").evaluate((region) => region.replaceChildren());
+    await page.screenshot({ path: process.env.LOCALTEX_SCREENSHOT, fullPage: false });
+  }
+  process.stdout.write("LocalTeX continuous PDF scroll, edit-aware compile, zoom, fit, and reload controls passed.\n");
 } finally {
   if (page) await page.close({ runBeforeUnload: false }).catch(() => {});
   if (browser) await browser.close().catch(() => {});

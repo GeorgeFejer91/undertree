@@ -18,6 +18,7 @@ const session = await browser.newBrowserCDPSession();
 await session.send("Target.createTarget", { url: marker, background: true });
 await session.detach();
 const page = await pagePromise;
+await page.addInitScript(() => localStorage.removeItem("localtex-source-files-only"));
 const errors = [];
 const externalRequests = [];
 page.on("console", (message) => {
@@ -42,8 +43,17 @@ try {
   assert.equal(await page.locator(".editor-pane").count(), 1);
   assert.equal(await page.locator(".preview-pane").count(), 1);
   assert.ok(await page.locator(".tree-row").count() > 0);
+  const sourceFilesOnly = page.getByRole("checkbox", { name: "TeX & Bib only" });
+  assert.equal(await sourceFilesOnly.isChecked(), true);
+  const filteredFileNames = await page.locator(".tree-file .tree-label").allTextContents();
+  assert.ok(filteredFileNames.length > 0);
+  assert.ok(filteredFileNames.every((name) => /\.(?:tex|bib)$/i.test(name)), "source-only tree must hide support and output files");
+  await sourceFilesOnly.uncheck();
+  assert.ok(await page.locator('.tree-file .tree-label').evaluateAll((labels) => labels.some((label) => !/\.(?:tex|bib)$/i.test(label.textContent || ""))));
+  assert.equal(await page.evaluate(() => localStorage.getItem("localtex-source-files-only")), "false");
   assert.ok(await page.locator(".editor-tab").count() > 0);
   assert.equal(await page.getByRole("button", { name: "Recompile", exact: true }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "Download all PDFs", exact: true }).count(), 1);
   assert.equal(await page.getByRole("button", { name: "GitHub Sync", exact: true }).count(), 1);
   assert.equal(await page.getByRole("button", { name: "Overleaf Sync", exact: true }).count(), 1);
 
@@ -63,28 +73,40 @@ try {
   await page.getByRole("button", { name: "Choose a project" }).click();
   await page.waitForSelector(".project-row", { timeout: 15000 });
   assert.ok(await page.locator(".project-row").count() > 10);
+  const initialProjectSort = await page.locator("#project-sort").inputValue();
+  await page.locator("#project-sort").selectOption("name-desc");
+  const projectNames = await page.locator(".project-row .project-details strong").allTextContents();
+  const expectedNames = [...projectNames].sort((a, b) => b.localeCompare(a, undefined, { sensitivity: "base", numeric: true }));
+  assert.deepEqual(projectNames, expectedNames, "project dialog should reorder names from Z to A");
+  await page.locator("#project-sort").selectOption("created-desc");
+  assert.equal(await page.locator(".project-row-meta small", { hasText: /^Created / }).count(), projectNames.length);
+  await page.locator("#project-sort").selectOption(initialProjectSort);
+  await page.locator("#close-project-modal").click();
+  await page.getByRole("button", { name: "Organize projects" }).click();
+  await page.waitForSelector("#project-modal:not([hidden])");
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "project-sort");
   await page.locator("#close-project-modal").click();
 
   const navigationMarker = `localtex-ui-${Date.now()}`;
   await page.evaluate((marker) => { window.__localtexNavigationMarker = marker; }, navigationMarker);
   await page.getByRole("button", { name: "Recompile", exact: true }).click();
   await page.waitForFunction(() => document.querySelector("#compile")?.textContent === "Recompile" && !document.querySelector("#compile")?.disabled, null, { timeout: 240000 });
-  await page.waitForFunction(() => document.querySelector("#pdf-canvas")?.width > 0, null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector("#pdf-pages canvas")?.width > 0, null, { timeout: 30000 });
   assert.equal(await page.evaluate(() => window.__localtexNavigationMarker), navigationMarker, "Recompile must not reload the workspace");
-  assert.equal(await page.locator("#pdf-viewer.visible #pdf-canvas").count(), 1);
+  assert.equal(await page.locator("#pdf-viewer.visible #pdf-pages canvas").count(), 1);
   assert.equal(await page.locator("#logs-panel.visible").count(), 0);
 
-  const initialPdfWidth = await page.locator("#pdf-canvas").evaluate((canvas) => Number.parseFloat(canvas.style.width));
+  const initialPdfWidth = await page.locator("#pdf-pages canvas").evaluate((canvas) => Number.parseFloat(canvas.style.width));
   const initialPdfPercent = Number.parseInt((await page.locator("#page-status").textContent()).match(/(\d+)%/)?.[1] || "0", 10);
   await page.locator("#pdf-zoom-in").evaluate((button) => { button.click(); button.click(); });
-  await page.waitForFunction((minimumWidth) => Number.parseFloat(document.querySelector("#pdf-canvas")?.style.width || "0") > minimumWidth && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), initialPdfWidth * 1.4, { timeout: 30000 });
+  await page.waitForFunction((minimumWidth) => Number.parseFloat(document.querySelector("#pdf-pages canvas")?.style.width || "0") > minimumWidth && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), initialPdfWidth * 1.4, { timeout: 30000 });
   const rapidZoomPercent = Number.parseInt((await page.locator("#page-status").textContent()).match(/(\d+)%/)?.[1] || "0", 10);
   assert.ok(rapidZoomPercent > initialPdfPercent * 1.4, "two immediate zoom clicks should accumulate");
   assert.equal(await page.locator("#pdf-previous").isDisabled(), true);
   assert.equal(await page.locator("#pdf-next").isDisabled(), true);
   assert.equal(await page.locator("#pdf-next").getAttribute("title"), "This PDF has only one page");
   await page.locator("#pdf-fit-width").click();
-  await page.waitForFunction((expectedWidth) => Math.abs(Number.parseFloat(document.querySelector("#pdf-canvas")?.style.width || "0") - expectedWidth) < 2 && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), initialPdfWidth, { timeout: 30000 });
+  await page.waitForFunction((expectedWidth) => Math.abs(Number.parseFloat(document.querySelector("#pdf-pages canvas")?.style.width || "0") - expectedWidth) < 2 && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), initialPdfWidth, { timeout: 30000 });
 
   await page.locator("#compile-menu").click();
   await page.locator("#auto-compile-interval").selectOption("5");

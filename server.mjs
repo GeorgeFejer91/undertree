@@ -4,6 +4,7 @@ import { createReadStream } from "node:fs";
 import {
   access,
   mkdir,
+  mkdtemp,
   readFile,
   readdir,
   realpath,
@@ -13,7 +14,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { createServer } from "node:http";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
@@ -34,6 +35,8 @@ const COOKIE_NAME = "localtex_session";
 const MAX_BODY = 10 * 1024 * 1024;
 const MAX_TEXT_FILE = 8 * 1024 * 1024;
 const PROJECT_CACHE_MS = 5000;
+const GHOSTSCRIPT = process.env.LOCALTEX_GHOSTSCRIPT || "gs";
+const PDF_PREVIEW_ROOT = join(tmpdir(), "localtex-pdf-previews");
 const TEXT_EXTENSIONS = new Set([
   ".tex", ".bib", ".sty", ".cls", ".bst", ".bbx", ".cbx", ".ltx",
   ".md", ".txt", ".csv", ".tsv", ".json", ".yaml", ".yml", ".toml",
@@ -59,7 +62,9 @@ const MIME_TYPES = {
 
 let projectCache = { at: 0, projects: [] };
 const builds = new Map();
+const bundleBuilds = new Set();
 const previewPdfs = new Map();
+const normalizedPdfPreviews = new Map();
 const layoutOutputs = new Map();
 
 function idForPath(localPath) {
@@ -119,19 +124,37 @@ async function loadProjects(force = false) {
     const localPath = resolve(entry.localPath);
     if (!localPath.startsWith(`${LIBRARY_ROOT}${sep}`) || !(await exists(localPath))) continue;
     const domain = domainByPath.get(entry.localPath) || {};
+    const rootDocument = entry.root || "";
+    const configuredRootPath = rootDocument ? resolve(localPath, rootDocument) : "";
+    const rootPath = configuredRootPath.startsWith(`${localPath}${sep}`) ? configuredRootPath : "";
+    const [directoryStats, rootStats, gitIndexStats, gitLogStats] = await Promise.all([
+      stat(localPath).catch(() => null),
+      rootPath ? stat(rootPath).catch(() => null) : null,
+      stat(join(localPath, ".git", "index")).catch(() => null),
+      stat(join(localPath, ".git", "logs", "HEAD")).catch(() => null),
+    ]);
+    const createdAt = directoryStats?.birthtimeMs > 0 ? directoryStats.birthtimeMs : directoryStats?.ctimeMs || 0;
+    const modifiedAt = Math.max(
+      directoryStats?.mtimeMs || 0,
+      rootStats?.mtimeMs || 0,
+      gitIndexStats?.mtimeMs || 0,
+      gitLogStats?.mtimeMs || 0,
+    );
     projects.push({
       id: idForPath(localPath),
       name: entry.name || basename(localPath),
       localPath,
       repository: entry.repository || "",
       branch: entry.branch || "main",
-      rootDocument: entry.root || "",
+      rootDocument,
       engine: entry.engine || "",
       overleafUrl: entry.overleafUrl || "",
       semanticDomain: domain.semanticDomain || "",
       themes: domain.themes || "",
       documentFunction: domain.documentFunction || "",
       projectFamily: domain.projectFamily || "",
+      createdAt,
+      modifiedAt,
       iconPath: iconByPath.get(entry.localPath) || "",
     });
   }
@@ -305,6 +328,33 @@ function command(program, args, cwd, options = {}) {
   });
 }
 
+async function normalizePdfForPreview(pdfPath) {
+  // WebKitGTK's canvas backend can drop parts of complex pdfTeX/TikZ streams.
+  // Rewrite only the browser preview; downloads keep the original TeX output.
+  const metadata = await stat(pdfPath);
+  const fingerprint = `${metadata.size}:${metadata.mtimeMs}`;
+  const cached = normalizedPdfPreviews.get(pdfPath);
+  if (cached?.fingerprint === fingerprint && await exists(cached.path)) return cached.path;
+  await mkdir(PDF_PREVIEW_ROOT, { recursive: true });
+  const key = createHash("sha256").update(`${pdfPath}\0${fingerprint}`).digest("hex").slice(0, 24);
+  const outputPath = join(PDF_PREVIEW_ROOT, `${key}.pdf`);
+  if (!(await exists(outputPath))) {
+    const temporaryPath = `${outputPath}.${process.pid}.${Date.now()}.tmp`;
+    const result = await command(GHOSTSCRIPT, [
+      "-q", "-dNOPAUSE", "-dBATCH", "-dSAFER", "-sDEVICE=pdfwrite",
+      "-dCompatibilityLevel=1.4", "-dPDFSETTINGS=/prepress", "-dAutoRotatePages=/None",
+      `-sOutputFile=${temporaryPath}`, "-f", pdfPath,
+    ], dirname(pdfPath), { timeout: 120000, maxOutput: 256 * 1024 });
+    if (result.code !== 0 || !(await exists(temporaryPath))) {
+      await rm(temporaryPath, { force: true }).catch(() => {});
+      return pdfPath;
+    }
+    await rename(temporaryPath, outputPath);
+  }
+  normalizedPdfPreviews.set(pdfPath, { fingerprint, path: outputPath });
+  return outputPath;
+}
+
 async function configValue(project, section, key, fallback = "") {
   const configPath = join(project.localPath, ".tex-sync.conf");
   if (!(await exists(configPath))) return fallback;
@@ -325,16 +375,41 @@ async function buildInfo(project) {
   return { rootDocument, engine };
 }
 
-async function locatePdf(project) {
-  const preview = previewPdfs.get(project.id);
-  if (preview && await exists(preview)) return preview;
+async function locatePdf(project, sourcePath = "") {
+  const requestedSource = sourcePath ? safeRelativePath(sourcePath) : "";
+  if (requestedSource.toLowerCase().endsWith(".layout.xml")) {
+    const resolvedSource = await resolveExisting(project, requestedSource);
+    const output = layoutOutputs.get(project.id);
+    if (output?.sourcePath === resolvedSource.relativePath && await exists(output.pdfPath)) return output.pdfPath;
+    const stem = basename(resolvedSource.relativePath).replace(/\.layout\.xml$/i, "");
+    const generatedPdf = join(project.localPath, ".localtex-layout", stem, `${stem}.pdf`);
+    return await exists(generatedPdf) ? generatedPdf : null;
+  }
+  if (requestedSource && !requestedSource.toLowerCase().endsWith(".tex")) {
+    throw httpError(415, "Only .tex and .layout.xml sources have PDF previews");
+  }
+  if (!requestedSource) {
+    const preview = previewPdfs.get(project.id);
+    if (preview && await exists(preview)) return preview;
+  }
   const { rootDocument } = await buildInfo(project);
-  if (!rootDocument) return null;
-  const pdfName = `${basename(rootDocument, extname(rootDocument))}.pdf`;
-  const candidates = [join(project.localPath, ".tex-build", pdfName), join(project.localPath, dirname(rootDocument), pdfName), join(project.localPath, pdfName)];
+  const texSource = requestedSource || rootDocument;
+  if (!texSource) return null;
+  const resolvedSource = await resolveExisting(project, texSource);
+  const pdfName = `${basename(resolvedSource.relativePath, extname(resolvedSource.relativePath))}.pdf`;
+  const sourceDirectory = dirname(resolvedSource.relativePath);
+  const outputDirectory = sourceDirectory === "."
+    ? join(project.localPath, ".tex-build")
+    : join(project.localPath, ".tex-build", sourceDirectory);
+  const candidates = [join(outputDirectory, pdfName), join(dirname(resolvedSource.path), pdfName)];
+  const configuredRoot = rootDocument ? safeRelativePath(rootDocument) : "";
+  if (configuredRoot === resolvedSource.relativePath) {
+    candidates.push(join(project.localPath, ".tex-build", pdfName), join(project.localPath, pdfName));
+  }
   for (const candidate of candidates) {
     if (await exists(candidate)) return candidate;
   }
+  if (requestedSource) return null;
   const buildDirectory = join(project.localPath, ".tex-build");
   async function findNested(directory, depth = 0) {
     if (depth > 4 || !(await exists(directory))) return null;
@@ -383,19 +458,27 @@ async function buildLayoutProject(project, sourcePath, cleanFirst = false) {
     output: `LocalTeX Layout validated and generated two targets.\nHTML: ${generated.htmlPath}\nLuaLaTeX: ${generated.texPath}\n\n${result.stdout}${result.stderr}`,
     pdfAvailable,
     compiledAt: new Date().toISOString(),
+    sourcePath: resolvedSource.relativePath,
     layout,
   };
 }
 
-async function buildProject(project, cleanFirst = false, layoutSource = "") {
+async function buildProject(project, cleanFirst = false, sourcePath = "") {
+  if (bundleBuilds.has(project.id)) throw httpError(409, "A PDF bundle is currently being compiled for this project");
   if (builds.has(project.id)) return builds.get(project.id);
   const buildPromise = (async () => {
-    if (layoutSource) return buildLayoutProject(project, layoutSource, cleanFirst);
+    if (sourcePath.toLowerCase().endsWith(".layout.xml")) return buildLayoutProject(project, sourcePath, cleanFirst);
+    if (sourcePath && !sourcePath.toLowerCase().endsWith(".tex")) throw httpError(415, "The selected build source must be a .tex or .layout.xml file");
     previewPdfs.delete(project.id);
     layoutOutputs.delete(project.id);
+    const { rootDocument, engine } = await buildInfo(project);
+    const texSource = sourcePath ? (await resolveExisting(project, sourcePath)).relativePath : rootDocument;
+    if (!texSource) throw httpError(400, "No root TeX document is configured");
+    const resolvedSource = await resolveExisting(project, texSource);
+    const selectedConfiguredRoot = Boolean(rootDocument) && resolvedSource.relativePath === safeRelativePath(rootDocument);
     const bridge = join(project.localPath, "scripts", "tex-sync");
     let result;
-    if (await exists(bridge)) {
+    if (selectedConfiguredRoot && await exists(bridge)) {
       let cleanOutput = "";
       if (cleanFirst) {
         const cleaned = await command("bash", [bridge, "clean"], project.localPath, { timeout: 60000, maxOutput: 1024 * 1024 });
@@ -405,25 +488,129 @@ async function buildProject(project, cleanFirst = false, layoutSource = "") {
       result = await command("bash", [bridge, "build"], project.localPath, { timeout: 240000, maxOutput: 4 * 1024 * 1024 });
       result.stdout = `${cleanOutput}${result.stdout}`;
     } else {
-      const { rootDocument, engine } = await buildInfo(project);
-      if (!rootDocument) throw httpError(400, "No root TeX document is configured");
-      const args = ["-norc", "-interaction=nonstopmode", "-file-line-error", "-synctex=1", `-outdir=${join(project.localPath, ".tex-build")}`];
+      const sourceDirectory = dirname(resolvedSource.relativePath);
+      const outputDirectory = sourceDirectory === "."
+        ? join(project.localPath, ".tex-build")
+        : join(project.localPath, ".tex-build", sourceDirectory);
+      const args = ["-norc", "-interaction=nonstopmode", "-file-line-error", "-synctex=1", `-outdir=${outputDirectory}`];
+      const shellEscape = (await configValue(project, "build", "shellEscape", "false")).toLowerCase() === "true";
+      if (shellEscape) args.push("-shell-escape");
       if (engine === "lualatex") args.push("-lualatex");
       else if (engine === "xelatex") args.push("-xelatex");
       else args.push("-pdf");
-      args.push(rootDocument);
-      await mkdir(join(project.localPath, ".tex-build"), { recursive: true });
+      args.push(resolvedSource.relativePath);
+      await mkdir(outputDirectory, { recursive: true });
       if (cleanFirst) {
-        const cleaned = await command("latexmk", ["-norc", "-C", `-outdir=${join(project.localPath, ".tex-build")}`, rootDocument], project.localPath, { timeout: 60000, maxOutput: 1024 * 1024 });
+        const cleaned = await command("latexmk", ["-norc", "-C", `-outdir=${outputDirectory}`, resolvedSource.relativePath], project.localPath, { timeout: 60000, maxOutput: 1024 * 1024 });
         if (cleaned.code !== 0) throw httpError(409, `Could not clean the previous build:\n${cleaned.stdout}${cleaned.stderr}`);
       }
       result = await command("latexmk", args, project.localPath, { timeout: 240000, maxOutput: 4 * 1024 * 1024 });
     }
-    const pdf = await locatePdf(project);
-    return { ...result, output: `${result.stdout}${result.stderr}`, pdfAvailable: Boolean(pdf), compiledAt: new Date().toISOString() };
+    const pdf = await locatePdf(project, resolvedSource.relativePath);
+    if (pdf) previewPdfs.set(project.id, pdf);
+    return { ...result, output: `${result.stdout}${result.stderr}`, pdfAvailable: Boolean(pdf), compiledAt: new Date().toISOString(), sourcePath: resolvedSource.relativePath };
   })().finally(() => builds.delete(project.id));
   builds.set(project.id, buildPromise);
   return buildPromise;
+}
+
+function standaloneTexSource(content) {
+  const uncommented = content.split(/\r?\n/).map((line) => line.replace(/(^|[^\\])%.*/, "$1")).join("\n");
+  return /\\documentclass(?:\s*\[[^\]]*\])?\s*\{/.test(uncommented);
+}
+
+async function standaloneTexFiles(project) {
+  const tree = await treeForProject(project);
+  const candidates = [];
+  const collect = (nodes) => nodes.forEach((node) => {
+    if (node.type === "directory") collect(node.children);
+    else if (node.path.toLowerCase().endsWith(".tex")) candidates.push(node.path);
+  });
+  collect(tree);
+  const sources = [];
+  for (const path of candidates) {
+    const content = await readFile(join(project.localPath, path), "utf8").catch(() => "");
+    if (standaloneTexSource(content)) sources.push(path);
+  }
+  return sources;
+}
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function zipDateTime(date = new Date()) {
+  const year = Math.max(1980, date.getFullYear());
+  return {
+    date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
+    time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
+  };
+}
+
+function createZip(entries) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  const timestamp = zipDateTime();
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name.replaceAll("\\", "/"), "utf8");
+    const data = entry.data;
+    const checksum = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(0x0800, 6);
+    local.writeUInt16LE(timestamp.time, 10); local.writeUInt16LE(timestamp.date, 12); local.writeUInt32LE(checksum, 14);
+    local.writeUInt32LE(data.length, 18); local.writeUInt32LE(data.length, 22); local.writeUInt16LE(name.length, 26);
+    localParts.push(local, name, data);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6); central.writeUInt16LE(0x0800, 8);
+    central.writeUInt16LE(timestamp.time, 12); central.writeUInt16LE(timestamp.date, 14); central.writeUInt32LE(checksum, 16);
+    central.writeUInt32LE(data.length, 20); central.writeUInt32LE(data.length, 24); central.writeUInt16LE(name.length, 28); central.writeUInt32LE(offset, 42);
+    centralParts.push(central, name);
+    offset += local.length + name.length + data.length;
+  }
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(entries.length, 8); end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralSize, 12); end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...localParts, ...centralParts, end]);
+}
+
+async function buildPdfBundle(project) {
+  if (builds.has(project.id) || bundleBuilds.has(project.id)) throw httpError(409, "This project is already compiling");
+  bundleBuilds.add(project.id);
+  let temporary = "";
+  try {
+    temporary = await mkdtemp(join(tmpdir(), "localtex-pdf-bundle-"));
+    const sources = await standaloneTexFiles(project);
+    if (!sources.length) throw httpError(400, "No standalone .tex files with a document class were found");
+    const engine = await configValue(project, "build", "engine", project.engine || "pdflatex");
+    const shellEscape = (await configValue(project, "build", "shellEscape", "false")).toLowerCase() === "true";
+    const entries = [];
+    const failures = [];
+    for (let index = 0; index < sources.length; index += 1) {
+      const source = sources[index];
+      const outputDirectory = join(temporary, String(index));
+      await mkdir(outputDirectory, { recursive: true });
+      const args = ["-norc", "-cd", "-interaction=nonstopmode", "-file-line-error", "-halt-on-error", `-outdir=${outputDirectory}`];
+      if (shellEscape) args.push("-shell-escape");
+      if (engine === "lualatex") args.push("-lualatex"); else if (engine === "xelatex") args.push("-xelatex"); else args.push("-pdf");
+      args.push(join(project.localPath, source));
+      await command("latexmk", args, project.localPath, { timeout: 240000, maxOutput: 2 * 1024 * 1024 });
+      const pdfPath = join(outputDirectory, `${basename(source, extname(source))}.pdf`);
+      if (await exists(pdfPath)) entries.push({ name: source.slice(0, -extname(source).length) + ".pdf", data: await readFile(pdfPath) });
+      else failures.push(source);
+    }
+    if (!entries.length) throw httpError(422, `None of the ${sources.length} standalone .tex files compiled successfully`);
+    return { archive: createZip(entries), compiled: entries.length, failed: failures.length, failures };
+  } finally {
+    bundleBuilds.delete(project.id);
+    if (temporary) await rm(temporary, { recursive: true, force: true });
+  }
 }
 
 async function gitStatus(project) {
@@ -527,9 +714,19 @@ async function serveFile(res, path, options = {}) {
     "Cache-Control": options.cache || "no-store",
     "X-Content-Type-Options": "nosniff",
   };
-  if (options.download) headers["Content-Disposition"] = `attachment; filename="${basename(path).replaceAll('"', '')}"`;
+  if (options.download) headers["Content-Disposition"] = contentDisposition(options.downloadName || basename(path));
   res.writeHead(200, headers);
   createReadStream(path).pipe(res);
+}
+
+function contentDisposition(name) {
+  const value = basename(name).replace(/[\u0000-\u001f\u007f"\\]/g, "");
+  const fallback = value.replace(/[^\x20-\x7e]/g, "_") || "download";
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(value || "download")}`;
+}
+
+function pdfDownloadName(pdfPath) {
+  return pdfPath ? basename(pdfPath) : "document.pdf";
 }
 
 async function handleApi(req, res, url) {
@@ -584,8 +781,8 @@ async function handleApi(req, res, url) {
   if (action === "search" && req.method === "GET") return json(res, 200, { results: await searchProject(project, url.searchParams.get("q") || "") });
   if (action === "build" && req.method === "POST") {
     const body = await readJson(req);
-    const layoutSource = typeof body.sourcePath === "string" && body.sourcePath.toLowerCase().endsWith(".layout.xml") ? body.sourcePath : "";
-    return json(res, 200, await buildProject(project, body.clean === true, layoutSource));
+    const sourcePath = typeof body.sourcePath === "string" ? body.sourcePath : "";
+    return json(res, 200, await buildProject(project, body.clean === true, sourcePath));
   }
   if (action === "layout-info" && req.method === "GET") {
     const output = layoutOutputs.get(project.id);
@@ -599,15 +796,31 @@ async function handleApi(req, res, url) {
     return serveFile(res, output.htmlPath, { contentType: "text/html; charset=utf-8" });
   }
   if (action === "pdf-info" && req.method === "GET") {
-    const pdf = await locatePdf(project);
-    return json(res, 200, { available: Boolean(pdf), name: pdf ? basename(pdf) : "" });
+    const sourcePath = url.searchParams.get("sourcePath") || "";
+    const pdf = await locatePdf(project, sourcePath);
+    return json(res, 200, { available: Boolean(pdf), name: pdf ? pdfDownloadName(pdf) : "", sourcePath });
   }
   if (action === "pdf" && req.method === "GET") {
-    const pdf = await locatePdf(project);
+    const sourcePath = url.searchParams.get("sourcePath") || "";
+    const pdf = await locatePdf(project, sourcePath);
     if (!pdf) throw httpError(404, "Compile the project to create a PDF");
+    const download = url.searchParams.get("download") === "1";
+    const servedPdf = download ? pdf : await normalizePdfForPreview(pdf);
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
     res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'self'");
-    return serveFile(res, pdf, { contentType: "application/pdf", download: url.searchParams.get("download") === "1" });
+    return serveFile(res, servedPdf, { contentType: "application/pdf", download, downloadName: pdfDownloadName(pdf) });
+  }
+  if (action === "pdf-bundle" && req.method === "POST") {
+    await readJson(req);
+    const bundle = await buildPdfBundle(project);
+    res.writeHead(200, {
+      "Content-Type": "application/zip", "Content-Length": bundle.archive.length,
+      "Content-Disposition": contentDisposition(`${basename(project.localPath)}-pdfs.zip`),
+      "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+      "X-LocalTeX-Compiled": String(bundle.compiled), "X-LocalTeX-Failed": String(bundle.failed),
+      "X-LocalTeX-Failed-Sources": encodeURIComponent(bundle.failures.join("\n")).slice(0, 4000),
+    });
+    return res.end(bundle.archive);
   }
   if (action === "sync" && req.method === "POST") {
     const body = await readJson(req);
@@ -620,26 +833,6 @@ async function handleApi(req, res, url) {
     const result = await command("bash", [join(project.localPath, "scripts", "tex-sync"), body.action], project.localPath, { timeout: 240000, maxOutput: 3 * 1024 * 1024 });
     return json(res, result.code === 0 ? 200 : 409, { ...result, output: `${result.stdout}${result.stderr}` });
   }
-  if (action === "open-texstudio" && req.method === "POST") {
-    const { rootDocument } = await buildInfo(project);
-    if (!rootDocument) throw httpError(400, "No root TeX document is configured");
-    const configuredLauncher = process.env.LOCALTEX_TEXSTUDIO_LAUNCHER || "";
-    const launcherCandidates = configuredLauncher
-      ? [configuredLauncher]
-      : [join(homedir(), ".local", "bin", "texstudio-overleaf"), "/usr/bin/texstudio", "/usr/local/bin/texstudio"];
-    let launcher = "";
-    for (const candidate of launcherCandidates) {
-      if (await exists(candidate)) {
-        launcher = candidate;
-        break;
-      }
-    }
-    if (!launcher) throw httpError(501, "TeXstudio is not installed or LOCALTEX_TEXSTUDIO_LAUNCHER is not configured");
-    const child = spawn(launcher, [join(project.localPath, rootDocument)], { cwd: project.localPath, detached: true, stdio: "ignore" });
-    child.on("error", () => {});
-    child.unref();
-    return json(res, 202, { opened: true, rootDocument });
-  }
   throw httpError(404, "Unknown project action");
 }
 
@@ -647,8 +840,12 @@ async function handleStatic(req, res, url) {
   if (url.pathname === "/") {
     if (url.searchParams.get("token") !== ACCESS_TOKEN) throw httpError(403, "Launch LocalTeX Studio from its desktop entry");
     const requestedProject = (url.searchParams.get("project") || "").replace(/[^A-Za-z0-9._-]/g, "");
+    const requestedFile = url.searchParams.get("file") ? safeRelativePath(url.searchParams.get("file")) : "";
+    const appParameters = new URLSearchParams();
+    if (requestedProject) appParameters.set("project", requestedProject);
+    if (requestedFile) appParameters.set("file", requestedFile);
     res.writeHead(302, {
-      Location: requestedProject ? `/app?project=${encodeURIComponent(requestedProject)}` : "/app",
+      Location: appParameters.size ? `/app?${appParameters}` : "/app",
       "Set-Cookie": `${COOKIE_NAME}=${ACCESS_TOKEN}; HttpOnly; SameSite=Strict; Path=/`,
       "Cache-Control": "no-store",
     });

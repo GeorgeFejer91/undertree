@@ -7,6 +7,8 @@ config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/localtex-studio"
 applications_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 icons_dir="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
 systemd_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+bin_dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
+legacy_desktop="$applications_dir/texstudio-overleaf.desktop"
 
 if [[ -z "$node_executable" ]]; then
   echo "LocalTeX Studio requires Node.js 20 or newer." >&2
@@ -27,7 +29,7 @@ if ! /usr/bin/python3 -c "import gi; gi.require_version('Gdk', '3.0'); gi.requir
   exit 1
 fi
 
-mkdir -p "$config_dir" "$applications_dir" "$icons_dir" "$systemd_dir"
+mkdir -p "$config_dir" "$applications_dir" "$icons_dir" "$systemd_dir" "$bin_dir"
 if [[ ! -s "$config_dir/token" ]]; then
   (umask 077; "$node_executable" -e 'process.stdout.write(require("node:crypto").randomBytes(24).toString("hex"))' > "$config_dir/token")
 fi
@@ -39,9 +41,26 @@ chmod 644 "$applications_dir/localtex-studio.desktop" "$systemd_dir/localtex-stu
 install -m 0644 "$app_root/assets/localtex-studio.svg" "$icons_dir/localtex-studio.svg"
 chmod +x "$app_root/bin/localtex-studio"
 chmod +x "$app_root/native/localtex_studio.py"
+ln -sfn "$app_root/bin/localtex-studio" "$bin_dir/localtex-studio"
+
+# Retire the former TeXstudio profile without breaking old scripts or shortcuts:
+# stale texstudio-overleaf calls now open LocalTeX Studio, and uninstall can
+# restore the previous launcher and desktop entry.
+if [[ -e "$bin_dir/texstudio-overleaf" && ! -L "$bin_dir/texstudio-overleaf" && ! -e "$bin_dir/texstudio-overleaf.legacy" ]]; then
+  mv "$bin_dir/texstudio-overleaf" "$bin_dir/texstudio-overleaf.legacy"
+fi
+ln -sfn "$bin_dir/localtex-studio" "$bin_dir/texstudio-overleaf"
+if [[ -f "$legacy_desktop" && ! -f "$legacy_desktop.legacy" ]]; then
+  mv "$legacy_desktop" "$legacy_desktop.legacy"
+fi
 
 if command -v update-desktop-database >/dev/null; then update-desktop-database "$applications_dir" >/dev/null 2>&1 || true; fi
 if command -v gtk-update-icon-cache >/dev/null; then gtk-update-icon-cache -f -t "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor" >/dev/null 2>&1 || true; fi
+if command -v xdg-mime >/dev/null; then
+  for mime_type in text/x-tex text/x-bibtex application/x-tex application/x-latex; do
+    xdg-mime default localtex-studio.desktop "$mime_type"
+  done
+fi
 if command -v systemctl >/dev/null && systemctl --user daemon-reload >/dev/null 2>&1; then
   systemctl --user enable localtex-studio.service
   systemctl --user restart localtex-studio.service
@@ -53,4 +72,4 @@ if ! command -v latexmk >/dev/null; then
   echo "Warning: install latexmk and a TeX distribution before compiling projects." >&2
 fi
 
-echo "Installed native LocalTeX Studio. Launch it from the application menu or run: $app_root/bin/localtex-studio"
+echo "Installed LocalTeX Studio as the default TeX editor. Launch it from the application menu or run: localtex-studio"

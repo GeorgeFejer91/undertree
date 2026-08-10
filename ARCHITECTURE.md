@@ -20,7 +20,7 @@ Node standard-library service on 127.0.0.1:37371
         ├── local full-project text search
         ├── read-only Git status
         ├── explicit safe pull/push bridge actions
-        └── optional native TeXstudio launcher
+        └── project-aware desktop file opening
 ```
 
 The systemd user service keeps the local API available without internet. The

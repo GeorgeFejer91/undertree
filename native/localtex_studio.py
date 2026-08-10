@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import secrets
@@ -104,11 +105,41 @@ def read_token() -> str:
     return token
 
 
-def build_app_url(project: str | None = None) -> str:
+def build_app_url(project: str | None = None, source_file: str | None = None) -> str:
     query = {"token": read_token()}
     if project and PROJECT_PATTERN.fullmatch(project):
         query["project"] = project
+    if source_file:
+        query["file"] = source_file
     return f"{APP_ORIGIN}/?{urllib.parse.urlencode(query)}"
+
+
+def resolve_launch_target(argument: str) -> tuple[str | None, str | None]:
+    """Map a source path to the inventory project id and project-relative file."""
+    candidate = Path(argument).expanduser()
+    if not candidate.exists():
+        return (argument, None) if PROJECT_PATTERN.fullmatch(argument) else (None, None)
+    candidate = candidate.resolve()
+    source_directory = candidate.parent if candidate.is_file() else candidate
+    project_root = source_directory
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(source_directory), "rev-parse", "--show-toplevel"],
+            check=True, capture_output=True, text=True, timeout=5,
+        )
+        project_root = Path(result.stdout.strip()).resolve()
+    except (OSError, subprocess.SubprocessError):
+        for parent in (source_directory, *source_directory.parents):
+            if (parent / ".tex-sync.conf").exists():
+                project_root = parent
+                break
+    project_id = hashlib.sha256(str(project_root).encode()).hexdigest()[:16]
+    if candidate.is_file():
+        try:
+            return project_id, candidate.relative_to(project_root).as_posix()
+        except ValueError:
+            return project_id, None
+    return project_id, None
 
 
 class LocalTeXWindow(Gtk.ApplicationWindow):
@@ -179,9 +210,9 @@ class LocalTeXWindow(Gtk.ApplicationWindow):
             Gdk.Screen.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
-    def load_project(self, project: str | None = None) -> None:
+    def load_project(self, project: str | None = None, source_file: str | None = None) -> None:
         self.loading.show_all()
-        self.webview.load_uri(build_app_url(project))
+        self.webview.load_uri(build_app_url(project, source_file))
 
     def _read_window_state(self) -> dict:
         try:
@@ -310,6 +341,7 @@ class LocalTeXApplication(Gtk.Application):
         self.smoke_test = smoke_test
         self.window: LocalTeXWindow | None = None
         self.pending_project: str | None = None
+        self.pending_file: str | None = None
         self.smoke_attempts = 0
         self.smoke_phase = "workspace"
         self.smoke_marker = f"localtex-smoke-{os.getpid()}-{time.time_ns()}"
@@ -322,7 +354,7 @@ class LocalTeXApplication(Gtk.Application):
 
     def do_command_line(self, command_line) -> int:
         arguments = [arg for arg in command_line.get_arguments()[1:] if arg != "--smoke-test"]
-        self.pending_project = arguments[0] if arguments and PROJECT_PATTERN.fullmatch(arguments[0]) else None
+        self.pending_project, self.pending_file = resolve_launch_target(arguments[0]) if arguments else (None, None)
         self.activate()
         return 0
 
@@ -341,7 +373,7 @@ class LocalTeXApplication(Gtk.Application):
             self.window = LocalTeXWindow(self)
             self.window.show_all()
         self.window.present()
-        self.window.load_project(self.pending_project)
+        self.window.load_project(self.pending_project, self.pending_file)
 
     def begin_smoke_check(self, _window: LocalTeXWindow) -> None:
         GLib.timeout_add(250, self._poll_smoke_ready)
@@ -364,7 +396,7 @@ class LocalTeXApplication(Gtk.Application):
             compileActions: document.querySelectorAll('[data-compile-action]').length,
             githubSync: Boolean(document.querySelector('#github-sync')),
             overleafSync: Boolean(document.querySelector('#overleaf-sync')),
-            pdf: (document.querySelector('#pdf-canvas')?.width || 0) > 0,
+            pdf: (document.querySelector('#pdf-pages canvas')?.width || 0) > 0,
             treeRows: document.querySelectorAll('.tree-row').length,
             editorTabs: document.querySelectorAll('.editor-tab').length
           })
@@ -449,7 +481,7 @@ class LocalTeXApplication(Gtk.Application):
             busy: Boolean(document.querySelector('#compile')?.disabled),
             button: document.querySelector('#compile')?.textContent || '',
             status: document.querySelector('#status-message')?.textContent || '',
-            pdf: (document.querySelector('#pdf-canvas')?.width || 0) > 0
+            pdf: (document.querySelector('#pdf-pages canvas')?.width || 0) > 0
           })
         """
         self.window.webview.evaluate_javascript(

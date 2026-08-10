@@ -129,6 +129,8 @@ button {
 }
 
 #project-picker option { color: var(--ink); background: white; text-align: left; }
+.project-sort-button { width: 25px; height: 24px; margin-left: 1px; border-left: 1px solid var(--divider); border-radius: var(--radius); color: var(--disabled); font-size: 15px; }
+.project-sort-button:hover { color: var(--light); background: var(--divider); }
 
 .top-actions {
   justify-self: end;
@@ -224,6 +226,22 @@ button {
 .heading-actions button, .panel-heading > button:not(.heading-title) { width: 28px; height: 28px; border-radius: 9999px; font-size: 18px; }
 .heading-actions button:hover, .panel-heading > button:not(.heading-title):hover { background: var(--toolbar); }
 
+.tree-filter {
+  min-height: 32px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--divider);
+  color: var(--disabled);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tree-filter:hover { color: var(--light); background: var(--toolbar); }
+.tree-filter input { margin: 0; accent-color: var(--green); }
+
 .tree-scroll {
   flex: 1 1 60%;
   min-height: 150px;
@@ -231,6 +249,8 @@ button {
   padding: 4px 0;
   scrollbar-color: var(--muted) var(--chrome);
 }
+
+.tree-empty { margin: 12px; color: var(--disabled); font-size: 12px; line-height: 1.4; }
 
 .tree-directory > .tree-children { display: none; }
 .tree-directory.open > .tree-children { display: block; }
@@ -290,7 +310,7 @@ button {
   background: var(--toolbar);
 }
 
-.search-box input, #project-filter {
+.search-box input, #project-filter, #project-sort {
   width: 100%;
   border: 0;
   outline: 0;
@@ -458,6 +478,7 @@ button {
 .compile-option-group select:focus { border-color: #38cc89; }
 .preview-toolbar #page-status { color: var(--disabled); font-size: 12px; }
 .toolbar-link.disabled { opacity: .35; pointer-events: none; }
+#download-all-pdfs { white-space: nowrap; font-size: 11px; font-weight: 600; }
 
 .preview-stage { flex: 1; min-height: 0; position: relative; background: #3a4557; overflow: hidden; }
 #pdf-viewer { position: absolute; inset: 0; display: none; overflow: auto; padding: 16px; background: #3a4557; }
@@ -465,8 +486,10 @@ button {
 #pdf-viewer[aria-busy="true"] { cursor: progress; }
 #html-proof { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #59636e; }
 #html-proof[hidden] { display: none; }
-.pdf-canvas-wrap { width: max-content; min-width: 100%; display: flex; justify-content: center; align-items: flex-start; }
-#pdf-canvas { display: block; background: white; box-shadow: 0 7px 24px rgb(0 0 0 / 35%); }
+.pdf-pages { width: max-content; min-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.pdf-page { flex: none; position: relative; overflow: hidden; background: white; box-shadow: 0 7px 24px rgb(0 0 0 / 35%); }
+.pdf-page canvas { display: block; }
+.pdf-page:not([data-rendered="true"])::after { content: "Page " attr(data-page-number); position: absolute; inset: 0; display: grid; place-items: center; color: #a7adb7; font-size: 12px; }
 .pdf-placeholder { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: 18px; color: #d0d5dd; }
 .pdf-placeholder.hidden { display: none; }
 .pdf-sheet { width: 128px; height: 181px; border-radius: 3px; background: white; box-shadow: 0 9px 28px rgb(0 0 0 / 28%); position: relative; }
@@ -506,7 +529,11 @@ button {
 .dialog-heading h2 { margin: 0; font-size: 20px; }
 .dialog-heading button { width: 30px; height: 30px; border-radius: 50%; font-size: 22px; }
 .dialog-heading button:hover { background: var(--toolbar); }
-#project-filter { height: 42px; margin: 8px 18px 12px; padding: 0 12px; border: 1px solid var(--muted); border-radius: var(--radius); background: var(--toolbar); }
+.project-dialog-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; margin: 8px 18px 12px; }
+#project-filter { width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--muted); border-radius: var(--radius); background: var(--toolbar); }
+.project-sort-control { display: grid; gap: 4px; color: var(--disabled); font-size: 11px; font-weight: 600; }
+#project-sort { min-width: 168px; height: 42px; padding: 0 34px 0 11px; border: 1px solid var(--muted); border-radius: var(--radius); color: var(--light); background: var(--toolbar); cursor: pointer; }
+#project-sort option { color: var(--ink); background: white; }
 .project-list { overflow: auto; padding: 0 10px 14px; }
 .project-row { width: 100%; display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 11px; padding: 9px; border-radius: var(--radius-large); text-align: left; }
 .project-row:hover { background: var(--toolbar); }
@@ -515,6 +542,8 @@ button {
 .project-details strong, .project-details small { display: block; }
 .project-details small { color: var(--disabled); margin-top: 3px; }
 .project-engine { color: #8adbb7; font-size: 12px; }
+.project-row-meta { min-width: 132px; display: grid; justify-items: end; gap: 4px; }
+.project-row-meta small { color: var(--disabled); font-size: 11px; white-space: nowrap; }
 
 .workspace.left-hidden { grid-template-columns: 40px 0 0 minmax(300px, var(--editor-width)) 6px minmax(350px, 1fr); }
 .workspace.left-hidden .left-panel, .workspace.left-hidden #left-resizer { display: none; }
@@ -523,8 +552,16 @@ button {
 
 @media (max-width: 1080px) {
   :root { --left-width: 240px; --editor-width: 48%; }
-  .offline-pill, #open-texstudio { display: none; }
+  .offline-pill { display: none; }
   .menubar button:nth-child(3), .menubar button:nth-child(5) { display: none; }
+  #project-picker { min-width: 150px; }
+}
+
+@media (max-width: 620px) {
+  .project-dialog-controls { grid-template-columns: 1fr; }
+  .project-sort-control { grid-template-columns: auto 1fr; align-items: center; }
+  #project-sort { width: 100%; }
+  .project-row-meta small { display: none; }
 }
 
 @media (max-width: 1250px) {

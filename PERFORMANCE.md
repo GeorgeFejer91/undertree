@@ -28,17 +28,22 @@ complex projects can independently use substantial memory.
    Playwright, CodeMirror packages, PDF.js Node canvas binaries, and all other
    development dependencies are excluded.
 2. PDF.js is dynamically imported. The blocking interface chunk fell from
-   839 KB to 430 KB; its 411 KB viewer chunk loads when a PDF is requested.
+   839 KB to about 437 KB; its 411 KB viewer chunk warms during browser idle or
+   while TeX compiles, instead of adding cold-start time after a build.
 3. PDF backing canvases have a 10-megapixel budget. Normal zoom remains sharp,
    while 400% zoom no longer creates two extremely large high-DPI canvases
    during an atomic preview replacement.
 4. The service uses `latexmk` incrementally, rejects overlapping build jobs,
-   and keeps automatic recompilation off by default. This avoids redundant TeX
-   processes while retaining explicit 5–120 second intervals.
-5. The backend remains a dependency-light Node HTTP service rather than an
+   and keeps automatic recompilation off by default. An edit-aware mode
+   rebuilds once after one second without changes, while explicit 5–120 second
+   intervals remain available.
+5. PDF refresh fetches the document directly without a preliminary metadata
+   round trip. The current preview stays visible until its replacement page is
+   ready; nearby pages render first and the rest render lazily while scrolling.
+6. The backend remains a dependency-light Node HTTP service rather than an
    application framework. The desktop shell reuses the operating system's
    WebKitGTK instead of embedding Chromium or Electron.
-6. Personal absolute paths were removed. Project storage defaults to
+7. Personal absolute paths were removed. Project storage defaults to
    `~/Documents/Overleaf-projects`, can be overridden, and is created lazily.
 
 ## Critical design choices
@@ -77,7 +82,7 @@ projects require them.
 4. Move compile-history accounting outside the service cgroup if users need
    clearer memory telemetry; it does not improve real resource use.
 5. Offer native Debian/RPM packages that depend on Node, WebKitGTK, Git,
-   `latexmk`, and TeXstudio. Avoid bundling those components unless a separate
+   `latexmk`, and the system TeX distribution. Avoid bundling those components unless a separate
    portability-first edition is explicitly desired.
 
 The governing rule is to optimize measured editing latency and resource use,

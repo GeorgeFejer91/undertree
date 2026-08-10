@@ -2,13 +2,30 @@
 
 LocalTeX Studio is a standalone Linux desktop workspace for local LaTeX
 projects. It provides an Overleaf-style three-pane interface while using your
-existing Git repositories, `latexmk`, TeX engines, and optional TeXstudio
-installation. Editing and compilation remain fully offline.
+existing Git repositories, `latexmk`, and TeX engines. Editing and compilation
+remain fully offline.
+
+It is the primary local editing application for the canonical Overleaf project
+library. It edits the library's existing Git worktrees directly, so it does not
+create a separate project copy. In the Linux application menu it appears as
+**LocalTeX Studio**, with the generic name **Offline LaTeX Editor**. On this
+workstation, the installed source copy is
+`/home/George/Documents/GitHub/localtex-studio`; its enabled
+background service listens only on `127.0.0.1:37371`.
+
+Its dedicated **GitHub Sync**, **Overleaf Sync**, and **Pull remote changes**
+controls are the preferred interactive synchronization interface for this
+library. They automate the routine fetch, clean-worktree, ancestry, and
+committed-checkpoint checks, stopping safely when a remote is newer, histories
+diverge, or local changes must be resolved first. Final completion still means
+that the local, GitHub, and Overleaf branch tips have been verified as the same
+checkpoint.
 
 ## Included workflow
 
-- searchable switcher for every local Git/TeX project;
-- hierarchical file tree and TeX section outline;
+- searchable, sortable switcher for every local Git/TeX project;
+- hierarchical file tree with a persistent **TeX & Bib only** filter and TeX
+  section outline;
 - multi-tab CodeMirror editor with local syntax highlighting, undo/redo,
   formatting helpers, search, dirty indicators, atomic auto-save, and conflict
   protection;
@@ -18,12 +35,13 @@ installation. Editing and compilation remain fully offline.
   bounded per-box font/spacing fitting, and visible overflow failures;
 - a real compile-options menu for normal rebuilds, clean rebuilds, embedded
   adaptive HTML proofs, logs, and project-specific automatic recompilation;
-- bundled offline PDF.js rendering with page navigation, fit-width, and zoom;
+- bundled offline PDF.js rendering with continuous vertical page scrolling,
+  page jumps, fit-width, and zoom;
 - project-wide text search;
 - local Git state and explicit safe bridge pull/push controls;
-- dedicated manual GitHub Sync and Overleaf Sync buttons for committed
+- dedicated policy-aware GitHub Sync and Overleaf Sync buttons for committed
   checkpoints;
-- one-click native TeXstudio opening for the same configured root document;
+- system-default `.tex` and BibTeX file opening into the matching project;
 - draggable panes inside a dedicated native GTK application window;
 - localhost-only authenticated service that remains available offline.
 
@@ -34,8 +52,7 @@ the compiled interface and its one small server dependency. It does not bundle
 the much larger TeX distribution or operating-system web view.
 
 Required system components are Node.js 20 or newer, Python GTK/WebKitGTK
-bindings, Git, `latexmk`, and a TeX distribution. TeXstudio is optional but
-enables the **Open TeXstudio** action. Install the equivalent packages from your
+bindings, Git, `latexmk`, and a TeX distribution. Install the equivalent packages from your
 Linux distribution, extract the archive into a permanent location, and run:
 
 ```bash
@@ -63,7 +80,10 @@ npm run build
 ```
 
 Then launch **LocalTeX Studio** from the desktop application menu or run
-`./bin/localtex-studio`.
+`localtex-studio`. The installer registers it as the default TeX/BibTeX editor;
+opening a source file selects its inventory project and opens that file. The
+former `texstudio-overleaf` command remains only as a compatibility alias that
+routes older scripts into LocalTeX Studio.
 
 Create the lean downloadable archive with `./scripts/build-release.sh`. Runtime
 operation does not use npm or the internet: the JavaScript editor is compiled
@@ -76,22 +96,34 @@ icon, window state, and download handling.
 ## Keyboard shortcuts
 
 - `Ctrl+S`: save the active source file;
-- `F5` or `Ctrl+Enter`: compile the configured root document;
+- `F5` or `Ctrl+Enter`: compile the active `.tex` document (or the configured
+  root when another file type is active);
 - `Ctrl+P`: open the local project switcher;
 - `F11`: enter or leave full-screen mode;
 - `Ctrl+Shift+R`: reload the native workspace shell;
 - `Ctrl+Q`: close LocalTeX Studio;
 - the standard CodeMirror undo, redo, and search shortcuts remain available.
 
-The green **Recompile** button never navigates the workspace: it saves the
-active source, runs the configured local build, and atomically replaces only
-the PDF canvas. Its arrow opens options for a normal rebuild, a clean rebuild,
-the latest adaptive HTML proof, the most recent compile log, and automatic
-recompilation every 5, 10, 30, 60, or 120 seconds. The interval is off by
+The green **Recompile** button never navigates the workspace: it saves and
+compiles the active `.tex` document, then atomically replaces the PDF page stack
+after its current page is ready. Selecting another `.tex` tab switches the
+preview to that document's existing PDF when available; recompiling updates
+only that selected document. When a non-TeX file is active, the configured
+project root remains the build target. Its arrow opens options for a normal
+rebuild, a clean rebuild, the latest adaptive HTML proof, the most
+recent compile log, and automatic recompilation after one second without edits
+or every 5, 10, 30, 60, or 120 seconds. Automatic recompilation is off by
 default, remembered separately for each project, and skips overlapping builds.
 When the active file ends in `.layout.xml`, the same button becomes **Render
 layout** and builds that semantic source instead of the project's ordinary TeX
 root.
+
+The PDF toolbar downloads the current document using its source filename (for
+example, `paper.tex` becomes `paper.pdf`). **All PDFs** finds every standalone
+`.tex` source with a document class, compiles each one, and downloads the
+successful results together as a ZIP. Nested source directories are preserved
+inside the archive so equally named documents do not overwrite one another;
+sources that do not compile are reported and omitted.
 
 See `LAYOUT_FORMAT.md` and `examples/adaptive-boxes.layout.xml` for the adaptive
 box format. Generated HTML, LuaLaTeX, and PDF files remain in the ignored

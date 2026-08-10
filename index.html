@@ -22,17 +22,17 @@
             <button data-menu="help">Help</button>
           </nav>
         </div>
-        <label class="project-picker-wrap" title="Switch local project">
+        <div class="project-picker-wrap" title="Switch local project">
           <img id="project-icon" alt="" />
           <select id="project-picker" aria-label="Current project"></select>
           <span aria-hidden="true">⌄</span>
-        </label>
+          <button type="button" class="project-sort-button" id="open-project-sort" title="Organize projects" aria-label="Organize projects">⇅</button>
+        </div>
         <div class="top-actions">
           <span class="offline-pill"><span class="status-dot"></span>Offline ready</span>
           <button class="round-button" id="refresh-project" title="Refresh project">↻</button>
           <button class="pill-button remote-sync github-sync" id="github-sync" title="Push the committed local checkpoint safely to GitHub">GitHub Sync</button>
           <button class="pill-button remote-sync overleaf-sync" id="overleaf-sync" title="Push the committed local checkpoint safely to Overleaf">Overleaf Sync</button>
-          <button class="pill-button subdued" id="open-texstudio">Open TeXstudio</button>
         </div>
       </header>
 
@@ -54,6 +54,10 @@
                 <button id="new-folder" title="New folder">▱</button>
               </div>
             </div>
+            <label class="tree-filter" title="Hide build output, formatting, configuration, and other support files">
+              <input id="source-files-only" type="checkbox" aria-controls="file-tree" checked />
+              <span>TeX &amp; Bib only</span>
+            </label>
             <div class="tree-scroll" id="file-tree" role="tree"></div>
             <section class="outline-panel">
               <div class="panel-heading compact"><span>⌄ <strong>File outline</strong></span></div>
@@ -128,18 +132,20 @@
                   <label for="auto-compile-interval">Automatic recompile</label>
                   <select id="auto-compile-interval" aria-label="Automatic recompile interval">
                     <option value="0">Off</option>
+                    <option value="changes">After edits stop (1 second)</option>
                     <option value="5">Every 5 seconds</option>
                     <option value="10">Every 10 seconds</option>
                     <option value="30">Every 30 seconds</option>
                     <option value="60">Every minute</option>
                     <option value="120">Every 2 minutes</option>
                   </select>
-                  <small>Saved per project; overlapping builds are skipped.</small>
+                  <small>Saved per project; edit mode only rebuilds changed sources.</small>
                 </div>
               </div>
             </div>
             <button id="toggle-logs" title="View compile logs">▤</button>
             <a id="download-pdf" class="toolbar-link disabled" title="Download PDF" aria-disabled="true">⇩</a>
+            <button id="download-all-pdfs" title="Compile every standalone TeX file and download all PDFs" aria-label="Download all PDFs">All PDFs</button>
             <span class="toolbar-spacer"></span>
             <button id="pdf-previous" title="Previous PDF page" aria-label="Previous PDF page" disabled>‹</button>
             <span id="page-status">PDF preview</span>
@@ -156,7 +162,7 @@
               <p>Compile the project to render its PDF.</p>
             </div>
             <div id="pdf-viewer" aria-label="Compiled PDF preview">
-              <div class="pdf-canvas-wrap"><canvas id="pdf-canvas"></canvas></div>
+              <div class="pdf-pages" id="pdf-pages"></div>
             </div>
             <iframe id="html-proof" title="Adaptive HTML layout proof" sandbox="allow-scripts allow-same-origin allow-modals" hidden></iframe>
             <section class="logs-panel" id="logs-panel" aria-label="Compile logs">
@@ -178,7 +184,19 @@
       <div class="modal-backdrop" id="project-modal" hidden>
         <section class="project-dialog" role="dialog" aria-modal="true" aria-labelledby="project-dialog-title">
           <div class="dialog-heading"><h2 id="project-dialog-title">Open local TeX project</h2><button id="close-project-modal">×</button></div>
-          <input id="project-filter" type="search" placeholder="Search 82 local projects by name, topic, or repository" autofocus />
+          <div class="project-dialog-controls">
+            <input id="project-filter" type="search" placeholder="Search local projects by name, topic, or repository" autofocus />
+            <label class="project-sort-control" for="project-sort">
+              <span>Sort by</span>
+              <select id="project-sort" aria-label="Sort projects">
+                <option value="activity">Recent activity</option>
+                <option value="name-asc">Name A–Z</option>
+                <option value="name-desc">Name Z–A</option>
+                <option value="created-desc">Newest created</option>
+                <option value="created-asc">Oldest created</option>
+              </select>
+            </label>
+          </div>
           <div class="project-list" id="project-list"></div>
         </section>
       </div>

@@ -14,8 +14,9 @@ none of its HTML or JavaScript is included here.
 
 ## Automated API and security test
 
-All eight `npm test` cases pass. They exercise a disposable Git/TeX project
-through:
+All fourteen `npm test` cases pass. They exercise file-tree filtering, project
+sorting, PDF viewer state, adaptive layout generation, and a disposable
+Git/TeX project through:
 
 - authenticated project discovery and unauthenticated rejection;
 - strict same-origin mutation checks;
@@ -28,7 +29,9 @@ through:
 - Git and build-configuration status.
 
 The PDF state tests also verify page boundaries, accumulated rapid zoom, and
-the 10-megapixel high-zoom render budget.
+the 10-megapixel high-zoom render budget. The dedicated PDF browser smoke test
+verifies that every page has a continuous-scroll placeholder, scrolling updates
+the current-page status, and visible pages render on demand.
 
 ## Installed UI test
 
@@ -36,12 +39,13 @@ the 10-megapixel high-zoom render budget.
 
 - project and icon discovery;
 - file tree and root-document opening;
+- persistent TeX/Bib-only filtering;
 - CodeMirror editor and source tab;
 - project-wide search results;
 - Git/bridge panel;
-- project switcher;
+- project switcher with activity, name, and creation-date sorting;
 - Recompile completion;
-- embedded PDF display;
+- embedded continuous-scroll PDF display;
 - zero application console errors;
 - zero external HTTP, HTTPS, WebSocket, or secure WebSocket requests.
 
@@ -88,8 +92,7 @@ that the window, project, and active document did not reload.
 
 - 88 synchronized local TeX projects are discoverable.
 - The software repository itself is correctly excluded from the TeX list.
-- The real ethics sheet compiles through both LocalTeX Studio and the installed
-  `texstudio-overleaf-build` wrapper.
+- The real ethics sheet compiles through LocalTeX Studio's project bridge.
 - The resulting PDF is one A4 page.
 - The pilot worktree remains clean.
 - Local, GitHub, and Overleaf resolve to the same commit
