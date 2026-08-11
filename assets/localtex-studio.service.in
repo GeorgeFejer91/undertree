@@ -1,5 +1,5 @@
 [Unit]
-Description=LocalTeX Studio offline editor service
+Description=UnderTree offline editor service (legacy unit name)
 After=graphical-session.target
 
 [Service]

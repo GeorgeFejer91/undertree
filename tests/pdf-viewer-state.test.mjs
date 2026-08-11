@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   boundedPdfOutputScale,
   clampPdfPage,
+  destroyPdfResource,
   nextPdfScale,
   PDF_MAX_RENDER_PIXELS,
   PDF_MAX_SCALE,
@@ -29,4 +30,19 @@ test("PDF backing canvases respect the render-pixel budget at high zoom", () => 
   const scale = boundedPdfOutputScale(2400, 3400, 2);
   assert.ok(scale < 2);
   assert.ok(2400 * scale * 3400 * scale <= PDF_MAX_RENDER_PIXELS + 1);
+});
+
+test("PDF cleanup uses the PDF.js loading task instead of assuming the document proxy is destroyable", async () => {
+  let loadingTaskDestroyed = 0;
+  let documentDestroyed = 0;
+  const loadingTask = { destroy: async () => { loadingTaskDestroyed += 1; } };
+  const document = { destroy: async () => { documentDestroyed += 1; } };
+
+  assert.equal(await destroyPdfResource(loadingTask, document), true);
+  assert.equal(loadingTaskDestroyed, 1);
+  assert.equal(documentDestroyed, 0);
+});
+
+test("PDF cleanup tolerates PDF.js document proxies without a destroy method", async () => {
+  assert.equal(await destroyPdfResource(null, { numPages: 1 }), false);
 });

@@ -21,3 +21,16 @@ export function boundedPdfOutputScale(viewportWidth, viewportHeight, devicePixel
   const pixelBudgetScale = Math.sqrt(PDF_MAX_RENDER_PIXELS / (width * height));
   return Math.min(preferred, pixelBudgetScale);
 }
+
+export async function destroyPdfResource(loadingTask, document) {
+  const resource = typeof loadingTask?.destroy === "function"
+    ? loadingTask
+    : typeof document?.destroy === "function" ? document : null;
+  if (!resource) return false;
+  try {
+    await resource.destroy();
+    return true;
+  } catch {
+    return false;
+  }
+}

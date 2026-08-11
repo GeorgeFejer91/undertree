@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Native GTK shell for the LocalTeX Studio offline workspace."""
+"""Native GTK shell for the UnderTree offline workspace."""
 
 from __future__ import annotations
 
@@ -27,13 +27,16 @@ gi.require_version("WebKit2", "4.1")
 from gi.repository import Gdk, Gio, GLib, Gtk, WebKit2  # noqa: E402
 
 
-APP_ID = "io.github.georgefejer91.LocalTeXStudio"
-APP_NAME = "LocalTeX Studio"
+APP_ID = "io.github.georgefejer91.UnderTree"
+APP_NAME = "UnderTree"
 APP_ORIGIN = "http://127.0.0.1:37371"
 PROJECT_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 APP_ROOT = Path(__file__).resolve().parent.parent
-CONFIG_ROOT = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "localtex-studio"
-STATE_ROOT = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "localtex-studio"
+CONFIG_HOME = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+STATE_HOME = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
+CONFIG_ROOT = CONFIG_HOME / "undertree"
+STATE_ROOT = STATE_HOME / "undertree"
+LEGACY_CONFIG_ROOT = CONFIG_HOME / "localtex-studio"
 TOKEN_FILE = CONFIG_ROOT / "token"
 WINDOW_STATE_FILE = CONFIG_ROOT / "window-state.json"
 
@@ -43,6 +46,15 @@ def ensure_token() -> None:
     if TOKEN_FILE.exists() and TOKEN_FILE.stat().st_size:
         return
     CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
+    legacy_token = LEGACY_CONFIG_ROOT / "token"
+    if legacy_token.exists() and legacy_token.stat().st_size:
+        shutil.copyfile(legacy_token, TOKEN_FILE)
+        TOKEN_FILE.chmod(0o600)
+        legacy_window_state = LEGACY_CONFIG_ROOT / "window-state.json"
+        if legacy_window_state.exists() and not WINDOW_STATE_FILE.exists():
+            shutil.copyfile(legacy_window_state, WINDOW_STATE_FILE)
+            WINDOW_STATE_FILE.chmod(0o600)
+        return
     TOKEN_FILE.write_text(secrets.token_hex(24), encoding="utf-8")
     TOKEN_FILE.chmod(0o600)
 
@@ -62,7 +74,7 @@ def ensure_service() -> None:
         return
 
     systemctl = subprocess.run(
-        ["systemctl", "--user", "start", "localtex-studio.service"],
+        ["systemctl", "--user", "start", "undertree.service"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         check=False,
@@ -75,11 +87,11 @@ def ensure_service() -> None:
         environment = os.environ.copy()
         node_executable = shutil.which("node")
         if not node_executable:
-            raise RuntimeError("Node.js 20 or newer is required to run LocalTeX Studio.")
-        environment["LOCALTEX_PORT"] = "37371"
-        environment["LOCALTEX_TOKEN_FILE"] = str(TOKEN_FILE)
+            raise RuntimeError("Node.js 20 or newer is required to run UnderTree.")
+        environment["UNDERTREE_PORT"] = "37371"
+        environment["UNDERTREE_TOKEN_FILE"] = str(TOKEN_FILE)
         environment.setdefault(
-            "LOCALTEX_LIBRARY_ROOT", str(Path.home() / "Documents/Overleaf-projects")
+            "UNDERTREE_LIBRARY_ROOT", str(Path.home() / "Documents/Overleaf-projects")
         )
         subprocess.Popen(
             [node_executable, str(APP_ROOT / "server.mjs")],
@@ -101,7 +113,7 @@ def ensure_service() -> None:
 def read_token() -> str:
     token = TOKEN_FILE.read_text(encoding="utf-8").strip()
     if not token:
-        raise RuntimeError("The LocalTeX Studio authentication token is missing.")
+        raise RuntimeError("The UnderTree authentication token is missing.")
     return token
 
 
@@ -147,10 +159,10 @@ class LocalTeXWindow(Gtk.ApplicationWindow):
         super().__init__(application=application)
         self.application = application
         self.set_title(APP_NAME)
-        self.set_icon_name("localtex-studio")
+        self.set_icon_name("undertree")
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            self.set_wmclass("LocalTeXStudio", "LocalTeXStudio")
+            self.set_wmclass("UnderTree", "UnderTree")
         self.set_default_size(1480, 900)
         self.set_size_request(980, 640)
         self.connect("delete-event", self._save_window_state)
@@ -196,7 +208,7 @@ class LocalTeXWindow(Gtk.ApplicationWindow):
         spinner = Gtk.Spinner()
         spinner.set_size_request(42, 42)
         spinner.start()
-        label = Gtk.Label(label="Opening your local TeX workspace…")
+        label = Gtk.Label(label="Opening UnderTree…")
         self.loading.pack_start(spinner, False, False, 0)
         self.loading.pack_start(label, False, False, 0)
         overlay.add_overlay(self.loading)
@@ -346,7 +358,7 @@ class LocalTeXApplication(Gtk.Application):
         self.smoke_phase = "workspace"
         self.smoke_marker = f"localtex-smoke-{os.getpid()}-{time.time_ns()}"
         self.external_requests: list[str] = []
-        self.set_resource_base_path("/io/github/georgefejer91/LocalTeXStudio")
+        self.set_resource_base_path("/io/github/georgefejer91/UnderTree")
 
     def do_startup(self) -> None:
         Gtk.Application.do_startup(self)
@@ -518,7 +530,7 @@ class LocalTeXApplication(Gtk.Application):
         self._smoke_retry_or_fail(f"compile still pending: {payload}")
 
     def _complete_smoke(self) -> bool:
-        screenshot = os.environ.get("LOCALTEX_NATIVE_SCREENSHOT")
+        screenshot = os.environ.get("UNDERTREE_NATIVE_SCREENSHOT") or os.environ.get("LOCALTEX_NATIVE_SCREENSHOT")
         if screenshot and self.window:
             while Gtk.events_pending():
                 Gtk.main_iteration_do(False)
@@ -527,7 +539,7 @@ class LocalTeXApplication(Gtk.Application):
             pixbuf = Gdk.pixbuf_get_from_window(native_window, 0, 0, width, height)
             if pixbuf:
                 pixbuf.savev(screenshot, "png", [], [])
-        print("LocalTeX Studio native shell smoke test passed.", flush=True)
+        print("UnderTree native shell smoke test passed.", flush=True)
         self.quit()
         return False
 
@@ -547,7 +559,7 @@ class LocalTeXApplication(Gtk.Application):
             modal=True,
             message_type=Gtk.MessageType.ERROR,
             buttons=Gtk.ButtonsType.CLOSE,
-            text="LocalTeX Studio could not start",
+            text="UnderTree could not start",
         )
         dialog.format_secondary_text(detail)
         dialog.run()

@@ -1,13 +1,14 @@
 {
-  "name": "localtex-studio-runtime",
+  "name": "undertree-runtime",
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Minimal runtime dependencies for the LocalTeX Studio release bundle",
+  "description": "Minimal runtime dependencies for the UnderTree release bundle",
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
+    "@openai/codex-sdk": "0.147.0",
     "fast-xml-parser": "5.10.1"
   }
 }

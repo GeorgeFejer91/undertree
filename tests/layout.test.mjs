@@ -43,6 +43,7 @@ test("semantic layout validates and emits physical HTML and LuaLaTeX targets", (
   assert.match(html, /function fitBox/);
   assert.match(html, /font-size:1\.4em;line-height:1\.5;color:#006c76/);
   const latex = renderLatex(model);
+  assert.match(latex, /^% !TeX program = lualatex$/m);
   assert.match(latex, /\\newcommand\{\\LocalTeXAdaptiveBox\}\[6\]/);
   assert.match(latex, /\\LocalTeXScaledFont\{140\}\{150\}/);
   assert.match(latex, /paperwidth=210mm,paperheight=297mm/);

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+launcher_path="$(readlink -f "${BASH_SOURCE[0]}")"
+app_root="$(cd "$(dirname "$launcher_path")/.." && pwd)"
+exec /usr/bin/python3 "$app_root/native/localtex_studio.py" "$@"

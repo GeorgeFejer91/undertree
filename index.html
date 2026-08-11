@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark light" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231b222c'/%3E%3Cpath d='M8 4h11l5 5v19H8z' fill='none' stroke='%2338cc89' stroke-width='2'/%3E%3Cpath d='M12 14h9M16.5 14v9' stroke='%23f4f5f6' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E" />
-    <title>LocalTeX Studio</title>
+    <title>UnderTree</title>
   </head>
   <body>
-    <main id="app" aria-label="LocalTeX Studio offline editor">
+    <main id="app" aria-label="UnderTree offline editor">
       <header class="topbar">
         <div class="brand-and-menu">
           <button class="brand-mark" id="home-button" title="Choose a project" aria-label="Choose a project">
@@ -110,7 +110,7 @@
           <div class="editor-host" id="editor-host">
             <div class="empty-editor">
               <div class="empty-document-icon">T</div>
-              <h1>LocalTeX Studio</h1>
+              <h1>UnderTree</h1>
               <p>Choose a source file from the project tree.</p>
             </div>
           </div>
@@ -140,6 +140,13 @@
                     <option value="120">Every 2 minutes</option>
                   </select>
                   <small>Saved per project; edit mode only rebuilds changed sources.</small>
+                </div>
+                <div class="compile-option-group">
+                  <label class="compile-checkbox" for="codex-auto-recovery">
+                    <input id="codex-auto-recovery" type="checkbox" checked />
+                    <span>Automatically repair failed TeX with Codex</span>
+                  </label>
+                  <small>Runs quietly in the background after a failed build. Successful builds send nothing; unrecoverable errors are shown.</small>
                 </div>
               </div>
             </div>
@@ -181,6 +188,7 @@
       </footer>
 
       <div class="toast-region" id="toast-region" aria-live="polite"></div>
+      <div class="file-context-menu" id="file-context-menu" role="menu" aria-label="File tree actions" hidden></div>
       <div class="modal-backdrop" id="project-modal" hidden>
         <section class="project-dialog" role="dialog" aria-modal="true" aria-labelledby="project-dialog-title">
           <div class="dialog-heading"><h2 id="project-dialog-title">Open local TeX project</h2><button id="close-project-modal">×</button></div>

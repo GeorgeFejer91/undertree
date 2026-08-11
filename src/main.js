@@ -9,8 +9,12 @@ import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { xml } from "@codemirror/legacy-modes/mode/xml";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { pdfSourceTree } from "./file-tree-filter.js";
-import { boundedPdfOutputScale, clampPdfPage, nextPdfScale } from "./pdf-viewer-state.js";
+import { absoluteProjectPath, dirnamePath, pathIsEntry, remapPath } from "./file-tree-actions.js";
+import { boundedPdfOutputScale, clampPdfPage, destroyPdfResource, nextPdfScale } from "./pdf-viewer-state.js";
 import { normalizeProjectSort, projectActivityTime, sortProjects } from "./project-sorting.js";
+import { isSelectedTexPdfTarget } from "./tex-recovery.js";
+import { documentOutline } from "./outline.js";
+import { acceptBuildSave, buildTabSnapshot, flushTabSave, markPathEdited, markTabEdited, persistWithConflictRecovery, saveTabSnapshot, tabContent } from "./save-coordinator.js";
 
 let pdfjsPromise = null;
 
@@ -35,6 +39,7 @@ const elements = {
   projectSort: $("#project-sort"),
   projectList: $("#project-list"),
   fileTree: $("#file-tree"),
+  fileContextMenu: $("#file-context-menu"),
   sourceFilesOnly: $("#source-files-only"),
   fileOutline: $("#file-outline"),
   editorHost: $("#editor-host"),
@@ -83,9 +88,11 @@ const state = {
   activePath: "",
   editor: null,
   replacingEditor: false,
-  saveTimer: null,
+  saveTimers: new Map(),
+  outlineTimer: null,
   searchTimer: null,
   pdfDocument: null,
+  pdfLoadingTask: null,
   pdfProjectId: "",
   pdfSourcePath: "",
   pdfPage: 1,
@@ -101,15 +108,23 @@ const state = {
   autoCompileTimer: null,
   autoCompileChangeTimer: null,
   compileInFlight: false,
+  codexRecoveryEnabled: true,
+  monitoredRecoveries: new Set(),
+  recoverySources: new Set(),
+  pendingTexSelection: "",
   autoSave: true,
   wordWrap: true,
   projectSort: "activity",
   projectActivity: {},
   sourceFilesOnly: true,
+  expandedPaths: new Set(),
+  treeContextNode: null,
+  treeContextTrigger: null,
 };
 
 const PROJECT_SORT_STORAGE_KEY = "localtex-project-sort";
 const PROJECT_ACTIVITY_STORAGE_KEY = "localtex-project-activity";
+const AUTOSAVE_DELAY_MS = 100;
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -123,7 +138,12 @@ async function api(path, options = {}) {
   });
   const contentType = response.headers.get("content-type") || "";
   const body = contentType.includes("application/json") ? await response.json() : await response.text();
-  if (!response.ok) throw new Error(body?.error || body || `${response.status} ${response.statusText}`);
+  if (!response.ok) {
+    const error = new Error(body?.error || body || `${response.status} ${response.statusText}`);
+    error.status = response.status;
+    error.body = body;
+    throw error;
+  }
   return body;
 }
 
@@ -137,8 +157,11 @@ function escapeHtml(value) {
 }
 
 function toast(message, kind = "success", duration = 4200) {
+  const duplicate = [...elements.toastRegion.children].find((item) => item.dataset.message === message);
+  if (duplicate) return duplicate;
   const item = document.createElement("div");
   item.className = `toast ${kind}`;
+  item.dataset.message = message;
   item.textContent = message;
   elements.toastRegion.append(item);
   setTimeout(() => item.remove(), duration);
@@ -226,21 +249,49 @@ function iconForFile(name) {
   return "▱";
 }
 
+function bindTreeRowContext(row, node) {
+  row.dataset.path = node.path;
+  row.dataset.type = node.type;
+  row.setAttribute("aria-haspopup", "menu");
+  row.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    showTreeContextMenu(node, row, event.clientX, event.clientY);
+  });
+  row.addEventListener("keydown", (event) => {
+    if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+      event.preventDefault();
+      const bounds = row.getBoundingClientRect();
+      showTreeContextMenu(node, row, bounds.left + 24, bounds.top + bounds.height);
+    } else if (event.key === "F2") {
+      event.preventDefault();
+      void runTreeContextAction("rename", node);
+    }
+  });
+}
+
 function renderTree(nodes, depth = 0) {
   const container = document.createDocumentFragment();
   for (const node of nodes) {
     if (node.type === "directory") {
       const directory = document.createElement("div");
-      directory.className = "tree-directory";
+      directory.className = `tree-directory ${state.expandedPaths.has(node.path) ? "open" : ""}`;
       const row = document.createElement("button");
       row.className = "tree-row";
       row.style.paddingLeft = `${7 + depth * 14}px`;
-      row.innerHTML = `<span class="tree-caret">›</span><span class="tree-icon">▰</span><span class="tree-label">${escapeHtml(node.name)}</span>`;
+      row.innerHTML = `<span class="tree-caret">${directory.classList.contains("open") ? "⌄" : "›"}</span><span class="tree-icon">▰</span><span class="tree-label">${escapeHtml(node.name)}</span>`;
       row.title = node.path;
+      row.setAttribute("role", "treeitem");
+      row.setAttribute("aria-expanded", String(directory.classList.contains("open")));
       row.addEventListener("click", () => {
         directory.classList.toggle("open");
-        row.querySelector(".tree-caret").textContent = directory.classList.contains("open") ? "⌄" : "›";
+        const open = directory.classList.contains("open");
+        if (open) state.expandedPaths.add(node.path);
+        else state.expandedPaths.delete(node.path);
+        row.querySelector(".tree-caret").textContent = open ? "⌄" : "›";
+        row.setAttribute("aria-expanded", String(open));
       });
+      bindTreeRowContext(row, node);
       const children = document.createElement("div");
       children.className = "tree-children";
       children.append(renderTree(node.children || [], depth + 1));
@@ -252,9 +303,12 @@ function renderTree(nodes, depth = 0) {
       const row = document.createElement("button");
       row.className = `tree-row ${state.activePath === node.path ? "active" : ""}`;
       row.style.paddingLeft = `${21 + depth * 14}px`;
-      row.title = `${node.path}${node.editable ? "" : " (preview only)"}`;
+      row.title = node.path;
+      row.setAttribute("role", "treeitem");
+      row.setAttribute("aria-label", `${node.name}${node.editable ? "" : ", preview only"}`);
       row.innerHTML = `<span class="tree-icon">${iconForFile(node.name)}</span><span class="tree-label">${escapeHtml(node.name)}</span>`;
       row.addEventListener("click", () => node.editable ? openFile(node.path) : toast("This binary or large file is not editable as text.", "error"));
+      bindTreeRowContext(row, node);
       file.append(row);
       container.append(file);
     }
@@ -285,7 +339,7 @@ function setSourceFilesOnly(checked) {
 function refreshTreeSelection() {
   elements.fileTree.querySelectorAll(".tree-row.active").forEach((row) => row.classList.remove("active"));
   elements.fileTree.querySelectorAll(".tree-row").forEach((row) => {
-    if (row.title === state.activePath) row.classList.add("active");
+    if (row.dataset.path === state.activePath) row.classList.add("active");
   });
 }
 
@@ -300,7 +354,7 @@ function renderTabs() {
     item.className = `editor-tab ${tab.path === state.activePath ? "active" : ""} ${tab.dirty ? "dirty" : ""}`;
     item.title = tab.path;
     item.innerHTML = `<span class="tree-icon">${iconForFile(tab.path)}</span><button class="editor-tab-label">${escapeHtml(basenamePath(tab.path))}</button><span class="dirty-marker">●</span><button class="close-tab" title="Close">×</button>`;
-    item.querySelector(".editor-tab-label").addEventListener("click", () => activateTab(tab.path));
+    item.querySelector(".editor-tab-label").addEventListener("click", () => { void openFile(tab.path); });
     item.querySelector(".close-tab").addEventListener("click", () => closeTab(tab.path));
     elements.editorTabs.append(item);
   }
@@ -310,25 +364,230 @@ function basenamePath(path) {
   return path.split("/").pop() || path;
 }
 
-function editorExtensions() {
+function projectAbsolutePath(relativePath = "") {
+  return absoluteProjectPath(state.currentProject?.localPath, relativePath);
+}
+
+function treeContextItem(action, icon, label, shortcut = "", className = "") {
+  return `<button type="button" role="menuitem" data-tree-action="${action}" class="${className}"><span class="context-icon">${icon}</span><span class="context-label">${escapeHtml(label)}</span><span class="context-shortcut">${escapeHtml(shortcut)}</span></button>`;
+}
+
+function closeTreeContextMenu(restoreFocus = false) {
+  if (elements.fileContextMenu.hidden) return;
+  const trigger = state.treeContextTrigger;
+  trigger?.classList.remove("context-selected");
+  elements.fileContextMenu.hidden = true;
+  state.treeContextNode = null;
+  state.treeContextTrigger = null;
+  if (restoreFocus && trigger?.isConnected) trigger.focus();
+}
+
+function showTreeContextMenu(node, trigger, clientX, clientY) {
+  closeTreeContextMenu();
+  const isRoot = node.type === "root";
+  const isFile = node.type === "file";
+  const isOpenDirectory = node.type === "directory" && state.expandedPaths.has(node.path);
+  const items = [`<span class="context-heading" title="${escapeHtml(node.path || state.currentProject?.localPath || "Project")}">${escapeHtml(node.name || state.currentProject?.name || "Project")}</span>`];
+  if (isFile && node.editable) items.push(treeContextItem("open", "↗", "Open"));
+  if (node.type === "directory") items.push(treeContextItem("toggle", isOpenDirectory ? "⌃" : "⌄", isOpenDirectory ? "Collapse folder" : "Expand folder"));
+  if (!isRoot) items.push(treeContextItem("rename", "✎", "Rename", "F2"), treeContextItem("duplicate", "▣", "Duplicate"));
+  if (!isRoot) items.push('<div class="context-separator" role="separator"></div>');
+  items.push(treeContextItem("new-file", "＋", isRoot ? "New file" : "New file here"), treeContextItem("new-folder", "▱", isRoot ? "New folder" : "New folder here"));
+  items.push('<div class="context-separator" role="separator"></div>');
+  if (!isRoot) items.push(treeContextItem("copy-relative-path", "⌘", "Copy relative path"));
+  items.push(treeContextItem("copy-full-path", "⧉", isRoot ? "Copy project path" : "Copy full path"), treeContextItem("reveal", "▰", isRoot ? "Open project location" : "Open file location"));
+  items.push('<div class="context-separator" role="separator"></div>');
+  if (!isRoot) items.push(treeContextItem("delete", "×", `Delete ${node.type === "directory" ? "folder" : "file"}`, "", "danger"));
+  items.push(treeContextItem("refresh", "↻", "Refresh file tree"));
+
+  elements.fileContextMenu.innerHTML = items.join("");
+  elements.fileContextMenu.hidden = false;
+  state.treeContextNode = node;
+  state.treeContextTrigger = trigger || null;
+  trigger?.classList.add("context-selected");
+  elements.fileContextMenu.style.left = "0px";
+  elements.fileContextMenu.style.top = "0px";
+  const bounds = elements.fileContextMenu.getBoundingClientRect();
+  const left = Math.max(8, Math.min(clientX, window.innerWidth - bounds.width - 8));
+  const top = Math.max(8, Math.min(clientY, window.innerHeight - bounds.height - 8));
+  elements.fileContextMenu.style.left = `${left}px`;
+  elements.fileContextMenu.style.top = `${top}px`;
+  elements.fileContextMenu.querySelectorAll("[data-tree-action]").forEach((button) => button.addEventListener("click", () => {
+    const action = button.dataset.treeAction;
+    closeTreeContextMenu();
+    void runTreeContextAction(action, node);
+  }));
+  elements.fileContextMenu.querySelector("[data-tree-action]")?.focus({ preventScroll: true });
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const field = document.createElement("textarea");
+  field.value = text;
+  field.style.position = "fixed";
+  field.style.opacity = "0";
+  document.body.append(field);
+  field.select();
+  const copied = document.execCommand("copy");
+  field.remove();
+  if (!copied) throw new Error("Clipboard access is unavailable");
+}
+
+async function flushTabsForEntry(entryPath) {
+  for (const [path, tab] of state.tabs) {
+    if (pathIsEntry(path, entryPath)) await saveFile(tab, { flush: true });
+  }
+}
+
+function remapOpenEntry(oldPath, newPath) {
+  const remappedTabs = new Map();
+  for (const [path, tab] of state.tabs) {
+    const nextPath = pathIsEntry(path, oldPath) ? remapPath(path, oldPath, newPath) : path;
+    if (nextPath !== path) {
+      clearSaveTimer(path);
+      tab.path = nextPath;
+    }
+    remappedTabs.set(nextPath, tab);
+  }
+  state.tabs = remappedTabs;
+  state.expandedPaths = new Set([...state.expandedPaths].map((path) => pathIsEntry(path, oldPath) ? remapPath(path, oldPath, newPath) : path));
+  if (pathIsEntry(state.activePath, oldPath)) state.activePath = remapPath(state.activePath, oldPath, newPath);
+  if (state.activePath && state.tabs.has(state.activePath)) activateTab(state.activePath);
+  else renderTabs();
+}
+
+function showEmptyEditor() {
+  state.activePath = "";
+  state.editor?.destroy();
+  state.editor = null;
+  elements.editorHost.innerHTML = '<div class="empty-editor"><div class="empty-document-icon">T</div><h1>UnderTree</h1><p>Choose a source file from the project tree.</p></div>';
+  elements.fileOutline.innerHTML = "<p>Open a TeX file to see its structure.</p>";
+  setSaveState("No file");
+}
+
+async function discardOpenEntry(entryPath) {
+  const removedActive = pathIsEntry(state.activePath, entryPath);
+  for (const [path, tab] of [...state.tabs]) {
+    if (!pathIsEntry(path, entryPath)) continue;
+    clearSaveTimer(path);
+    if (tab.savePromise) await tab.savePromise.catch(() => {});
+    state.tabs.delete(path);
+  }
+  if (removedActive) {
+    const nextPath = state.tabs.keys().next().value;
+    if (nextPath) activateTab(nextPath);
+    else showEmptyEditor();
+  }
+  renderTabs();
+  refreshTreeSelection();
+}
+
+async function renameTreeEntry(node) {
+  const nextName = prompt(`Rename ${node.type === "directory" ? "folder" : "file"}:`, node.name)?.trim();
+  if (!nextName || nextName === node.name) return;
+  if ([".", ".."].includes(nextName) || /[\\/\0]/.test(nextName)) throw new Error("Enter a name without slashes");
+  const parent = dirnamePath(node.path);
+  const newPath = parent ? `${parent}/${nextName}` : nextName;
+  await flushTabsForEntry(node.path);
+  const result = await api(projectApi("entry"), { method: "PATCH", body: JSON.stringify({ path: node.path, newPath }) });
+  remapOpenEntry(node.path, result.path);
+  await refreshTree();
+  recordProjectActivity(state.currentProject?.id, "editedAt");
+  scheduleStatusRefresh();
+  toast(`Renamed to ${result.path}.`);
+}
+
+async function duplicateTreeEntry(node) {
+  await flushTabsForEntry(node.path);
+  const result = await api(projectApi("entry/duplicate"), { method: "POST", body: JSON.stringify({ path: node.path }) });
+  await refreshTree();
+  if (result.type === "file" && result.editable) await openFile(result.path);
+  recordProjectActivity(state.currentProject?.id, "editedAt");
+  scheduleStatusRefresh();
+  toast(`Created ${result.path}.`);
+}
+
+async function deleteTreeEntry(node) {
+  const affectedTabs = [...state.tabs.entries()].filter(([path]) => pathIsEntry(path, node.path));
+  const dirtyCount = affectedTabs.filter(([, tab]) => tab.dirty).length;
+  const warning = dirtyCount ? ` This will also discard unsaved changes in ${dirtyCount} open ${dirtyCount === 1 ? "file" : "files"}.` : "";
+  if (!confirm(`Delete “${node.name}”?${warning}\n\nThis cannot be undone in UnderTree.`)) return;
+  for (const [path, tab] of affectedTabs) {
+    clearSaveTimer(path);
+    if (tab.savePromise) await tab.savePromise.catch(() => {});
+  }
+  await api(projectApi("entry"), { method: "DELETE", body: JSON.stringify({ path: node.path }) });
+  await discardOpenEntry(node.path);
+  state.expandedPaths = new Set([...state.expandedPaths].filter((path) => !pathIsEntry(path, node.path)));
+  await refreshTree();
+  recordProjectActivity(state.currentProject?.id, "editedAt");
+  scheduleStatusRefresh();
+  toast(`${node.type === "directory" ? "Folder" : "File"} deleted.`);
+}
+
+function contextDirectory(node) {
+  if (node.type === "root") return "";
+  return node.type === "directory" ? node.path : dirnamePath(node.path);
+}
+
+async function runTreeContextAction(action, node) {
+  try {
+    if (action === "open") await openFile(node.path);
+    else if (action === "toggle") {
+      const row = [...elements.fileTree.querySelectorAll(".tree-row")].find((item) => item.dataset.path === node.path);
+      row?.click();
+    } else if (action === "rename") await renameTreeEntry(node);
+    else if (action === "duplicate") await duplicateTreeEntry(node);
+    else if (action === "new-file") await createEntry("file", contextDirectory(node));
+    else if (action === "new-folder") await createEntry("directory", contextDirectory(node));
+    else if (action === "copy-relative-path") {
+      await copyText(node.path);
+      toast("Relative path copied.");
+    } else if (action === "copy-full-path") {
+      await copyText(projectAbsolutePath(node.path));
+      toast(node.type === "root" ? "Project path copied." : "Full path copied.");
+    } else if (action === "reveal") {
+      status("Opening the system file manager…");
+      await api(projectApi("entry/reveal"), { method: "POST", body: JSON.stringify({ path: node.path }) });
+      status(`Opened ${node.path || state.currentProject?.name} in the system file manager`);
+    } else if (action === "delete") await deleteTreeEntry(node);
+    else if (action === "refresh") {
+      await refreshTree();
+      toast("File tree refreshed.");
+    }
+  } catch (error) {
+    toast(error.message, "error", 6500);
+    status("File operation failed");
+  }
+}
+
+function editorExtensions(path) {
   const extensions = [
     basicSetup,
-    StreamLanguage.define(isLayoutSource() ? xml : stex),
+    StreamLanguage.define(isLayoutSource(path) ? xml : stex),
     keymap.of([...defaultKeymap, ...searchKeymap, indentWithTab]),
     EditorView.updateListener.of((update) => {
-      if (!update.docChanged || state.replacingEditor || !state.activePath) return;
-      const tab = state.tabs.get(state.activePath);
+      if (!update.docChanged || state.replacingEditor) return;
+      const wasDirty = state.tabs.get(path)?.dirty;
+      const tab = markPathEdited(state.tabs, path, update.state.doc);
       if (!tab) return;
-      tab.content = update.state.doc.toString();
-      tab.dirty = true;
-      setSaveState("Unsaved", "dirty");
-      renderTabs();
-      renderOutline(tab.content);
-      if (state.autoSave) {
-        clearTimeout(state.saveTimer);
-        state.saveTimer = setTimeout(() => saveActiveFile(), 450);
+      if (state.activePath === path) {
+        setSaveState("Unsaved", "dirty");
+        if (!wasDirty) renderTabs();
+        scheduleOutline(path);
       }
-      scheduleChangeCompile();
+      if (state.autoSave) {
+        clearSaveTimer(tab.path);
+        const timer = setTimeout(() => {
+          state.saveTimers.delete(tab.path);
+          void saveFile(tab).catch(() => {});
+        }, AUTOSAVE_DELAY_MS);
+        state.saveTimers.set(tab.path, timer);
+      }
+      if (state.activePath === path) scheduleChangeCompile();
     }),
     EditorView.theme({
       "&": { fontSize: "var(--editor-font-size)" },
@@ -341,12 +600,12 @@ function editorExtensions() {
   return extensions;
 }
 
-function createEditor(content) {
+function createEditor(content, path) {
   state.editor?.destroy();
   elements.editorHost.innerHTML = "";
   state.replacingEditor = true;
   state.editor = new EditorView({
-    state: EditorState.create({ doc: content, extensions: editorExtensions() }),
+    state: EditorState.create({ doc: content, extensions: editorExtensions(path) }),
     parent: elements.editorHost,
   });
   state.replacingEditor = false;
@@ -355,6 +614,14 @@ function createEditor(content) {
 
 async function openFile(path, line = 0) {
   if (!state.currentProject) return;
+  if (state.activePath && state.activePath !== path) {
+    try {
+      await saveFile(state.tabs.get(state.activePath), { flush: true });
+    } catch {
+      status("Could not switch files because the current file was not saved");
+      return;
+    }
+  }
   if (state.tabs.has(path)) return activateTab(path, line);
   status(`Opening ${path}…`);
   try {
@@ -372,21 +639,57 @@ function activateTab(path, line = 0) {
   const tab = state.tabs.get(path);
   if (!tab) return;
   state.activePath = path;
-  createEditor(tab.content);
+  createEditor(tabContent(tab), path);
   renderTabs();
   refreshTreeSelection();
-  renderOutline(tab.content);
+  renderOutline(tabContent(tab));
   setSaveState(tab.dirty ? "Unsaved" : "Saved locally", tab.dirty ? "dirty" : "saved");
   elements.compileButton.textContent = isLayoutSource(path) ? "Render layout" : "Recompile";
-  void refreshPdf(previewSourcePath(path));
+  elements.editorHost.inert = state.recoverySources.has(`${state.currentProject?.id || ""}:${path}`);
+  void refreshOrCompileSelectedTex(path);
   if (line > 0) goToLine(line);
+}
+
+async function refreshOrCompileSelectedTex(path) {
+  const projectId = state.currentProject?.id || "";
+  const tab = state.tabs.get(path);
+  const sourcePath = previewSourcePath(path);
+  if (!projectId || !tab || state.activePath !== path) return false;
+  if (!isSelectedTexPdfTarget(path, tabContent(tab), state.build?.rootDocument || state.currentProject?.rootDocument || "")) {
+    return refreshPdf(sourcePath);
+  }
+  try {
+    const info = await api(`${projectApi("pdf-info")}?sourcePath=${encodeURIComponent(sourcePath)}`);
+    if (projectId !== state.currentProject?.id || path !== state.activePath) return false;
+    if (info.available && !info.stale && !tab.dirty) return refreshPdf(sourcePath);
+    if (state.compileInFlight) {
+      state.pendingTexSelection = `${projectId}:${path}`;
+      return false;
+    }
+    return compileProject({ automatic: true });
+  } catch (error) {
+    if (error?.status === 404 && projectId === state.currentProject?.id && path === state.activePath) {
+      try {
+        markTabEdited(tab, tab.content);
+        setSaveState("Restoring local file…");
+        await saveFile(tab, { flush: true });
+        await refreshTree();
+        return compileProject({ automatic: true });
+      } catch (restoreError) {
+        toast(`Could not restore ${path}: ${restoreError.message}`, "error", 6500);
+        return false;
+      }
+    }
+    if (projectId === state.currentProject?.id && path === state.activePath) toast(`Could not inspect ${path}: ${error.message}`, "error", 6500);
+    return false;
+  }
 }
 
 async function closeTab(path) {
   const tab = state.tabs.get(path);
   if (!tab) return;
   if (tab.dirty) {
-    try { await saveFile(tab); } catch {
+    try { await saveFile(tab, { flush: true }); } catch {
       if (!confirm(`${basenamePath(path)} could not be saved. Close it anyway?`)) return;
     }
   }
@@ -400,7 +703,7 @@ async function closeTab(path) {
     else {
       state.editor?.destroy();
       state.editor = null;
-      elements.editorHost.innerHTML = '<div class="empty-editor"><div class="empty-document-icon">T</div><h1>LocalTeX Studio</h1><p>Choose a source file from the project tree.</p></div>';
+      elements.editorHost.innerHTML = '<div class="empty-editor"><div class="empty-document-icon">T</div><h1>UnderTree</h1><p>Choose a source file from the project tree.</p></div>';
       elements.fileOutline.innerHTML = "<p>Open a TeX file to see its structure.</p>";
       setSaveState("No file");
     }
@@ -409,19 +712,40 @@ async function closeTab(path) {
   refreshTreeSelection();
 }
 
-async function saveFile(tab) {
-  if (!tab?.dirty) return tab;
-  setSaveState("Saving…");
+function clearSaveTimer(path) {
+  const timer = state.saveTimers.get(path);
+  if (timer) clearTimeout(timer);
+  state.saveTimers.delete(path);
+}
+
+function clearAllSaveTimers() {
+  for (const timer of state.saveTimers.values()) clearTimeout(timer);
+  state.saveTimers.clear();
+}
+
+async function persistTab(tab, snapshot) {
+  const persist = (candidate) => api(projectApi("file"), {
+    method: "PUT",
+    body: JSON.stringify({
+      path: tab.path,
+      content: candidate.content,
+      expectedMtimeMs: candidate.expectedMtimeMs,
+      preserveCurrent: candidate.preserveCurrent === true,
+    }),
+  });
+  const refresh = () => api(`${projectApi("file")}?path=${encodeURIComponent(tab.path)}`);
+  return persistWithConflictRecovery(snapshot, persist, refresh);
+}
+
+async function saveFile(tab, { flush = false } = {}) {
+  if (!tab || (!tab.dirty && !tab.savePromise)) return tab;
+  clearSaveTimer(tab.path);
+  if (tab.path === state.activePath) setSaveState("Saving…");
   try {
-    const result = await api(projectApi("file"), {
-      method: "PUT",
-      body: JSON.stringify({ path: tab.path, content: tab.content, expectedMtimeMs: tab.mtimeMs }),
-    });
-    tab.mtimeMs = result.mtimeMs;
-    tab.size = result.size;
-    tab.dirty = false;
+    const save = (snapshot) => persistTab(tab, snapshot);
+    await (flush ? flushTabSave(tab, save) : saveTabSnapshot(tab, save));
     recordProjectActivity(state.currentProject?.id, "editedAt");
-    setSaveState("Saved locally", "saved");
+    if (tab.path === state.activePath) setSaveState(tab.dirty ? "Unsaved" : "Saved locally", tab.dirty ? "dirty" : "saved");
     renderTabs();
     renderProjectPicker();
     if (!elements.projectModal.hidden) renderProjectDialog(elements.projectFilter.value);
@@ -436,31 +760,26 @@ async function saveFile(tab) {
 }
 
 async function saveActiveFile() {
-  clearTimeout(state.saveTimer);
-  state.saveTimer = null;
-  return saveFile(state.tabs.get(state.activePath));
+  return saveFile(state.tabs.get(state.activePath), { flush: true });
+}
+
+function scheduleOutline(path) {
+  clearTimeout(state.outlineTimer);
+  state.outlineTimer = setTimeout(() => {
+    state.outlineTimer = null;
+    if (path === state.activePath) renderOutline(tabContent(state.tabs.get(path)));
+  }, 120);
 }
 
 function renderOutline(content) {
-  const headings = [];
-  if (isLayoutSource()) {
-    const pattern = /<heading(?:\s[^>]*)?>([\s\S]*?)<\/heading>/gi;
-    let match;
-    while ((match = pattern.exec(content))) {
-      const line = content.slice(0, match.index).split("\n").length;
-      const title = match[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-      headings.push({ title, line, level: 1 });
-    }
+  clearTimeout(state.outlineTimer);
+  state.outlineTimer = null;
+  const layout = isLayoutSource();
+  const headings = documentOutline(content, layout);
+  if (layout) {
     elements.fileOutline.innerHTML = headings.length ? headings.map((heading) => `<button class="outline-item level-1" data-line="${heading.line}">${escapeHtml(heading.title)}</button>`).join("") : "<p>No layout headings in this file.</p>";
     elements.fileOutline.querySelectorAll("[data-line]").forEach((button) => button.addEventListener("click", () => goToLine(Number(button.dataset.line))));
     return;
-  }
-  const pattern = /^\s*\\(part|chapter|section|subsection|subsubsection|paragraph)\*?\{([^}]*)\}/gm;
-  let match;
-  while ((match = pattern.exec(content))) {
-    const line = content.slice(0, match.index).split("\n").length;
-    const level = { part: 1, chapter: 1, section: 1, subsection: 2, subsubsection: 3, paragraph: 3 }[match[1]];
-    headings.push({ title: match[2], line, level });
   }
   elements.fileOutline.innerHTML = headings.length ? headings.map((heading) => `<button class="outline-item level-${heading.level}" data-line="${heading.line}">${escapeHtml(heading.title)}</button>`).join("") : "<p>No sections or subsections in this file.</p>";
   elements.fileOutline.querySelectorAll("[data-line]").forEach((button) => button.addEventListener("click", () => goToLine(Number(button.dataset.line))));
@@ -516,14 +835,19 @@ async function selectProject(id) {
   } catch {
     if (!confirm("The active file could not be saved. Switch projects anyway?")) return;
   }
+  clearAllSaveTimers();
   clearInterval(state.autoCompileTimer);
   clearTimeout(state.autoCompileChangeTimer);
   state.autoCompileTimer = null;
   state.autoCompileChangeTimer = null;
   state.autoCompileMode = "0";
+  state.pendingTexSelection = "";
+  closeTreeContextMenu();
+  state.expandedPaths.clear();
   $("#auto-compile-interval").value = "0";
   state.currentProject = state.projects.find((project) => project.id === id) || null;
   if (!state.currentProject) return;
+  restoreCodexRecovery();
   state.build = null;
   recordProjectActivity(id, "openedAt");
   localStorage.setItem("localtex-project", id);
@@ -537,9 +861,10 @@ async function selectProject(id) {
   if (state.currentProject.hasIcon) elements.projectIcon.src = `/api/project/${id}/icon`;
   status(`Loading ${state.currentProject.name}…`);
   try {
-    await Promise.all([refreshTree(), refreshGitStatus(), refreshPdf()]);
+    await Promise.all([refreshTree(), refreshGitStatus()]);
     const opening = firstEditable(state.tree, state.build?.rootDocument || state.currentProject.rootDocument);
     if (opening) await openFile(opening);
+    else await refreshPdf();
     restoreAutoCompile();
     status(`${state.currentProject.name} is ready offline`);
   } catch (error) {
@@ -554,6 +879,7 @@ async function refreshPdf(sourcePath = previewSourcePath()) {
   const refreshVersion = ++state.pdfRefreshVersion;
   const projectId = state.currentProject.id;
   const previousDocument = state.pdfDocument;
+  const previousLoadingTask = state.pdfLoadingTask;
   const previousProjectId = state.pdfProjectId;
   const previousSourcePath = state.pdfSourcePath;
   const previousPage = state.pdfPage;
@@ -563,16 +889,18 @@ async function refreshPdf(sourcePath = previewSourcePath()) {
     && previousSourcePath === requestedSource);
   const viewAnchor = preserveExisting ? capturePdfViewAnchor() : null;
   let nextDocument = null;
+  let nextLoadingTask = null;
   try {
     const sourceQuery = requestedSource ? `sourcePath=${encodeURIComponent(requestedSource)}&` : "";
     const response = await fetch(`${projectApi("pdf")}?${sourceQuery}v=${Date.now()}`, { cache: "no-store", credentials: "same-origin" });
     if (!response.ok) throw new Error(`PDF request failed (${response.status})`);
     const [pdfjs, data] = await Promise.all([loadPdfjs(), response.arrayBuffer()]);
-    const loadingTask = pdfjs.getDocument({ data });
-    nextDocument = await loadingTask.promise;
+    nextLoadingTask = pdfjs.getDocument({ data });
+    nextDocument = await nextLoadingTask.promise;
     if (refreshVersion !== state.pdfRefreshVersion || projectId !== state.currentProject?.id) throw new Error("PDF refresh superseded");
     const sameSource = previousProjectId === state.currentProject.id && previousSourcePath === requestedSource;
     state.pdfDocument = nextDocument;
+    state.pdfLoadingTask = nextLoadingTask;
     state.pdfProjectId = state.currentProject.id;
     state.pdfSourcePath = requestedSource;
     state.pdfPage = sameSource ? Math.min(previousPage, nextDocument.numPages) : 1;
@@ -586,30 +914,38 @@ async function refreshPdf(sourcePath = previewSourcePath()) {
     elements.downloadPdf.href = `${projectApi("pdf")}?${sourceQuery}download=1`;
     elements.downloadPdf.classList.remove("disabled");
     elements.downloadPdf.removeAttribute("aria-disabled");
-    if (previousDocument && previousDocument !== nextDocument) await previousDocument.destroy();
+    if (previousDocument && previousDocument !== nextDocument) {
+      await destroyPdfResource(previousLoadingTask, previousDocument);
+    }
     return true;
   } catch (error) {
     const superseded = refreshVersion !== state.pdfRefreshVersion || projectId !== state.currentProject?.id;
     if (superseded) {
-      if (nextDocument && nextDocument !== state.pdfDocument) await nextDocument.destroy().catch(() => {});
+      if (nextLoadingTask && nextLoadingTask !== state.pdfLoadingTask) {
+        await destroyPdfResource(nextLoadingTask, nextDocument);
+      }
       return false;
     }
-    if (nextDocument && nextDocument !== previousDocument) await nextDocument.destroy().catch(() => {});
+    if (nextLoadingTask && nextLoadingTask !== previousLoadingTask) {
+      await destroyPdfResource(nextLoadingTask, nextDocument);
+    }
     state.pdfDocument = preserveExisting ? previousDocument : null;
+    state.pdfLoadingTask = preserveExisting ? previousLoadingTask : null;
     state.pdfProjectId = preserveExisting ? previousProjectId : "";
     state.pdfSourcePath = preserveExisting ? previousSourcePath : "";
     state.pdfPage = preserveExisting ? previousPage : 1;
     state.pdfScale = preserveExisting ? previousScale : null;
     if (preserveExisting) setupPdfObserver();
-    else await clearPdfPreview(previousDocument);
+    else await clearPdfPreview(previousDocument, previousLoadingTask);
     return false;
   }
 }
 
-async function clearPdfPreview(document = state.pdfDocument) {
+async function clearPdfPreview(document = state.pdfDocument, loadingTask = state.pdfLoadingTask) {
   cancelPdfRenders();
-  if (document) await document.destroy().catch(() => {});
+  if (document || loadingTask) await destroyPdfResource(loadingTask, document);
   state.pdfDocument = null;
+  state.pdfLoadingTask = null;
   state.pdfProjectId = "";
   state.pdfSourcePath = "";
   state.pdfPage = 1;
@@ -865,6 +1201,20 @@ function autoCompileStorageKey() {
   return state.currentProject ? `localtex-auto-compile:${state.currentProject.id}` : "";
 }
 
+function codexRecoveryStorageKey() {
+  return state.currentProject ? `localtex-codex-recovery:${state.currentProject.id}` : "";
+}
+
+function setCodexRecovery(enabled, { persist = true, announce = true } = {}) {
+  state.codexRecoveryEnabled = Boolean(enabled);
+  $("#codex-auto-recovery").checked = state.codexRecoveryEnabled;
+  const key = codexRecoveryStorageKey();
+  if (persist && key) localStorage.setItem(key, String(state.codexRecoveryEnabled));
+  if (announce) toast(state.codexRecoveryEnabled
+    ? "Automatic background Codex repair is on for failed TeX builds."
+    : "Automatic Codex formatting repair is off for this project.");
+}
+
 function setAutoCompile(seconds, { persist = true, announce = true } = {}) {
   const allowed = new Set([0, 5, 10, 30, 60, 120]);
   const requested = String(seconds ?? "0");
@@ -914,39 +1264,160 @@ function restoreAutoCompile() {
   setAutoCompile(key ? localStorage.getItem(key) : 0, { persist: false, announce: false });
 }
 
+function restoreCodexRecovery() {
+  const key = codexRecoveryStorageKey();
+  const stored = key ? localStorage.getItem(key) : null;
+  setCodexRecovery(stored === null ? true : stored === "true", { persist: false, announce: false });
+}
+
+async function reloadCleanTabsFromDisk() {
+  const activePath = state.activePath;
+  const activeLine = state.editor ? state.editor.state.doc.lineAt(state.editor.state.selection.main.head).number : 0;
+  const conflicts = [];
+  for (const [path, tab] of state.tabs) {
+    try {
+      const file = await api(`${projectApi("file")}?path=${encodeURIComponent(path)}`);
+      if (tab.dirty && Math.abs(file.mtimeMs - tab.mtimeMs) > 1) {
+        conflicts.push(path);
+        continue;
+      }
+      if (!tab.dirty) state.tabs.set(path, { ...file, dirty: false });
+    } catch {}
+  }
+  if (activePath && state.tabs.has(activePath) && !state.tabs.get(activePath).dirty) activateTab(activePath, activeLine);
+  else renderTabs();
+  return conflicts;
+}
+
+async function monitorCodexRecovery(initial, projectId, sourcePath, { quiet = false } = {}) {
+  if (!initial?.id || state.monitoredRecoveries.has(initial.id)) return;
+  const recoverySourceKey = `${projectId}:${sourcePath}`;
+  state.monitoredRecoveries.add(initial.id);
+  state.recoverySources.add(recoverySourceKey);
+  if (state.currentProject?.id === projectId && state.activePath === sourcePath) elements.editorHost.inert = true;
+  let lastState = "";
+  const deadline = Date.now() + 41 * 60 * 1000;
+  try {
+    while (Date.now() < deadline) {
+      const recovery = await api(`${projectApi("codex-recovery")}?id=${encodeURIComponent(initial.id)}`);
+      if (recovery.state !== lastState) {
+        if (!quiet || ["unresolved", "failed", "rejected"].includes(recovery.state)) {
+          appendCompileLog(`[Codex recovery] ${recovery.message}`);
+        }
+        lastState = recovery.state;
+      }
+      if (["fixed", "unresolved", "failed", "rejected"].includes(recovery.state)) {
+        if (recovery.state === "fixed" && state.currentProject?.id === projectId) {
+          const conflicts = await reloadCleanTabsFromDisk();
+          await refreshTree();
+          if (previewSourcePath() === sourcePath) await refreshPdf(sourcePath);
+          if (!quiet) {
+            toast(recovery.message, "success", 6500);
+            status("PDF refreshed");
+          }
+          if (conflicts.length) toast(`Codex changed ${conflicts.join(", ")} while it also has unsaved editor changes. Your unsaved text was preserved; review the save conflict.`, "error", 10000);
+        } else if (state.currentProject?.id === projectId) {
+          toast(recovery.message, "error", 9000);
+          status("Codex could not restore a clean PDF build");
+          showLogs(true);
+        }
+        return;
+      }
+      if (state.currentProject?.id !== projectId) return;
+      if (!quiet) status(recovery.message);
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }
+    if (state.currentProject?.id === projectId) toast("Background Codex recovery is still running.", "error", 8000);
+  } catch (error) {
+    if (state.currentProject?.id === projectId) toast(`Could not monitor Codex recovery: ${error.message}`, "error", 8000);
+  } finally {
+    state.monitoredRecoveries.delete(initial.id);
+    state.recoverySources.delete(recoverySourceKey);
+    if (state.currentProject?.id === projectId && state.activePath === sourcePath) elements.editorHost.inert = false;
+  }
+}
+
 async function compileProject({ clean = false, automatic = false } = {}) {
   if (!state.currentProject || state.compileInFlight) return false;
   const projectId = state.currentProject.id;
   const buildEndpoint = projectApi("build");
   const activePath = state.activePath;
   const sourcePath = previewSourcePath(activePath);
+  if (state.recoverySources.has(`${projectId}:${sourcePath}`)) {
+    if (!automatic) toast("Codex is already repairing this TeX source; verification will refresh the PDF automatically.", "error", 6500);
+    return false;
+  }
   state.compileInFlight = true;
   elements.compileButton.disabled = true;
   elements.compileButton.classList.add("busy");
+  elements.editorHost.inert = true;
   void loadPdfjs();
   try {
     if (!automatic) {
       showCompileMenu(false);
       showLogs(false);
     }
-    await saveFile(state.tabs.get(activePath));
     const layoutSource = isLayoutSource(sourcePath) ? sourcePath : "";
     elements.compileButton.textContent = clean ? "Cleaning…" : layoutSource ? "Rendering…" : "Compiling…";
     const buildLabel = sourcePath || "project";
     status(`${clean ? "Cleaning and compiling" : layoutSource ? "Rendering adaptive layout" : "Compiling"} ${buildLabel}…`);
-    const result = await api(buildEndpoint, { method: "POST", body: JSON.stringify({ clean, sourcePath }) });
+    const recoverWithCodex = state.codexRecoveryEnabled && sourcePath.toLowerCase().endsWith(".tex");
+    const sourceTab = activePath === sourcePath ? state.tabs.get(activePath) : null;
+    let sourceSnapshot = null;
+    if (sourceTab) {
+      clearSaveTimer(sourceTab.path);
+      sourceSnapshot = await buildTabSnapshot(sourceTab);
+    } else {
+      await saveFile(state.tabs.get(activePath), { flush: true });
+    }
+    const result = await api(buildEndpoint, {
+      method: "POST",
+      body: JSON.stringify({
+        clean,
+        sourcePath,
+        sourceContent: sourceSnapshot?.content,
+        recoverWithCodex,
+      }),
+    });
+    if (acceptBuildSave(sourceTab, sourceSnapshot, result.sourceSave)) {
+      if (sourceSnapshot.dirty || result.sourceSave.conflictPreserved || result.sourceSave.recreated) {
+        recordProjectActivity(projectId, "editedAt");
+      }
+      setSaveState("Saved locally", "saved");
+      renderTabs();
+      renderProjectPicker();
+      if (!elements.projectModal.hidden) renderProjectDialog(elements.projectFilter.value);
+      scheduleStatusRefresh();
+    }
     elements.compileLog.textContent = result.output || "Compilation finished without output.";
-    if (!result.pdfAvailable) throw new Error("Compilation did not produce a PDF. Open the log for details.");
+    if (result.code !== 0 || !result.pdfAvailable) {
+      if (result.codexRecovery?.id) {
+        const recoveryMessage = result.codexRecovery.duplicate
+          ? "This TeX failure is already being repaired in the background."
+          : "Compilation failed; background formatting-only repair started.";
+        if (!automatic) {
+          appendCompileLog(`[Codex recovery] ${recoveryMessage}`);
+          showLogs(true);
+          toast(recoveryMessage, "error", 6500);
+          status(result.codexRecovery.message);
+        } else {
+          status(`${state.currentProject.name} is ready offline`);
+        }
+        void monitorCodexRecovery(result.codexRecovery, projectId, sourcePath, { quiet: automatic });
+        return false;
+      }
+      const recoveryDetail = result.codexRecovery?.message ? ` ${result.codexRecovery.message}` : "";
+      throw new Error(`Compilation did not produce a clean PDF.${recoveryDetail} Open the log for details.`);
+    }
     if (state.currentProject?.id === projectId && previewSourcePath() === sourcePath && !(await refreshPdf(sourcePath))) {
       throw new Error("The PDF compiled, but its preview could not be refreshed.");
     }
     const successMessage = result.layout ? "Adaptive HTML, LuaLaTeX, and PDF generated." : "PDF compiled successfully.";
-    if (!automatic) toast(result.code === 0 ? successMessage : "PDF produced with warnings; inspect the log.", result.code === 0 ? "success" : "error");
+    if (!automatic) toast(successMessage);
     status(`${automatic ? "Auto-compiled" : "Compiled"} at ${new Date(result.compiledAt).toLocaleTimeString()}`);
-    if (result.code !== 0 && !automatic) showLogs(true);
     return true;
   } catch (error) {
-    elements.compileLog.textContent += `\n\n${error.message}`;
+    appendCompileLog(error.message);
     if (!automatic) showLogs(true);
     toast(error.message, "error", 7000);
     status("Compilation failed");
@@ -956,6 +1427,12 @@ async function compileProject({ clean = false, automatic = false } = {}) {
     elements.compileButton.disabled = false;
     elements.compileButton.classList.remove("busy");
     elements.compileButton.textContent = isLayoutSource() ? "Render layout" : "Recompile";
+    elements.editorHost.inert = state.recoverySources.has(`${state.currentProject?.id || ""}:${state.activePath}`);
+    const pendingSelection = state.pendingTexSelection;
+    state.pendingTexSelection = "";
+    if (pendingSelection === `${state.currentProject?.id || ""}:${state.activePath}`) {
+      queueMicrotask(() => { void refreshOrCompileSelectedTex(state.activePath); });
+    }
   }
 }
 
@@ -993,6 +1470,12 @@ async function downloadAllPdfs() {
 
 function showLogs(show = !elements.logsPanel.classList.contains("visible")) {
   elements.logsPanel.classList.toggle("visible", show);
+  if (show) requestAnimationFrame(() => { elements.compileLog.scrollTop = elements.compileLog.scrollHeight; });
+}
+
+function appendCompileLog(message) {
+  elements.compileLog.textContent += `\n\n${message}`;
+  requestAnimationFrame(() => { elements.compileLog.scrollTop = elements.compileLog.scrollHeight; });
 }
 
 async function refreshGitStatus() {
@@ -1063,11 +1546,16 @@ async function runProjectSearch() {
   }
 }
 
-async function createEntry(type) {
+async function createEntry(type, baseDirectory = null) {
   if (!state.currentProject) return;
-  const label = type === "file" ? "New project-relative file path (for example chapters/method.tex):" : "New project-relative folder path:";
-  const path = prompt(label);
-  if (!path) return;
+  const contextual = typeof baseDirectory === "string";
+  const destinationLabel = baseDirectory ? ` in ${baseDirectory}` : " in the project root";
+  const label = contextual
+    ? `New ${type === "file" ? "file" : "folder"} name${destinationLabel}:`
+    : type === "file" ? "New project-relative file path (for example chapters/method.tex):" : "New project-relative folder path:";
+  const input = prompt(label)?.trim();
+  if (!input) return;
+  const path = contextual && baseDirectory ? `${baseDirectory}/${input}` : input;
   try {
     await api(projectApi("files"), { method: "POST", body: JSON.stringify({ path, type }) });
     await refreshTree();
@@ -1132,6 +1620,28 @@ function bindEvents() {
   $$(".rail-button").forEach((button) => button.addEventListener("click", () => switchLeftPanel(button.dataset.panel)));
   $("#collapse-files").addEventListener("click", () => elements.workspace.classList.toggle("left-hidden"));
   elements.sourceFilesOnly.addEventListener("change", () => setSourceFilesOnly(elements.sourceFilesOnly.checked));
+  elements.fileTree.addEventListener("contextmenu", (event) => {
+    if (event.target.closest(".tree-row")) return;
+    event.preventDefault();
+    showTreeContextMenu({ type: "root", path: "", name: state.currentProject?.name || "Project" }, null, event.clientX, event.clientY);
+  });
+  elements.fileTree.addEventListener("scroll", () => closeTreeContextMenu(), { passive: true });
+  elements.fileContextMenu.addEventListener("keydown", (event) => {
+    const buttons = [...elements.fileContextMenu.querySelectorAll("[data-tree-action]")];
+    const index = buttons.indexOf(document.activeElement);
+    let nextIndex = index;
+    if (event.key === "ArrowDown") nextIndex = (index + 1) % buttons.length;
+    else if (event.key === "ArrowUp") nextIndex = (index - 1 + buttons.length) % buttons.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = buttons.length - 1;
+    else if (event.key === "Escape") {
+      event.preventDefault();
+      closeTreeContextMenu(true);
+      return;
+    } else return;
+    event.preventDefault();
+    buttons[nextIndex]?.focus();
+  });
   $("#new-file").addEventListener("click", () => createEntry("file"));
   $("#new-folder").addEventListener("click", () => createEntry("directory"));
   $("#undo").addEventListener("click", () => state.editor && undo(state.editor));
@@ -1143,6 +1653,7 @@ function bindEvents() {
   elements.compileButton.addEventListener("click", (event) => { event.preventDefault(); compileProject(); });
   $("#compile-menu").addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); showCompileMenu(); });
   $("#auto-compile-interval").addEventListener("change", (event) => setAutoCompile(event.target.value));
+  $("#codex-auto-recovery").addEventListener("change", (event) => setCodexRecovery(event.target.checked));
   $$("[data-compile-action]").forEach((button) => button.addEventListener("click", () => {
     const action = button.dataset.compileAction;
     showCompileMenu(false);
@@ -1182,10 +1693,11 @@ function bindEvents() {
     else if (action === "edit") state.editor && openSearchPanel(state.editor);
     else if (action === "view") elements.workspace.classList.toggle("preview-hidden");
     else if (action === "build") compileProject();
-    else toast("LocalTeX Studio works entirely on your local project library.");
+    else toast("UnderTree works entirely on your local project library.");
   }));
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".compile-control")) showCompileMenu(false);
+    if (!event.target.closest("#file-context-menu")) closeTreeContextMenu();
   });
   setupResizer($("#left-resizer"), "left");
   setupResizer($("#right-resizer"), "right");
@@ -1202,9 +1714,12 @@ function bindEvents() {
       event.preventDefault();
       openProjectModal();
     }
-    if (event.key === "Escape" && !elements.projectModal.hidden) closeProjectModal();
+    if (event.key === "Escape" && !elements.fileContextMenu.hidden) closeTreeContextMenu(true);
+    else if (event.key === "Escape" && !elements.projectModal.hidden) closeProjectModal();
   });
+  window.addEventListener("resize", () => closeTreeContextMenu());
   window.addEventListener("beforeunload", (event) => {
+    clearAllSaveTimers();
     clearInterval(state.autoCompileTimer);
     clearTimeout(state.autoCompileChangeTimer);
     cancelPdfRenders();

@@ -8,7 +8,7 @@ import { join } from "node:path";
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright-core");
 const endpoint = process.env.LOCALTEX_CDP_ENDPOINT || "http://127.0.0.1:9222";
-const appUrl = process.env.LOCALTEX_APP_URL || `http://127.0.0.1:37371/?token=${encodeURIComponent(readFileSync(join(homedir(), ".config/localtex-studio/token"), "utf8").trim())}`;
+const appUrl = process.env.UNDERTREE_APP_URL || process.env.LOCALTEX_APP_URL || `http://127.0.0.1:37371/?token=${encodeURIComponent(readFileSync(join(homedir(), ".config/undertree/token"), "utf8").trim())}`;
 
 const browser = await chromium.connectOverCDP(endpoint);
 const context = browser.contexts()[0];
@@ -51,6 +51,16 @@ try {
   await sourceFilesOnly.uncheck();
   assert.ok(await page.locator('.tree-file .tree-label').evaluateAll((labels) => labels.some((label) => !/\.(?:tex|bib)$/i.test(label.textContent || ""))));
   assert.equal(await page.evaluate(() => localStorage.getItem("localtex-source-files-only")), "false");
+  const contextTarget = page.locator(".tree-file.editable .tree-row").first();
+  await contextTarget.click({ button: "right" });
+  const contextMenu = page.locator("#file-context-menu:not([hidden])");
+  await contextMenu.waitFor();
+  const contextActions = await contextMenu.locator("[data-tree-action] .context-label").allTextContents();
+  for (const expectedAction of ["Open", "Rename", "Duplicate", "Copy relative path", "Copy full path", "Open file location", "Delete file", "Refresh file tree"]) {
+    assert.ok(contextActions.includes(expectedAction), `file context menu must include ${expectedAction}`);
+  }
+  await page.keyboard.press("Escape");
+  assert.equal(await page.locator("#file-context-menu:not([hidden])").count(), 0);
   assert.ok(await page.locator(".editor-tab").count() > 0);
   assert.equal(await page.getByRole("button", { name: "Recompile", exact: true }).count(), 1);
   assert.equal(await page.getByRole("button", { name: "Download all PDFs", exact: true }).count(), 1);
@@ -59,6 +69,7 @@ try {
 
   await page.locator("#compile-menu").click();
   assert.equal(await page.locator("#compile-popover:not([hidden]) [data-compile-action]").count(), 4);
+  assert.equal(await page.getByRole("checkbox", { name: "Automatically repair failed TeX with Codex" }).isChecked(), true);
   await page.locator("#compile-menu").click();
 
   await page.getByRole("button", { name: "Project search" }).click();
@@ -84,6 +95,7 @@ try {
   await page.locator("#close-project-modal").click();
   await page.getByRole("button", { name: "Organize projects" }).click();
   await page.waitForSelector("#project-modal:not([hidden])");
+  await page.waitForFunction(() => document.activeElement?.id === "project-sort");
   assert.equal(await page.evaluate(() => document.activeElement?.id), "project-sort");
   await page.locator("#close-project-modal").click();
 
@@ -123,7 +135,7 @@ try {
   await page.getByRole("button", { name: "Render layout", exact: true }).waitFor({ timeout: 15000 });
   await page.getByRole("button", { name: "Render layout", exact: true }).click();
   await page.waitForFunction(() => document.querySelector("#compile")?.textContent === "Render layout" && !document.querySelector("#compile")?.disabled, null, { timeout: 240000 });
-  assert.match(await page.locator("#compile-log").textContent(), /LocalTeX Layout validated and generated two targets/);
+  assert.match(await page.locator("#compile-log").textContent(), /UnderTree Layout validated and generated two targets/);
   await page.locator("#compile-menu").click();
   await page.locator('[data-compile-action="proof"]').click();
   await page.waitForSelector("#html-proof:not([hidden])", { timeout: 15000 });
@@ -149,7 +161,7 @@ try {
   assert.equal(errors.length, 0, `browser console errors: ${errors.join(" | ")}`);
   assert.equal(externalRequests.length, 0, `offline UI made external requests: ${externalRequests.join(" | ")}`);
   if (process.env.LOCALTEX_SCREENSHOT) await page.screenshot({ path: process.env.LOCALTEX_SCREENSHOT, fullPage: false });
-  process.stdout.write("LocalTeX Studio UI smoke test passed.\n");
+  process.stdout.write("UnderTree UI smoke test passed.\n");
 } finally {
   await page.close({ runBeforeUnload: false });
   await browser.close();

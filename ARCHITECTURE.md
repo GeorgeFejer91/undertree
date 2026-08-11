@@ -1,6 +1,6 @@
-# LocalTeX Studio architecture
+# UnderTree architecture
 
-LocalTeX Studio is an original offline workspace inspired by the visible
+UnderTree is an original offline workspace inspired by the visible
 left-editor-preview interaction model of online LaTeX editors. It does not
 contain Overleaf HTML, JavaScript, images, branding, cookies, or private API
 code.
@@ -8,7 +8,7 @@ code.
 ## Process model
 
 ```text
-Native LocalTeX Studio GTK/WebKit window
+Native UnderTree GTK/WebKit window
         (bundled HTML/CSS/CodeMirror/PDF.js)
                     │ localhost HTTP + authenticated JSON
                     ▼
@@ -16,6 +16,7 @@ Node standard-library service on 127.0.0.1:37371
         ├── canonical project inventory and icons
         ├── atomic, project-root-confined text saves
         ├── tex-sync / latexmk builds
+        ├── guarded Codex formatting recovery after failed TeX builds
         ├── generated PDF streaming
         ├── local full-project text search
         ├── read-only Git status
@@ -27,7 +28,7 @@ The systemd user service keeps the local API available without internet. The
 desktop launcher starts an independent GTK application backed by the operating
 system's WebKitGTK runtime. Brave and the user's ordinary browser session are
 not involved. A single-instance application identity raises the existing
-LocalTeX Studio window when it is launched again.
+UnderTree window when it is launched again.
 
 ## Security boundary
 
@@ -42,8 +43,35 @@ LocalTeX Studio window when it is launched again.
 - Traversal, absolute paths, outside-project symlinks, oversized text, and
   unsupported binary editing are rejected.
 - Saves use a same-directory temporary file and atomic rename, with modification
-  time conflict detection.
+  time conflict detection. A per-tab revision coordinator serializes overlapping
+  saves and keeps later edits dirty; every build passes a flush barrier that
+  persists the newest editor revision before compilation can begin. Editor
+  callbacks are path-bound, and the build endpoint receives the exact buffer and
+  verifies/saves it immediately before invoking LaTeX. A missing open source is
+  recreated from its editor buffer. Concurrent disk contents are archived under
+  private application state before the editor-authoritative version replaces
+  them, so automatic reconciliation never discards either side.
 - Sync uses existing repository protocols and never force-pushes.
+- Codex recovery is never driven by browser navigation. The authenticated build
+  endpoint uses the pinned official Codex SDK, which starts its version-matched
+  local runtime without a shell and streams structured task events. It passes a
+  bounded compiler excerpt, confines the task to the inventory project, disables
+  network/web search, and uses workspace-write/never-approve execution. Identical
+  failures are deduplicated, failed launches can be retried immediately,
+  concurrency is capped, diagnostics focus on the first fatal error, and the
+  verification build cannot recursively invoke another recovery. One failed
+  verification may resume the same private task once with the new diagnostic.
+- Both attempts use the low-latency `gpt-5.6-luna` model with low reasoning.
+  Each job receives an isolated temporary Codex home linked only to the user's
+  existing authentication and model cache. UnderTree never opens or focuses the
+  Codex desktop app, removes the temporary task after completion, and removes
+  routine success logs. Diagnostics for unresolved/rejected repairs remain
+  user-private state outside every project repository.
+- The selected source is protected from editor-API writes during recovery. A
+  visible-text signature is checked before compilation; a candidate that changes
+  document words is retained privately for inspection while the exact original
+  source is restored. Selecting any `.tex` source checks or creates its matching
+  PDF; automatic recovery runs only after that exact source fails compilation.
 
 ## Clean-room UI mapping
 

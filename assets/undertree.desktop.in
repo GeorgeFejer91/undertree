@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=UnderTree
+GenericName=Offline LaTeX Editor
+Comment=Open the offline Overleaf-style local TeX workspace
+Exec=@APP_ROOT@/bin/undertree %F
+Icon=undertree
+Terminal=false
+Categories=Office;Publishing;
+Keywords=LaTeX;TeX;PDF;Overleaf;offline;
+MimeType=text/x-tex;text/x-bibtex;application/x-tex;application/x-latex;
+StartupNotify=true
+StartupWMClass=UnderTree
+DBusActivatable=false

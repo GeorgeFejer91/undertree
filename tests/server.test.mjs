@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
-import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -103,6 +103,64 @@ cp "$input" "$output"
 printf '\n%%%% LocalTeX preview normalized\n' >> "$output"
 `);
   await chmod(previewNormalizer, 0o755);
+  const codexPrompt = join(temporaryRoot, "codex-prompt.txt");
+  const codexDesktopRequest = join(temporaryRoot, "codex-desktop-request.txt");
+  const codexFailureMarker = join(temporaryRoot, "codex-failure-marker");
+  const fakeCodex = join(temporaryRoot, "codex");
+  await writeFile(fakeCodex, String.raw`#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" != 'exec' || "$2" != '--experimental-json' || " $* " != *' --model gpt-5.6-luna '* || " $* " != *' --config model_reasoning_effort="low" '* || " $* " != *' --config approval_policy="never" '* || " $* " != *' --config project_doc_max_bytes=0 '* ]]; then
+  printf '%s\n' 'Codex SDK did not apply the noninteractive approval policy' >&2
+  exit 2
+fi
+working_directory=""
+expect_working_directory=false
+for argument in "$@"; do
+  if [[ "$expect_working_directory" == true ]]; then working_directory="$argument"; break; fi
+  if [[ "$argument" == '--cd' ]]; then expect_working_directory=true; fi
+done
+if [[ -n "$working_directory" ]]; then cd "$working_directory"; fi
+prompt="$(cat)"
+printf '%s' "$prompt" > "$LOCALTEX_TEST_CODEX_PROMPT"
+if [[ "$prompt" == *'launcher-failure.tex'* && ! -e "$LOCALTEX_TEST_CODEX_FAILURE_MARKER" ]]; then
+  touch "$LOCALTEX_TEST_CODEX_FAILURE_MARKER"
+  printf '%s\n' 'simulated Codex launcher failure' >&2
+  exit 2
+fi
+printf '%s\n' '{"type":"thread.started","thread_id":"test-thread-123"}'
+if [[ "$prompt" == *'working-tree-replacement.tex'* ]]; then
+  if [[ " $* " == *' resume test-thread-123 '* ]]; then
+    current_text="$(cat working-tree-replacement.tex)"
+    printf '\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n' "$current_text" > working-tree-replacement.tex
+  else
+    git show HEAD:working-tree-replacement.tex > working-tree-replacement.tex
+  fi
+elif [[ "$prompt" == *'content-guard.tex'* ]]; then
+  sed -i 's/Immutable sentence/Rewritten sentence/' content-guard.tex
+  printf '\n\\end{document}\n' >> content-guard.tex
+elif [[ "$prompt" == *'retry.tex'* ]]; then
+  if [[ " $* " == *' resume test-thread-123 '* ]]; then printf '\n\\end{document}\n' >> retry.tex; fi
+elif [[ "$prompt" == *'launcher-failure.tex'* ]]; then
+  printf '\n\\end{document}\n' >> launcher-failure.tex
+elif [[ "$prompt" == *'bare.tex'* ]]; then
+  bare_text="$(cat bare.tex)"
+  printf '\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n' "$bare_text" > bare.tex
+else
+  printf '\n\\end{document}\n' >> recover.tex
+fi
+printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0}}'
+`);
+  await chmod(fakeCodex, 0o755);
+  const fakeCodexDesktop = join(temporaryRoot, "codex-desktop");
+  await writeFile(fakeCodexDesktop, String.raw`#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$1" > "$LOCALTEX_TEST_CODEX_DESKTOP_REQUEST"
+`);
+  await chmod(fakeCodexDesktop, 0o755);
+  const fileManagerRequest = join(temporaryRoot, "file-manager-request.txt");
+  const fakeFileManager = join(temporaryRoot, "file-manager");
+  await writeFile(fakeFileManager, `#!/usr/bin/env bash\nset -euo pipefail\nprintf '%s' "$1" > "${fileManagerRequest}"\n`);
+  await chmod(fakeFileManager, 0o755);
   await writeFile(join(library, "PROJECTS.tsv"), `type\tname\tlocalPath\trepository\tbranch\troot\tengine\toverleafUrl\nactive-overleaf\tFixture Project\t${project}\texample/fixture\tmain\tmain.tex\tpdflatex\thttps://www.overleaf.com/project/fixture\n`);
   await writeFile(join(library, "PROJECT_DOMAINS.tsv"), `id\ttype\tname\tprojectTitle\tsemanticDomain\tthemes\tdocumentFunction\tprojectFamily\treuseRole\tlocalPath\trepository\troot\tengine\toverleafUrl\nfixture\tactive-overleaf\tFixture Project\tFixture\ttesting\toffline\tverification\tfixture\ttest\t${project}\texample/fixture\tmain.tex\tpdflatex\thttps://www.overleaf.com/project/fixture\n`);
 
@@ -124,7 +182,20 @@ printf '\n%%%% LocalTeX preview normalized\n' >> "$output"
   const token = "integration-test-token";
   const server = spawn(process.execPath, [join(APP_ROOT, "server.mjs")], {
     cwd: APP_ROOT,
-    env: { ...process.env, LOCALTEX_PORT: String(port), LOCALTEX_TOKEN: token, LOCALTEX_LIBRARY_ROOT: library, LOCALTEX_GHOSTSCRIPT: previewNormalizer },
+    env: {
+      ...process.env,
+      UNDERTREE_PORT: String(port),
+      UNDERTREE_TOKEN: token,
+      UNDERTREE_LIBRARY_ROOT: library,
+      UNDERTREE_GHOSTSCRIPT: previewNormalizer,
+      UNDERTREE_CODEX: fakeCodex,
+      UNDERTREE_CODEX_DESKTOP: fakeCodexDesktop,
+      UNDERTREE_FILE_MANAGER: fakeFileManager,
+      UNDERTREE_STATE_ROOT: join(temporaryRoot, "state"),
+      LOCALTEX_TEST_CODEX_PROMPT: codexPrompt,
+      LOCALTEX_TEST_CODEX_DESKTOP_REQUEST: codexDesktopRequest,
+      LOCALTEX_TEST_CODEX_FAILURE_MARKER: codexFailureMarker,
+    },
   });
   let serverOutput = "";
   server.stdout.on("data", (chunk) => { serverOutput += chunk; });
@@ -137,6 +208,8 @@ printf '\n%%%% LocalTeX preview normalized\n' >> "$output"
 
   const baseUrl = `http://127.0.0.1:${port}`;
   await waitForHealth(baseUrl);
+  const health = await (await fetch(`${baseUrl}/api/health`)).json();
+  assert.equal(health.app, "UnderTree");
   const headers = { Cookie: `localtex_session=${token}` };
   const mutationHeaders = { ...headers, Origin: baseUrl, "Content-Type": "application/json" };
 
@@ -181,6 +254,86 @@ printf '\n%%%% LocalTeX preview normalized\n' >> "$output"
     headers: mutationHeaders,
     body: JSON.stringify({ path: "chapters/new.tex", type: "file" }),
   })).status, 201);
+  const treeAfterCreate = await (await fetch(`${baseUrl}/api/project/${projectId}/tree`, { headers })).json();
+  const chapters = treeAfterCreate.tree.find((entry) => entry.path === "chapters");
+  assert.ok(chapters?.children.some((entry) => entry.path === "chapters/new.tex"), "tree cache must invalidate synchronously after file creation");
+
+  await writeFile(join(project, "chapters", "new.tex"), "duplicated source words\n");
+  const duplicateResponse = await fetch(`${baseUrl}/api/project/${projectId}/entry/duplicate`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ path: "chapters/new.tex" }),
+  });
+  assert.equal(duplicateResponse.status, 201);
+  const duplicate = await duplicateResponse.json();
+  assert.equal(duplicate.path, "chapters/new copy.tex");
+  assert.equal(duplicate.editable, true);
+  assert.equal(await readFile(join(project, duplicate.path), "utf8"), "duplicated source words\n");
+  const secondDuplicate = await (await fetch(`${baseUrl}/api/project/${projectId}/entry/duplicate`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ path: "chapters/new.tex" }),
+  })).json();
+  assert.equal(secondDuplicate.path, "chapters/new copy 2.tex", "duplicate names must advance without overwriting existing copies");
+
+  const folderDuplicate = await (await fetch(`${baseUrl}/api/project/${projectId}/entry/duplicate`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ path: "chapters" }),
+  })).json();
+  assert.equal(folderDuplicate.path, "chapters copy");
+  assert.equal(await readFile(join(project, "chapters copy", "new.tex"), "utf8"), "duplicated source words\n", "folder duplication must be recursive");
+
+  const renamedResponse = await fetch(`${baseUrl}/api/project/${projectId}/entry`, {
+    method: "PATCH",
+    headers: mutationHeaders,
+    body: JSON.stringify({ path: duplicate.path, newPath: "chapters/renamed.tex" }),
+  });
+  assert.equal(renamedResponse.status, 200);
+  assert.equal(await readFile(join(project, "chapters", "renamed.tex"), "utf8"), "duplicated source words\n");
+  assert.equal(await access(join(project, duplicate.path)).then(() => true, () => false), false, "rename must remove the old path");
+  const renameConflict = await fetch(`${baseUrl}/api/project/${projectId}/entry`, {
+    method: "PATCH",
+    headers: mutationHeaders,
+    body: JSON.stringify({ path: "main.tex", newPath: "supplement.tex" }),
+  });
+  assert.equal(renameConflict.status, 409, "rename must not overwrite an existing entry");
+  const unsafeDuplicate = await fetch(`${baseUrl}/api/project/${projectId}/entry/duplicate`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ path: "../outside.txt" }),
+  });
+  assert.equal(unsafeDuplicate.status, 400, "entry actions must retain project path traversal protection");
+  const symlinkDelete = await fetch(`${baseUrl}/api/project/${projectId}/entry`, {
+    method: "DELETE",
+    headers: mutationHeaders,
+    body: JSON.stringify({ path: "outside-link.txt" }),
+  });
+  assert.equal(symlinkDelete.status, 403, "tree actions must never follow and mutate a symbolic-link target");
+  assert.equal(await readFile(join(temporaryRoot, "outside.txt"), "utf8"), "outside secret");
+
+  const revealResponse = await fetch(`${baseUrl}/api/project/${projectId}/entry/reveal`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ path: "main.tex" }),
+  });
+  assert.equal(revealResponse.status, 200);
+  for (let attempt = 0; attempt < 30 && !(await access(fileManagerRequest).then(() => true, () => false)); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.equal(await readFile(fileManagerRequest, "utf8"), join(project, "main.tex"));
+
+  const deleteResponse = await fetch(`${baseUrl}/api/project/${projectId}/entry`, {
+    method: "DELETE",
+    headers: mutationHeaders,
+    body: JSON.stringify({ path: "chapters copy" }),
+  });
+  assert.equal(deleteResponse.status, 200);
+  assert.equal(await access(join(project, "chapters copy")).then(() => true, () => false), false, "folder deletion must remove the selected subtree");
+  const treeAfterActions = await (await fetch(`${baseUrl}/api/project/${projectId}/tree`, { headers })).json();
+  const chaptersAfterActions = treeAfterActions.tree.find((entry) => entry.path === "chapters");
+  assert.ok(chaptersAfterActions?.children.some((entry) => entry.path === "chapters/renamed.tex"), "tree cache must reflect renamed entries immediately");
+  assert.equal(treeAfterActions.tree.some((entry) => entry.path === "chapters copy"), false, "tree cache must reflect deleted entries immediately");
 
   const opened = await (await fetch(`${baseUrl}/api/project/${projectId}/file?path=main.tex`, { headers })).json();
   assert.match(opened.content, /Offline fixture text/);
@@ -201,10 +354,52 @@ printf '\n%%%% LocalTeX preview normalized\n' >> "$output"
   });
   assert.equal(conflict.status, 409, "stale editor writes must not overwrite newer disk content");
 
+  const currentAfterConflict = await (await fetch(`${baseUrl}/api/project/${projectId}/file?path=main.tex`, { headers })).json();
+  const reconciledContent = opened.content.replace("Offline fixture text.", "Current editor text remains authoritative.");
+  const reconciledResponse = await fetch(`${baseUrl}/api/project/${projectId}/file`, {
+    method: "PUT",
+    headers: mutationHeaders,
+    body: JSON.stringify({
+      path: "main.tex",
+      content: reconciledContent,
+      expectedMtimeMs: currentAfterConflict.mtimeMs,
+      preserveCurrent: true,
+    }),
+  });
+  assert.equal(reconciledResponse.status, 200);
+  const reconciled = await reconciledResponse.json();
+  assert.equal(reconciled.conflictPreserved, true, "the displaced disk side must remain recoverable");
+  assert.equal(await readFile(join(project, "main.tex"), "utf8"), reconciledContent);
+  const conflictBackups = await readdir(join(temporaryRoot, "state", "save-conflicts", projectId));
+  assert.equal(conflictBackups.length, 1);
+  assert.equal(await readFile(join(temporaryRoot, "state", "save-conflicts", projectId, conflictBackups[0]), "utf8"), editedContent);
+
+  const vanishedPath = join(project, "vanished.tex");
+  await writeFile(vanishedPath, "editor is the remaining copy\n");
+  const vanishedMetadata = await (await fetch(`${baseUrl}/api/project/${projectId}/file?path=vanished.tex`, { headers })).json();
+  await rm(vanishedPath);
+  const recreatedResponse = await fetch(`${baseUrl}/api/project/${projectId}/file`, {
+    method: "PUT",
+    headers: mutationHeaders,
+    body: JSON.stringify({ path: "vanished.tex", content: vanishedMetadata.content, expectedMtimeMs: vanishedMetadata.mtimeMs }),
+  });
+  assert.equal(recreatedResponse.status, 200);
+  assert.equal((await recreatedResponse.json()).recreated, true, "a deleted open source must be restored from its editor buffer");
+  assert.equal(await readFile(vanishedPath, "utf8"), vanishedMetadata.content);
+  await rm(vanishedPath);
+
   const search = await (await fetch(`${baseUrl}/api/project/${projectId}/search?q=verification`, { headers })).json();
   assert.ok(search.results.some((entry) => entry.path === "main.tex"));
 
-  const build = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, { method: "POST", headers: mutationHeaders, body: "{}" })).json();
+  const externalBuildRaceContent = reconciledContent.replace("Current editor text remains authoritative.", "External text that must be preserved before the editor wins.");
+  await writeFile(join(project, "main.tex"), externalBuildRaceContent);
+  const build = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ sourcePath: "main.tex", sourceContent: reconciledContent }),
+  })).json();
+  assert.equal(await readFile(join(project, "main.tex"), "utf8"), reconciledContent, "the exact editor buffer must be saved before compilation");
+  assert.equal(build.sourceSave?.conflictPreserved, true, "a racing disk version must be preserved before the editor buffer is compiled");
   assert.equal(build.pdfAvailable, true, `expected PDF; server output was ${serverOutput}\n${build.output || ""}`);
   const cleanBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, { method: "POST", headers: mutationHeaders, body: JSON.stringify({ clean: true }) })).json();
   assert.equal(cleanBuild.pdfAvailable, true, "clean rebuild must produce a PDF");
@@ -230,8 +425,31 @@ printf '\n%%%% LocalTeX preview normalized\n' >> "$output"
   const supplementBuild = await supplementBuildResponse.json();
   assert.equal(supplementBuild.sourcePath, "supplement.tex");
   assert.equal(supplementBuild.pdfAvailable, true, `${serverOutput}\n${supplementBuild.output || ""}`);
+  const legacyLayoutSource = String.raw`% Generated by UnderTree Layout. Edit the semantic .layout.xml source, not this file.
+\documentclass{article}
+\usepackage{fontspec}
+\begin{document}
+Legacy generated layout.
+\end{document}
+`;
+  await writeFile(join(project, "legacy-layout.tex"), legacyLayoutSource);
+  const legacyLayoutBuildResponse = await fetch(`${baseUrl}/api/project/${projectId}/build`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ sourcePath: "legacy-layout.tex" }),
+  });
+  assert.equal(legacyLayoutBuildResponse.status, 200, serverOutput);
+  const legacyLayoutBuild = await legacyLayoutBuildResponse.json();
+  assert.equal(legacyLayoutBuild.code, 0, `${serverOutput}\n${legacyLayoutBuild.output || ""}`);
+  assert.equal(legacyLayoutBuild.pdfAvailable, true, "legacy generated layouts must compile with inferred LuaLaTeX");
+  assert.match(legacyLayoutBuild.output, /LuaHBTeX|This is LuaTeX/, "the pdflatex project fallback must not compile fontspec sources");
+  await rm(join(project, "legacy-layout.tex"));
   const supplementPdfInfo = await (await fetch(`${baseUrl}/api/project/${projectId}/pdf-info?sourcePath=supplement.tex`, { headers })).json();
-  assert.deepEqual(supplementPdfInfo, { available: true, name: "supplement.pdf", sourcePath: "supplement.tex" });
+  assert.deepEqual(supplementPdfInfo, { available: true, stale: false, name: "supplement.pdf", sourcePath: "supplement.tex" });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  await writeFile(join(project, "supplement.tex"), `${await readFile(join(project, "supplement.tex"), "utf8")}\n% source is newer than its PDF\n`);
+  const staleSupplementPdfInfo = await (await fetch(`${baseUrl}/api/project/${projectId}/pdf-info?sourcePath=supplement.tex`, { headers })).json();
+  assert.equal(staleSupplementPdfInfo.stale, true, "selection-time recovery must detect a source newer than its PDF");
   const supplementPdf = await fetch(`${baseUrl}/api/project/${projectId}/pdf?sourcePath=supplement.tex&download=1`, { headers });
   assert.equal(supplementPdf.status, 200);
   assert.match(supplementPdf.headers.get("content-disposition") || "", /filename="supplement\.pdf"/);
@@ -246,6 +464,158 @@ printf '\n%%%% LocalTeX preview normalized\n' >> "$output"
   const bundledPdfs = storedZipEntries(Buffer.from(await bundleResponse.arrayBuffer()));
   assert.deepEqual([...bundledPdfs.keys()].sort(), ["main.pdf", "supplement.pdf"]);
   assert.equal(bundledPdfs.get("main.pdf").subarray(0, 4).toString(), "%PDF");
+
+  await writeFile(join(project, "recover.tex"), String.raw`\documentclass{article}
+\begin{document}
+Formatting repair fixture.
+`);
+  const failedBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ sourcePath: "recover.tex", recoverWithCodex: true }),
+  })).json();
+  assert.notEqual(failedBuild.code, 0, "the recovery hook must be driven by a real failed TeX build");
+  assert.match(failedBuild.codexRecovery?.id || "", /^[a-f0-9]{24}$/);
+  let recovery;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    recovery = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${failedBuild.codexRecovery.id}`, { headers })).json();
+    if (["fixed", "unresolved", "failed"].includes(recovery.state)) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.equal(recovery?.state, "fixed", `${serverOutput}\n${JSON.stringify(recovery)}`);
+  assert.equal(recovery.threadId, "test-thread-123", "the private background thread remains resumable for one guarded retry");
+  assert.equal(recovery.pdfAvailable, true);
+  assert.match(await readFile(codexPrompt, "utf8"), /smallest possible mechanical fix to LaTeX syntax, escaping, braces, environments/);
+  assert.match(await readFile(codexPrompt, "utf8"), /Do not rewrite, summarize, expand, delete, or add content/);
+  assert.match(await readFile(codexPrompt, "utf8"), /current on-disk contents.*authoritative user document/);
+  assert.match(await readFile(codexPrompt, "utf8"), /Never run Git commands/);
+  await assert.rejects(readFile(codexDesktopRequest, "utf8"), { code: "ENOENT" }, "background recovery must not open or focus the Codex desktop app");
+  const recoveryState = join(temporaryRoot, "state", "codex-recovery");
+  await assert.rejects(access(join(recoveryState, `${recovery.id}.codex-home`)), { code: "ENOENT" }, "a successful recovery must remove its isolated Codex task home");
+  await assert.rejects(access(join(recoveryState, `${recovery.id}.jsonl`)), { code: "ENOENT" }, "a successful recovery must not leave a routine task report");
+  assert.match(await readFile(join(project, "recover.tex"), "utf8"), /\\end\{document\}/);
+  const recoveredPdf = await fetch(`${baseUrl}/api/project/${projectId}/pdf?sourcePath=recover.tex&download=1`, { headers });
+  assert.equal(recoveredPdf.status, 200);
+  assert.ok((await recoveredPdf.arrayBuffer()).byteLength > 1000);
+  await rm(join(project, "recover.tex"));
+
+  await writeFile(join(project, "bare.tex"), "heloo\n");
+  const bareBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ sourcePath: "bare.tex", recoverWithCodex: true }),
+  })).json();
+  let bareRecovery;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    bareRecovery = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${bareBuild.codexRecovery.id}`, { headers })).json();
+    if (["fixed", "unresolved", "failed", "rejected"].includes(bareRecovery.state)) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.equal(bareRecovery?.state, "fixed", `${serverOutput}\n${JSON.stringify(bareRecovery)}`);
+  assert.equal((await readFile(join(project, "bare.tex"), "utf8")).match(/heloo/g)?.length, 1, "a bare source must retain its exact visible text while receiving TeX structure");
+  await rm(join(project, "bare.tex"));
+
+  await writeFile(join(project, "working-tree-replacement.tex"), String.raw`\documentclass{article}
+\begin{document}
+Committed words that must not be restored.
+\end{document}
+`);
+  await run("git", ["add", "working-tree-replacement.tex"], project);
+  await run("git", ["commit", "-m", "Track replacement guard fixture", "--", "working-tree-replacement.tex"], project);
+  await writeFile(join(project, "working-tree-replacement.tex"), "current authoritative words\n");
+  const replacementBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ sourcePath: "working-tree-replacement.tex", recoverWithCodex: true }),
+  })).json();
+  let replacementRecovery;
+  for (let attempt = 0; attempt < 150; attempt += 1) {
+    replacementRecovery = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${replacementBuild.codexRecovery.id}`, { headers })).json();
+    if (["fixed", "unresolved", "failed", "rejected"].includes(replacementRecovery.state)) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.equal(replacementRecovery?.state, "fixed", `${serverOutput}\n${JSON.stringify(replacementRecovery)}`);
+  assert.equal(replacementRecovery.attempt, 2, "a Git-baseline restoration must be rejected and corrected in the same Codex task");
+  const replacementSource = await readFile(join(project, "working-tree-replacement.tex"), "utf8");
+  assert.equal(replacementSource.match(/current authoritative words/g)?.length, 1);
+  assert.doesNotMatch(replacementSource, /Committed words/);
+  assert.match(await readFile(codexPrompt, "utf8"), /UnderTree rejected your first edit/);
+  assert.match(await readFile(codexPrompt, "utf8"), /Never run Git commands/);
+  await rm(join(project, "working-tree-replacement.tex"));
+
+  await writeFile(join(project, "launcher-failure.tex"), String.raw`\documentclass{article}
+\begin{document}
+Launcher retry fixture.
+`);
+  const launcherFailureBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ sourcePath: "launcher-failure.tex", recoverWithCodex: true }),
+  })).json();
+  let launcherFailure;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    launcherFailure = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${launcherFailureBuild.codexRecovery.id}`, { headers })).json();
+    if (launcherFailure.state === "failed") break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.equal(launcherFailure?.state, "failed");
+  assert.match(launcherFailure.message, /code 2.*simulated Codex launcher failure/);
+  const launcherRetryBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ sourcePath: "launcher-failure.tex", recoverWithCodex: true }),
+  })).json();
+  assert.notEqual(launcherRetryBuild.codexRecovery.id, launcherFailureBuild.codexRecovery.id, "a launcher failure must be immediately retryable");
+  let launcherRetry;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    launcherRetry = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${launcherRetryBuild.codexRecovery.id}`, { headers })).json();
+    if (["fixed", "unresolved", "failed", "rejected"].includes(launcherRetry.state)) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.equal(launcherRetry?.state, "fixed", `${serverOutput}\n${JSON.stringify(launcherRetry)}`);
+  await rm(join(project, "launcher-failure.tex"));
+
+  const guardedOriginal = String.raw`\documentclass{article}
+\begin{document}
+Immutable sentence.
+`;
+  await writeFile(join(project, "content-guard.tex"), guardedOriginal);
+  const guardedBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ sourcePath: "content-guard.tex", recoverWithCodex: true }),
+  })).json();
+  let guardedRecovery;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    guardedRecovery = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${guardedBuild.codexRecovery.id}`, { headers })).json();
+    if (["fixed", "unresolved", "failed", "rejected"].includes(guardedRecovery.state)) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.equal(guardedRecovery?.state, "rejected", `${serverOutput}\n${JSON.stringify(guardedRecovery)}`);
+  assert.equal(guardedRecovery.attempt, 2, "visible-text tampering must receive only one guarded correction attempt");
+  assert.match(guardedRecovery.message, /changed visible document text/);
+  assert.equal(await readFile(join(project, "content-guard.tex"), "utf8"), guardedOriginal, "content guard must restore the exact pre-recovery source");
+  await rm(join(project, "content-guard.tex"));
+
+  await writeFile(join(project, "retry.tex"), String.raw`\documentclass{article}
+\begin{document}
+Retry fixture text.
+`);
+  const retryBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
+    method: "POST",
+    headers: mutationHeaders,
+    body: JSON.stringify({ sourcePath: "retry.tex", recoverWithCodex: true }),
+  })).json();
+  let retryRecovery;
+  for (let attempt = 0; attempt < 150; attempt += 1) {
+    retryRecovery = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${retryBuild.codexRecovery.id}`, { headers })).json();
+    if (["fixed", "unresolved", "failed", "rejected"].includes(retryRecovery.state)) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.equal(retryRecovery?.state, "fixed", `${serverOutput}\n${JSON.stringify(retryRecovery)}`);
+  assert.equal(retryRecovery.attempt, 2, "a failed verification should resume the same task exactly once");
+  assert.match(await readFile(join(project, "retry.tex"), "utf8"), /\\end\{document\}/);
+  await rm(join(project, "retry.tex"));
 
   const adaptiveBuildResponse = await fetch(`${baseUrl}/api/project/${projectId}/build`, {
     method: "POST",

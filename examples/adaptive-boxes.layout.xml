@@ -3,7 +3,7 @@
   <page size="A4" margin="10mm" background="#edf6f6">
     <grid columns="1fr 1fr" rows="28mm 1fr 48mm" gap="4mm">
       <box id="title" row="1" column="1" column-span="2" padding="5mm" background="#006c76" color="#ffffff" border-color="#006c76" radius="3mm" min-font-size="10pt" max-font-size="18pt" valign="center">
-        <label>LocalTeX Layout</label>
+        <label>UnderTree Layout</label>
         <heading>Semantic content, adaptive physical boxes</heading>
       </box>
       <box id="short-box" row="2" column="1" padding="5mm" background="#ffffff" border-color="#9fc7c9" heading-color="#006c76" min-font-size="8.5pt" max-font-size="14pt" min-gap="1mm" max-gap="4mm">
@@ -23,7 +23,7 @@
       </box>
       <box id="workflow" row="3" column="1" column-span="2" padding="4mm" background="#d6ece9" border-color="#79b9b1" heading-color="#006c76" min-font-size="8.5pt" max-font-size="12pt" valign="center">
         <heading>One source to HTML proof + editable LuaLaTeX to PDF</heading>
-        <p>Edit this <code>.layout.xml</code> file, select it in LocalTeX Studio, and press <strong>Recompile</strong>.</p>
+        <p>Edit this <code>.layout.xml</code> file, select it in UnderTree, and press <strong>Recompile</strong>.</p>
       </box>
     </grid>
   </page>
