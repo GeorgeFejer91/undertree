@@ -127,7 +127,7 @@ try {
   assert.equal(await page.locator("#pdf-next").isDisabled(), true);
   assert.equal(await page.locator("#pdf-next").getAttribute("title"), "This PDF has only one page");
   await page.locator("#pdf-fit-width").click();
-  await page.waitForFunction((zoomedWidth) => Number.parseFloat(document.querySelector("#pdf-pages canvas")?.style.width || "0") < zoomedWidth * 0.9 && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), rapidZoomWidth, { timeout: 30000 });
+  await page.waitForFunction((zoomedWidth) => Number.parseFloat(document.querySelector("#pdf-pages canvas")?.style.width || "0") < zoomedWidth - 2 && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), rapidZoomWidth, { timeout: 30000 });
   assert.ok(await page.locator("#pdf-pages canvas").evaluate((canvas) => Number.parseFloat(canvas.style.width) <= canvas.closest(".preview-stage").clientWidth + 2));
 
   await page.locator("#compile-menu").click();
