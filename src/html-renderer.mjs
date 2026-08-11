@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { access, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertHtmlPrintProfile } from "./html-print-profile.js";
+import { assertHtmlPrintProfile, patchElementStyle } from "./html-print-profile.js";
 import { generateLuaLatex } from "./html-tex-export.js";
 import pretextPackage from "@chenglou/pretext/package.json" with { type: "json" };
 
@@ -51,12 +51,26 @@ async function validateAssets(profile, sourcePath, projectRoot, requireTexFallba
   }
 }
 
-export async function renderHtmlPrint({ sourcePath, projectRoot, pdfPath, manifestPath, texPath = "", signal } = {}) {
+export function applyResolvedFitsToHtml(source, resolvedFits = []) {
+  let result = String(source || "");
+  for (const fit of resolvedFits) {
+    if (!fit?.dataUtId) continue;
+    const patch = patchElementStyle(result, fit.dataUtId, {
+      "--ut-fit-font-size": `${Number(fit.fontSize).toFixed(2)}px`,
+      "--ut-fit-line-height": `${Number(fit.lineHeight).toFixed(2)}px`,
+      "--ut-fit-gap": `${Number(fit.gap).toFixed(2)}px`,
+    });
+    result = patch.source;
+  }
+  return result;
+}
+
+export async function renderHtmlPrint({ sourcePath, projectRoot, pdfPath, manifestPath, texPath = "", signal, persistFits = true } = {}) {
   const root = await realpath(projectRoot || dirname(sourcePath));
   const source = await realpath(sourcePath);
   const sourceRelative = relative(root, source);
   if (sourceRelative.startsWith("..") || isAbsolute(sourceRelative)) throw new Error("HTML source must be inside the project root.");
-  const html = await readFile(source, "utf8");
+  let html = await readFile(source, "utf8");
   const profile = assertHtmlPrintProfile(html);
   await validateAssets(profile, source, root, Boolean(texPath));
   await mkdir(dirname(pdfPath), { recursive: true });
@@ -76,6 +90,13 @@ export async function renderHtmlPrint({ sourcePath, projectRoot, pdfPath, manife
     throw error;
   }
   const browserManifest = JSON.parse(await readFile(manifest, "utf8"));
+  if (persistFits && browserManifest.resolvedFits?.length) {
+    const fittedHtml = applyResolvedFitsToHtml(html, browserManifest.resolvedFits);
+    if (fittedHtml !== html) {
+      await writeFile(source, fittedHtml);
+      html = fittedHtml;
+    }
+  }
   const pdfMetadata = await command("pdfinfo", [resolve(pdfPath)], { cwd: root, timeout: 10000 });
   const pageSize = pdfMetadata.stdout.match(/^Page size:\s+([\d.]+) x ([\d.]+) pts/m);
   if (pageSize) browserManifest.pdfPageSizePt = { width: Number(pageSize[1]), height: Number(pageSize[2]) };
