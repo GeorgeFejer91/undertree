@@ -21,11 +21,22 @@
     "test:pdf-controls": "node tests/pdf-controls-smoke.mjs"
   },
   "dependencies": {
+    "@chenglou/pretext": "^0.0.8",
+    "@codemirror/lang-css": "^6.3.1",
+    "@codemirror/lang-html": "^6.4.12",
     "@codemirror/language": "^6.11.3",
     "@codemirror/legacy-modes": "^6.5.3",
     "@openai/codex-sdk": "0.147.0",
+    "@tiptap/core": "^3.30.0",
+    "@tiptap/extension-color": "^3.30.0",
+    "@tiptap/extension-link": "^3.30.0",
+    "@tiptap/extension-text-align": "^3.30.0",
+    "@tiptap/extension-text-style": "^3.30.0",
+    "@tiptap/extension-underline": "^3.30.0",
+    "@tiptap/starter-kit": "^3.30.0",
     "codemirror": "^6.0.2",
     "fast-xml-parser": "^5.10.1",
+    "parse5": "^8.0.1",
     "pdfjs-dist": "6.2.108"
   },
   "devDependencies": {

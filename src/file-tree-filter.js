@@ -1,4 +1,4 @@
-const SOURCE_EXTENSIONS = new Set([".tex", ".bib"]);
+const SOURCE_EXTENSIONS = new Set([".tex", ".bib", ".layout.xml", ".html", ".css"]);
 
 export function isPdfSourceFile(path) {
   const normalized = String(path || "").toLowerCase();

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasDocumentClass, hasDocumentEnvironment, isSelectedTexPdfTarget } from "../src/tex-recovery.js";
+import { hasDocumentClass, hasDocumentEnvironment, isSelectedTexPdfTarget, shouldReuseSelectedPdf } from "../src/tex-recovery.js";
 
 test("document-class detection ignores commented examples", () => {
   assert.equal(hasDocumentClass("% \\documentclass{article}\nA chapter fragment."), false);
@@ -9,10 +9,16 @@ test("document-class detection ignores commented examples", () => {
   assert.equal(hasDocumentEnvironment("\\documentclas{article}\n\\begin{document}"), true);
 });
 
-test("selection-time PDF builds target every selected TeX source", () => {
+test("selection-time PDF targeting covers every selected TeX source", () => {
   assert.equal(isSelectedTexPdfTarget("main.tex", "temporarily malformed root", "main.tex"), true);
   assert.equal(isSelectedTexPdfTarget("letter.tex", "\\documentclass{letter}", "main.tex"), true);
   assert.equal(isSelectedTexPdfTarget("broken-letter.tex", "\\documentclas{letter}\n\\begin{document}", "main.tex"), true);
   assert.equal(isSelectedTexPdfTarget("chapters/results.tex", "\\section{Results}", "main.tex"), true);
   assert.equal(isSelectedTexPdfTarget("references.bib", "\\documentclass{article}", "main.tex"), false);
+});
+
+test("selection reuses every existing PDF, including a stale project-local build", () => {
+  assert.equal(shouldReuseSelectedPdf({ available: true, stale: false }), true);
+  assert.equal(shouldReuseSelectedPdf({ available: true, stale: true }), true);
+  assert.equal(shouldReuseSelectedPdf({ available: false, stale: false }), false);
 });

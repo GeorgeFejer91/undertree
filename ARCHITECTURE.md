@@ -16,6 +16,8 @@ Node standard-library service on 127.0.0.1:37371
         ├── canonical project inventory and icons
         ├── atomic, project-root-confined text saves
         ├── tex-sync / latexmk builds
+        ├── validated HTML print-profile fitting and export
+        ├── isolated read-only WebKitGTK print renderer
         ├── guarded Codex formatting recovery after failed TeX builds
         ├── generated PDF streaming
         ├── local full-project text search
@@ -40,6 +42,9 @@ UnderTree window when it is launched again.
 - A random user-only token bootstraps an `HttpOnly`, `SameSite=Strict` cookie.
 - Mutating APIs require same-origin JSON requests.
 - Every path is resolved below an inventory-approved project root.
+- Print-profile HTML is served to an ephemeral WebKit view from a separate
+  read-only loopback origin. Its CSP blocks remote resources and arbitrary
+  document JavaScript; asset requests remain confined to the project.
 - Traversal, absolute paths, outside-project symlinks, oversized text, and
   unsupported binary editing are rejected.
 - Saves use a same-directory temporary file and atomic rename, with modification
@@ -70,8 +75,17 @@ UnderTree window when it is launched again.
 - The selected source is protected from editor-API writes during recovery. A
   visible-text signature is checked before compilation; a candidate that changes
   document words is retained privately for inspection while the exact original
-  source is restored. Selecting any `.tex` source checks or creates its matching
-  PDF; automatic recovery runs only after that exact source fails compilation.
+  source is restored. Selecting any `.tex` source reuses its matching project-local
+  PDF, including a visibly marked stale build, and creates one only when none has
+  been compiled yet; automatic recovery runs only after that exact source fails
+  compilation.
+- Canonical print-profile HTML is parsed and validated before rendering. The
+  bundled Pretext runtime proposes bounded font, leading, and gap values, while
+  final DOM scroll dimensions remain authoritative. A captured browser-layout
+  manifest drives generated absolute-geometry LuaLaTeX; the generated file is a
+  disposable companion carrying the HTML and separate browser-PDF hashes, never
+  a second source of truth. It reconstructs selectable text, links, assets, and
+  TikZ geometry without embedding the full browser page.
 
 ## Clean-room UI mapping
 

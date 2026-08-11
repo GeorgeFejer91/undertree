@@ -4,7 +4,7 @@ import { once } from "node:events";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -62,6 +62,11 @@ try {
 \section*{Page three} Third page marker.
 \end{document}
 `);
+  await writeFile(join(project, "appendix.tex"), String.raw`\documentclass{article}
+\begin{document}
+Cached appendix preview.
+\end{document}
+`);
   await writeFile(join(project, ".tex-sync.conf"), `[build]\n\troot = main.tex\n\tengine = pdflatex\n\tworkingDirectory = repository-root\n\tshellEscape = false\n`);
   await writeFile(join(project, "scripts", "tex-sync"), "#!/usr/bin/env bash\nset -euo pipefail\nlatexmk -norc -pdf -interaction=nonstopmode -halt-on-error -outdir=.tex-build main.tex\n");
   await chmod(join(project, "scripts", "tex-sync"), 0o755);
@@ -74,6 +79,10 @@ try {
   await run("git", ["commit", "-m", "Three-page fixture"], project);
   const compiled = await run("bash", ["scripts/tex-sync"], project);
   assert.equal(compiled.code, 0, compiled.output);
+  const appendixCompiled = await run("latexmk", ["-norc", "-pdf", "-interaction=nonstopmode", "-halt-on-error", "-outdir=.tex-build", "appendix.tex"], project);
+  assert.equal(appendixCompiled.code, 0, appendixCompiled.output);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  await writeFile(join(project, "appendix.tex"), `${await readFile(join(project, "appendix.tex"), "utf8")}% changed after the cached build\n`);
 
   const port = await freePort();
   const token = "pdf-controls-test-token";
@@ -92,10 +101,23 @@ try {
   await session.send("Target.createTarget", { url: marker, background: true });
   await session.detach();
   page = await pagePromise;
+  let buildRequests = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().endsWith("/build")) buildRequests += 1;
+  });
   await page.goto(`${baseUrl}/?token=${token}`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForSelector('#pdf-viewer.visible .pdf-page[data-page-number="1"] canvas', { timeout: 30000 });
   await page.waitForFunction(() => document.querySelector("#page-status")?.textContent?.startsWith("1 of 3") && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), null, { timeout: 30000 });
   assert.equal(await page.locator("#pdf-pages .pdf-page").count(), 3, "every PDF page should be present in the continuous scroll stack");
+
+  const buildsBeforeCachedSwitch = buildRequests;
+  await page.locator('.tree-row[title="appendix.tex"]').click();
+  await page.waitForFunction(() => document.querySelector("#page-status")?.textContent?.includes("cached (source changed)") && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), null, { timeout: 30000 });
+  assert.equal(buildRequests, buildsBeforeCachedSwitch, "selecting a stale cached PDF must not submit another build");
+  assert.equal(await page.locator(".preview-pane.stale-pdf").count(), 1);
+  await page.locator('.tree-row[title="main.tex"]').click();
+  await page.waitForFunction(() => document.querySelector("#page-status")?.textContent?.startsWith("1 of 3") && !document.querySelector("#page-status")?.textContent?.includes("cached") && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), null, { timeout: 30000 });
+  assert.equal(buildRequests, buildsBeforeCachedSwitch, "switching back to another cached source must remain build-free");
 
   const initialWidth = await page.locator('.pdf-page[data-page-number="1"] canvas').evaluate((canvas) => Number.parseFloat(canvas.style.width));
   await page.locator("#pdf-viewer").evaluate((viewer) => { viewer.scrollTop = viewer.scrollHeight; });
@@ -135,7 +157,7 @@ try {
     await page.locator("#toast-region").evaluate((region) => region.replaceChildren());
     await page.screenshot({ path: process.env.LOCALTEX_SCREENSHOT, fullPage: false });
   }
-  process.stdout.write("LocalTeX continuous PDF scroll, edit-aware compile, zoom, fit, and reload controls passed.\n");
+  process.stdout.write("LocalTeX cached PDF switching, continuous scroll, edit-aware compile, zoom, fit, and reload controls passed.\n");
 } finally {
   if (page) await page.close({ runBeforeUnload: false }).catch(() => {});
   if (browser) await browser.close().catch(() => {});

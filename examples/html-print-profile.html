@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en" data-ut-print-profile="1">
+<head>
+  <meta charset="utf-8">
+  <title>UnderTree HTML print profile</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: white; font-family: "DejaVu Sans", sans-serif; }
+    [data-ut-page] { display: grid; grid-template-rows: auto 1fr; gap: 8mm; padding: 18mm; }
+    [data-ut-box] { overflow: hidden; border: 1px solid #1f6950; border-radius: 3mm; padding: 7mm; }
+    h1, p { margin: 0; }
+  </style>
+</head>
+<body>
+  <main data-ut-page data-ut-id="page-1" data-ut-size="A4" data-ut-orientation="portrait">
+    <header data-ut-id="heading" data-ut-box data-ut-editable>
+      <h1>HTML is the canonical flyer source</h1>
+    </header>
+    <section data-ut-id="copy" data-ut-box data-ut-editable data-ut-fit="pretext" data-ut-fit-min-font="10" data-ut-fit-max-font="18">
+      <p>Pretext selects readable typography, and WebKit produces the native A4 PDF preview.</p>
+    </section>
+  </main>
+</body>
+</html>

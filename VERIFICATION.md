@@ -39,7 +39,7 @@ Git/TeX project through:
   scaffolding with unchanged prose, visible-text tampering rejection/restoration,
   and recovered PDF streaming;
 - selection-time compilation/recovery for every selected TeX source, plus
-  stale-PDF detection;
+  stale-PDF detection and cache-first source switching without a rebuild;
 - per-file TeX-engine directives for selected standalone documents and
   mixed-engine PDF bundles;
 - safe bridge pull/push command routing;

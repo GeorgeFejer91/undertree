@@ -467,6 +467,11 @@ button {
 .preview-toolbar > button:disabled { opacity: .32; cursor: not-allowed; background: transparent; }
 .toolbar-divider { width: 1px; height: 18px; background: var(--muted); margin: 0 5px; }
 .toolbar-spacer { flex: 1; }
+.html-mode-toggle { display: inline-flex; padding: 2px; margin-left: 5px; border: 1px solid var(--muted); border-radius: 9999px; }
+.html-mode-toggle[hidden] { display: none; }
+.html-mode-toggle button { height: 20px; padding: 0 9px; border-radius: 9999px; font-size: 11px; }
+.html-mode-toggle button.active { color: #eafff5; background: var(--green); }
+.export-html { padding-inline: 10px !important; color: #d9ffed !important; border: 1px solid #278f61; white-space: nowrap; font-size: 11px; }
 .save-state { font-size: 12px; color: var(--disabled); white-space: nowrap; }
 .save-state.dirty { color: #f0b800; }
 .save-state.saved { color: #8adbb7; }
@@ -479,6 +484,39 @@ button {
   overflow: hidden;
   background: white;
 }
+
+.html-visual-toolbar {
+  min-height: 36px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  color: var(--light);
+  background: #202a38;
+  border-bottom: 1px solid var(--divider);
+}
+.html-visual-toolbar[hidden] { display: none; }
+.html-visual-toolbar button, .html-visual-toolbar select { height: 27px; padding: 0 7px; border: 1px solid var(--divider); border-radius: var(--radius); color: var(--light); background: var(--toolbar); }
+.html-visual-toolbar button:hover { background: var(--divider); }
+.html-visual-toolbar select { min-width: 105px; }
+.html-color-control { display: inline-flex; align-items: center; gap: 5px; padding: 0 6px; color: var(--disabled); font-size: 11px; }
+.html-color-control input { width: 26px; height: 24px; padding: 0; border: 0; background: transparent; }
+#html-selection-label { max-width: 160px; overflow: hidden; color: #8adbb7; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+
+.html-visual-shell { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(300px, 1fr) 205px; background: #59636e; }
+.html-visual-shell[hidden] { display: none; }
+.html-visual-canvas { min-width: 0; overflow: hidden; padding: 12px; }
+.html-visual-frame { width: 100%; height: 100%; border: 0; border-radius: 3px; background: #cbd0d6; box-shadow: 0 5px 20px rgb(0 0 0 / 24%); }
+.html-inspector { overflow: auto; padding: 10px; color: var(--light); background: var(--chrome); border-left: 1px solid var(--divider); }
+.html-inspector h3 { margin: 0; font-size: 13px; }
+.html-inspector-id { margin: 3px 0 10px; overflow: hidden; color: #8adbb7; font: 11px/1.3 "DejaVu Sans Mono", monospace; text-overflow: ellipsis; }
+.html-inspector-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.html-inspector-grid label { min-width: 0; display: grid; gap: 3px; color: var(--disabled); font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.html-inspector-grid label.wide { grid-column: 1 / -1; }
+.html-inspector-grid input, .html-inspector-grid select { width: 100%; min-width: 0; height: 27px; padding: 0 5px; border: 1px solid var(--muted); border-radius: 3px; color: var(--light); background: #202a38; font-size: 11px; text-transform: none; }
+.html-inspector-grid input[type="color"] { padding: 2px; }
+.html-inspector-grid :disabled { opacity: .45; }
 
 .empty-editor { height: 100%; display: grid; align-content: center; justify-items: center; color: #677283; }
 .empty-editor h1 { margin: 12px 0 3px; color: #2f3a4c; font-size: 22px; }
@@ -493,6 +531,7 @@ button {
 .cm-focused { outline: none !important; }
 
 .preview-pane { background: #3a4557; }
+.preview-pane.stale-pdf .preview-toolbar { box-shadow: inset 0 -3px #e6a126; }
 .preview-toolbar { height: 34px; }
 .compile-control { position: relative; display: flex; margin-right: 3px; }
 .compile-button, .compile-menu-button { height: 24px; background: var(--green); color: white; font-weight: 600; }

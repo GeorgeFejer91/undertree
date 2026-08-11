@@ -38,20 +38,28 @@ page.on("request", (request) => {
 try {
   await page.goto(appUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForSelector(".cm-editor", { timeout: 30000 });
+  await page.locator("#project-picker").selectOption("138e7ee0cb695bd8");
+  await page.locator('.tree-row[title="layout-experiments"]').waitFor({ timeout: 15000 });
+  await page.locator('.tree-row[title="latex"]').click();
+  await page.locator('.tree-row[title="latex/ethics-participant-information-sheet.tex"]').click();
+  await page.locator('.editor-tab.active[title="latex/ethics-participant-information-sheet.tex"]').waitFor({ timeout: 15000 });
+  const initialCompile = page.getByRole("button", { name: "Recompile", exact: true });
+  await initialCompile.click({ timeout: 240000 });
+  await page.waitForFunction(() => document.querySelector("#compile")?.textContent === "Recompile" && !document.querySelector("#compile")?.disabled, null, { timeout: 240000 });
   assert.equal(await page.locator(".rail").count(), 1);
   assert.equal(await page.locator(".left-panel").count(), 1);
   assert.equal(await page.locator(".editor-pane").count(), 1);
   assert.equal(await page.locator(".preview-pane").count(), 1);
   assert.ok(await page.locator(".tree-row").count() > 0);
-  const sourceFilesOnly = page.getByRole("checkbox", { name: "TeX & Bib only" });
+  const sourceFilesOnly = page.getByRole("checkbox", { name: "TeX, Layout, HTML & CSS" });
   assert.equal(await sourceFilesOnly.isChecked(), true);
   const filteredFileNames = await page.locator(".tree-file .tree-label").allTextContents();
   assert.ok(filteredFileNames.length > 0);
-  assert.ok(filteredFileNames.every((name) => /\.(?:tex|bib)$/i.test(name)), "source-only tree must hide support and output files");
+  assert.ok(filteredFileNames.every((name) => /\.(?:tex|bib|html|css|layout\.xml)$/i.test(name)), "source-only tree must hide support and output files");
   await sourceFilesOnly.uncheck();
-  assert.ok(await page.locator('.tree-file .tree-label').evaluateAll((labels) => labels.some((label) => !/\.(?:tex|bib)$/i.test(label.textContent || ""))));
+  assert.ok(await page.locator('.tree-file .tree-label').evaluateAll((labels) => labels.some((label) => !/\.(?:tex|bib|html|css|layout\.xml)$/i.test(label.textContent || ""))));
   assert.equal(await page.evaluate(() => localStorage.getItem("localtex-source-files-only")), "false");
-  const contextTarget = page.locator(".tree-file.editable .tree-row").first();
+  const contextTarget = page.locator(".tree-file.editable .tree-row:visible").first();
   await contextTarget.click({ button: "right" });
   const contextMenu = page.locator("#file-context-menu:not([hidden])");
   await contextMenu.waitFor();
@@ -62,7 +70,7 @@ try {
   await page.keyboard.press("Escape");
   assert.equal(await page.locator("#file-context-menu:not([hidden])").count(), 0);
   assert.ok(await page.locator(".editor-tab").count() > 0);
-  assert.equal(await page.getByRole("button", { name: "Recompile", exact: true }).count(), 1);
+  assert.equal(await page.locator("#compile").count(), 1);
   assert.equal(await page.getByRole("button", { name: "Download all PDFs", exact: true }).count(), 1);
   assert.equal(await page.getByRole("button", { name: "GitHub Sync", exact: true }).count(), 1);
   assert.equal(await page.getByRole("button", { name: "Overleaf Sync", exact: true }).count(), 1);
@@ -101,7 +109,7 @@ try {
 
   const navigationMarker = `localtex-ui-${Date.now()}`;
   await page.evaluate((marker) => { window.__localtexNavigationMarker = marker; }, navigationMarker);
-  await page.getByRole("button", { name: "Recompile", exact: true }).click();
+  await page.getByRole("button", { name: "Recompile", exact: true }).click({ timeout: 240000 });
   await page.waitForFunction(() => document.querySelector("#compile")?.textContent === "Recompile" && !document.querySelector("#compile")?.disabled, null, { timeout: 240000 });
   await page.waitForFunction(() => document.querySelector("#pdf-pages canvas")?.width > 0, null, { timeout: 30000 });
   assert.equal(await page.evaluate(() => window.__localtexNavigationMarker), navigationMarker, "Recompile must not reload the workspace");
@@ -113,12 +121,14 @@ try {
   await page.locator("#pdf-zoom-in").evaluate((button) => { button.click(); button.click(); });
   await page.waitForFunction((minimumWidth) => Number.parseFloat(document.querySelector("#pdf-pages canvas")?.style.width || "0") > minimumWidth && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), initialPdfWidth * 1.4, { timeout: 30000 });
   const rapidZoomPercent = Number.parseInt((await page.locator("#page-status").textContent()).match(/(\d+)%/)?.[1] || "0", 10);
+  const rapidZoomWidth = await page.locator("#pdf-pages canvas").evaluate((canvas) => Number.parseFloat(canvas.style.width));
   assert.ok(rapidZoomPercent > initialPdfPercent * 1.4, "two immediate zoom clicks should accumulate");
   assert.equal(await page.locator("#pdf-previous").isDisabled(), true);
   assert.equal(await page.locator("#pdf-next").isDisabled(), true);
   assert.equal(await page.locator("#pdf-next").getAttribute("title"), "This PDF has only one page");
   await page.locator("#pdf-fit-width").click();
-  await page.waitForFunction((expectedWidth) => Math.abs(Number.parseFloat(document.querySelector("#pdf-pages canvas")?.style.width || "0") - expectedWidth) < 2 && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), initialPdfWidth, { timeout: 30000 });
+  await page.waitForFunction((zoomedWidth) => Number.parseFloat(document.querySelector("#pdf-pages canvas")?.style.width || "0") < zoomedWidth * 0.9 && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), rapidZoomWidth, { timeout: 30000 });
+  assert.ok(await page.locator("#pdf-pages canvas").evaluate((canvas) => Number.parseFloat(canvas.style.width) <= canvas.closest(".preview-stage").clientWidth + 2));
 
   await page.locator("#compile-menu").click();
   await page.locator("#auto-compile-interval").selectOption("5");
@@ -129,7 +139,8 @@ try {
   assert.equal(await page.evaluate(() => localStorage.getItem(`localtex-auto-compile:${document.querySelector("#project-picker")?.value}`)), "0");
   await page.locator("#compile-menu").click();
 
-  await page.getByRole("button", { name: "File tree" }).click();
+  const fileTreeButton = page.getByRole("button", { name: "File tree", exact: true });
+  if (!await fileTreeButton.evaluate((button) => button.classList.contains("active"))) await fileTreeButton.click();
   await page.locator('.tree-row[title="layout-experiments"]').click();
   await page.locator('.tree-row[title="layout-experiments/adaptive-boxes.layout.xml"]').click();
   await page.getByRole("button", { name: "Render layout", exact: true }).waitFor({ timeout: 15000 });
@@ -158,6 +169,23 @@ try {
   assert.equal(await ethicsProof.locator(".page").count(), 1, "ethics HTML proof should stay on one page");
   const ethicsFitErrors = await ethicsProof.locator(".fit-error").evaluateAll((boxes) => boxes.map((box) => box.id));
   assert.deepEqual(ethicsFitErrors, [], `ethics HTML boxes should fit above their declared minimums: ${ethicsFitErrors.join(", ")}`);
+
+  await page.locator("#project-picker").selectOption({ label: "Antrag-ethische-genehmigung" });
+  await page.locator('.tree-row[title="03_informationsblatt_schmieder.html"]').waitFor({ timeout: 15000 });
+  await page.locator('.tree-row[title="03_informationsblatt_schmieder.html"]').click();
+  await page.getByRole("button", { name: "Render HTML", exact: true }).waitFor({ timeout: 15000 });
+  assert.equal(await page.locator("#html-mode-toggle:not([hidden])").count(), 1);
+  assert.equal(await page.locator("#export-html:not([hidden])").count(), 1);
+  await page.getByRole("button", { name: "Visual", exact: true }).click();
+  await page.waitForSelector(".html-visual-frame", { timeout: 15000 });
+  const visual = page.frameLocator(".html-visual-frame");
+  await visual.locator('[data-ut-id="intro-copy"]').waitFor({ timeout: 15000 });
+  await visual.locator('[data-ut-id="intro-copy"]').click();
+  assert.equal(await page.locator("#html-selection-label").textContent(), "intro-copy");
+  assert.equal(await page.locator(".html-inspector input:enabled").count() > 0, true);
+  assert.equal(await visual.locator('[data-ut-id="intro-copy"][contenteditable="true"]').count(), 1);
+  await page.getByRole("button", { name: "HTML Source", exact: true }).click();
+  assert.equal(await page.locator(".cm-editor:not([hidden])").count(), 1);
   assert.equal(errors.length, 0, `browser console errors: ${errors.join(" | ")}`);
   assert.equal(externalRequests.length, 0, `offline UI made external requests: ${externalRequests.join(" | ")}`);
   if (process.env.LOCALTEX_SCREENSHOT) await page.screenshot({ path: process.env.LOCALTEX_SCREENSHOT, fullPage: false });

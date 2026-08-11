@@ -1,10 +1,10 @@
 # UnderTree
 
-UnderTree is a standalone Linux desktop workspace for local LaTeX
-projects. It provides an Overleaf-style three-pane interface while using your
-existing Git repositories, `latexmk`, and TeX engines. Editing and compilation
-remain fully offline. Its name is a tongue-in-cheek inverse of Overleaf: the
-same kind of workspace, kept firmly under your own tree.
+UnderTree is a standalone Linux desktop workspace for local LaTeX and fixed-page
+HTML print projects. It provides an Overleaf-style three-pane interface while
+using existing Git repositories, WebKitGTK, `latexmk`, and TeX engines. Editing,
+fitting, and rendering remain fully offline. Its name is a tongue-in-cheek
+inverse of Overleaf: the same kind of workspace, kept firmly under your own tree.
 
 It is the primary local editing application for the canonical Overleaf project
 library. It edits the library's existing Git worktrees directly, so it does not
@@ -23,12 +23,15 @@ checkpoint.
 ## Included workflow
 
 - searchable, sortable switcher for every local Git/TeX project;
-- hierarchical file tree with a persistent **TeX & Bib only** filter and TeX
-  section outline;
+- hierarchical file tree with a persistent **Sources only** filter for TeX,
+  BibTeX, HTML, CSS, and layout sources, plus semantic source outlines;
 - multi-tab CodeMirror editor with local syntax highlighting, undo/redo,
   formatting helpers, search, dirty indicators, atomic auto-save, and conflict
   protection;
 - green Recompile control, build logs, download, and embedded PDF preview;
+- a versioned A4 HTML print profile with CodeMirror source editing, an isolated
+  Tiptap visual editor and inspector, bundled `@chenglou/pretext` measurement,
+  WebKitGTK PDF printing, and generated standalone LuaLaTeX companions;
 - opt-out Codex recovery whenever a selected TeX source fails to build, with a
   quiet short-lived formatting-only background task, duplicate suppression,
   automatic verification, and PDF refresh;
@@ -99,9 +102,10 @@ environment variables and `.localtex-*` project artifacts remain supported so
 the rename does not invalidate established projects or automation.
 
 Create the lean downloadable archive with `./scripts/build-release.sh`. Runtime
-operation does not use npm: the JavaScript editor is compiled into `dist/`, the
-backend uses Node's standard library apart from the small XML layout parser, and
-PDF compilation uses the local TeX distribution. The optional failed-build
+operation does not use npm: the JavaScript editor, Tiptap, and Pretext runtime
+are compiled into `dist/`; the backend uses Node's standard library apart from
+its bundled parsers, and PDF/TeX export uses WebKitGTK and the local TeX
+distribution. The optional failed-build
 recovery deliberately invokes the user's installed, authenticated Codex CLI;
 it is the only editor workflow that may require a network connection. The
 installed program uses the operating system's lightweight WebKitGTK component
@@ -111,8 +115,8 @@ process, icon, window state, and download handling.
 ## Keyboard shortcuts
 
 - `Ctrl+S`: save the active source file;
-- `F5` or `Ctrl+Enter`: compile the active `.tex` document (or the configured
-  root when another file type is active);
+- `F5` or `Ctrl+Enter`: render the active print-profile `.html`, compile the
+  active `.tex`, or use the configured root for other file types;
 - `Ctrl+P`: open the local project switcher;
 - `F11`: enter or leave full-screen mode;
 - `Ctrl+Shift+R`: reload the native workspace shell;
@@ -137,11 +141,14 @@ the displaced disk side is first preserved under private UnderTree state. The
 completed PDF replaces the preview page stack only after its current page is
 ready.
 
-Selecting any `.tex` document also checks that exact source automatically. If
-its matching PDF is missing or older than the source, UnderTree immediately
-tries to compile that file. This includes bare or included fragments: when they
-cannot compile independently, the same guarded formatting-only recovery
-workflow is available for the selected file.
+Selecting any `.tex` document also checks that exact source automatically. Its
+first successful build remains in the ignored project-local `.tex-build/`
+directory. Later file-tree and tab selections switch the right pane to that
+source's cached PDF immediately, even when the source has since changed; a
+visible stale marker then offers Recompile as the explicit update path. Only a
+source without a cached PDF triggers a selection-time build. Included fragments
+that cannot compile independently can still use the same guarded formatting-only
+recovery workflow on that first attempt.
 
 If that TeX build exits unsuccessfully or produces no PDF, **Automatically
 repair failed TeX with Codex** starts a private background task by default. It
@@ -168,8 +175,8 @@ compile-options menu. A preview-renderer failure after a clean TeX build does no
 invoke Codex because it is not a TeX formatting error.
 
 Selecting another `.tex` tab switches the preview to that document's existing
-PDF when it is current; recompiling updates only that selected document. A
-standalone source's `% !TeX program = ...`
+project-local PDF without recompiling it; recompiling updates only that selected
+document. A standalone source's `% !TeX program = ...`
 directive selects pdfLaTeX, LuaLaTeX, or XeLaTeX for that file; the project's
 configured engine is the fallback. This also permits **All PDFs** to compile a
 mixed-engine document set correctly. When a non-TeX file is active, the
@@ -178,9 +185,17 @@ rebuild, a clean rebuild, the latest adaptive HTML proof, the most
 recent compile log, and automatic recompilation after one second without edits
 or every 5, 10, 30, 60, or 120 seconds. Automatic recompilation is off by
 default, remembered separately for each project, and skips overlapping builds.
-When the active file ends in `.layout.xml`, the same button becomes **Render
-layout** and builds that semantic source instead of the project's ordinary TeX
-root.
+When the active file ends in `.html`, the same button becomes **Render HTML**.
+UnderTree validates the profile, waits for fonts and images, applies Pretext
+fitting, verifies actual DOM overflow, and prints a fixed A4 PDF after 750 ms of
+editing inactivity. The right pane remains PDF.js; a failed replacement leaves
+the last successful PDF visible and marked stale. **Export PDF + TeX** writes
+the adjacent generated `.tex`, which contains the canonical HTML hash and is
+overwritten by later exports. The WebKit PDF remains a separate build artifact;
+the portable companion records its hash and reconstructs the validated manifest
+as selectable text, links, images, and absolute TikZ geometry rather than
+embedding the full browser page. When the active file ends in `.layout.xml`, the
+button instead becomes **Render layout** for the legacy semantic source type.
 
 The PDF toolbar downloads the current document using its source filename (for
 example, `paper.tex` becomes `paper.pdf`). **All PDFs** finds every standalone
@@ -193,6 +208,20 @@ See `LAYOUT_FORMAT.md` and `examples/adaptive-boxes.layout.xml` for the adaptive
 box format. Generated HTML, LuaLaTeX, and PDF files remain in the ignored
 `.localtex-layout/` build directory, while the editable `.layout.xml` source
 stays in the project repository.
+
+For automation, the same renderer is available without opening the desktop UI:
+
+```bash
+undertree render-html flyer.html --pdf build/flyer.pdf
+undertree render-html flyer.html --pdf build/flyer.pdf --tex flyer.tex
+```
+
+See `examples/html-print-profile.html` for the constrained profile. HTML is the
+sole source of truth: explicit `data-ut-page` containers define page geometry,
+`data-ut-id` makes visual patches stable, and `data-ut-fit="pretext"` opts boxes
+into bounded fitting and optional balance groups. Remote resources, arbitrary
+scripts, generated pseudo-element content, unsupported CSS effects, and assets
+outside the project are rejected for TeX-compatible export.
 
 Manual remote synchronization is deliberately commit-based. **GitHub Sync**
 and **Overleaf Sync** push the current committed checkpoint to their named

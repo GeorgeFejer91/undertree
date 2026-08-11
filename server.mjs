@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { Codex } from "@openai/codex-sdk";
 import { compileLayout } from "./layout/compiler.mjs";
+import { renderHtmlPrint } from "./src/html-renderer.mjs";
 import { texEngineForContent } from "./src/tex-engine.js";
 
 const APP_ROOT = dirname(fileURLToPath(import.meta.url));
@@ -86,6 +87,7 @@ const bundleBuilds = new Set();
 const previewPdfs = new Map();
 const normalizedPdfPreviews = new Map();
 const layoutOutputs = new Map();
+const htmlOutputs = new Map();
 const recoveryJobs = new Map();
 const activeRecoveryKeys = new Map();
 const recentRecoveryFingerprints = new Map();
@@ -906,6 +908,14 @@ async function buildInfo(project) {
 
 async function locatePdf(project, sourcePath = "") {
   const requestedSource = sourcePath ? safeRelativePath(sourcePath) : "";
+  if (requestedSource.toLowerCase().endsWith(".html")) {
+    const resolvedSource = await resolveExisting(project, requestedSource);
+    const output = htmlOutputs.get(`${project.id}:${resolvedSource.relativePath}`);
+    if (output?.sourcePath === resolvedSource.relativePath && await exists(output.pdfPath)) return output.pdfPath;
+    const stem = basename(resolvedSource.relativePath, ".html").replace(/[^A-Za-z0-9._-]/g, "_");
+    const generatedPdf = join(project.localPath, ".tex-build", "undertree-html-preview", stem, `${stem}.pdf`);
+    return await exists(generatedPdf) ? generatedPdf : null;
+  }
   if (requestedSource.toLowerCase().endsWith(".layout.xml")) {
     const resolvedSource = await resolveExisting(project, requestedSource);
     const output = layoutOutputs.get(project.id);
@@ -915,7 +925,7 @@ async function locatePdf(project, sourcePath = "") {
     return await exists(generatedPdf) ? generatedPdf : null;
   }
   if (requestedSource && !requestedSource.toLowerCase().endsWith(".tex")) {
-    throw httpError(415, "Only .tex and .layout.xml sources have PDF previews");
+    throw httpError(415, "Only .tex, .html, and .layout.xml sources have PDF previews");
   }
   if (!requestedSource) {
     const preview = previewPdfs.get(project.id);
@@ -992,12 +1002,48 @@ async function buildLayoutProject(project, sourcePath, cleanFirst = false) {
   };
 }
 
-async function buildProject(project, cleanFirst = false, sourcePath = "") {
+async function buildHtmlProject(project, sourcePath, cleanFirst = false, exportTex = false) {
+  const resolvedSource = await resolveExisting(project, sourcePath);
+  if (!resolvedSource.relativePath.toLowerCase().endsWith(".html")) throw httpError(415, "HTML print sources must end in .html");
+  const stem = basename(resolvedSource.relativePath, ".html").replace(/[^A-Za-z0-9._-]/g, "_");
+  const outputDirectory = join(project.localPath, ".tex-build", "undertree-html-preview", stem);
+  if (cleanFirst) await rm(outputDirectory, { recursive: true, force: true });
+  await mkdir(outputDirectory, { recursive: true });
+  const pdfPath = join(outputDirectory, `${stem}.pdf`);
+  const manifestPath = join(outputDirectory, `${stem}.manifest.json`);
+  const texPath = exportTex ? join(dirname(resolvedSource.path), `${basename(resolvedSource.path, ".html")}.tex`) : "";
+  let rendered;
+  try {
+    rendered = await renderHtmlPrint({ sourcePath: resolvedSource.path, projectRoot: project.localPath, pdfPath, manifestPath, texPath });
+  } catch (error) {
+    throw httpError(422, `${error.name || "HtmlRenderError"}: ${error.message}`);
+  }
+  previewPdfs.set(project.id, rendered.pdfPath);
+  htmlOutputs.set(`${project.id}:${resolvedSource.relativePath}`, rendered);
+  return {
+    code: 0,
+    output: `UnderTree HTML profile validated and rendered with Pretext ${rendered.pretextVersion} and WebKitGTK ${rendered.webkitVersion}.\nPDF: ${rendered.pdfPath}${rendered.texPath ? `\nGenerated LuaLaTeX: ${rendered.texPath}` : ""}`,
+    pdfAvailable: true,
+    compiledAt: new Date().toISOString(),
+    sourcePath: resolvedSource.relativePath,
+    html: {
+      profileVersion: rendered.profileVersion,
+      sourceHash: rendered.sourceHash,
+      resolvedFits: rendered.resolvedFits,
+      diagnostics: rendered.diagnostics,
+      texPath: rendered.texPath ? relative(project.localPath, rendered.texPath).replaceAll("\\", "/") : "",
+      texPdfPath: rendered.texPdfPath,
+    },
+  };
+}
+
+async function buildProject(project, cleanFirst = false, sourcePath = "", options = {}) {
   if (bundleBuilds.has(project.id)) throw httpError(409, "A PDF bundle is currently being compiled for this project");
   if (builds.has(project.id)) return builds.get(project.id);
   const buildPromise = (async () => {
+    if (sourcePath.toLowerCase().endsWith(".html")) return buildHtmlProject(project, sourcePath, cleanFirst, options.exportTex === true);
     if (sourcePath.toLowerCase().endsWith(".layout.xml")) return buildLayoutProject(project, sourcePath, cleanFirst);
-    if (sourcePath && !sourcePath.toLowerCase().endsWith(".tex")) throw httpError(415, "The selected build source must be a .tex or .layout.xml file");
+    if (sourcePath && !sourcePath.toLowerCase().endsWith(".tex")) throw httpError(415, "The selected build source must be a .tex, .html, or .layout.xml file");
     previewPdfs.delete(project.id);
     layoutOutputs.delete(project.id);
     const { rootDocument, engine } = await buildInfo(project);
@@ -1422,7 +1468,7 @@ async function handleApi(req, res, url) {
     const sourceSave = sourcePath && typeof body.sourceContent === "string"
       ? await ensureBuildSourceContent(project, sourcePath, body.sourceContent)
       : null;
-    const result = await buildProject(project, body.clean === true, sourcePath);
+    const result = await buildProject(project, body.clean === true, sourcePath, { exportTex: body.exportTex === true });
     if (body.recoverWithCodex === true && (result.code !== 0 || !result.pdfAvailable) && result.sourcePath?.toLowerCase().endsWith(".tex")) {
       const { engine: configuredEngine } = await buildInfo(project);
       const resolvedSource = await resolveExisting(project, result.sourcePath);
@@ -1448,6 +1494,31 @@ async function handleApi(req, res, url) {
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
     res.setHeader("Content-Security-Policy", "default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'self'");
     return serveFile(res, output.htmlPath, { contentType: "text/html; charset=utf-8" });
+  }
+  if (action === "html-source" && req.method === "GET") {
+    const source = await resolveExisting(project, url.searchParams.get("path") || "");
+    if (!source.relativePath.toLowerCase().endsWith(".html")) throw httpError(415, "Visual mode requires an HTML source.");
+    const directory = dirname(source.relativePath) === "." ? "" : `${dirname(source.relativePath).split("/").map(encodeURIComponent).join("/")}/`;
+    const base = `<base href="/api/project/${project.id}/html-resource/${directory}">`;
+    const html = (await readFile(source.path, "utf8")).replace(/<head(?:\s[^>]*)?>/i, (head) => `${head}\n${base}`);
+    const body = Buffer.from(html);
+    res.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Length": body.length,
+      "Cache-Control": "no-store",
+      "X-Frame-Options": "SAMEORIGIN",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "default-src 'none'; img-src 'self' data:; font-src 'self' data:; style-src 'unsafe-inline'; script-src 'none'; connect-src 'none'; object-src 'none'; frame-ancestors 'self'; base-uri 'self'",
+    });
+    res.end(body);
+    return;
+  }
+  if (action.startsWith("html-resource/") && req.method === "GET") {
+    const resourcePath = action.slice("html-resource/".length).split("/").map(decodeURIComponent).join("/");
+    const resource = await resolveExisting(project, resourcePath);
+    const metadata = await stat(resource.path);
+    if (!metadata.isFile()) throw httpError(404, "HTML resource not found");
+    return serveFile(res, resource.path, { cache: "private, max-age=60" });
   }
   if (action === "pdf-info" && req.method === "GET") {
     const sourcePath = url.searchParams.get("sourcePath") || "";

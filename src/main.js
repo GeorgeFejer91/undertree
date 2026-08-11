@@ -7,13 +7,23 @@ import { openSearchPanel, searchKeymap } from "@codemirror/search";
 import { StreamLanguage } from "@codemirror/language";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { xml } from "@codemirror/legacy-modes/mode/xml";
+import { html as htmlLanguage } from "@codemirror/lang-html";
+import { css as cssLanguage } from "@codemirror/lang-css";
+import { Editor as TiptapEditor } from "@tiptap/core";
+import StarterKit from "@tiptap/starter-kit";
+import Link from "@tiptap/extension-link";
+import Underline from "@tiptap/extension-underline";
+import TextAlign from "@tiptap/extension-text-align";
+import Color from "@tiptap/extension-color";
+import { TextStyle } from "@tiptap/extension-text-style";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { pdfSourceTree } from "./file-tree-filter.js";
 import { absoluteProjectPath, dirnamePath, pathIsEntry, remapPath } from "./file-tree-actions.js";
 import { boundedPdfOutputScale, clampPdfPage, destroyPdfResource, nextPdfScale } from "./pdf-viewer-state.js";
 import { normalizeProjectSort, projectActivityTime, sortProjects } from "./project-sorting.js";
-import { isSelectedTexPdfTarget } from "./tex-recovery.js";
+import { isSelectedTexPdfTarget, shouldReuseSelectedPdf } from "./tex-recovery.js";
 import { documentOutline } from "./outline.js";
+import { patchEditableHtml, patchElementAttributes, patchElementStyle } from "./html-print-profile.js";
 import { acceptBuildSave, buildTabSnapshot, flushTabSave, markPathEdited, markTabEdited, persistWithConflictRecovery, saveTabSnapshot, tabContent } from "./save-coordinator.js";
 
 let pdfjsPromise = null;
@@ -48,6 +58,7 @@ const elements = {
   pdfViewer: $("#pdf-viewer"),
   htmlProof: $("#html-proof"),
   pdfPages: $("#pdf-pages"),
+  previewPane: $("#preview-pane"),
   previewStage: $("#preview-stage"),
   pdfPlaceholder: $("#pdf-placeholder"),
   downloadPdf: $("#download-pdf"),
@@ -62,6 +73,9 @@ const elements = {
   buildConfig: $("#build-config"),
   gitState: $("#git-state"),
   statusMessage: $("#status-message"),
+  htmlModeToggle: $("#html-mode-toggle"),
+  htmlVisualToolbar: $("#html-visual-toolbar"),
+  htmlSelectionLabel: $("#html-selection-label"),
   workspace: $("#workspace"),
   toastRegion: $("#toast-region"),
 };
@@ -74,8 +88,16 @@ function isTexSource(path = state.activePath) {
   return String(path).toLowerCase().endsWith(".tex");
 }
 
+function isHtmlSource(path = state.activePath) {
+  return String(path).toLowerCase().endsWith(".html");
+}
+
+function isCssSource(path = state.activePath) {
+  return String(path).toLowerCase().endsWith(".css");
+}
+
 function previewSourcePath(path = state.activePath) {
-  if (isTexSource(path) || isLayoutSource(path)) return path;
+  if (isTexSource(path) || isLayoutSource(path) || isHtmlSource(path)) return path;
   return state.build?.rootDocument || state.currentProject?.rootDocument || "";
 }
 
@@ -95,6 +117,7 @@ const state = {
   pdfLoadingTask: null,
   pdfProjectId: "",
   pdfSourcePath: "",
+  pdfStale: false,
   pdfPage: 1,
   pdfScale: null,
   pdfCurrentScale: 1,
@@ -108,6 +131,7 @@ const state = {
   autoCompileTimer: null,
   autoCompileChangeTimer: null,
   compileInFlight: false,
+  pendingHtmlCompile: false,
   codexRecoveryEnabled: true,
   monitoredRecoveries: new Set(),
   recoverySources: new Set(),
@@ -120,11 +144,20 @@ const state = {
   expandedPaths: new Set(),
   treeContextNode: null,
   treeContextTrigger: null,
+  htmlMode: "source",
+  htmlVisualFrame: null,
+  htmlVisualShell: null,
+  htmlInspector: null,
+  visualEditor: null,
+  visualSelection: null,
+  visualResizeHandle: null,
+  htmlCompileTimer: null,
 };
 
 const PROJECT_SORT_STORAGE_KEY = "localtex-project-sort";
 const PROJECT_ACTIVITY_STORAGE_KEY = "localtex-project-activity";
 const AUTOSAVE_DELAY_MS = 100;
+const HTML_COMPILE_DELAY_MS = 750;
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -324,7 +357,7 @@ function renderFileTree() {
   } else {
     const message = document.createElement("p");
     message.className = "tree-empty";
-    message.textContent = state.sourceFilesOnly ? "No TeX or Bib files found." : "This project is empty.";
+    message.textContent = state.sourceFilesOnly ? "No TeX, Bib, HTML, or CSS files found." : "This project is empty.";
     elements.fileTree.append(message);
   }
 }
@@ -564,10 +597,273 @@ async function runTreeContextAction(action, node) {
   }
 }
 
+function destroyVisualEditor() {
+  state.visualEditor?.destroy();
+  state.visualEditor = null;
+  state.visualSelection = null;
+  state.visualResizeHandle?.remove();
+  state.visualResizeHandle = null;
+  state.htmlVisualFrame = null;
+  state.htmlVisualShell = null;
+  state.htmlInspector = null;
+}
+
+function updateHtmlModeUi() {
+  const active = isHtmlSource();
+  elements.htmlModeToggle.hidden = !active;
+  $$(".html-control").forEach((control) => { control.hidden = !active; });
+  elements.htmlVisualToolbar.hidden = !active || state.htmlMode !== "visual";
+  elements.htmlModeToggle.querySelectorAll("[data-html-mode]").forEach((button) => button.classList.toggle("active", button.dataset.htmlMode === state.htmlMode));
+  const codeMirror = elements.editorHost.querySelector(".cm-editor");
+  if (codeMirror) codeMirror.hidden = active && state.htmlMode === "visual";
+  if (state.htmlVisualShell) state.htmlVisualShell.hidden = !active || state.htmlMode !== "visual";
+}
+
+function dispatchProfilePatch(patch) {
+  if (!state.editor || !patch) return;
+  state.editor.dispatch({ changes: { from: patch.from, to: patch.to, insert: patch.insert }, userEvent: "input.visual" });
+}
+
+function currentHtmlSource() {
+  return state.editor?.state.doc.toString() || "";
+}
+
+function visualInspectorMarkup() {
+  return `<aside class="html-inspector" aria-label="Selected HTML object inspector">
+    <h3>Object</h3>
+    <p class="html-inspector-id">No object selected</p>
+    <div class="html-inspector-grid">
+      <label>Layout<select data-ut-attribute="data-ut-layout"><option value="">Inherit</option><option value="grid">Grid</option><option value="flex">Flex</option></select></label>
+      <label>Width mm<input type="number" min="5" max="210" step="0.1" data-ut-style="width" data-ut-unit="mm"></label>
+      <label>Height mm<input type="number" min="5" max="296.7" step="0.1" data-ut-style="height" data-ut-unit="mm"></label>
+      <label>Padding mm<input type="number" min="0" max="40" step="0.1" data-ut-style="padding" data-ut-unit="mm"></label>
+      <label>Gap mm<input type="number" min="0" max="40" step="0.1" data-ut-style="gap" data-ut-unit="mm"></label>
+      <label>Border mm<input type="number" min="0" max="5" step="0.1" data-ut-style="border-width" data-ut-unit="mm"></label>
+      <label>Radius mm<input type="number" min="0" max="40" step="0.1" data-ut-style="border-radius" data-ut-unit="mm"></label>
+      <label>Grid column<input type="text" data-ut-style="grid-column" placeholder="1 / span 2"></label>
+      <label>Grid row<input type="text" data-ut-style="grid-row" placeholder="1 / span 1"></label>
+      <label>Columns<input type="text" data-ut-style="grid-template-columns" placeholder="1fr 1fr"></label>
+      <label>Flex direction<select data-ut-style="flex-direction"><option value="">Inherit</option><option value="row">Row</option><option value="column">Column</option></select></label>
+      <label>Min font px<input type="number" min="5" max="96" step="0.1" data-ut-attribute="data-ut-fit-min-font"></label>
+      <label>Max font px<input type="number" min="5" max="120" step="0.1" data-ut-attribute="data-ut-fit-max-font"></label>
+      <label>Image fit<select data-ut-style="object-fit"><option value="">Inherit</option><option value="contain">Contain</option><option value="cover">Cover</option><option value="fill">Fill</option></select></label>
+      <label class="wide">Image alt text<input type="text" data-ut-attribute="alt"></label>
+      <label>Background<input type="color" data-ut-style="background-color" value="#ffffff"></label>
+      <label>Border color<input type="color" data-ut-style="border-color" value="#1f6950"></label>
+    </div>
+  </aside>`;
+}
+
+function cssNumeric(style, name, unit = "") {
+  const value = Number.parseFloat(style.getPropertyValue(name));
+  if (!Number.isFinite(value)) return "";
+  if (unit === "mm") return (value * 25.4 / 96).toFixed(1);
+  return String(value);
+}
+
+function populateInspector(element) {
+  if (!state.htmlInspector) return;
+  state.htmlInspector.querySelector(".html-inspector-id").textContent = element ? element.getAttribute("data-ut-id") : "No object selected";
+  state.htmlInspector.querySelectorAll("input,select").forEach((control) => { control.disabled = !element; });
+  if (!element) return;
+  const style = element.ownerDocument.defaultView.getComputedStyle(element);
+  for (const control of state.htmlInspector.querySelectorAll("[data-ut-style]")) {
+    const name = control.dataset.utStyle;
+    const value = cssNumeric(style, name, control.dataset.utUnit) || style.getPropertyValue(name).trim();
+    if (control.type === "color") {
+      const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+      if (match) control.value = `#${match.slice(1, 4).map((item) => Number(item).toString(16).padStart(2, "0")).join("")}`;
+    } else control.value = value === "none" ? "" : value;
+  }
+  for (const control of state.htmlInspector.querySelectorAll("[data-ut-attribute]")) {
+    const target = control.dataset.utAttribute === "alt" ? element.matches("img") ? element : element.querySelector("img") : element;
+    control.value = target?.getAttribute(control.dataset.utAttribute) || "";
+  }
+}
+
+function updateResizeHandle() {
+  const element = state.visualSelection;
+  const handle = state.visualResizeHandle;
+  if (!element || !handle) return;
+  const rect = element.getBoundingClientRect();
+  handle.style.left = `${rect.right - 7}px`;
+  handle.style.top = `${rect.bottom - 7}px`;
+}
+
+function attachResizeHandle(element) {
+  state.visualResizeHandle?.remove();
+  state.visualResizeHandle = null;
+  if (!element.hasAttribute("data-ut-box")) return;
+  const document = element.ownerDocument;
+  const handle = document.createElement("button");
+  handle.type = "button";
+  handle.className = "ut-visual-resize-handle";
+  handle.title = "Resize this box";
+  Object.assign(handle.style, {
+    position: "fixed", width: "14px", height: "14px", zIndex: "2147483647", padding: "0",
+    border: "2px solid white", borderRadius: "50%", background: "#0aa25c", boxShadow: "0 1px 5px rgba(0,0,0,.4)", cursor: "nwse-resize",
+  });
+  document.body.append(handle);
+  state.visualResizeHandle = handle;
+  updateResizeHandle();
+  handle.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    handle.setPointerCapture(event.pointerId);
+    const start = element.getBoundingClientRect();
+    const origin = { x: event.clientX, y: event.clientY };
+    const move = (moveEvent) => {
+      element.style.width = `${Math.max(18.9, start.width + moveEvent.clientX - origin.x)}px`;
+      element.style.height = `${Math.max(18.9, start.height + moveEvent.clientY - origin.y)}px`;
+      updateResizeHandle();
+    };
+    const end = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", end);
+      const rect = element.getBoundingClientRect();
+      const id = element.getAttribute("data-ut-id");
+      dispatchProfilePatch(patchElementStyle(currentHtmlSource(), id, {
+        width: `${Math.min(210, rect.width * 25.4 / 96).toFixed(2)}mm`,
+        height: `${Math.min(296.7, rect.height * 25.4 / 96).toFixed(2)}mm`,
+      }));
+      populateInspector(element);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end);
+  });
+}
+
+function selectVisualElement(element) {
+  state.visualEditor?.destroy();
+  state.visualEditor = null;
+  if (state.visualSelection) state.visualSelection.style.outline = "";
+  state.visualSelection = element;
+  elements.htmlSelectionLabel.textContent = element ? element.getAttribute("data-ut-id") : "Select a marked region";
+  if (!element) {
+    populateInspector(null);
+    return;
+  }
+  element.style.outline = "2px solid #0aa25c";
+  element.style.outlineOffset = "2px";
+  populateInspector(element);
+  attachResizeHandle(element);
+  if (!element.hasAttribute("data-ut-editable")) return;
+  const id = element.getAttribute("data-ut-id");
+  state.visualEditor = new TiptapEditor({
+    element,
+    extensions: [
+      StarterKit.configure({ link: false, underline: false, undoRedo: false }),
+      Link.configure({ openOnClick: false }),
+      Underline,
+      TextStyle,
+      Color,
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+    ],
+    content: element.innerHTML,
+    injectCSS: false,
+    onUpdate: ({ editor }) => {
+      try { dispatchProfilePatch(patchEditableHtml(currentHtmlSource(), id, editor.getHTML())); }
+      catch (error) { toast(error.message, "error", 6500); }
+    },
+  });
+}
+
+async function loadHtmlVisual() {
+  if (!isHtmlSource()) return;
+  await saveActiveFile();
+  if (!state.htmlVisualShell) {
+    elements.editorHost.insertAdjacentHTML("beforeend", `<div class="html-visual-shell" hidden><div class="html-visual-canvas"><iframe class="html-visual-frame" title="Visual HTML print editor" sandbox="allow-same-origin"></iframe></div>${visualInspectorMarkup()}</div>`);
+    state.htmlVisualShell = elements.editorHost.querySelector(".html-visual-shell");
+    state.htmlVisualFrame = elements.editorHost.querySelector(".html-visual-frame");
+    state.htmlInspector = elements.editorHost.querySelector(".html-inspector");
+    state.htmlInspector.addEventListener("change", (event) => {
+      const control = event.target.closest("[data-ut-style],[data-ut-attribute]");
+      const selected = state.visualSelection;
+      if (!control || !selected) return;
+      try {
+        if (control.dataset.utStyle) {
+          const unit = control.dataset.utUnit || "";
+          const value = control.value ? `${control.value}${unit}` : "";
+          const target = control.dataset.utStyle === "object-fit" && !selected.matches("img") ? selected.querySelector("img") : selected;
+          if (!target?.hasAttribute("data-ut-id")) throw new Error("Give the image its own data-ut-id before editing image properties visually.");
+          dispatchProfilePatch(patchElementStyle(currentHtmlSource(), target.getAttribute("data-ut-id"), { [control.dataset.utStyle]: value }));
+          target.style.setProperty(control.dataset.utStyle, value);
+        } else {
+          const target = control.dataset.utAttribute === "alt" ? selected.matches("img") ? selected : selected.querySelector("img") : selected;
+          if (!target?.hasAttribute("data-ut-id")) throw new Error("Give the image its own data-ut-id before editing image properties visually.");
+          dispatchProfilePatch(patchElementAttributes(currentHtmlSource(), target.getAttribute("data-ut-id"), { [control.dataset.utAttribute]: control.value }));
+          if (control.value) target?.setAttribute(control.dataset.utAttribute, control.value); else target?.removeAttribute(control.dataset.utAttribute);
+        }
+        updateResizeHandle();
+      } catch (error) { toast(error.message, "error", 6500); }
+    });
+  }
+  state.htmlVisualShell.hidden = false;
+  const frame = state.htmlVisualFrame;
+  frame.onload = () => {
+    const document = frame.contentDocument;
+    document.addEventListener("click", (event) => {
+      const selected = event.target.closest("[data-ut-id]");
+      if (!selected) return;
+      event.preventDefault();
+      selectVisualElement(selected);
+    });
+    document.addEventListener("scroll", updateResizeHandle, true);
+    selectVisualElement(document.querySelector("[data-ut-editable]") || document.querySelector("[data-ut-id]"));
+  };
+  frame.src = `${projectApi("html-source")}?path=${encodeURIComponent(state.activePath)}&v=${Date.now()}`;
+}
+
+async function setHtmlMode(mode) {
+  if (!isHtmlSource() || !["source", "visual"].includes(mode)) return;
+  state.htmlMode = mode;
+  updateHtmlModeUi();
+  if (mode === "visual") await loadHtmlVisual();
+  else {
+    state.visualEditor?.destroy();
+    state.visualEditor = null;
+    state.editor?.focus();
+  }
+}
+
+function runVisualCommand(command, value) {
+  const editor = state.visualEditor;
+  if (!editor) return toast("Select an editable text region first.", "error");
+  const chain = editor.chain().focus();
+  if (command === "bold") chain.toggleBold().run();
+  else if (command === "italic") chain.toggleItalic().run();
+  else if (command === "underline") chain.toggleUnderline().run();
+  else if (command === "bulletList") chain.toggleBulletList().run();
+  else if (command === "orderedList") chain.toggleOrderedList().run();
+  else if (command === "hardBreak") chain.setHardBreak().run();
+  else if (command === "align") chain.setTextAlign(value).run();
+  else if (command === "color") chain.setColor(value).run();
+  else if (command === "paragraph") chain.setParagraph().run();
+  else if (command === "heading") chain.toggleHeading({ level: Number(value) }).run();
+  else if (command === "link") {
+    const href = prompt("Link URL", editor.getAttributes("link").href || "https://");
+    if (href === null) return;
+    if (!href) chain.unsetLink().run(); else chain.extendMarkRange("link").setLink({ href }).run();
+  }
+}
+
+function scheduleHtmlCompile() {
+  clearTimeout(state.htmlCompileTimer);
+  if (!isHtmlSource()) return;
+  if (state.compileInFlight) {
+    state.pendingHtmlCompile = true;
+    return;
+  }
+  state.htmlCompileTimer = setTimeout(() => {
+    state.htmlCompileTimer = null;
+    void compileProject({ automatic: true });
+  }, HTML_COMPILE_DELAY_MS);
+}
+
 function editorExtensions(path) {
+  const language = isHtmlSource(path) ? htmlLanguage() : isCssSource(path) ? cssLanguage() : StreamLanguage.define(isLayoutSource(path) ? xml : stex);
   const extensions = [
     basicSetup,
-    StreamLanguage.define(isLayoutSource(path) ? xml : stex),
+    language,
     keymap.of([...defaultKeymap, ...searchKeymap, indentWithTab]),
     EditorView.updateListener.of((update) => {
       if (!update.docChanged || state.replacingEditor) return;
@@ -587,7 +883,15 @@ function editorExtensions(path) {
         }, AUTOSAVE_DELAY_MS);
         state.saveTimers.set(tab.path, timer);
       }
-      if (state.activePath === path) scheduleChangeCompile();
+      if (state.activePath === path) {
+        if (state.pdfDocument
+          && state.pdfProjectId === state.currentProject?.id
+          && state.pdfSourcePath === previewSourcePath(path)) {
+          setPdfStale(true);
+        }
+        if (isHtmlSource(path)) scheduleHtmlCompile();
+        else scheduleChangeCompile();
+      }
     }),
     EditorView.theme({
       "&": { fontSize: "var(--editor-font-size)" },
@@ -601,6 +905,7 @@ function editorExtensions(path) {
 }
 
 function createEditor(content, path) {
+  destroyVisualEditor();
   state.editor?.destroy();
   elements.editorHost.innerHTML = "";
   state.replacingEditor = true;
@@ -610,6 +915,7 @@ function createEditor(content, path) {
   });
   state.replacingEditor = false;
   state.editor.focus();
+  updateHtmlModeUi();
 }
 
 async function openFile(path, line = 0) {
@@ -644,7 +950,9 @@ function activateTab(path, line = 0) {
   refreshTreeSelection();
   renderOutline(tabContent(tab));
   setSaveState(tab.dirty ? "Unsaved" : "Saved locally", tab.dirty ? "dirty" : "saved");
-  elements.compileButton.textContent = isLayoutSource(path) ? "Render layout" : "Recompile";
+  elements.compileButton.textContent = isLayoutSource(path) ? "Render layout" : isHtmlSource(path) ? "Render HTML" : "Recompile";
+  state.htmlMode = "source";
+  updateHtmlModeUi();
   elements.editorHost.inert = state.recoverySources.has(`${state.currentProject?.id || ""}:${path}`);
   void refreshOrCompileSelectedTex(path);
   if (line > 0) goToLine(line);
@@ -655,13 +963,25 @@ async function refreshOrCompileSelectedTex(path) {
   const tab = state.tabs.get(path);
   const sourcePath = previewSourcePath(path);
   if (!projectId || !tab || state.activePath !== path) return false;
+  if (isHtmlSource(path)) {
+    try {
+      const info = await api(`${projectApi("pdf-info")}?sourcePath=${encodeURIComponent(sourcePath)}`);
+      if (info.available && !info.stale && !tab.dirty) return refreshPdf(sourcePath);
+      scheduleHtmlCompile();
+      return false;
+    } catch (error) {
+      if (error?.status !== 404) toast(`Could not inspect ${path}: ${error.message}`, "error", 6500);
+      scheduleHtmlCompile();
+      return false;
+    }
+  }
   if (!isSelectedTexPdfTarget(path, tabContent(tab), state.build?.rootDocument || state.currentProject?.rootDocument || "")) {
     return refreshPdf(sourcePath);
   }
   try {
     const info = await api(`${projectApi("pdf-info")}?sourcePath=${encodeURIComponent(sourcePath)}`);
     if (projectId !== state.currentProject?.id || path !== state.activePath) return false;
-    if (info.available && !info.stale && !tab.dirty) return refreshPdf(sourcePath);
+    if (shouldReuseSelectedPdf(info)) return refreshPdf(sourcePath, { stale: info.stale || tab.dirty });
     if (state.compileInFlight) {
       state.pendingTexSelection = `${projectId}:${path}`;
       return false;
@@ -775,9 +1095,15 @@ function renderOutline(content) {
   clearTimeout(state.outlineTimer);
   state.outlineTimer = null;
   const layout = isLayoutSource();
-  const headings = documentOutline(content, layout);
+  const html = isHtmlSource();
+  const headings = documentOutline(content, layout ? "layout" : html ? "html" : false);
   if (layout) {
     elements.fileOutline.innerHTML = headings.length ? headings.map((heading) => `<button class="outline-item level-1" data-line="${heading.line}">${escapeHtml(heading.title)}</button>`).join("") : "<p>No layout headings in this file.</p>";
+    elements.fileOutline.querySelectorAll("[data-line]").forEach((button) => button.addEventListener("click", () => goToLine(Number(button.dataset.line))));
+    return;
+  }
+  if (html) {
+    elements.fileOutline.innerHTML = headings.length ? headings.map((heading) => `<button class="outline-item level-${heading.level}" data-line="${heading.line}">${escapeHtml(heading.title)}</button>`).join("") : "<p>No semantic HTML headings in this file.</p>";
     elements.fileOutline.querySelectorAll("[data-line]").forEach((button) => button.addEventListener("click", () => goToLine(Number(button.dataset.line))));
     return;
   }
@@ -873,7 +1199,7 @@ async function selectProject(id) {
   }
 }
 
-async function refreshPdf(sourcePath = previewSourcePath()) {
+async function refreshPdf(sourcePath = previewSourcePath(), { stale } = {}) {
   if (!state.currentProject) return;
   const requestedSource = String(sourcePath || "");
   const refreshVersion = ++state.pdfRefreshVersion;
@@ -882,11 +1208,13 @@ async function refreshPdf(sourcePath = previewSourcePath()) {
   const previousLoadingTask = state.pdfLoadingTask;
   const previousProjectId = state.pdfProjectId;
   const previousSourcePath = state.pdfSourcePath;
+  const previousStale = state.pdfStale;
   const previousPage = state.pdfPage;
   const previousScale = state.pdfScale;
   const preserveExisting = Boolean(previousDocument
     && previousProjectId === state.currentProject.id
     && previousSourcePath === requestedSource);
+  const requestedStale = stale ?? (preserveExisting ? previousStale : false);
   const viewAnchor = preserveExisting ? capturePdfViewAnchor() : null;
   let nextDocument = null;
   let nextLoadingTask = null;
@@ -903,6 +1231,8 @@ async function refreshPdf(sourcePath = previewSourcePath()) {
     state.pdfLoadingTask = nextLoadingTask;
     state.pdfProjectId = state.currentProject.id;
     state.pdfSourcePath = requestedSource;
+    state.pdfStale = Boolean(requestedStale);
+    elements.previewPane?.classList.toggle("stale-pdf", state.pdfStale);
     state.pdfPage = sameSource ? Math.min(previousPage, nextDocument.numPages) : 1;
     state.pdfScale = sameSource ? previousScale : null;
     if (!(await renderPdfPages({ viewAnchor, resetScroll: !sameSource }))) throw new Error("PDF rendering was superseded");
@@ -933,6 +1263,8 @@ async function refreshPdf(sourcePath = previewSourcePath()) {
     state.pdfLoadingTask = preserveExisting ? previousLoadingTask : null;
     state.pdfProjectId = preserveExisting ? previousProjectId : "";
     state.pdfSourcePath = preserveExisting ? previousSourcePath : "";
+    state.pdfStale = preserveExisting ? previousStale : false;
+    elements.previewPane?.classList.toggle("stale-pdf", state.pdfStale);
     state.pdfPage = preserveExisting ? previousPage : 1;
     state.pdfScale = preserveExisting ? previousScale : null;
     if (preserveExisting) setupPdfObserver();
@@ -948,6 +1280,8 @@ async function clearPdfPreview(document = state.pdfDocument, loadingTask = state
   state.pdfLoadingTask = null;
   state.pdfProjectId = "";
   state.pdfSourcePath = "";
+  state.pdfStale = false;
+  elements.previewPane?.classList.remove("stale-pdf");
   state.pdfPage = 1;
   state.pdfScale = null;
   elements.pdfPages.replaceChildren();
@@ -976,12 +1310,21 @@ async function showHtmlProof() {
   }
 }
 
+function setPdfStale(stale) {
+  state.pdfStale = Boolean(stale && state.pdfDocument);
+  elements.previewPane?.classList.toggle("stale-pdf", state.pdfStale);
+  updatePdfToolbar();
+}
+
 function updatePdfToolbar() {
   const totalPages = state.pdfDocument?.numPages || 0;
   const scale = state.pdfScale ?? state.pdfCurrentScale;
   $("#page-status").textContent = totalPages
-    ? `${state.pdfPage} of ${totalPages} · ${Math.round(scale * 100)}%`
+    ? `${state.pdfPage} of ${totalPages} · ${Math.round(scale * 100)}%${state.pdfStale ? " · cached (source changed)" : ""}`
     : "No PDF yet";
+  $("#page-status").title = state.pdfStale
+    ? "Showing the last compiled PDF for this source. Recompile to update it."
+    : "";
   const previous = $("#pdf-previous");
   const next = $("#pdf-next");
   previous.disabled = totalPages <= 1 || state.pdfPage <= 1;
@@ -1310,7 +1653,7 @@ async function monitorCodexRecovery(initial, projectId, sourcePath, { quiet = fa
         if (recovery.state === "fixed" && state.currentProject?.id === projectId) {
           const conflicts = await reloadCleanTabsFromDisk();
           await refreshTree();
-          if (previewSourcePath() === sourcePath) await refreshPdf(sourcePath);
+          if (previewSourcePath() === sourcePath) await refreshPdf(sourcePath, { stale: false });
           if (!quiet) {
             toast(recovery.message, "success", 6500);
             status("PDF refreshed");
@@ -1337,7 +1680,7 @@ async function monitorCodexRecovery(initial, projectId, sourcePath, { quiet = fa
   }
 }
 
-async function compileProject({ clean = false, automatic = false } = {}) {
+async function compileProject({ clean = false, automatic = false, exportTex = false } = {}) {
   if (!state.currentProject || state.compileInFlight) return false;
   const projectId = state.currentProject.id;
   const buildEndpoint = projectApi("build");
@@ -1358,9 +1701,10 @@ async function compileProject({ clean = false, automatic = false } = {}) {
       showLogs(false);
     }
     const layoutSource = isLayoutSource(sourcePath) ? sourcePath : "";
-    elements.compileButton.textContent = clean ? "Cleaning…" : layoutSource ? "Rendering…" : "Compiling…";
+    const htmlSource = isHtmlSource(sourcePath) ? sourcePath : "";
+    elements.compileButton.textContent = clean ? "Cleaning…" : layoutSource || htmlSource ? "Rendering…" : "Compiling…";
     const buildLabel = sourcePath || "project";
-    status(`${clean ? "Cleaning and compiling" : layoutSource ? "Rendering adaptive layout" : "Compiling"} ${buildLabel}…`);
+    status(`${clean ? "Cleaning and compiling" : htmlSource ? "Fitting and rendering HTML" : layoutSource ? "Rendering adaptive layout" : "Compiling"} ${buildLabel}…`);
     const recoverWithCodex = state.codexRecoveryEnabled && sourcePath.toLowerCase().endsWith(".tex");
     const sourceTab = activePath === sourcePath ? state.tabs.get(activePath) : null;
     let sourceSnapshot = null;
@@ -1377,6 +1721,7 @@ async function compileProject({ clean = false, automatic = false } = {}) {
         sourcePath,
         sourceContent: sourceSnapshot?.content,
         recoverWithCodex,
+        exportTex,
       }),
     });
     if (acceptBuildSave(sourceTab, sourceSnapshot, result.sourceSave)) {
@@ -1409,10 +1754,25 @@ async function compileProject({ clean = false, automatic = false } = {}) {
       const recoveryDetail = result.codexRecovery?.message ? ` ${result.codexRecovery.message}` : "";
       throw new Error(`Compilation did not produce a clean PDF.${recoveryDetail} Open the log for details.`);
     }
-    if (state.currentProject?.id === projectId && previewSourcePath() === sourcePath && !(await refreshPdf(sourcePath))) {
+    if (result.html?.resolvedFits?.length && sourceTab) {
+      for (const fit of result.html.resolvedFits) {
+        const current = currentHtmlSource();
+        const patch = patchElementStyle(current, fit.dataUtId, {
+          "--ut-fit-font-size": `${fit.fontSize.toFixed(2)}px`,
+          "--ut-fit-line-height": `${fit.lineHeight.toFixed(2)}px`,
+          "--ut-fit-gap": `${fit.gap.toFixed(2)}px`,
+        });
+        if (patch.source !== current) dispatchProfilePatch(patch);
+      }
+      await saveFile(sourceTab, { flush: true });
+    }
+    if (state.currentProject?.id === projectId && previewSourcePath() === sourcePath && !(await refreshPdf(sourcePath, { stale: false }))) {
       throw new Error("The PDF compiled, but its preview could not be refreshed.");
     }
-    const successMessage = result.layout ? "Adaptive HTML, LuaLaTeX, and PDF generated." : "PDF compiled successfully.";
+    elements.previewPane?.classList.remove("stale-pdf");
+    const successMessage = result.html
+      ? exportTex ? "HTML PDF and generated LuaLaTeX exported." : "HTML fitted with Pretext and rendered to PDF."
+      : result.layout ? "Adaptive HTML, LuaLaTeX, and PDF generated." : "PDF compiled successfully.";
     if (!automatic) toast(successMessage);
     status(`${automatic ? "Auto-compiled" : "Compiled"} at ${new Date(result.compiledAt).toLocaleTimeString()}`);
     return true;
@@ -1421,17 +1781,25 @@ async function compileProject({ clean = false, automatic = false } = {}) {
     if (!automatic) showLogs(true);
     toast(error.message, "error", 7000);
     status("Compilation failed");
+    if (isHtmlSource(sourcePath) && state.pdfDocument) {
+      $("#preview-pane").classList.add("stale-pdf");
+      $("#page-status").textContent = "Stale PDF · HTML diagnostics in log";
+    }
     return false;
   } finally {
     state.compileInFlight = false;
     elements.compileButton.disabled = false;
     elements.compileButton.classList.remove("busy");
-    elements.compileButton.textContent = isLayoutSource() ? "Render layout" : "Recompile";
+    elements.compileButton.textContent = isLayoutSource() ? "Render layout" : isHtmlSource() ? "Render HTML" : "Recompile";
     elements.editorHost.inert = state.recoverySources.has(`${state.currentProject?.id || ""}:${state.activePath}`);
     const pendingSelection = state.pendingTexSelection;
     state.pendingTexSelection = "";
     if (pendingSelection === `${state.currentProject?.id || ""}:${state.activePath}`) {
       queueMicrotask(() => { void refreshOrCompileSelectedTex(state.activePath); });
+    }
+    if (state.pendingHtmlCompile && isHtmlSource()) {
+      state.pendingHtmlCompile = false;
+      scheduleHtmlCompile();
     }
   }
 }
@@ -1644,11 +2012,26 @@ function bindEvents() {
   });
   $("#new-file").addEventListener("click", () => createEntry("file"));
   $("#new-folder").addEventListener("click", () => createEntry("directory"));
-  $("#undo").addEventListener("click", () => state.editor && undo(state.editor));
-  $("#redo").addEventListener("click", () => state.editor && redo(state.editor));
-  $("#bold").addEventListener("click", () => isLayoutSource() ? wrapSelection("<strong>", "</strong>") : wrapSelection("\\textbf{", "}"));
-  $("#italic").addEventListener("click", () => isLayoutSource() ? wrapSelection("<em>", "</em>") : wrapSelection("\\emph{", "}"));
-  $("#insert-cite").addEventListener("click", () => isLayoutSource() ? toast("Use a semantic <link> or plain citation text in adaptive layouts.") : wrapSelection("\\cite{", "}"));
+  $("#undo").addEventListener("click", () => {
+    if (!state.editor) return;
+    undo(state.editor);
+    if (state.htmlMode === "visual") void loadHtmlVisual();
+  });
+  $("#redo").addEventListener("click", () => {
+    if (!state.editor) return;
+    redo(state.editor);
+    if (state.htmlMode === "visual") void loadHtmlVisual();
+  });
+  $("#bold").addEventListener("click", () => state.htmlMode === "visual" && isHtmlSource() ? runVisualCommand("bold") : isHtmlSource() || isLayoutSource() ? wrapSelection("<strong>", "</strong>") : wrapSelection("\\textbf{", "}"));
+  $("#italic").addEventListener("click", () => state.htmlMode === "visual" && isHtmlSource() ? runVisualCommand("italic") : isHtmlSource() || isLayoutSource() ? wrapSelection("<em>", "</em>") : wrapSelection("\\emph{", "}"));
+  $("#underline").addEventListener("click", () => state.htmlMode === "visual" ? runVisualCommand("underline") : wrapSelection("<u>", "</u>"));
+  $("#insert-cite").addEventListener("click", () => isHtmlSource() ? runVisualCommand("link") : isLayoutSource() ? toast("Use a semantic <link> or plain citation text in adaptive layouts.") : wrapSelection("\\cite{", "}"));
+  elements.htmlModeToggle.querySelectorAll("[data-html-mode]").forEach((button) => button.addEventListener("click", () => { void setHtmlMode(button.dataset.htmlMode); }));
+  $("#export-html").addEventListener("click", () => compileProject({ exportTex: true }));
+  $("#html-block-style").addEventListener("change", (event) => event.target.value === "paragraph" ? runVisualCommand("paragraph") : runVisualCommand("heading", event.target.value));
+  elements.htmlVisualToolbar.querySelectorAll("[data-html-command]").forEach((button) => button.addEventListener("click", () => runVisualCommand(button.dataset.htmlCommand)));
+  elements.htmlVisualToolbar.querySelectorAll("[data-html-align]").forEach((button) => button.addEventListener("click", () => runVisualCommand("align", button.dataset.htmlAlign)));
+  $("#html-text-color").addEventListener("input", (event) => runVisualCommand("color", event.target.value));
   $("#search-file").addEventListener("click", () => state.editor && openSearchPanel(state.editor));
   elements.compileButton.addEventListener("click", (event) => { event.preventDefault(); compileProject(); });
   $("#compile-menu").addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); showCompileMenu(); });
@@ -1722,6 +2105,7 @@ function bindEvents() {
     clearAllSaveTimers();
     clearInterval(state.autoCompileTimer);
     clearTimeout(state.autoCompileChangeTimer);
+    clearTimeout(state.htmlCompileTimer);
     cancelPdfRenders();
     if ([...state.tabs.values()].some((tab) => tab.dirty)) {
       event.preventDefault();

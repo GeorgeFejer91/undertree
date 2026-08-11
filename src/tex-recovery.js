@@ -14,3 +14,7 @@ export function isSelectedTexPdfTarget(path, content, configuredRoot = "") {
   const sourcePath = String(path || "");
   return sourcePath.toLowerCase().endsWith(".tex");
 }
+
+export function shouldReuseSelectedPdf(info) {
+  return info?.available === true;
+}

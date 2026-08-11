@@ -10,11 +10,23 @@ function lineCounter(content) {
   };
 }
 
-export function documentOutline(source, layout = false) {
+export function documentOutline(source, mode = false) {
   const content = String(source || "");
   const lineAt = lineCounter(content);
   const headings = [];
-  if (layout) {
+  if (mode === "html") {
+    const pattern = /<h([1-6])(?:\s[^>]*)?>([\s\S]*?)<\/h\1>/gi;
+    let match;
+    while ((match = pattern.exec(content))) {
+      headings.push({
+        title: match[2].replace(/<[^>]+>/g, "").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim(),
+        line: lineAt(match.index),
+        level: Math.min(3, Number(match[1])),
+      });
+    }
+    return headings;
+  }
+  if (mode === true || mode === "layout") {
     const pattern = /<heading(?:\s[^>]*)?>([\s\S]*?)<\/heading>/gi;
     let match;
     while ((match = pattern.exec(content))) {
