@@ -20,7 +20,7 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("WebKit2", "4.1")
-from gi.repository import GLib, Gtk, WebKit2  # noqa: E402
+from gi.repository import GLib, GObject, Gtk, WebKit2  # noqa: E402
 
 
 APP_ROOT = Path(__file__).resolve().parent.parent
@@ -123,7 +123,11 @@ class Renderer:
         self.window.show_all()
 
     def on_resource_started(self, _view, resource, request):
-        resource.connect("send-request", self.on_send_request)
+        # WebKitGTK 2.52 removed WebResource::send-request. Keep redirect
+        # filtering where the signal still exists and remain compatible with
+        # newer versions, whose initial request is still checked below.
+        if GObject.signal_lookup("send-request", resource.__gtype__):
+            resource.connect("send-request", self.on_send_request)
         self.on_send_request(resource, request, None)
 
     def on_send_request(self, _resource, request, _redirected_response):
@@ -232,7 +236,7 @@ def arguments():
     parser.add_argument("--pdf", required=True)
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--pages", type=int, required=True)
-    parser.add_argument("--timeout", type=float, default=45)
+    parser.add_argument("--timeout", type=float, default=90)
     return parser.parse_args()
 
 
