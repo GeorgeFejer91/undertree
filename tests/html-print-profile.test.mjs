@@ -3,10 +3,13 @@ import test from "node:test";
 
 import {
   assertHtmlPrintProfile,
+  insertBoxlet,
+  nextBoxletId,
   parseHtmlPrintProfile,
   patchEditableHtml,
   patchElementAttributes,
   patchElementStyle,
+  removeVisualElement,
 } from "../src/html-print-profile.js";
 import { generateLuaLatex, texEscape } from "../src/html-tex-export.js";
 
@@ -20,6 +23,16 @@ function document({ site = "zanv", logo = "ZANV.svg", extra = "", copy = "Langer
 <img src="assets/${logo}" data-ut-tex-src="assets/logo.pdf" alt="Site">
 <section class="box" data-ut-id="copy" data-ut-box data-ut-editable data-ut-fit="pretext"><p>${copy}</p></section>
 ${extra}</main></body></html>`;
+}
+
+function applyChanges(source, changes) {
+  let offset = 0;
+  let result = "";
+  for (const change of [...changes].sort((left, right) => left.from - right.from)) {
+    result += source.slice(offset, change.from) + change.insert;
+    offset = change.to;
+  }
+  return result + source.slice(offset);
 }
 
 test("profile parses stable objects and enforces exclusive site branding", () => {
@@ -66,6 +79,23 @@ test("stable patches preserve unrelated HTML, CSS, comments, and canonical histo
   const bounded = patchElementAttributes(styled.source, "copy", { "data-ut-fit-min-font": "9", "data-ut-fit-max-font": "16" });
   assert.match(bounded.source, /data-ut-fit-min-font="9"/);
   assert.throws(() => patchElementStyle(source, "copy", { transform: "scale(2)" }), /unsupported CSS property/);
+});
+
+test("visual editor can add and remove a free adaptive boxlet on an A4 page", () => {
+  const source = document();
+  assert.equal(nextBoxletId(source), "boxlet-1");
+  const added = insertBoxlet(source, "page", { title: "Hinweis", copy: "Adaptive Kopie" });
+  assert.equal(added.id, "boxlet-1");
+  assert.equal(applyChanges(source, added.changes), added.source);
+  assert.match(added.source, /data-ut-id="page"[^>]*position: relative/);
+  assert.match(added.source, /data-ut-id="boxlet-1"[^>]*data-ut-fit="pretext"/);
+  assert.match(added.source, /<h2>Hinweis<\/h2><p>Adaptive Kopie<\/p>/);
+  assert.doesNotThrow(() => assertHtmlPrintProfile(added.source));
+  assert.equal(nextBoxletId(added.source), "boxlet-2");
+  const removed = removeVisualElement(added.source, "boxlet-1");
+  assert.doesNotMatch(removed.source, /data-ut-id="boxlet-1"/);
+  assert.match(removed.source, /data-ut-id="copy"/);
+  assert.throws(() => removeVisualElement(source, "page"), /cannot be deleted/);
 });
 
 test("TeX export escapes content and records canonical provenance", () => {

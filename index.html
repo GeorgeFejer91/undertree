@@ -114,6 +114,10 @@
             <button id="search-file" title="Search current file">⌕</button>
           </div>
           <div class="html-visual-toolbar" id="html-visual-toolbar" role="toolbar" aria-label="HTML visual editing controls" hidden>
+            <button type="button" id="html-add-boxlet" title="Add a freely positioned adaptive box">+ Boxlet</button>
+            <button type="button" id="html-delete-object" title="Delete the selected box">Delete</button>
+            <button type="button" id="html-refit" title="Refit all adaptive text boxes">Refit</button>
+            <span class="toolbar-divider"></span>
             <select id="html-block-style" title="Paragraph or heading">
               <option value="paragraph">Paragraph</option>
               <option value="1">Heading 1</option>
@@ -124,6 +128,18 @@
             <button type="button" data-html-command="orderedList" title="Numbered list">1. List</button>
             <button type="button" data-html-command="link" title="Add or edit link">Link</button>
             <button type="button" data-html-command="hardBreak" title="Hard line break">↵</button>
+            <select id="html-font-size" title="Font size">
+              <option value="">Auto size</option>
+              <option value="9px">9 px</option>
+              <option value="10px">10 px</option>
+              <option value="11px">11 px</option>
+              <option value="12px">12 px</option>
+              <option value="14px">14 px</option>
+              <option value="16px">16 px</option>
+              <option value="18px">18 px</option>
+              <option value="22px">22 px</option>
+              <option value="28px">28 px</option>
+            </select>
             <span class="toolbar-divider"></span>
             <button type="button" data-html-align="left" title="Align left">≡</button>
             <button type="button" data-html-align="center" title="Align center">≣</button>

@@ -495,6 +495,7 @@ button {
   color: var(--light);
   background: #202a38;
   border-bottom: 1px solid var(--divider);
+  overflow-x: auto;
 }
 .html-visual-toolbar[hidden] { display: none; }
 .html-visual-toolbar button, .html-visual-toolbar select { height: 27px; padding: 0 7px; border: 1px solid var(--divider); border-radius: var(--radius); color: var(--light); background: var(--toolbar); }

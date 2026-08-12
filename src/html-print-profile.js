@@ -15,7 +15,8 @@ const FIT_PROPERTIES = new Set([
   "max-width", "max-height", "border", "border-width", "border-style", "border-color", "border-radius", "color", "background",
   "background-color", "text-align", "align-items", "justify-content", "grid-row", "grid-column", "grid-row-start", "grid-column-start",
   "grid-row-end", "grid-column-end", "grid-template-columns", "grid-template-rows", "display", "flex-direction", "flex-wrap",
-  "object-fit", "object-position", "font-family", "font-weight", "font-style", "letter-spacing",
+  "object-fit", "object-position", "font-family", "font-weight", "font-style", "letter-spacing", "position", "left", "top", "right",
+  "bottom", "z-index",
 ]);
 
 const UNSUPPORTED_CSS = [
@@ -185,6 +186,54 @@ export function patchEditableHtml(source, id, nextHtml) {
   if (!endTag) throw new Error(`data-ut-id \"${id}\" cannot contain editable HTML.`);
   const change = { from: startTag.endOffset, to: endTag.startOffset, insert: String(nextHtml) };
   return { ...change, source: source.slice(0, change.from) + change.insert + source.slice(change.to) };
+}
+
+function escapeAttribute(value) {
+  return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+export function nextBoxletId(source, prefix = "boxlet") {
+  const parsed = parseHtmlPrintProfile(source);
+  let number = 1;
+  while (parsed.ids.has(`${prefix}-${number}`)) number += 1;
+  return `${prefix}-${number}`;
+}
+
+export function insertBoxlet(source, pageId, {
+  id = nextBoxletId(source),
+  title = "New boxlet",
+  copy = "Add text here.",
+  left = "15mm",
+  top = "15mm",
+  width = "55mm",
+  height = "35mm",
+} = {}) {
+  const parsed = parseHtmlPrintProfile(source);
+  if (parsed.ids.has(id)) throw new Error(`data-ut-id "${id}" already exists.`);
+  const page = nodeForId(parsed, pageId);
+  if (attr(page, "data-ut-page") === null || !page.sourceCodeLocation?.endTag) throw new Error(`data-ut-id "${pageId}" is not an editable A4 page.`);
+  const element = `\n    <section data-ut-id="${escapeAttribute(id)}" data-ut-box data-ut-editable data-ut-fit="pretext" data-ut-fit-min-font="8" data-ut-fit-max-font="16" style="position: absolute; left: ${escapeAttribute(left)}; top: ${escapeAttribute(top)}; width: ${escapeAttribute(width)}; height: ${escapeAttribute(height)}; padding: 3mm; border: 0.25mm solid #aac5c8; border-radius: 2mm; background-color: #ffffff; z-index: 10;"><h2>${escapeAttribute(title)}</h2><p>${escapeAttribute(copy)}</p></section>\n  `;
+  const offset = page.sourceCodeLocation.endTag.startOffset;
+  const elementChange = { from: offset, to: offset, insert: element };
+  const withElement = source.slice(0, offset) + element + source.slice(offset);
+  const pageStyle = patchElementStyle(withElement, pageId, { position: "relative" });
+  const styleChange = { from: pageStyle.from, to: pageStyle.to, insert: pageStyle.insert };
+  if (styleChange.to > offset) throw new Error(`Could not create a stable boxlet edit for data-ut-id "${pageId}".`);
+  return { id, changes: [styleChange, elementChange], source: pageStyle.source };
+}
+
+export function removeVisualElement(source, id) {
+  const parsed = parseHtmlPrintProfile(source);
+  const node = nodeForId(parsed, id);
+  if (attr(node, "data-ut-page") !== null) throw new Error("The A4 page itself cannot be deleted.");
+  const location = node.sourceCodeLocation;
+  if (!Number.isInteger(location?.startOffset) || !Number.isInteger(location?.endOffset)) throw new Error(`No stable source range exists for data-ut-id "${id}".`);
+  let from = location.startOffset;
+  let to = location.endOffset;
+  if (/^[ \t]*$/.test(source.slice(source.lastIndexOf("\n", from - 1) + 1, from))) from = source.lastIndexOf("\n", from - 1) + 1;
+  if (source[to] === "\n") to += 1;
+  const change = { from, to, insert: "" };
+  return { ...change, source: source.slice(0, from) + source.slice(to) };
 }
 
 function serializeStyle(properties) {

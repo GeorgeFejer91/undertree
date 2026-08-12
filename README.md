@@ -30,8 +30,10 @@ checkpoint.
   protection;
 - green Recompile control, build logs, download, and embedded PDF preview;
 - a versioned A4 HTML print profile with CodeMirror source editing, an isolated
-  Tiptap visual editor and inspector, bundled `@chenglou/pretext` measurement,
-  WebKitGTK PDF printing, and generated standalone LuaLaTeX companions;
+  in-place rich-text editor and inspector, addable free-positioned boxlets, draggable
+  shared grid borders, eight-way boxlet resizing, bundled `@chenglou/pretext`
+  measurement, WebKitGTK PDF printing, and generated standalone LuaLaTeX
+  companions;
 - opt-out Codex recovery whenever a selected TeX source fails to build, with a
   quiet short-lived formatting-only background task, duplicate suppression,
   automatic verification, and PDF refresh;
@@ -102,7 +104,7 @@ environment variables and `.localtex-*` project artifacts remain supported so
 the rename does not invalidate established projects or automation.
 
 Create the lean downloadable archive with `./scripts/build-release.sh`. Runtime
-operation does not use npm: the JavaScript editor, Tiptap, and Pretext runtime
+operation does not use npm: the JavaScript editor and Pretext runtime
 are compiled into `dist/`; the backend uses Node's standard library apart from
 its bundled parsers, and PDF/TeX export uses WebKitGTK and the local TeX
 distribution. The optional failed-build
@@ -196,6 +198,15 @@ the portable companion records its hash and reconstructs the validated manifest
 as selectable text, links, images, and absolute TikZ geometry rather than
 embedding the full browser page. When the active file ends in `.layout.xml`, the
 button instead becomes **Render layout** for the legacy semantic source type.
+
+In HTML **Visual** mode, **+ Boxlet** adds a movable, independently fitted region
+to the A4 canvas. Its teal square handle moves it and its green edge/corner
+handles resize it. Existing CSS-grid cards expose handles for their shared
+track boundaries, so dragging a border reallocates space between neighboring
+cards without breaking alignment. The rich-text toolbar formats headings,
+paragraphs, lists, links, emphasis, underline, alignment, color and font size.
+**Refit** reruns the bundled Pretext engine immediately; overflowing boxlets are
+outlined in red and remain clipped to their physical boundary.
 
 The PDF toolbar downloads the current document using its source filename (for
 example, `paper.tex` becomes `paper.pdf`). **All PDFs** finds every standalone

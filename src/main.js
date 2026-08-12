@@ -9,13 +9,7 @@ import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { xml } from "@codemirror/legacy-modes/mode/xml";
 import { html as htmlLanguage } from "@codemirror/lang-html";
 import { css as cssLanguage } from "@codemirror/lang-css";
-import { Editor as TiptapEditor } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
-import Link from "@tiptap/extension-link";
-import Underline from "@tiptap/extension-underline";
-import TextAlign from "@tiptap/extension-text-align";
-import Color from "@tiptap/extension-color";
-import { TextStyle } from "@tiptap/extension-text-style";
+import * as pretextRich from "@chenglou/pretext/rich-inline";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { pdfSourceTree } from "./file-tree-filter.js";
 import { absoluteProjectPath, dirnamePath, pathIsEntry, remapPath } from "./file-tree-actions.js";
@@ -23,7 +17,9 @@ import { boundedPdfOutputScale, clampPdfPage, destroyPdfResource, nextPdfScale }
 import { normalizeProjectSort, projectActivityTime, sortProjects } from "./project-sorting.js";
 import { isSelectedTexPdfTarget, shouldReuseSelectedPdf } from "./tex-recovery.js";
 import { documentOutline } from "./outline.js";
-import { patchEditableHtml, patchElementAttributes, patchElementStyle } from "./html-print-profile.js";
+import { insertBoxlet, patchEditableHtml, patchElementAttributes, patchElementStyle, removeVisualElement } from "./html-print-profile.js";
+import { fitPrintDocument } from "./pretext-fit-core.js";
+import { gridTrackRange, parsePixelTracks, pixelDeltaToMillimetres, resizeTrackBoundary, tracksToMillimetres } from "./html-visual-layout.js";
 import { acceptBuildSave, buildTabSnapshot, flushTabSave, markPathEdited, markTabEdited, persistWithConflictRecovery, saveTabSnapshot, tabContent } from "./save-coordinator.js";
 
 let pdfjsPromise = null;
@@ -150,8 +146,9 @@ const state = {
   htmlInspector: null,
   visualEditor: null,
   visualSelection: null,
-  visualResizeHandle: null,
+  visualHandles: [],
   htmlCompileTimer: null,
+  visualRefitTimer: null,
 };
 
 const PROJECT_SORT_STORAGE_KEY = "localtex-project-sort";
@@ -601,8 +598,10 @@ function destroyVisualEditor() {
   state.visualEditor?.destroy();
   state.visualEditor = null;
   state.visualSelection = null;
-  state.visualResizeHandle?.remove();
-  state.visualResizeHandle = null;
+  state.visualHandles.forEach((handle) => handle.remove());
+  state.visualHandles = [];
+  clearTimeout(state.visualRefitTimer);
+  state.visualRefitTimer = null;
   state.htmlVisualFrame = null;
   state.htmlVisualShell = null;
   state.htmlInspector = null;
@@ -621,7 +620,8 @@ function updateHtmlModeUi() {
 
 function dispatchProfilePatch(patch) {
   if (!state.editor || !patch) return;
-  state.editor.dispatch({ changes: { from: patch.from, to: patch.to, insert: patch.insert }, userEvent: "input.visual" });
+  const changes = patch.changes || { from: patch.from, to: patch.to, insert: patch.insert };
+  state.editor.dispatch({ changes, userEvent: "input.visual" });
 }
 
 function currentHtmlSource() {
@@ -636,6 +636,8 @@ function visualInspectorMarkup() {
       <label>Layout<select data-ut-attribute="data-ut-layout"><option value="">Inherit</option><option value="grid">Grid</option><option value="flex">Flex</option></select></label>
       <label>Width mm<input type="number" min="5" max="210" step="0.1" data-ut-style="width" data-ut-unit="mm"></label>
       <label>Height mm<input type="number" min="5" max="296.7" step="0.1" data-ut-style="height" data-ut-unit="mm"></label>
+      <label>Left mm<input type="number" min="0" max="210" step="0.1" data-ut-style="left" data-ut-unit="mm"></label>
+      <label>Top mm<input type="number" min="0" max="296.7" step="0.1" data-ut-style="top" data-ut-unit="mm"></label>
       <label>Padding mm<input type="number" min="0" max="40" step="0.1" data-ut-style="padding" data-ut-unit="mm"></label>
       <label>Gap mm<input type="number" min="0" max="40" step="0.1" data-ut-style="gap" data-ut-unit="mm"></label>
       <label>Border mm<input type="number" min="0" max="5" step="0.1" data-ut-style="border-width" data-ut-unit="mm"></label>
@@ -673,7 +675,8 @@ function populateInspector(element) {
     if (control.type === "color") {
       const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
       if (match) control.value = `#${match.slice(1, 4).map((item) => Number(item).toString(16).padStart(2, "0")).join("")}`;
-    } else control.value = value === "none" ? "" : value;
+    } else if (control.type === "number") control.value = Number.isFinite(Number.parseFloat(value)) ? Number.parseFloat(value) : "";
+    else control.value = value === "none" || value === "auto" ? "" : value;
   }
   for (const control of state.htmlInspector.querySelectorAll("[data-ut-attribute]")) {
     const target = control.dataset.utAttribute === "alt" ? element.matches("img") ? element : element.querySelector("img") : element;
@@ -681,55 +684,195 @@ function populateInspector(element) {
   }
 }
 
-function updateResizeHandle() {
-  const element = state.visualSelection;
-  const handle = state.visualResizeHandle;
-  if (!element || !handle) return;
-  const rect = element.getBoundingClientRect();
-  handle.style.left = `${rect.right - 7}px`;
-  handle.style.top = `${rect.bottom - 7}px`;
+function clearVisualHandles() {
+  state.visualHandles.forEach((handle) => handle.remove());
+  state.visualHandles = [];
 }
 
-function attachResizeHandle(element) {
-  state.visualResizeHandle?.remove();
-  state.visualResizeHandle = null;
-  if (!element.hasAttribute("data-ut-box")) return;
+function updateVisualHandles() {
+  const element = state.visualSelection;
+  if (!element) return;
+  const rect = element.getBoundingClientRect();
+  for (const handle of state.visualHandles) {
+    const direction = handle.dataset.utDirection;
+    const x = direction === "move" ? rect.left + 18 : direction.includes("w") ? rect.left : direction.includes("e") ? rect.right : (rect.left + rect.right) / 2;
+    const y = direction.includes("n") ? rect.top : direction.includes("s") ? rect.bottom : direction === "move" ? rect.top : (rect.top + rect.bottom) / 2;
+    handle.style.left = `${x - 7}px`;
+    handle.style.top = `${y - 7}px`;
+  }
+}
+
+function scheduleVisualRefit(delay = 120) {
+  clearTimeout(state.visualRefitTimer);
+  state.visualRefitTimer = setTimeout(() => { void refitVisualDocument(); }, delay);
+}
+
+async function refitVisualDocument({ announce = false } = {}) {
+  const document = state.htmlVisualFrame?.contentDocument;
+  if (!document) return null;
+  try {
+    const result = await fitPrintDocument(document, { pretextRich, timeoutMs: 10000 });
+    document.querySelectorAll("[data-ut-fit-error]").forEach((element) => {
+      element.removeAttribute("data-ut-fit-error");
+      element.style.boxShadow = "";
+    });
+    for (const diagnostic of result.diagnostics) {
+      const element = document.querySelector(`[data-ut-id="${CSS.escape(diagnostic.dataUtId)}"]`);
+      if (!element) continue;
+      element.setAttribute("data-ut-fit-error", "true");
+      element.style.boxShadow = "inset 0 0 0 3px #d24b3f";
+    }
+    updateVisualHandles();
+    const summary = result.diagnostics.length ? `${result.diagnostics.length} boxlet${result.diagnostics.length === 1 ? "" : "s"} overflow` : "All boxlets fit";
+    if (state.visualSelection) elements.htmlSelectionLabel.textContent = `${state.visualSelection.getAttribute("data-ut-id")} · ${summary}`;
+    if (announce) toast(summary, result.diagnostics.length ? "error" : "success", 3500);
+    return result;
+  } catch (error) {
+    if (announce) toast(`Could not refit boxlets: ${error.message}`, "error", 6500);
+    return null;
+  }
+}
+
+function gridResizeContext(element) {
+  const container = element.parentElement;
+  if (!container?.hasAttribute("data-ut-id") || container.ownerDocument.defaultView.getComputedStyle(container).display !== "grid") return null;
+  const containerStyle = container.ownerDocument.defaultView.getComputedStyle(container);
+  const columns = parsePixelTracks(containerStyle.gridTemplateColumns);
+  const rows = parsePixelTracks(containerStyle.gridTemplateRows);
+  const style = element.ownerDocument.defaultView.getComputedStyle(element);
+  const columnRange = gridTrackRange(style.gridColumnStart, style.gridColumnEnd, columns.length);
+  const rowRange = gridTrackRange(style.gridRowStart, style.gridRowEnd, rows.length);
+  return columns.length && rows.length && columnRange && rowRange ? { container, columns, rows, columnRange, rowRange } : null;
+}
+
+function beginAbsoluteBoxDrag(element, direction, event) {
+  event.preventDefault();
+  const handle = event.currentTarget;
+  handle.setPointerCapture(event.pointerId);
+  const style = element.ownerDocument.defaultView.getComputedStyle(element);
+  const page = element.closest("[data-ut-page]");
+  const pageRect = page?.getBoundingClientRect();
+  const start = {
+    left: Number.parseFloat(style.left) || element.offsetLeft,
+    top: Number.parseFloat(style.top) || element.offsetTop,
+    width: element.getBoundingClientRect().width,
+    height: element.getBoundingClientRect().height,
+  };
+  const origin = { x: event.clientX, y: event.clientY };
+  const move = (moveEvent) => {
+    const dx = moveEvent.clientX - origin.x;
+    const dy = moveEvent.clientY - origin.y;
+    let { left, top, width, height } = start;
+    if (direction === "move") { left += dx; top += dy; }
+    else {
+      if (direction.includes("e")) width += dx;
+      if (direction.includes("s")) height += dy;
+      if (direction.includes("w")) { left += dx; width -= dx; }
+      if (direction.includes("n")) { top += dy; height -= dy; }
+    }
+    if (width < 18.9) { if (direction.includes("w")) left -= 18.9 - width; width = 18.9; }
+    if (height < 18.9) { if (direction.includes("n")) top -= 18.9 - height; height = 18.9; }
+    if (pageRect) {
+      left = Math.max(0, Math.min(left, pageRect.width - width));
+      top = Math.max(0, Math.min(top, pageRect.height - height));
+    }
+    Object.assign(element.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px` });
+    updateVisualHandles();
+  };
+  const end = () => {
+    handle.removeEventListener("pointermove", move);
+    handle.removeEventListener("pointerup", end);
+    handle.removeEventListener("pointercancel", end);
+    const finalStyle = element.ownerDocument.defaultView.getComputedStyle(element);
+    dispatchProfilePatch(patchElementStyle(currentHtmlSource(), element.getAttribute("data-ut-id"), {
+      left: `${pixelDeltaToMillimetres(Number.parseFloat(finalStyle.left) || 0).toFixed(2)}mm`,
+      top: `${pixelDeltaToMillimetres(Number.parseFloat(finalStyle.top) || 0).toFixed(2)}mm`,
+      width: `${pixelDeltaToMillimetres(element.getBoundingClientRect().width).toFixed(2)}mm`,
+      height: `${pixelDeltaToMillimetres(element.getBoundingClientRect().height).toFixed(2)}mm`,
+    }));
+    populateInspector(element);
+    scheduleVisualRefit(0);
+  };
+  handle.addEventListener("pointermove", move);
+  handle.addEventListener("pointerup", end);
+  handle.addEventListener("pointercancel", end);
+}
+
+function beginGridBoundaryDrag(element, direction, context, event) {
+  event.preventDefault();
+  const handle = event.currentTarget;
+  handle.setPointerCapture(event.pointerId);
+  const origin = { x: event.clientX, y: event.clientY };
+  const horizontalBoundary = direction.includes("w") ? context.columnRange.start : direction.includes("e") ? context.columnRange.end : null;
+  const verticalBoundary = direction.includes("n") ? context.rowRange.start : direction.includes("s") ? context.rowRange.end : null;
+  let columns = context.columns;
+  let rows = context.rows;
+  const move = (moveEvent) => {
+    const dx = moveEvent.clientX - origin.x;
+    const dy = moveEvent.clientY - origin.y;
+    if (horizontalBoundary !== null) columns = resizeTrackBoundary(context.columns, horizontalBoundary, dx) || columns;
+    if (verticalBoundary !== null) rows = resizeTrackBoundary(context.rows, verticalBoundary, dy) || rows;
+    context.container.style.gridTemplateColumns = `${columns.map((value) => `${value}px`).join(" ")}`;
+    context.container.style.gridTemplateRows = `${rows.map((value) => `${value}px`).join(" ")}`;
+    updateVisualHandles();
+  };
+  const end = () => {
+    handle.removeEventListener("pointermove", move);
+    handle.removeEventListener("pointerup", end);
+    handle.removeEventListener("pointercancel", end);
+    dispatchProfilePatch(patchElementStyle(currentHtmlSource(), context.container.getAttribute("data-ut-id"), {
+      "grid-template-columns": tracksToMillimetres(columns),
+      "grid-template-rows": tracksToMillimetres(rows),
+    }));
+    populateInspector(element);
+    scheduleVisualRefit(0);
+  };
+  handle.addEventListener("pointermove", move);
+  handle.addEventListener("pointerup", end);
+  handle.addEventListener("pointercancel", end);
+}
+
+function addVisualHandle(element, direction, callback) {
   const document = element.ownerDocument;
   const handle = document.createElement("button");
   handle.type = "button";
-  handle.className = "ut-visual-resize-handle";
-  handle.title = "Resize this box";
+  handle.dataset.utDirection = direction;
+  handle.className = `ut-visual-handle ut-visual-handle-${direction}`;
+  handle.title = direction === "move" ? "Drag this boxlet" : "Drag this box border";
+  const cursors = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize", ne: "nesw-resize", sw: "nesw-resize", nw: "nwse-resize", se: "nwse-resize", move: "move" };
   Object.assign(handle.style, {
     position: "fixed", width: "14px", height: "14px", zIndex: "2147483647", padding: "0",
-    border: "2px solid white", borderRadius: "50%", background: "#0aa25c", boxShadow: "0 1px 5px rgba(0,0,0,.4)", cursor: "nwse-resize",
+    border: "2px solid white", borderRadius: direction === "move" ? "3px" : "50%", background: direction === "move" ? "#006c76" : "#0aa25c",
+    boxShadow: "0 1px 5px rgba(0,0,0,.4)", cursor: cursors[direction] || "default",
   });
+  handle.addEventListener("pointerdown", callback);
   document.body.append(handle);
-  state.visualResizeHandle = handle;
-  updateResizeHandle();
-  handle.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    handle.setPointerCapture(event.pointerId);
-    const start = element.getBoundingClientRect();
-    const origin = { x: event.clientX, y: event.clientY };
-    const move = (moveEvent) => {
-      element.style.width = `${Math.max(18.9, start.width + moveEvent.clientX - origin.x)}px`;
-      element.style.height = `${Math.max(18.9, start.height + moveEvent.clientY - origin.y)}px`;
-      updateResizeHandle();
-    };
-    const end = () => {
-      handle.removeEventListener("pointermove", move);
-      handle.removeEventListener("pointerup", end);
-      const rect = element.getBoundingClientRect();
-      const id = element.getAttribute("data-ut-id");
-      dispatchProfilePatch(patchElementStyle(currentHtmlSource(), id, {
-        width: `${Math.min(210, rect.width * 25.4 / 96).toFixed(2)}mm`,
-        height: `${Math.min(296.7, rect.height * 25.4 / 96).toFixed(2)}mm`,
-      }));
-      populateInspector(element);
-    };
-    handle.addEventListener("pointermove", move);
-    handle.addEventListener("pointerup", end);
-  });
+  state.visualHandles.push(handle);
+}
+
+function attachVisualHandles(element) {
+  clearVisualHandles();
+  if (!element.hasAttribute("data-ut-box")) return;
+  const position = element.ownerDocument.defaultView.getComputedStyle(element).position;
+  if (position === "absolute" || position === "fixed") {
+    for (const direction of ["n", "ne", "e", "se", "s", "sw", "w", "nw", "move"]) {
+      addVisualHandle(element, direction, (event) => beginAbsoluteBoxDrag(element, direction, event));
+    }
+  } else {
+    const context = gridResizeContext(element);
+    if (!context) return;
+    const directions = [];
+    if (context.rowRange.start > 0) directions.push("n");
+    if (context.rowRange.end < context.rows.length) directions.push("s");
+    if (context.columnRange.start > 0) directions.push("w");
+    if (context.columnRange.end < context.columns.length) directions.push("e");
+    if (directions.includes("n") && directions.includes("w")) directions.push("nw");
+    if (directions.includes("n") && directions.includes("e")) directions.push("ne");
+    if (directions.includes("s") && directions.includes("w")) directions.push("sw");
+    if (directions.includes("s") && directions.includes("e")) directions.push("se");
+    for (const direction of directions) addVisualHandle(element, direction, (event) => beginGridBoundaryDrag(element, direction, context, event));
+  }
+  updateVisualHandles();
 }
 
 function selectVisualElement(element) {
@@ -745,26 +888,29 @@ function selectVisualElement(element) {
   element.style.outline = "2px solid #0aa25c";
   element.style.outlineOffset = "2px";
   populateInspector(element);
-  attachResizeHandle(element);
+  attachVisualHandles(element);
   if (!element.hasAttribute("data-ut-editable")) return;
   const id = element.getAttribute("data-ut-id");
-  state.visualEditor = new TiptapEditor({
+  const previousContentEditable = element.getAttribute("contenteditable");
+  const previousSpellcheck = element.getAttribute("spellcheck");
+  const sync = () => {
+    try {
+      dispatchProfilePatch(patchEditableHtml(currentHtmlSource(), id, element.innerHTML));
+      scheduleVisualRefit();
+    } catch (error) { toast(error.message, "error", 6500); }
+  };
+  element.setAttribute("contenteditable", "true");
+  element.setAttribute("spellcheck", "true");
+  element.addEventListener("input", sync);
+  state.visualEditor = {
     element,
-    extensions: [
-      StarterKit.configure({ link: false, underline: false, undoRedo: false }),
-      Link.configure({ openOnClick: false }),
-      Underline,
-      TextStyle,
-      Color,
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
-    ],
-    content: element.innerHTML,
-    injectCSS: false,
-    onUpdate: ({ editor }) => {
-      try { dispatchProfilePatch(patchEditableHtml(currentHtmlSource(), id, editor.getHTML())); }
-      catch (error) { toast(error.message, "error", 6500); }
+    sync,
+    destroy() {
+      element.removeEventListener("input", sync);
+      if (previousContentEditable === null) element.removeAttribute("contenteditable"); else element.setAttribute("contenteditable", previousContentEditable);
+      if (previousSpellcheck === null) element.removeAttribute("spellcheck"); else element.setAttribute("spellcheck", previousSpellcheck);
     },
-  });
+  };
 }
 
 async function loadHtmlVisual() {
@@ -793,24 +939,30 @@ async function loadHtmlVisual() {
           dispatchProfilePatch(patchElementAttributes(currentHtmlSource(), target.getAttribute("data-ut-id"), { [control.dataset.utAttribute]: control.value }));
           if (control.value) target?.setAttribute(control.dataset.utAttribute, control.value); else target?.removeAttribute(control.dataset.utAttribute);
         }
-        updateResizeHandle();
+        updateVisualHandles();
+        scheduleVisualRefit();
       } catch (error) { toast(error.message, "error", 6500); }
     });
   }
   state.htmlVisualShell.hidden = false;
   const frame = state.htmlVisualFrame;
-  frame.onload = () => {
-    const document = frame.contentDocument;
-    document.addEventListener("click", (event) => {
-      const selected = event.target.closest("[data-ut-id]");
-      if (!selected) return;
-      event.preventDefault();
-      selectVisualElement(selected);
-    });
-    document.addEventListener("scroll", updateResizeHandle, true);
-    selectVisualElement(document.querySelector("[data-ut-editable]") || document.querySelector("[data-ut-id]"));
-  };
-  frame.src = `${projectApi("html-source")}?path=${encodeURIComponent(state.activePath)}&v=${Date.now()}`;
+  await new Promise((resolve) => {
+    frame.onload = () => {
+      const document = frame.contentDocument;
+      document.addEventListener("click", (event) => {
+        const selected = event.target.closest("[data-ut-id]");
+        if (!selected) return;
+        event.preventDefault();
+        selectVisualElement(selected);
+      });
+      document.addEventListener("scroll", updateVisualHandles, true);
+      document.defaultView.addEventListener("resize", updateVisualHandles);
+      selectVisualElement(document.querySelector("[data-ut-editable]") || document.querySelector("[data-ut-id]"));
+      scheduleVisualRefit(0);
+      resolve();
+    };
+    frame.src = `${projectApi("html-source")}?path=${encodeURIComponent(state.activePath)}&v=${Date.now()}`;
+  });
 }
 
 async function setHtmlMode(mode) {
@@ -827,23 +979,65 @@ async function setHtmlMode(mode) {
 
 function runVisualCommand(command, value) {
   const editor = state.visualEditor;
-  if (!editor) return toast("Select an editable text region first.", "error");
-  const chain = editor.chain().focus();
-  if (command === "bold") chain.toggleBold().run();
-  else if (command === "italic") chain.toggleItalic().run();
-  else if (command === "underline") chain.toggleUnderline().run();
-  else if (command === "bulletList") chain.toggleBulletList().run();
-  else if (command === "orderedList") chain.toggleOrderedList().run();
-  else if (command === "hardBreak") chain.setHardBreak().run();
-  else if (command === "align") chain.setTextAlign(value).run();
-  else if (command === "color") chain.setColor(value).run();
-  else if (command === "paragraph") chain.setParagraph().run();
-  else if (command === "heading") chain.toggleHeading({ level: Number(value) }).run();
-  else if (command === "link") {
-    const href = prompt("Link URL", editor.getAttributes("link").href || "https://");
-    if (href === null) return;
-    if (!href) chain.unsetLink().run(); else chain.extendMarkRange("link").setLink({ href }).run();
+  const element = editor?.element;
+  const document = element?.ownerDocument;
+  if (!editor || !document) return toast("Select an editable text region first.", "error");
+  document.defaultView.focus();
+  document.execCommand("styleWithCSS", false, true);
+  if (command === "bold") document.execCommand("bold");
+  else if (command === "italic") document.execCommand("italic");
+  else if (command === "underline") document.execCommand("underline");
+  else if (command === "bulletList") document.execCommand("insertUnorderedList");
+  else if (command === "orderedList") document.execCommand("insertOrderedList");
+  else if (command === "hardBreak" && !document.execCommand("insertLineBreak")) document.execCommand("insertHTML", false, "<br>");
+  else if (command === "align") document.execCommand({ left: "justifyLeft", center: "justifyCenter", right: "justifyRight" }[value] || "justifyLeft");
+  else if (command === "color") document.execCommand("foreColor", false, value);
+  else if (command === "fontSize") {
+    document.execCommand("fontSize", false, "7");
+    for (const font of element.querySelectorAll('font[size="7"]')) {
+      const span = document.createElement("span");
+      span.style.fontSize = value || "inherit";
+      span.append(...font.childNodes);
+      font.replaceWith(span);
+    }
   }
+  else if (command === "paragraph") document.execCommand("formatBlock", false, "p");
+  else if (command === "heading") document.execCommand("formatBlock", false, `h${Number(value)}`);
+  else if (command === "link") {
+    const selection = document.getSelection();
+    const anchor = selection?.anchorNode?.nodeType === 1 ? selection.anchorNode : selection?.anchorNode?.parentElement;
+    const href = prompt("Link URL", anchor?.closest?.("a")?.getAttribute("href") || "https://");
+    if (href === null) return;
+    if (!href) document.execCommand("unlink"); else document.execCommand("createLink", false, href);
+  }
+  editor.sync();
+}
+
+async function addVisualBoxlet() {
+  if (!isHtmlSource()) return;
+  const document = state.htmlVisualFrame?.contentDocument;
+  const page = state.visualSelection?.closest("[data-ut-page]") || document?.querySelector("[data-ut-page]");
+  if (!page?.hasAttribute("data-ut-id")) return toast("Select an A4 page before adding a boxlet.", "error", 5000);
+  try {
+    const patch = insertBoxlet(currentHtmlSource(), page.getAttribute("data-ut-id"));
+    dispatchProfilePatch(patch);
+    await loadHtmlVisual();
+    const added = state.htmlVisualFrame?.contentDocument?.querySelector(`[data-ut-id="${CSS.escape(patch.id)}"]`);
+    if (added) selectVisualElement(added);
+    toast("Adaptive boxlet added. Drag its teal handle to move it and its border handles to resize it.");
+  } catch (error) { toast(error.message, "error", 6500); }
+}
+
+async function deleteVisualObject() {
+  const element = state.visualSelection;
+  if (!element) return toast("Select a boxlet first.", "error");
+  const id = element.getAttribute("data-ut-id");
+  if (!confirm(`Delete “${id}”? You can use Undo to restore it.`)) return;
+  try {
+    dispatchProfilePatch(removeVisualElement(currentHtmlSource(), id));
+    await loadHtmlVisual();
+    toast(`${id} deleted.`);
+  } catch (error) { toast(error.message, "error", 6500); }
 }
 
 function scheduleHtmlCompile() {
@@ -2028,7 +2222,11 @@ function bindEvents() {
   $("#insert-cite").addEventListener("click", () => isHtmlSource() ? runVisualCommand("link") : isLayoutSource() ? toast("Use a semantic <link> or plain citation text in adaptive layouts.") : wrapSelection("\\cite{", "}"));
   elements.htmlModeToggle.querySelectorAll("[data-html-mode]").forEach((button) => button.addEventListener("click", () => { void setHtmlMode(button.dataset.htmlMode); }));
   $("#export-html").addEventListener("click", () => compileProject({ exportTex: true }));
+  $("#html-add-boxlet").addEventListener("click", () => { void addVisualBoxlet(); });
+  $("#html-delete-object").addEventListener("click", () => { void deleteVisualObject(); });
+  $("#html-refit").addEventListener("click", () => { void refitVisualDocument({ announce: true }); });
   $("#html-block-style").addEventListener("change", (event) => event.target.value === "paragraph" ? runVisualCommand("paragraph") : runVisualCommand("heading", event.target.value));
+  $("#html-font-size").addEventListener("change", (event) => runVisualCommand("fontSize", event.target.value));
   elements.htmlVisualToolbar.querySelectorAll("[data-html-command]").forEach((button) => button.addEventListener("click", () => runVisualCommand(button.dataset.htmlCommand)));
   elements.htmlVisualToolbar.querySelectorAll("[data-html-align]").forEach((button) => button.addEventListener("click", () => runVisualCommand("align", button.dataset.htmlAlign)));
   $("#html-text-color").addEventListener("input", (event) => runVisualCommand("color", event.target.value));

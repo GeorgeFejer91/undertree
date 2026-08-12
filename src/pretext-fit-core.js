@@ -1,12 +1,16 @@
 const MM_PER_CSS_PX = 25.4 / 96;
 
+function computedStyle(element) {
+  return element.ownerDocument.defaultView.getComputedStyle(element);
+}
+
 function numberAttribute(element, name, fallback) {
   const value = Number.parseFloat(element.getAttribute(name));
   return Number.isFinite(value) ? value : fallback;
 }
 
 function cssFont(element, size) {
-  const style = getComputedStyle(element);
+  const style = computedStyle(element);
   return `${style.fontStyle} ${style.fontWeight} ${size}px ${style.fontFamily}`;
 }
 
@@ -17,7 +21,7 @@ function inlineItems(block, size) {
     const node = walker.currentNode;
     if (!node.nodeValue) continue;
     const parent = node.parentElement || block;
-    const style = getComputedStyle(parent);
+    const style = computedStyle(parent);
     items.push({
       text: node.nodeValue,
       font: `${style.fontStyle} ${style.fontWeight} ${size}px ${style.fontFamily}`,
@@ -28,12 +32,15 @@ function inlineItems(block, size) {
 }
 
 function contentBlocks(element) {
-  const blocks = [...element.querySelectorAll(":scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6, :scope > p, :scope > ul, :scope > ol, :scope > li")];
+  const selector = ":scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6, :scope > p, :scope > ul, :scope > ol, :scope > li";
+  const direct = [...element.querySelectorAll(selector)];
+  const editor = element.querySelector(":scope > .ProseMirror");
+  const blocks = direct.length ? direct : editor ? [...editor.querySelectorAll(selector)] : [];
   return blocks.length ? blocks : [element];
 }
 
 function prediction(element, size, lineHeight, gap, pretextRich) {
-  const style = getComputedStyle(element);
+  const style = computedStyle(element);
   const availableWidth = Math.max(1, element.clientWidth - (Number.parseFloat(style.paddingLeft) || 0) - (Number.parseFloat(style.paddingRight) || 0));
   let height = 0;
   let lines = 0;
@@ -63,7 +70,7 @@ function actualFits(element) {
 }
 
 function bounds(element) {
-  const computed = getComputedStyle(element);
+  const computed = computedStyle(element);
   const current = Number.parseFloat(computed.fontSize) || 14;
   const minFont = numberAttribute(element, "data-ut-fit-min-font", Math.max(7, current * 0.72));
   const maxFont = numberAttribute(element, "data-ut-fit-max-font", current);
@@ -75,7 +82,7 @@ function bounds(element) {
 }
 
 function predictedFits(element, values, pretextRich) {
-  const style = getComputedStyle(element);
+  const style = computedStyle(element);
   const availableHeight = element.clientHeight - (Number.parseFloat(style.paddingTop) || 0) - (Number.parseFloat(style.paddingBottom) || 0);
   const predicted = prediction(element, values.fontSize, values.lineHeight, values.gap, pretextRich).height <= availableHeight + 0.25;
   setFit(element, values);
@@ -158,7 +165,8 @@ export async function fitPrintDocument(document, { pretextRich, timeoutMs = 1000
       resolved.push({ dataUtId: element.getAttribute("data-ut-id") || "", ...values });
     }
   }
-  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const view = document.defaultView;
+  await new Promise((resolve) => view.requestAnimationFrame(() => view.requestAnimationFrame(resolve)));
   for (const element of elements) {
     if (!actualFits(element)) diagnostics.push({
       code: "overflow",
@@ -200,7 +208,7 @@ function lineFragments(document, pages) {
     const pageIndex = pageFor(owner, pages);
     if (pageIndex < 0) continue;
     const pageRect = pages[pageIndex].getBoundingClientRect();
-    const style = getComputedStyle(owner);
+    const style = computedStyle(owner);
     let current = null;
     for (let index = 0; index < node.nodeValue.length; index += 1) {
       const range = document.createRange();
@@ -237,7 +245,7 @@ function lineFragments(document, pages) {
 
 function listMarkerFragments(document, pages) {
   return [...document.querySelectorAll("li")].flatMap((element) => {
-    const style = getComputedStyle(element);
+    const style = computedStyle(element);
     if (style.listStyleType === "none") return [];
     const pageIndex = pageFor(element, pages);
     const pageRect = pages[pageIndex].getBoundingClientRect();
@@ -266,7 +274,7 @@ function listMarkerFragments(document, pages) {
 
 function renderedImageRect(element) {
   const rect = element.getBoundingClientRect();
-  const style = getComputedStyle(element);
+  const style = computedStyle(element);
   const naturalWidth = element.naturalWidth || rect.width;
   const naturalHeight = element.naturalHeight || rect.height;
   if (style.objectFit !== "contain" || !naturalWidth || !naturalHeight) return rect;
@@ -283,7 +291,7 @@ export function captureLayoutManifest(document, fitResult = {}) {
   const pageRects = pages.map((page) => page.getBoundingClientRect());
   const objects = [...document.querySelectorAll("[data-ut-id]")].map((element) => {
     const pageIndex = pageFor(element, pages);
-    const style = getComputedStyle(element);
+    const style = computedStyle(element);
     return {
       page: pageIndex + 1,
       dataUtId: element.getAttribute("data-ut-id"),
