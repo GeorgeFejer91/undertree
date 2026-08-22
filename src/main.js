@@ -14,6 +14,7 @@ import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import { pdfSourceTree } from "./file-tree-filter.js";
 import { absoluteProjectPath, dirnamePath, pathIsEntry, remapPath } from "./file-tree-actions.js";
 import { boundedPdfOutputScale, clampPdfPage, destroyPdfResource, nextPdfScale } from "./pdf-viewer-state.js";
+import { PDF_PREVIEW_CACHE_LIMIT, pdfPreviewCacheKey, pdfPreviewEvictionKeys, touchPdfPreviewCache } from "./pdf-preview-cache.js";
 import { normalizeProjectSort, projectActivityTime, sortProjects } from "./project-sorting.js";
 import { isSelectedTexPdfTarget, shouldReuseSelectedPdf } from "./tex-recovery.js";
 import { EXTERNAL_TEX_SCAN_MS, LIVE_COMPILE_DELAY_MS, externalTexChanged } from "./tex-monitor.js";
@@ -118,6 +119,7 @@ const state = {
   pdfLoadingTask: null,
   pdfProjectId: "",
   pdfSourcePath: "",
+  pdfFingerprint: "",
   pdfStale: false,
   pdfPage: 1,
   pdfScale: null,
@@ -129,6 +131,7 @@ const state = {
   pdfPageObserver: null,
   pdfScrollFrame: null,
   pdfResizeTimer: null,
+  pdfCache: new Map(),
   autoCompileMode: "0",
   autoCompileTimer: null,
   autoCompileChangeTimer: null,
@@ -1183,10 +1186,16 @@ async function refreshOrCompileSelectedTex(path) {
   const tab = state.tabs.get(path);
   const sourcePath = previewSourcePath(path);
   if (!projectId || !tab || state.activePath !== path) return false;
+  // Restore a parsed PDF and its already-painted canvases before making any
+  // server request. The lightweight fingerprint check below then confirms
+  // whether this instant preview is still current.
+  const bufferedKey = pdfPreviewCacheKey(projectId, sourcePath);
+  const bufferedPreview = state.pdfCache.get(bufferedKey);
+  if (bufferedPreview) await activateBufferedPdf(bufferedKey, bufferedPreview);
   if (isHtmlSource(path)) {
     try {
       const info = await api(`${projectApi("pdf-info")}?sourcePath=${encodeURIComponent(sourcePath)}`);
-      if (info.available && !info.stale && !tab.dirty) return refreshPdf(sourcePath);
+      if (info.available && !info.stale && !tab.dirty) return refreshPdf(sourcePath, { fingerprint: info.fingerprint });
       scheduleHtmlCompile();
       return false;
     } catch (error) {
@@ -1201,12 +1210,12 @@ async function refreshOrCompileSelectedTex(path) {
   try {
     const info = await api(`${projectApi("pdf-info")}?sourcePath=${encodeURIComponent(sourcePath)}`);
     if (projectId !== state.currentProject?.id || path !== state.activePath) return false;
-    if (shouldReuseSelectedPdf(info) && !tab.dirty) return refreshPdf(sourcePath, { stale: false });
+    if (shouldReuseSelectedPdf(info) && !tab.dirty) return refreshPdf(sourcePath, { stale: false, fingerprint: info.fingerprint });
     // Switch to the source's existing PDF immediately, then rebuild it in the
     // background when the TeX source is newer. This keeps tab switching fast
     // without leaving a stale preview in place.
     let cachedPreviewShown = false;
-    if (info.available) cachedPreviewShown = await refreshPdf(sourcePath, { stale: true });
+    if (info.available) cachedPreviewShown = await refreshPdf(sourcePath, { stale: true, fingerprint: info.fingerprint });
     if (state.compileInFlight) {
       state.pendingTexSelection = `${projectId}:${path}`;
       return cachedPreviewShown;
@@ -1428,18 +1437,111 @@ async function selectProject(id) {
   }
 }
 
-async function refreshPdf(sourcePath = previewSourcePath(), { stale } = {}) {
+function activePdfCacheKey() {
+  return pdfPreviewCacheKey(state.pdfProjectId, state.pdfSourcePath);
+}
+
+function rememberActivePdfPreview() {
+  const key = activePdfCacheKey();
+  const entry = key ? state.pdfCache.get(key) : null;
+  if (!entry || entry.document !== state.pdfDocument) return null;
+  Object.assign(entry, {
+    container: elements.pdfPages,
+    stale: state.pdfStale,
+    page: state.pdfPage,
+    scale: state.pdfScale,
+    currentScale: state.pdfCurrentScale,
+    scrollLeft: elements.pdfViewer.scrollLeft,
+    scrollTop: elements.pdfViewer.scrollTop,
+  });
+  return touchPdfPreviewCache(state.pdfCache, key, entry);
+}
+
+function updateActivePdfBuffer() {
+  const key = activePdfCacheKey();
+  const entry = key ? state.pdfCache.get(key) : null;
+  if (!entry || entry.document !== state.pdfDocument) return;
+  Object.assign(entry, {
+    container: elements.pdfPages,
+    stale: state.pdfStale,
+    page: state.pdfPage,
+    scale: state.pdfScale,
+    currentScale: state.pdfCurrentScale,
+    scrollLeft: elements.pdfViewer.scrollLeft,
+    scrollTop: elements.pdfViewer.scrollTop,
+  });
+}
+
+function showPdfPreviewShell(sourceQuery) {
+  elements.htmlProof.hidden = true;
+  elements.htmlProof.removeAttribute("src");
+  clearNativePdfFallback();
+  elements.pdfViewer.classList.add("visible");
+  elements.pdfPlaceholder.classList.add("hidden");
+  elements.downloadPdf.href = `${projectApi("pdf")}?${sourceQuery}download=1`;
+  elements.downloadPdf.classList.remove("disabled");
+  elements.downloadPdf.removeAttribute("aria-disabled");
+}
+
+async function activateBufferedPdf(key, entry, { stale = entry.stale } = {}) {
+  rememberActivePdfPreview();
+  cancelPdfRenders();
+  state.pdfDocument = entry.document;
+  state.pdfLoadingTask = entry.loadingTask;
+  state.pdfProjectId = entry.projectId;
+  state.pdfSourcePath = entry.sourcePath;
+  state.pdfFingerprint = entry.fingerprint;
+  state.pdfStale = Boolean(stale);
+  state.pdfPage = Math.min(entry.page || 1, entry.document.numPages);
+  state.pdfScale = entry.scale ?? null;
+  state.pdfCurrentScale = entry.currentScale || 1;
+  if (entry.container !== elements.pdfPages) {
+    elements.pdfPages.replaceWith(entry.container);
+    elements.pdfPages = entry.container;
+  }
+  elements.previewPane?.classList.toggle("stale-pdf", state.pdfStale);
+  const sourceQuery = entry.sourcePath ? `sourcePath=${encodeURIComponent(entry.sourcePath)}&` : "";
+  showPdfPreviewShell(sourceQuery);
+  elements.pdfViewer.dataset.buffered = "true";
+  elements.pdfViewer.dataset.previewSource = entry.sourcePath;
+  setupPdfObserver();
+  elements.pdfViewer.scrollTo({ left: entry.scrollLeft || 0, top: entry.scrollTop || 0 });
+  updatePdfToolbar();
+  touchPdfPreviewCache(state.pdfCache, key, entry);
+  return true;
+}
+
+async function storeBufferedPdf(key, entry) {
+  touchPdfPreviewCache(state.pdfCache, key, entry);
+  for (const evictedKey of pdfPreviewEvictionKeys(state.pdfCache, activePdfCacheKey(), PDF_PREVIEW_CACHE_LIMIT)) {
+    const evicted = state.pdfCache.get(evictedKey);
+    state.pdfCache.delete(evictedKey);
+    evicted?.container?.remove();
+    if (evicted) await destroyPdfResource(evicted.loadingTask, evicted.document);
+  }
+}
+
+async function refreshPdf(sourcePath = previewSourcePath(), { stale, fingerprint = "", forceReload = false } = {}) {
   if (!state.currentProject) return;
   const requestedSource = String(sourcePath || "");
   const refreshVersion = ++state.pdfRefreshVersion;
   const projectId = state.currentProject.id;
+  const cacheKey = pdfPreviewCacheKey(projectId, requestedSource);
+  const buffered = state.pdfCache.get(cacheKey);
+  if (!forceReload && buffered && (!fingerprint || buffered.fingerprint === fingerprint)) {
+    return activateBufferedPdf(cacheKey, buffered, { stale: stale ?? buffered.stale });
+  }
   const previousDocument = state.pdfDocument;
   const previousLoadingTask = state.pdfLoadingTask;
   const previousProjectId = state.pdfProjectId;
   const previousSourcePath = state.pdfSourcePath;
+  const previousFingerprint = state.pdfFingerprint;
   const previousStale = state.pdfStale;
   const previousPage = state.pdfPage;
   const previousScale = state.pdfScale;
+  const previousCurrentScale = state.pdfCurrentScale;
+  const previousContainer = elements.pdfPages;
+  const restorePrevious = Boolean(previousDocument && previousProjectId === state.currentProject.id);
   const preserveExisting = Boolean(previousDocument
     && previousProjectId === state.currentProject.id
     && previousSourcePath === requestedSource);
@@ -1452,32 +1554,46 @@ async function refreshPdf(sourcePath = previewSourcePath(), { stale } = {}) {
     const sourceQuery = requestedSource ? `sourcePath=${encodeURIComponent(requestedSource)}&` : "";
     const response = await fetch(`${projectApi("pdf")}?${sourceQuery}v=${Date.now()}`, { cache: "no-store", credentials: "same-origin" });
     if (!response.ok) throw new Error(`PDF request failed (${response.status})`);
+    const responseFingerprint = response.headers.get("X-UnderTree-PDF-Fingerprint") || fingerprint;
     previewData = await response.arrayBuffer();
     const pdfjs = await loadPdfjs();
     nextLoadingTask = pdfjs.getDocument({ data: previewData });
     nextDocument = await nextLoadingTask.promise;
     if (refreshVersion !== state.pdfRefreshVersion || projectId !== state.currentProject?.id) throw new Error("PDF refresh superseded");
+    rememberActivePdfPreview();
     const sameSource = previousProjectId === state.currentProject.id && previousSourcePath === requestedSource;
     state.pdfDocument = nextDocument;
     state.pdfLoadingTask = nextLoadingTask;
     state.pdfProjectId = state.currentProject.id;
     state.pdfSourcePath = requestedSource;
+    state.pdfFingerprint = responseFingerprint;
     state.pdfStale = Boolean(requestedStale);
     elements.previewPane?.classList.toggle("stale-pdf", state.pdfStale);
     state.pdfPage = sameSource ? Math.min(previousPage, nextDocument.numPages) : 1;
     state.pdfScale = sameSource ? previousScale : null;
     if (!(await renderPdfPages({ viewAnchor, resetScroll: !sameSource }))) throw new Error("PDF rendering was superseded");
     if (refreshVersion !== state.pdfRefreshVersion || projectId !== state.currentProject?.id) throw new Error("PDF refresh superseded");
-    elements.htmlProof.hidden = true;
-    elements.htmlProof.removeAttribute("src");
-    clearNativePdfFallback();
-    elements.pdfViewer.classList.add("visible");
-    elements.pdfPlaceholder.classList.add("hidden");
-    elements.downloadPdf.href = `${projectApi("pdf")}?${sourceQuery}download=1`;
-    elements.downloadPdf.classList.remove("disabled");
-    elements.downloadPdf.removeAttribute("aria-disabled");
-    if (previousDocument && previousDocument !== nextDocument) {
-      await destroyPdfResource(previousLoadingTask, previousDocument);
+    showPdfPreviewShell(sourceQuery);
+    elements.pdfViewer.dataset.buffered = "false";
+    elements.pdfViewer.dataset.previewSource = requestedSource;
+    const replacedBuffer = state.pdfCache.get(cacheKey);
+    await storeBufferedPdf(cacheKey, {
+      projectId,
+      sourcePath: requestedSource,
+      fingerprint: responseFingerprint,
+      document: nextDocument,
+      loadingTask: nextLoadingTask,
+      container: elements.pdfPages,
+      stale: state.pdfStale,
+      page: state.pdfPage,
+      scale: state.pdfScale,
+      currentScale: state.pdfCurrentScale,
+      scrollLeft: elements.pdfViewer.scrollLeft,
+      scrollTop: elements.pdfViewer.scrollTop,
+    });
+    if (replacedBuffer && replacedBuffer.document !== nextDocument) {
+      replacedBuffer.container?.remove();
+      await destroyPdfResource(replacedBuffer.loadingTask, replacedBuffer.document);
     }
     return true;
   } catch (error) {
@@ -1491,15 +1607,23 @@ async function refreshPdf(sourcePath = previewSourcePath(), { stale } = {}) {
     if (nextLoadingTask && nextLoadingTask !== previousLoadingTask) {
       await destroyPdfResource(nextLoadingTask, nextDocument);
     }
-    state.pdfDocument = preserveExisting ? previousDocument : null;
-    state.pdfLoadingTask = preserveExisting ? previousLoadingTask : null;
-    state.pdfProjectId = preserveExisting ? previousProjectId : "";
-    state.pdfSourcePath = preserveExisting ? previousSourcePath : "";
-    state.pdfStale = preserveExisting ? previousStale : false;
+    state.pdfDocument = restorePrevious ? previousDocument : null;
+    state.pdfLoadingTask = restorePrevious ? previousLoadingTask : null;
+    state.pdfProjectId = restorePrevious ? previousProjectId : "";
+    state.pdfSourcePath = restorePrevious ? previousSourcePath : "";
+    state.pdfFingerprint = restorePrevious ? previousFingerprint : "";
+    state.pdfStale = restorePrevious ? previousStale : false;
     elements.previewPane?.classList.toggle("stale-pdf", state.pdfStale);
-    state.pdfPage = preserveExisting ? previousPage : 1;
-    state.pdfScale = preserveExisting ? previousScale : null;
-    if (preserveExisting) setupPdfObserver();
+    state.pdfPage = restorePrevious ? previousPage : 1;
+    state.pdfScale = restorePrevious ? previousScale : null;
+    state.pdfCurrentScale = restorePrevious ? previousCurrentScale : 1;
+    if (restorePrevious) {
+      if (previousContainer !== elements.pdfPages) {
+        elements.pdfPages.replaceWith(previousContainer);
+        elements.pdfPages = previousContainer;
+      }
+      setupPdfObserver();
+    }
     else if (previewData?.byteLength) return showNativePdfFallback(previewData, sourceQuery, requestedSource);
     else await clearPdfPreview(previousDocument, previousLoadingTask);
     appendCompileLog(`[PDF preview] ${error?.message || String(error)}`);
@@ -1540,6 +1664,7 @@ async function clearPdfPreview(document = state.pdfDocument, loadingTask = state
   state.pdfLoadingTask = null;
   state.pdfProjectId = "";
   state.pdfSourcePath = "";
+  state.pdfFingerprint = "";
   state.pdfStale = false;
   elements.previewPane?.classList.remove("stale-pdf");
   state.pdfPage = 1;
@@ -1547,6 +1672,8 @@ async function clearPdfPreview(document = state.pdfDocument, loadingTask = state
   clearNativePdfFallback();
   elements.pdfPages.replaceChildren();
   elements.pdfViewer.classList.remove("visible");
+  delete elements.pdfViewer.dataset.buffered;
+  delete elements.pdfViewer.dataset.previewSource;
   elements.pdfViewer.removeAttribute("aria-busy");
   elements.pdfPlaceholder.classList.remove("hidden");
   elements.downloadPdf.removeAttribute("href");
@@ -1575,6 +1702,7 @@ function setPdfStale(stale) {
   state.pdfStale = Boolean(stale && state.pdfDocument);
   elements.previewPane?.classList.toggle("stale-pdf", state.pdfStale);
   updatePdfToolbar();
+  updateActivePdfBuffer();
 }
 
 function updatePdfToolbar() {
@@ -1621,8 +1749,17 @@ async function renderPdfPageElement(pageNumber, { document = state.pdfDocument, 
   const pageElement = container.querySelector(`.pdf-page[data-page-number="${pageNumber}"]`);
   if (!pageElement || pageElement.dataset.rendered === "true" || pageElement.dataset.rendering === "true") return Boolean(pageElement);
   pageElement.dataset.rendering = "true";
-  const pdfPage = page || await document.getPage(pageNumber);
-  if (version !== state.pdfRenderVersion || document !== state.pdfDocument) return false;
+  let pdfPage;
+  try {
+    pdfPage = page || await document.getPage(pageNumber);
+  } catch (error) {
+    delete pageElement.dataset.rendering;
+    throw error;
+  }
+  if (version !== state.pdfRenderVersion || document !== state.pdfDocument) {
+    delete pageElement.dataset.rendering;
+    return false;
+  }
   const viewport = pdfPage.getViewport({ scale: state.pdfCurrentScale });
   pageElement.style.width = `${Math.floor(viewport.width)}px`;
   pageElement.style.height = `${Math.floor(viewport.height)}px`;
@@ -1644,10 +1781,10 @@ async function renderPdfPageElement(pageNumber, { document = state.pdfDocument, 
     return false;
   } finally {
     if (state.pdfRenderTasks.get(pageNumber) === renderTask) state.pdfRenderTasks.delete(pageNumber);
+    delete pageElement.dataset.rendering;
   }
   if (version !== state.pdfRenderVersion || document !== state.pdfDocument) return false;
   pageElement.dataset.rendered = "true";
-  delete pageElement.dataset.rendering;
   return true;
 }
 
@@ -1690,6 +1827,7 @@ function syncCurrentPdfPage() {
     state.pdfPage = current;
     updatePdfToolbar();
   }
+  updateActivePdfBuffer();
 }
 
 function schedulePdfScrollSync() {
@@ -1741,6 +1879,7 @@ async function renderPdfPages({ viewAnchor = null, resetScroll = false } = {}) {
     if (resetScroll) elements.pdfViewer.scrollTo({ left: 0, top: 0 });
     else restorePdfViewAnchor(viewAnchor);
     updatePdfToolbar();
+    updateActivePdfBuffer();
     requestAnimationFrame(() => {
       syncCurrentPdfPage();
       const current = state.pdfPage;
@@ -1770,6 +1909,7 @@ function changePdfPage(delta) {
   }
   state.pdfPage = nextPage;
   updatePdfToolbar();
+  updateActivePdfBuffer();
   const page = elements.pdfPages.querySelector(`.pdf-page[data-page-number="${nextPage}"]`);
   renderPdfPageElement(nextPage).catch((error) => toast(error.message, "error"));
   if (page) {
@@ -1886,6 +2026,11 @@ async function scanSelectedTexForExternalChanges() {
       void compileProject({ automatic: true });
       return true;
     }
+    const buffered = state.pdfCache.get(pdfPreviewCacheKey(projectId, path));
+    if (info.fingerprint && buffered && buffered.fingerprint !== info.fingerprint) {
+      await refreshPdf(path, { stale: false, fingerprint: info.fingerprint });
+      return true;
+    }
   } catch (error) {
     appendCompileLog(`[External TeX scan] ${error.message}`);
   }
@@ -1941,7 +2086,7 @@ async function monitorCodexRecovery(initial, projectId, sourcePath, { quiet = fa
         if (recovery.state === "fixed" && state.currentProject?.id === projectId) {
           const conflicts = await reloadCleanTabsFromDisk();
           await refreshTree();
-          if (previewSourcePath() === sourcePath) await refreshPdf(sourcePath, { stale: false });
+          if (previewSourcePath() === sourcePath) await refreshPdf(sourcePath, { stale: false, forceReload: true });
           if (!quiet) {
             toast(recovery.message, "success", 6500);
             status("PDF refreshed");
@@ -2054,7 +2199,7 @@ async function compileProject({ clean = false, automatic = false, exportTex = fa
       }
       await saveFile(sourceTab, { flush: true });
     }
-    if (state.currentProject?.id === projectId && previewSourcePath() === sourcePath && !(await refreshPdf(sourcePath, { stale: false }))) {
+    if (state.currentProject?.id === projectId && previewSourcePath() === sourcePath && !(await refreshPdf(sourcePath, { stale: false, forceReload: true }))) {
       appendCompileLog("The PDF compiled successfully, but its preview could not be refreshed.");
       toast("PDF compiled, but the preview renderer failed. The PDF remains available for download.", "error", 8000);
       status("PDF compiled; preview unavailable");
@@ -2275,7 +2420,7 @@ function bindEvents() {
     renderProjectDialog(elements.projectFilter.value);
   });
   $("#refresh-project").addEventListener("click", async () => {
-    await Promise.all([refreshTree(), refreshGitStatus(), refreshPdf()]);
+    await Promise.all([refreshTree(), refreshGitStatus(), refreshPdf(previewSourcePath(), { forceReload: true })]);
     toast("Local project refreshed.");
   });
   $$(".rail-button").forEach((button) => button.addEventListener("click", () => switchLeftPanel(button.dataset.panel)));
@@ -2344,7 +2489,7 @@ function bindEvents() {
   $("#toggle-logs").addEventListener("click", () => showLogs());
   elements.downloadAllPdfs.addEventListener("click", downloadAllPdfs);
   $("#close-logs").addEventListener("click", () => showLogs(false));
-  $("#reload-pdf").addEventListener("click", () => refreshPdf());
+  $("#reload-pdf").addEventListener("click", () => refreshPdf(previewSourcePath(), { forceReload: true }));
   $("#pdf-previous").addEventListener("click", () => changePdfPage(-1));
   $("#pdf-next").addEventListener("click", () => changePdfPage(1));
   $("#pdf-zoom-out").addEventListener("click", () => zoomPdf(0.82));

@@ -1487,6 +1487,10 @@ function pdfDownloadName(pdfPath) {
   return pdfPath ? basename(pdfPath) : "document.pdf";
 }
 
+function pdfFingerprint(metadata) {
+  return metadata ? `${metadata.size}:${Math.trunc(metadata.mtimeMs)}` : "";
+}
+
 async function handleApi(req, res, url) {
   if (!authenticated(req)) throw httpError(403, "Authentication required");
   validateMutationOrigin(req);
@@ -1671,18 +1675,23 @@ async function handleApi(req, res, url) {
     const sourcePath = url.searchParams.get("sourcePath") || "";
     const pdf = await locatePdf(project, sourcePath);
     let stale = false;
+    let fingerprint = "";
     if (pdf && sourcePath) {
       const source = await resolveExisting(project, sourcePath);
       const [sourceMetadata, pdfMetadata] = await Promise.all([stat(source.path), stat(pdf)]);
       stale = sourceMetadata.mtimeMs > pdfMetadata.mtimeMs + 1;
+      fingerprint = pdfFingerprint(pdfMetadata);
+    } else if (pdf) {
+      fingerprint = pdfFingerprint(await stat(pdf));
     }
-    return json(res, 200, { available: Boolean(pdf), stale, name: pdf ? pdfDownloadName(pdf) : "", sourcePath });
+    return json(res, 200, { available: Boolean(pdf), stale, fingerprint, name: pdf ? pdfDownloadName(pdf) : "", sourcePath });
   }
   if (action === "pdf" && req.method === "GET") {
     const sourcePath = url.searchParams.get("sourcePath") || "";
     const pdf = await locatePdf(project, sourcePath);
     if (!pdf) throw httpError(404, "Compile the project to create a PDF");
     const download = url.searchParams.get("download") === "1";
+    res.setHeader("X-UnderTree-PDF-Fingerprint", pdfFingerprint(await stat(pdf)));
     const servedPdf = download ? pdf : await normalizePdfForPreview(pdf);
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
     res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'self'");

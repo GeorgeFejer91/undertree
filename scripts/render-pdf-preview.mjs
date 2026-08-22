@@ -135,9 +135,12 @@ This independently compiled document verifies per-source PDF switching.
   const page = await browser.newPage({ viewport: { width: 1500, height: 900 }, deviceScaleFactor: 1 });
   const browserErrors = [];
   let buildRequests = 0;
+  let previewRequests = 0;
   page.on("pageerror", (error) => browserErrors.push(error.message));
   page.on("request", (request) => {
     if (request.method() === "POST" && request.url().endsWith("/build")) buildRequests += 1;
+    const url = new URL(request.url());
+    if (request.method() === "GET" && /\/pdf$/.test(url.pathname) && url.searchParams.get("download") !== "1") previewRequests += 1;
   });
   await page.goto(`${baseUrl}/?token=${encodeURIComponent(token)}`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForFunction(() => document.querySelector("#compile")?.textContent === "Recompile"
@@ -145,6 +148,17 @@ This independently compiled document verifies per-source PDF switching.
   await page.waitForSelector('#pdf-viewer.visible .pdf-page[data-page-number="1"] canvas', { timeout: 60000 });
   await page.waitForFunction(() => document.querySelector("#page-status")?.textContent?.startsWith("1 of 1")
     && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), null, { timeout: 60000 });
+  const fingerprintProof = await page.evaluate(async () => {
+    const projectId = document.querySelector("#project-picker")?.value || "";
+    const info = await (await fetch(`/api/project/${projectId}/pdf-info?sourcePath=main.tex`)).json();
+    const response = await fetch(`/api/project/${projectId}/pdf?sourcePath=main.tex&download=1`);
+    return {
+      infoFingerprint: info.fingerprint || "",
+      responseFingerprint: response.headers.get("X-UnderTree-PDF-Fingerprint") || "",
+    };
+  });
+  assert.match(fingerprintProof.infoFingerprint, /^\d+:\d+$/, "the disk PDF must expose a cache fingerprint");
+  assert.equal(fingerprintProof.responseFingerprint, fingerprintProof.infoFingerprint, "PDF metadata and content responses must identify the same disk artifact");
 
   const mainBuildRequests = buildRequests;
   await page.locator('.tree-row[title="alternate.tex"]').click();
@@ -165,12 +179,18 @@ This independently compiled document verifies per-source PDF switching.
     && !document.querySelector("#compile")?.disabled, null, { timeout: 240000 });
 
   const buildsBeforeCachedSwitch = buildRequests;
+  const previewsBeforeCachedSwitch = previewRequests;
+  const switchStartedAt = Date.now();
   await page.locator('.tree-row[title="main.tex"]').click();
   await page.waitForFunction(() => document.querySelector("#download-pdf")?.href.includes("sourcePath=main.tex")
     && document.querySelector("#page-status")?.textContent?.startsWith("1 of 1")
+    && document.querySelector("#pdf-viewer")?.dataset.buffered === "true"
     && !document.querySelector("#pdf-viewer")?.hasAttribute("aria-busy"), null, { timeout: 60000 });
+  const bufferedSwitchMs = Date.now() - switchStartedAt;
   await new Promise((resolveWait) => setTimeout(resolveWait, 1000));
   assert.equal(buildRequests, buildsBeforeCachedSwitch, "switching to a current cached PDF must not rebuild it");
+  assert.equal(previewRequests, previewsBeforeCachedSwitch, "switching to a buffered PDF must not fetch or reparse it");
+  assert.ok(bufferedSwitchMs < 1000, `buffered PDF switch took ${bufferedSwitchMs}ms`);
 
   const proof = await page.evaluate(() => {
     const canvas = document.querySelector('#pdf-viewer.visible .pdf-page[data-page-number="1"] canvas');
@@ -198,6 +218,10 @@ This independently compiled document verifies per-source PDF switching.
     screenshotPath,
     previewScreenshotPath,
     buildRequests,
+    previewRequests,
+    bufferedSwitchMs,
+    bufferedPreviewVerified: true,
+    fingerprintVerified: true,
     sourceSwitchVerified: true,
     liveRecompileVerified: true,
     ...proof,

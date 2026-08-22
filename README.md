@@ -47,6 +47,10 @@ checkpoint.
   formatting helpers, search, dirty indicators, atomic auto-save, and conflict
   protection;
 - green Recompile control, build logs, download, and embedded PDF preview;
+- per-source PDFs retained in `.tex-build`, plus a bounded in-memory viewer
+  buffer that restores recently opened PDF.js canvases, page, zoom, and scroll
+  position immediately while fingerprint checks and stale rebuilds run in the
+  background;
 - a versioned A4 HTML print profile with CodeMirror source editing, an isolated
   in-place rich-text editor and inspector, addable free-positioned boxlets, draggable
   shared grid borders, eight-way boxlet resizing, bundled `@chenglou/pretext`

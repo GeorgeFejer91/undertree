@@ -1,6 +1,6 @@
 {
   "name": "undertree",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "UnderTree, an offline Overleaf-style desktop workspace for local TeX projects",

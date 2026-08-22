@@ -6,8 +6,9 @@ import { access, chmod, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFil
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-const APP_ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
+const APP_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 async function freePort() {
   const server = createServer();
@@ -234,9 +235,16 @@ printf '%s\n' "$1" > "$LOCALTEX_TEST_CODEX_DESKTOP_REQUEST"
   const traversal = await fetch(`${baseUrl}/api/project/${projectId}/file?path=..%2Foutside.txt`, { headers });
   assert.equal(traversal.status, 400, "path traversal must be rejected");
   await writeFile(join(temporaryRoot, "outside.txt"), "outside secret");
-  await symlink(join(temporaryRoot, "outside.txt"), join(project, "outside-link.txt"));
-  const outsideSymlink = await fetch(`${baseUrl}/api/project/${projectId}/file?path=outside-link.txt`, { headers });
-  assert.equal(outsideSymlink.status, 403, "outside-project symlinks must be rejected");
+  let outsideSymlinkCreated = false;
+  try {
+    await symlink(join(temporaryRoot, "outside.txt"), join(project, "outside-link.txt"));
+    outsideSymlinkCreated = true;
+    const outsideSymlink = await fetch(`${baseUrl}/api/project/${projectId}/file?path=outside-link.txt`, { headers });
+    assert.equal(outsideSymlink.status, 403, "outside-project symlinks must be rejected");
+  } catch (error) {
+    if (error?.code !== "EPERM" || process.platform !== "win32") throw error;
+    context.diagnostic("Windows symlink security assertion skipped because Developer Mode is disabled");
+  }
 
   const missingOrigin = await fetch(`${baseUrl}/api/project/${projectId}/files`, {
     method: "POST",
@@ -304,12 +312,14 @@ printf '%s\n' "$1" > "$LOCALTEX_TEST_CODEX_DESKTOP_REQUEST"
     body: JSON.stringify({ path: "../outside.txt" }),
   });
   assert.equal(unsafeDuplicate.status, 400, "entry actions must retain project path traversal protection");
-  const symlinkDelete = await fetch(`${baseUrl}/api/project/${projectId}/entry`, {
-    method: "DELETE",
-    headers: mutationHeaders,
-    body: JSON.stringify({ path: "outside-link.txt" }),
-  });
-  assert.equal(symlinkDelete.status, 403, "tree actions must never follow and mutate a symbolic-link target");
+  if (outsideSymlinkCreated) {
+    const symlinkDelete = await fetch(`${baseUrl}/api/project/${projectId}/entry`, {
+      method: "DELETE",
+      headers: mutationHeaders,
+      body: JSON.stringify({ path: "outside-link.txt" }),
+    });
+    assert.equal(symlinkDelete.status, 403, "tree actions must never follow and mutate a symbolic-link target");
+  }
   assert.equal(await readFile(join(temporaryRoot, "outside.txt"), "utf8"), "outside secret");
 
   const revealResponse = await fetch(`${baseUrl}/api/project/${projectId}/entry/reveal`, {
@@ -446,13 +456,18 @@ Legacy generated layout.
   assert.match(legacyLayoutBuild.output, /LuaHBTeX|This is LuaTeX/, "the pdflatex project fallback must not compile fontspec sources");
   await rm(join(project, "legacy-layout.tex"));
   const supplementPdfInfo = await (await fetch(`${baseUrl}/api/project/${projectId}/pdf-info?sourcePath=supplement.tex`, { headers })).json();
-  assert.deepEqual(supplementPdfInfo, { available: true, stale: false, name: "supplement.pdf", sourcePath: "supplement.tex" });
+  assert.equal(supplementPdfInfo.available, true);
+  assert.equal(supplementPdfInfo.stale, false);
+  assert.equal(supplementPdfInfo.name, "supplement.pdf");
+  assert.equal(supplementPdfInfo.sourcePath, "supplement.tex");
+  assert.match(supplementPdfInfo.fingerprint, /^\d+:\d+$/, "PDF metadata must include a stable cache fingerprint");
   await new Promise((resolve) => setTimeout(resolve, 5));
   await writeFile(join(project, "supplement.tex"), `${await readFile(join(project, "supplement.tex"), "utf8")}\n% source is newer than its PDF\n`);
   const staleSupplementPdfInfo = await (await fetch(`${baseUrl}/api/project/${projectId}/pdf-info?sourcePath=supplement.tex`, { headers })).json();
   assert.equal(staleSupplementPdfInfo.stale, true, "cache-first selection must detect a source newer than its stored PDF");
   const supplementPdf = await fetch(`${baseUrl}/api/project/${projectId}/pdf?sourcePath=supplement.tex&download=1`, { headers });
   assert.equal(supplementPdf.status, 200);
+  assert.equal(supplementPdf.headers.get("x-undertree-pdf-fingerprint"), supplementPdfInfo.fingerprint);
   assert.match(supplementPdf.headers.get("content-disposition") || "", /filename="supplement\.pdf"/);
   assert.ok((await supplementPdf.arrayBuffer()).byteLength > 1000);
   const selectedMainPdf = await fetch(`${baseUrl}/api/project/${projectId}/pdf?sourcePath=main.tex&download=1`, { headers });
@@ -647,7 +662,7 @@ Retry fixture text.
     assert.match((await sync.json()).output, new RegExp(`fixture ${action} completed safely`));
   }
 
-  await rm(join(project, "outside-link.txt"));
+  if (outsideSymlinkCreated) await rm(join(project, "outside-link.txt"));
   await run("git", ["add", "."], project);
   await run("git", ["commit", "-m", "Edited fixture"], project);
   for (const action of ["github", "overleaf"]) {
