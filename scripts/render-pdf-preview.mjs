@@ -19,6 +19,9 @@ const extensionIndex = screenshotPath.lastIndexOf(".");
 const previewScreenshotPath = extensionIndex > 0
   ? `${screenshotPath.slice(0, extensionIndex)}-pane${screenshotPath.slice(extensionIndex)}`
   : `${screenshotPath}-pane.png`;
+const stressScreenshotPath = extensionIndex > 0
+  ? `${screenshotPath.slice(0, extensionIndex)}-stress${screenshotPath.slice(extensionIndex)}`
+  : `${screenshotPath}-stress.png`;
 
 function firstExisting(paths) {
   return paths.find((path) => path && existsSync(path)) || "";
@@ -77,6 +80,7 @@ let browser;
 let serverLog = "";
 try {
   await mkdir(project, { recursive: true });
+  await mkdir(join(project, "supplementary"), { recursive: true });
   await mkdir(dirname(screenshotPath), { recursive: true });
   await writeFile(join(project, "main.tex"), String.raw`\documentclass{article}
 \usepackage[a4paper,margin=22mm]{geometry}
@@ -104,6 +108,34 @@ background browser without taking control of the desktop.
 \begin{center}\Huge\bfseries Alternate TeX Preview\end{center}
 \vspace{12mm}
 This independently compiled document verifies per-source PDF switching.
+\end{document}
+`);
+  await writeFile(join(project, "race-a.tex"), String.raw`\documentclass{article}
+\begin{document}\Huge First in-flight source\end{document}
+`);
+  await writeFile(join(project, "race-b.tex"), String.raw`\documentclass{article}
+\begin{document}\Huge Final selected source\end{document}
+`);
+  await writeFile(join(project, "shared.cls"), String.raw`\NeedsTeXFormat{LaTeX2e}
+\ProvidesClass{shared}[2026/08/22 nested-source stress class]
+\LoadClass{article}
+`);
+  await writeFile(join(project, "references.bib"), String.raw`@article{nestedstress,
+  author = {UnderTree Verification},
+  title = {Nested bibliography stress fixture},
+  journal = {Local Test Journal},
+  year = {2026}
+}
+`);
+  await writeFile(join(project, "supplementary", "main.tex"), String.raw`\documentclass{../shared}
+\usepackage[a4paper,margin=22mm]{geometry}
+\pagestyle{empty}
+\begin{document}
+\begin{center}\Huge\bfseries Nested Same-Name PDF Preview\end{center}
+\vspace{12mm}
+This source only resolves its parent-relative class and bibliography when compiled from its own directory \cite{nestedstress}.
+\bibliographystyle{plain}
+\bibliography{../references}
 \end{document}
 `);
   await writeFile(join(project, ".tex-sync.conf"), "[build]\n\troot = main.tex\n\tengine = pdflatex\n\tworkingDirectory = repository-root\n\tshellEscape = false\n");
@@ -213,6 +245,85 @@ This independently compiled document verifies per-source PDF switching.
 
   await page.screenshot({ path: screenshotPath, fullPage: false });
   await page.locator("#preview-pane").screenshot({ path: previewScreenshotPath });
+
+  const supplementaryDirectory = page.locator('.tree-row[title="supplementary"]');
+  if (await supplementaryDirectory.getAttribute("aria-expanded") !== "true") await supplementaryDirectory.click();
+  const buildsBeforeNested = buildRequests;
+  await page.locator('.tree-row[title="supplementary/main.tex"]').click();
+  await page.waitForFunction(() => document.querySelector("#pdf-viewer")?.dataset.previewSource === "supplementary/main.tex"
+    && document.querySelector('#pdf-viewer.visible .pdf-page[data-page-number="1"] canvas')
+    && document.querySelector("#status-message")?.textContent?.startsWith("Auto-compiled at")
+    && !document.querySelector("#compile")?.disabled, null, { timeout: 240000 });
+  assert.ok(buildRequests > buildsBeforeNested, "the first nested same-name source selection must compile its own PDF");
+  assert.doesNotMatch(await page.locator("#compile-log").textContent(), /File `\.\.\/shared\.cls' not found/i);
+  assert.match(await page.locator("#compile-log").textContent(), /resolved bibliography/i);
+
+  const buildsBeforeRapidSwitches = buildRequests;
+  const previewsBeforeRapidSwitches = previewRequests;
+  const rapidSwitchDurations = [];
+  const rapidSources = ["main.tex", "alternate.tex", "supplementary/main.tex"];
+  for (let cycle = 0; cycle < 8; cycle += 1) {
+    for (const source of rapidSources) {
+      const startedAt = Date.now();
+      await page.locator(`.tree-row[title="${source}"]`).click();
+      await page.waitForFunction((expectedSource) => document.querySelector("#pdf-viewer")?.dataset.previewSource === expectedSource
+        && document.querySelector("#pdf-viewer")?.dataset.buffered === "true"
+        && document.querySelector('#pdf-viewer.visible .pdf-page[data-page-number="1"] canvas')
+        && !document.querySelector("#logs-panel")?.classList.contains("visible"), source, { timeout: 5000 });
+      rapidSwitchDurations.push(Date.now() - startedAt);
+    }
+  }
+  const maximumRapidSwitchMs = Math.max(...rapidSwitchDurations);
+  assert.equal(buildRequests, buildsBeforeRapidSwitches, "rapid buffered source switching must not rebuild PDFs");
+  assert.equal(previewRequests, previewsBeforeRapidSwitches, "rapid buffered source switching must not refetch PDFs");
+  assert.ok(maximumRapidSwitchMs < 750, `a rapid buffered source switch took ${maximumRapidSwitchMs}ms`);
+
+  const buildsBeforeInFlightSelection = buildRequests;
+  await page.locator('.tree-row[title="race-a.tex"]').click();
+  for (let attempt = 0; attempt < 100 && buildRequests <= buildsBeforeInFlightSelection; attempt += 1) {
+    await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+  }
+  assert.ok(buildRequests > buildsBeforeInFlightSelection, "the first in-flight source must begin compiling");
+  await page.locator('.tree-row[title="race-b.tex"]').click();
+  await page.waitForFunction(() => document.querySelector("#pdf-viewer")?.dataset.previewSource === "race-b.tex"
+    && document.querySelector('#pdf-viewer.visible .pdf-page[data-page-number="1"] canvas')
+    && document.querySelector("#status-message")?.textContent?.startsWith("Auto-compiled at")
+    && !document.querySelector("#compile")?.disabled, null, { timeout: 240000 });
+  assert.ok(buildRequests >= buildsBeforeInFlightSelection + 2, "the final source selected during another build must compile next");
+
+  await page.locator("#toggle-logs").click();
+  await page.waitForFunction(() => document.querySelector("#logs-panel")?.classList.contains("visible"));
+  await page.locator('.tree-row[title="main.tex"]').click();
+  await page.waitForFunction(() => document.querySelector("#pdf-viewer")?.dataset.previewSource === "main.tex"
+    && !document.querySelector("#logs-panel")?.classList.contains("visible"));
+
+  await page.locator('.tree-row[title="supplementary/main.tex"]').click();
+  await page.waitForFunction(() => document.querySelector("#pdf-viewer")?.dataset.previewSource === "supplementary/main.tex");
+  const buildsBeforeFailure = buildRequests;
+  await page.locator(".cm-content").click();
+  await page.locator(".cm-content").press("Control+Home");
+  await page.keyboard.insertText("\\undefinedstresscommand\n");
+  for (let attempt = 0; attempt < 150 && buildRequests <= buildsBeforeFailure; attempt += 1) {
+    await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+  }
+  assert.ok(buildRequests > buildsBeforeFailure, "an invalid live edit must attempt one background rebuild");
+  await page.waitForFunction(() => document.querySelector("#status-message")?.textContent?.includes("cached PDF")
+    && document.querySelector("#page-status")?.textContent?.includes("cached (source changed)")
+    && document.querySelector('#pdf-viewer.visible .pdf-page[data-page-number="1"] canvas')
+    && !document.querySelector("#logs-panel")?.classList.contains("visible")
+    && !document.querySelector("#compile")?.disabled, null, { timeout: 240000 });
+  await page.screenshot({ path: stressScreenshotPath, fullPage: false });
+
+  const buildsAfterFailedRevision = buildRequests;
+  await page.locator('.tree-row[title="main.tex"]').click();
+  await page.locator('.tree-row[title="supplementary/main.tex"]').click();
+  await page.waitForFunction(() => document.querySelector("#pdf-viewer")?.dataset.previewSource === "supplementary/main.tex"
+    && document.querySelector("#page-status")?.textContent?.includes("cached (source changed)")
+    && !document.querySelector("#compile")?.disabled, null, { timeout: 5000 });
+  await new Promise((resolveWait) => setTimeout(resolveWait, 1200));
+  assert.equal(buildRequests, buildsAfterFailedRevision, "returning to the same failed source revision must not enter a rebuild loop");
+  assert.equal(await page.locator("#logs-panel.visible").count(), 0, "source switching must never leave the compile log covering the PDF");
+
   process.stdout.write(`${JSON.stringify({
     ok: true,
     screenshotPath,
@@ -224,6 +335,13 @@ This independently compiled document verifies per-source PDF switching.
     fingerprintVerified: true,
     sourceSwitchVerified: true,
     liveRecompileVerified: true,
+    nestedSameNameVerified: true,
+    rapidSwitchesVerified: rapidSwitchDurations.length,
+    maximumRapidSwitchMs,
+    inFlightFinalSelectionVerified: true,
+    failedBuildFallbackVerified: true,
+    failedRevisionLoopSuppressed: true,
+    stressScreenshotPath,
     ...proof,
   }, null, 2)}\n`);
 } finally {

@@ -51,6 +51,10 @@ checkpoint.
   buffer that restores recently opened PDF.js canvases, page, zoom, and scroll
   position immediately while fingerprint checks and stale rebuilds run in the
   background;
+- adaptive nested-source compilation that remembers whether a document resolves
+  paths from its own directory or the repository root, including a source-aware
+  BibTeX fallback; failed background rebuilds keep the last good PDF visible and
+  do not loop again until the source changes or the user explicitly retries;
 - a versioned A4 HTML print profile with CodeMirror source editing, an isolated
   in-place rich-text editor and inspector, addable free-positioned boxlets, draggable
   shared grid borders, eight-way boxlet resizing, bundled `@chenglou/pretext`

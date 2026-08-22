@@ -18,7 +18,7 @@ import {
 } from "node:fs/promises";
 import { createServer } from "node:http";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
+import { basename, delimiter, dirname, extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
 import { Codex } from "@openai/codex-sdk";
@@ -28,7 +28,7 @@ import { texEngineForContent } from "./src/tex-engine.js";
 
 const APP_ROOT = dirname(fileURLToPath(import.meta.url));
 const DIST_ROOT = join(APP_ROOT, "dist");
-const APP_VERSION = "0.2.0";
+const APP_VERSION = "0.2.2";
 const LIBRARY_ROOT = resolve(
   process.env.UNDERTREE_LIBRARY_ROOT
     || process.env.LOCALTEX_LIBRARY_ROOT
@@ -144,6 +144,7 @@ const projectConfigCache = new Map();
 const projectTreeCache = new Map();
 const projectTreeGeneration = new Map();
 const projectWatchers = new Map();
+const texBuildWorkingDirectories = new Map();
 let ripgrepAvailable = true;
 
 function idForPath(localPath) {
@@ -532,6 +533,7 @@ function command(program, args, cwd, options = {}) {
   const maxOutput = options.maxOutput || 2 * 1024 * 1024;
   return new Promise((resolveCommand) => {
     const childEnvironment = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
+    Object.assign(childEnvironment, options.env || {});
     if (process.platform === "win32") {
       delete childEnvironment.LC_ALL;
       delete childEnvironment.LC_CTYPE;
@@ -1166,18 +1168,76 @@ async function buildProject(project, cleanFirst = false, sourcePath = "", option
       const outputDirectory = sourceDirectory === "."
         ? join(project.localPath, COMPILER_ASSETS_DIRECTORY)
         : join(project.localPath, COMPILER_ASSETS_DIRECTORY, sourceDirectory);
-      const args = ["-norc", "-interaction=nonstopmode", "-file-line-error", "-halt-on-error", "-synctex=1", `-outdir=${outputDirectory}`];
+      const baseArgs = ["-norc", "-interaction=nonstopmode", "-file-line-error", "-halt-on-error", "-synctex=1", `-outdir=${outputDirectory}`];
       const shellEscape = (await configValue(project, "build", "shellEscape", "false")).toLowerCase() === "true";
-      if (shellEscape) args.push("-shell-escape");
+      if (shellEscape) baseArgs.push("-shell-escape");
       const sourceEngine = await texEngineForFile(resolvedSource.path, engine);
-      addLatexmkEngine(args, sourceEngine);
-      args.push(resolvedSource.relativePath);
+      addLatexmkEngine(baseArgs, sourceEngine);
       await mkdir(outputDirectory, { recursive: true });
+      const workingDirectoryKey = `${project.id}:${resolvedSource.relativePath}`;
+      const sourceMode = {
+        name: "source directory",
+        cwd: dirname(resolvedSource.path),
+        source: basename(resolvedSource.path),
+      };
+      const projectMode = {
+        name: "repository root",
+        cwd: project.localPath,
+        source: resolvedSource.relativePath,
+      };
+      const preferredModeName = texBuildWorkingDirectories.get(workingDirectoryKey)
+        || (sourceDirectory === "." ? "repository root" : "source directory");
+      const preferredMode = preferredModeName === "source directory" ? sourceMode : projectMode;
+      const alternateMode = preferredMode === sourceMode ? projectMode : sourceMode;
+      const runMode = (mode, force = false) => command(
+        LATEXMK,
+        [...(force ? ["-g"] : []), ...baseArgs, mode.source],
+        mode.cwd,
+        { timeout: 240000, maxOutput: 4 * 1024 * 1024 },
+      );
       if (cleanFirst) {
-        const cleaned = await command(LATEXMK, ["-norc", "-C", `-outdir=${outputDirectory}`, resolvedSource.relativePath], project.localPath, { timeout: 60000, maxOutput: 1024 * 1024 });
+        const cleaned = await command(LATEXMK, ["-norc", "-C", `-outdir=${outputDirectory}`, preferredMode.source], preferredMode.cwd, { timeout: 60000, maxOutput: 1024 * 1024 });
         if (cleaned.code !== 0) throw httpError(409, `Could not clean the previous build:\n${cleaned.stdout}${cleaned.stderr}`);
       }
-      result = await command(LATEXMK, args, project.localPath, { timeout: 240000, maxOutput: 4 * 1024 * 1024 });
+      result = await runMode(preferredMode);
+      let attemptOutput = `${result.stdout}${result.stderr}`;
+      if (result.code !== 0 && /previous invocation|nothing to do/i.test(attemptOutput)) {
+        const forced = await runMode(preferredMode, true);
+        attemptOutput += `\n[UnderTree] Retrying ${preferredMode.name} after latexmk retained a previous failure.\n${forced.stdout}${forced.stderr}`;
+        result = { ...forced, stdout: attemptOutput, stderr: "" };
+      }
+      if (result.code !== 0 && preferredMode === sourceMode && /bibtex|bibliograph|\.bst|database file/i.test(`${result.stdout}${result.stderr}`)) {
+        const auxPath = join(outputDirectory, `${basename(resolvedSource.path, extname(resolvedSource.path))}.aux`);
+        if (await exists(auxPath)) {
+          const texSearchEnvironment = {
+            BIBINPUTS: [sourceMode.cwd, project.localPath, process.env.BIBINPUTS || ""].filter(Boolean).join(delimiter) + delimiter,
+            BSTINPUTS: [project.localPath, sourceMode.cwd, process.env.BSTINPUTS || ""].filter(Boolean).join(delimiter) + delimiter,
+          };
+          const bibliography = await command("bibtex", [auxPath], sourceMode.cwd, {
+            timeout: 120000,
+            maxOutput: 2 * 1024 * 1024,
+            env: texSearchEnvironment,
+          });
+          attemptOutput = `${result.stdout}${result.stderr}\n[UnderTree] Retrying nested bibliography from the source directory.\n${bibliography.stdout}${bibliography.stderr}`;
+          if (bibliography.code === 0) {
+            const finished = await command(LATEXMK, ["-g", "-bibtex-", ...baseArgs, sourceMode.source], sourceMode.cwd, {
+              timeout: 240000,
+              maxOutput: 4 * 1024 * 1024,
+              env: texSearchEnvironment,
+            });
+            attemptOutput += `\n[UnderTree] Finishing LaTeX passes with the resolved bibliography.\n${finished.stdout}${finished.stderr}`;
+            result = { ...finished, stdout: attemptOutput, stderr: "" };
+          } else {
+            result = { ...result, stdout: attemptOutput, stderr: "" };
+          }
+        }
+      }
+      if (result.code !== 0 && sourceDirectory !== ".") {
+        const fallback = await runMode(alternateMode, true);
+        attemptOutput = `${result.stdout}${result.stderr}\n[UnderTree] Retrying from ${alternateMode.name} for nested-source path resolution.\n${fallback.stdout}${fallback.stderr}`;
+        result = { ...fallback, stdout: attemptOutput, stderr: "" };
+      }
+      if (result.code === 0) texBuildWorkingDirectories.set(workingDirectoryKey, result.stdout.includes(`Retrying from ${alternateMode.name}`) ? alternateMode.name : preferredMode.name);
     }
     const pdf = await locatePdf(project, resolvedSource.relativePath);
     if (pdf) previewPdfs.set(project.id, pdf);

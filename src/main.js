@@ -132,6 +132,7 @@ const state = {
   pdfScrollFrame: null,
   pdfResizeTimer: null,
   pdfCache: new Map(),
+  failedTexBuilds: new Map(),
   autoCompileMode: "0",
   autoCompileTimer: null,
   autoCompileChangeTimer: null,
@@ -1167,7 +1168,9 @@ async function openFile(path, line = 0) {
 function activateTab(path, line = 0) {
   const tab = state.tabs.get(path);
   if (!tab) return;
+  const sourceChanged = Boolean(state.activePath && state.activePath !== path);
   state.activePath = path;
+  if (sourceChanged) showLogs(false);
   createEditor(tabContent(tab), path);
   renderTabs();
   refreshTreeSelection();
@@ -1210,12 +1213,21 @@ async function refreshOrCompileSelectedTex(path) {
   try {
     const info = await api(`${projectApi("pdf-info")}?sourcePath=${encodeURIComponent(sourcePath)}`);
     if (projectId !== state.currentProject?.id || path !== state.activePath) return false;
-    if (shouldReuseSelectedPdf(info) && !tab.dirty) return refreshPdf(sourcePath, { stale: false, fingerprint: info.fingerprint });
+    if (shouldReuseSelectedPdf(info) && !tab.dirty) {
+      state.failedTexBuilds.delete(texBuildFailureKey(projectId, sourcePath));
+      return refreshPdf(sourcePath, { stale: false, fingerprint: info.fingerprint });
+    }
     // Switch to the source's existing PDF immediately, then rebuild it in the
     // background when the TeX source is newer. This keeps tab switching fast
     // without leaving a stale preview in place.
     let cachedPreviewShown = false;
     if (info.available) cachedPreviewShown = await refreshPdf(sourcePath, { stale: true, fingerprint: info.fingerprint });
+    else if (!bufferedPreview) showPendingPdfPreview(sourcePath);
+    if (failedTexBuildMatches(projectId, sourcePath, tab)) {
+      if (cachedPreviewShown) status(`Showing the last compiled PDF for ${path}; edit the source or recompile manually to retry.`);
+      else showPendingPdfPreview(sourcePath, "No PDF is available. Edit the source or recompile manually to retry.");
+      return cachedPreviewShown;
+    }
     if (state.compileInFlight) {
       state.pendingTexSelection = `${projectId}:${path}`;
       return cachedPreviewShown;
@@ -1441,6 +1453,62 @@ function activePdfCacheKey() {
   return pdfPreviewCacheKey(state.pdfProjectId, state.pdfSourcePath);
 }
 
+function texBuildFailureKey(projectId, sourcePath) {
+  return `${projectId}:${String(sourcePath || "")}`;
+}
+
+function texTabBuildStamp(tab) {
+  return tab ? `${tab.revision || 0}:${Number(tab.mtimeMs) || 0}:${Number(tab.size) || 0}` : "";
+}
+
+function failedTexBuildMatches(projectId, sourcePath, tab) {
+  const failedStamp = state.failedTexBuilds.get(texBuildFailureKey(projectId, sourcePath));
+  return Boolean(failedStamp && failedStamp === texTabBuildStamp(tab) && !tab?.dirty);
+}
+
+function rememberFailedTexBuild(projectId, sourcePath) {
+  const tab = state.tabs.get(sourcePath);
+  if (tab) state.failedTexBuilds.set(texBuildFailureKey(projectId, sourcePath), texTabBuildStamp(tab));
+}
+
+function setPdfPlaceholderMessage(message = "Compile the project to render its PDF.") {
+  const paragraph = elements.pdfPlaceholder.querySelector("p");
+  if (paragraph) paragraph.textContent = message;
+}
+
+function showPendingPdfPreview(sourcePath, message = `Compiling ${basenamePath(sourcePath)}…`) {
+  rememberActivePdfPreview();
+  state.pdfRefreshVersion += 1;
+  cancelPdfRenders();
+  state.pdfDocument = null;
+  state.pdfLoadingTask = null;
+  state.pdfProjectId = state.currentProject?.id || "";
+  state.pdfSourcePath = sourcePath;
+  state.pdfFingerprint = "";
+  state.pdfStale = false;
+  state.pdfPage = 1;
+  state.pdfScale = null;
+  state.pdfCurrentScale = 1;
+  const container = window.document.createElement("div");
+  container.className = "pdf-pages";
+  container.id = "pdf-pages";
+  elements.pdfPages.replaceWith(container);
+  elements.pdfPages = container;
+  clearNativePdfFallback();
+  elements.htmlProof.hidden = true;
+  elements.htmlProof.removeAttribute("src");
+  elements.previewPane?.classList.remove("stale-pdf");
+  elements.pdfViewer.classList.remove("visible");
+  delete elements.pdfViewer.dataset.buffered;
+  elements.pdfViewer.dataset.previewSource = sourcePath;
+  elements.pdfPlaceholder.classList.remove("hidden");
+  setPdfPlaceholderMessage(message);
+  elements.downloadPdf.removeAttribute("href");
+  elements.downloadPdf.classList.add("disabled");
+  elements.downloadPdf.setAttribute("aria-disabled", "true");
+  $("#page-status").textContent = "Preparing PDF…";
+}
+
 function rememberActivePdfPreview() {
   const key = activePdfCacheKey();
   const entry = key ? state.pdfCache.get(key) : null;
@@ -1478,6 +1546,7 @@ function showPdfPreviewShell(sourceQuery) {
   clearNativePdfFallback();
   elements.pdfViewer.classList.add("visible");
   elements.pdfPlaceholder.classList.add("hidden");
+  setPdfPlaceholderMessage();
   elements.downloadPdf.href = `${projectApi("pdf")}?${sourceQuery}download=1`;
   elements.downloadPdf.classList.remove("disabled");
   elements.downloadPdf.removeAttribute("aria-disabled");
@@ -1676,6 +1745,7 @@ async function clearPdfPreview(document = state.pdfDocument, loadingTask = state
   delete elements.pdfViewer.dataset.previewSource;
   elements.pdfViewer.removeAttribute("aria-busy");
   elements.pdfPlaceholder.classList.remove("hidden");
+  setPdfPlaceholderMessage();
   elements.downloadPdf.removeAttribute("href");
   elements.downloadPdf.classList.add("disabled");
   elements.downloadPdf.setAttribute("aria-disabled", "true");
@@ -2169,6 +2239,7 @@ async function compileProject({ clean = false, automatic = false, exportTex = fa
     }
     elements.compileLog.textContent = result.output || "Compilation finished without output.";
     if (result.code !== 0 || !result.pdfAvailable) {
+      rememberFailedTexBuild(projectId, sourcePath);
       if (result.codexRecovery?.id) {
         const recoveryMessage = result.codexRecovery.duplicate
           ? "This TeX failure is already being repaired in the background."
@@ -2184,9 +2255,24 @@ async function compileProject({ clean = false, automatic = false, exportTex = fa
         void monitorCodexRecovery(result.codexRecovery, projectId, sourcePath, { quiet: automatic });
         return false;
       }
+      const sourceStillSelected = state.currentProject?.id === projectId && previewSourcePath() === sourcePath;
+      const cachedPdfKept = sourceStillSelected
+        && result.pdfAvailable
+        && state.pdfDocument
+        && state.pdfProjectId === projectId
+        && state.pdfSourcePath === sourcePath;
+      if (automatic && cachedPdfKept) {
+        setPdfStale(true);
+        showLogs(false);
+        toast("Background recompile failed; the last good PDF remains visible.", "error", 5500);
+        status("Showing cached PDF · background recompile failed");
+        return false;
+      }
+      if (automatic && !sourceStillSelected) return false;
       const recoveryDetail = result.codexRecovery?.message ? ` ${result.codexRecovery.message}` : "";
       throw new Error(`Compilation did not produce a clean PDF.${recoveryDetail} Open the log for details.`);
     }
+    state.failedTexBuilds.delete(texBuildFailureKey(projectId, sourcePath));
     if (result.html?.resolvedFits?.length && sourceTab) {
       for (const fit of result.html.resolvedFits) {
         const current = currentHtmlSource();
@@ -2214,9 +2300,13 @@ async function compileProject({ clean = false, automatic = false, exportTex = fa
     return true;
   } catch (error) {
     appendCompileLog(error.message);
+    const sourceStillSelected = state.currentProject?.id === projectId && previewSourcePath() === sourcePath;
     if (!automatic) showLogs(true);
-    toast(error.message, "error", 7000);
-    status("Compilation failed");
+    if (!automatic || sourceStillSelected) toast(error.message, "error", 7000);
+    if (sourceStillSelected) {
+      status("Compilation failed");
+      if (automatic && !state.pdfDocument) showPendingPdfPreview(sourcePath, "PDF compilation failed. Open the compile log for details.");
+    }
     if (isHtmlSource(sourcePath) && state.pdfDocument) {
       $("#preview-pane").classList.add("stale-pdf");
       $("#page-status").textContent = "Stale PDF · HTML diagnostics in log";

@@ -1,6 +1,6 @@
 {
   "name": "undertree",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "type": "module",
   "description": "UnderTree, an offline Overleaf-style desktop workspace for local TeX projects",
@@ -22,7 +22,8 @@
     "test": "node --test tests/*.test.mjs",
     "test:ui": "node tests/ui-smoke.mjs",
     "test:pdf-controls": "node tests/pdf-controls-smoke.mjs",
-    "render:pdf-preview": "npm run build && node scripts/render-pdf-preview.mjs"
+    "render:pdf-preview": "npm run build && node scripts/render-pdf-preview.mjs",
+    "stress:pdf-ui": "npm run render:pdf-preview"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.8",
