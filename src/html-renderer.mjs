@@ -26,7 +26,9 @@ function command(program, args, { cwd, signal, timeout = 120000 } = {}) {
 }
 
 async function executable(name) {
-  const result = await command("sh", ["-c", `command -v ${name}`], { timeout: 5000 });
+  const result = process.platform === "win32"
+    ? await command("where.exe", [name], { timeout: 5000 })
+    : await command("sh", ["-c", `command -v ${name}`], { timeout: 5000 });
   return result.code === 0;
 }
 
@@ -66,6 +68,9 @@ export function applyResolvedFitsToHtml(source, resolvedFits = []) {
 }
 
 export async function renderHtmlPrint({ sourcePath, projectRoot, pdfPath, manifestPath, texPath = "", signal, persistFits = true } = {}) {
+  if (process.platform === "win32") {
+    throw new Error("HTML print-profile rendering currently requires the Linux WebKitGTK renderer. LaTeX editing and compilation are supported on Windows.");
+  }
   const root = await realpath(projectRoot || dirname(sourcePath));
   const source = await realpath(sourcePath);
   const sourceRelative = relative(root, source);

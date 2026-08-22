@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createHash, randomBytes } from "node:crypto";
-import { createReadStream, createWriteStream, watch } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, watch } from "node:fs";
 import {
   access,
   cp,
@@ -20,7 +20,7 @@ import { createServer } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { Codex } from "@openai/codex-sdk";
 import { compileLayout } from "./layout/compiler.mjs";
 import { renderHtmlPrint } from "./src/html-renderer.mjs";
@@ -49,12 +49,61 @@ const TREE_CACHE_MS = 5000;
 const TREE_WATCHER_LIMIT = 12;
 const GHOSTSCRIPT = process.env.UNDERTREE_GHOSTSCRIPT || process.env.LOCALTEX_GHOSTSCRIPT || "gs";
 const PDF_PREVIEW_ROOT = join(tmpdir(), "localtex-pdf-previews");
-const STATE_ROOT = resolve(process.env.UNDERTREE_STATE_ROOT || process.env.LOCALTEX_STATE_ROOT || join(homedir(), ".local", "state", "undertree"));
+const DEFAULT_STATE_ROOT = process.platform === "win32"
+  ? join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "UnderTree", "state")
+  : join(homedir(), ".local", "state", "undertree");
+const STATE_ROOT = resolve(process.env.UNDERTREE_STATE_ROOT || process.env.LOCALTEX_STATE_ROOT || DEFAULT_STATE_ROOT);
+const PROJECT_BRIDGES_FILE = join(STATE_ROOT, "project-bridges.json");
+const TEX_TOOLCHAIN_FILE = join(STATE_ROOT, "tex-toolchain.json");
+const COMPILER_ASSETS_DIRECTORY = ".tex-build";
+const CODEX_RECOVERY_ENABLED = false;
 const CODEX_RECOVERY_ROOT = join(STATE_ROOT, "codex-recovery");
 const SAVE_CONFLICT_ROOT = join(STATE_ROOT, "save-conflicts");
 const CODEX_RECOVERY_TIMEOUT_MS = 20 * 60 * 1000;
 const CODEX_RECOVERY_COOLDOWN_MS = 5 * 60 * 1000;
 const MAX_CODEX_RECOVERIES = 2;
+
+async function texLiveCandidates(root) {
+  if (!root || !existsSync(root)) return [];
+  const direct = join(root, "bin", "windows", "latexmk.exe");
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
+  return [direct, ...entries.filter((entry) => entry.isDirectory()).map((entry) => join(root, entry.name, "bin", "windows", "latexmk.exe"))];
+}
+
+async function resolveLatexmk() {
+  const configured = process.env.UNDERTREE_LATEXMK || process.env.LOCALTEX_LATEXMK;
+  if (configured && existsSync(configured)) {
+    await rememberLatexmk(configured, "environment");
+    return configured;
+  }
+  if (process.platform !== "win32") return "latexmk";
+  const cached = await readFile(TEX_TOOLCHAIN_FILE, "utf8").then(JSON.parse).catch(() => null);
+  if (cached?.latexmk && existsSync(cached.latexmk)) return cached.latexmk;
+  const discoveredOnPath = spawnSync("where.exe", ["latexmk.exe"], { encoding: "utf8", windowsHide: true });
+  const pathCandidate = String(discoveredOnPath.stdout || "").split(/\r?\n/).map((line) => line.trim()).find((candidate) => existsSync(candidate));
+  const driveRoots = ["C:", "D:", "E:", "F:"].map((drive) => join(drive, "texlive"));
+  const candidates = [pathCandidate,
+    join(process.env.LOCALAPPDATA || "", "Programs", "MiKTeX", "miktex", "bin", "x64", "latexmk.exe"),
+    join(process.env.ProgramFiles || "", "MiKTeX", "miktex", "bin", "x64", "latexmk.exe"),
+    join(process.env["ProgramFiles(x86)"] || "", "MiKTeX", "miktex", "bin", "x64", "latexmk.exe"),
+    ...(await texLiveCandidates(process.env.TEXLIVE_ROOT)),
+    ...(await texLiveCandidates(join(process.env.SystemDrive || "C:", "texlive"))),
+    ...(await texLiveCandidates(join(homedir(), "texlive"))),
+    ...(await Promise.all(driveRoots.map(texLiveCandidates))).flat(),
+  ];
+  const latexmk = candidates.find((candidate) => candidate && existsSync(candidate)) || "latexmk";
+  if (latexmk !== "latexmk") {
+    await rememberLatexmk(latexmk, pathCandidate === latexmk ? "PATH" : "filesystem search");
+  }
+  return latexmk;
+}
+
+async function rememberLatexmk(latexmk, source) {
+  await mkdir(STATE_ROOT, { recursive: true });
+  await writeFile(TEX_TOOLCHAIN_FILE, `${JSON.stringify({ latexmk, source, detectedAt: new Date().toISOString() }, null, 2)}\n`, "utf8");
+}
+
+const LATEXMK = await resolveLatexmk();
 const TEXT_EXTENSIONS = new Set([
   ".tex", ".bib", ".sty", ".cls", ".bst", ".bbx", ".cbx", ".ltx",
   ".md", ".txt", ".csv", ".tsv", ".json", ".yaml", ".yml", ".toml",
@@ -120,6 +169,42 @@ async function exists(path) {
   }
 }
 
+async function loadProjectBridges() {
+  try {
+    const payload = JSON.parse(await readFile(PROJECT_BRIDGES_FILE, "utf8"));
+    if (!Array.isArray(payload?.projects)) return [];
+    return payload.projects.filter((entry) => entry && typeof entry.localPath === "string");
+  } catch {
+    return [];
+  }
+}
+
+async function saveProjectBridges(projects) {
+  await mkdir(STATE_ROOT, { recursive: true });
+  const temporary = `${PROJECT_BRIDGES_FILE}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(temporary, `${JSON.stringify({ version: 1, projects }, null, 2)}\n`, "utf8");
+  await rename(temporary, PROJECT_BRIDGES_FILE);
+}
+
+async function addProjectBridge(localPath, name = "") {
+  if (typeof localPath !== "string" || !localPath.trim() || localPath.includes("\0")) throw httpError(400, "Choose a valid local folder");
+  const resolvedPath = await realpath(localPath).catch(() => { throw httpError(404, "The selected folder is no longer available"); });
+  const metadata = await stat(resolvedPath).catch(() => null);
+  if (!metadata?.isDirectory()) throw httpError(400, "A project bridge must point to a folder");
+  await mkdir(join(resolvedPath, COMPILER_ASSETS_DIRECTORY), { recursive: true }).catch(() => {
+    throw httpError(403, "UnderTree needs permission to create its .tex-build compiler-assets folder in the selected project");
+  });
+  const bridges = await loadProjectBridges();
+  const canonicalName = String(name || basename(resolvedPath)).trim().replace(/[\r\n\t]/g, " ").slice(0, 120) || basename(resolvedPath);
+  const existing = bridges.findIndex((entry) => resolve(entry.localPath) === resolvedPath);
+  const bridge = { localPath: resolvedPath, name: canonicalName, addedAt: Date.now(), bridge: true };
+  if (existing >= 0) bridges[existing] = { ...bridges[existing], ...bridge, addedAt: bridges[existing].addedAt || bridge.addedAt };
+  else bridges.push(bridge);
+  await saveProjectBridges(bridges);
+  const projects = await loadProjects(true);
+  return projects.find((project) => project.localPath === resolvedPath) || null;
+}
+
 async function loadProjects(force = false) {
   if (!force && Date.now() - projectCache.at < PROJECT_CACHE_MS) return projectCache.projects;
   await mkdir(LIBRARY_ROOT, { recursive: true });
@@ -130,6 +215,7 @@ async function loadProjects(force = false) {
   let domains = [];
   let iconProjects = [];
   if (await exists(catalogPath)) catalog = parseTsv(await readFile(catalogPath, "utf8"));
+  const bridges = await loadProjectBridges();
   if (await exists(domainsPath)) domains = parseTsv(await readFile(domainsPath, "utf8"));
   if (await exists(iconManifestPath)) {
     try {
@@ -147,12 +233,15 @@ async function loadProjects(force = false) {
     }
     return null;
   }));
-  catalog.push(...discovered.filter(Boolean));
+  catalog.push(...discovered.filter(Boolean), ...bridges);
   const domainByPath = new Map(domains.map((entry) => [entry.localPath, entry]));
   const iconByPath = new Map(iconProjects.map((entry) => [entry.localPath, entry.iconPath]));
-  const projects = (await Promise.all(catalog.map(async (entry) => {
+  const uniqueCatalog = [...new Map(catalog.map((entry) => [resolve(entry.localPath), entry])).values()];
+  const projects = (await Promise.all(uniqueCatalog.map(async (entry) => {
     const localPath = resolve(entry.localPath);
-    if (!localPath.startsWith(`${LIBRARY_ROOT}${sep}`) || !(await exists(localPath))) return null;
+    const insideLibrary = localPath === LIBRARY_ROOT || localPath.startsWith(`${LIBRARY_ROOT}${sep}`);
+    if ((!insideLibrary && entry.bridge !== true) || !(await exists(localPath))) return null;
+    if (entry.bridge === true) await mkdir(join(localPath, COMPILER_ASSETS_DIRECTORY), { recursive: true }).catch(() => {});
     const domain = domainByPath.get(entry.localPath) || {};
     const rootDocument = entry.root || "";
     const configuredRootPath = rootDocument ? resolve(localPath, rootDocument) : "";
@@ -186,6 +275,7 @@ async function loadProjects(force = false) {
       createdAt,
       modifiedAt,
       iconPath: iconByPath.get(entry.localPath) || "",
+      bridge: entry.bridge === true,
     };
   }))).filter(Boolean);
   projects.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
@@ -441,7 +531,13 @@ function command(program, args, cwd, options = {}) {
   const timeout = options.timeout || 30000;
   const maxOutput = options.maxOutput || 2 * 1024 * 1024;
   return new Promise((resolveCommand) => {
-    const child = spawn(program, args, { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" }, detached: true });
+    const childEnvironment = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
+    if (process.platform === "win32") {
+      delete childEnvironment.LC_ALL;
+      delete childEnvironment.LC_CTYPE;
+      delete childEnvironment.LANG;
+    }
+    const child = spawn(program, args, { cwd, env: childEnvironment, detached: process.platform !== "win32" });
     let stdout = "";
     let stderr = "";
     let truncated = false;
@@ -460,11 +556,17 @@ function command(program, args, cwd, options = {}) {
     child.stdout?.on("data", (chunk) => { stdout = append(stdout, chunk); });
     child.stderr?.on("data", (chunk) => { stderr = append(stderr, chunk); });
     const timer = setTimeout(() => {
-      try { process.kill(-child.pid, "SIGTERM"); } catch {}
+      try {
+        if (process.platform === "win32") child.kill();
+        else process.kill(-child.pid, "SIGTERM");
+      } catch {}
     }, timeout);
     child.on("error", (error) => {
       clearTimeout(timer);
-      resolveCommand({ code: 127, stdout, stderr: `${stderr}${error.message}`, truncated, timedOut: false });
+      const compilerHint = program === LATEXMK && error.code === "ENOENT"
+        ? "\nUnderTree could not find latexmk. Install MiKTeX or TeX Live, then restart UnderTree."
+        : "";
+      resolveCommand({ code: 127, stdout, stderr: `${stderr}${error.message}${compilerHint}`, truncated, timedOut: false });
     });
     child.on("close", (code, signal) => {
       clearTimeout(timer);
@@ -897,11 +999,8 @@ async function buildInfo(project) {
   let rootDocument = await configValue(project, "build", "root", project.rootDocument);
   let engine = await configValue(project, "build", "engine", project.engine || "pdflatex");
   if (!rootDocument) {
-    const tree = await treeForProject(project);
-    const files = [];
-    const collect = (nodes) => nodes.forEach((node) => node.type === "directory" ? collect(node.children) : files.push(node));
-    collect(tree);
-    rootDocument = files.find((file) => file.path.endsWith(".tex"))?.path || "";
+    const standalone = await standaloneTexFiles(project);
+    rootDocument = standalone[0] || "";
   }
   return { rootDocument, engine };
 }
@@ -913,7 +1012,7 @@ async function locatePdf(project, sourcePath = "") {
     const output = htmlOutputs.get(`${project.id}:${resolvedSource.relativePath}`);
     if (output?.sourcePath === resolvedSource.relativePath && await exists(output.pdfPath)) return output.pdfPath;
     const stem = basename(resolvedSource.relativePath, ".html").replace(/[^A-Za-z0-9._-]/g, "_");
-    const generatedPdf = join(project.localPath, ".tex-build", "undertree-html-preview", stem, `${stem}.pdf`);
+    const generatedPdf = join(project.localPath, COMPILER_ASSETS_DIRECTORY, "undertree-html-preview", stem, `${stem}.pdf`);
     return await exists(generatedPdf) ? generatedPdf : null;
   }
   if (requestedSource.toLowerCase().endsWith(".layout.xml")) {
@@ -938,18 +1037,18 @@ async function locatePdf(project, sourcePath = "") {
   const pdfName = `${basename(resolvedSource.relativePath, extname(resolvedSource.relativePath))}.pdf`;
   const sourceDirectory = dirname(resolvedSource.relativePath);
   const outputDirectory = sourceDirectory === "."
-    ? join(project.localPath, ".tex-build")
-    : join(project.localPath, ".tex-build", sourceDirectory);
+    ? join(project.localPath, COMPILER_ASSETS_DIRECTORY)
+    : join(project.localPath, COMPILER_ASSETS_DIRECTORY, sourceDirectory);
   const candidates = [join(outputDirectory, pdfName), join(dirname(resolvedSource.path), pdfName)];
   const configuredRoot = rootDocument ? safeRelativePath(rootDocument) : "";
   if (configuredRoot === resolvedSource.relativePath) {
-    candidates.push(join(project.localPath, ".tex-build", pdfName), join(project.localPath, pdfName));
+    candidates.push(join(project.localPath, COMPILER_ASSETS_DIRECTORY, pdfName), join(project.localPath, pdfName));
   }
   for (const candidate of candidates) {
     if (await exists(candidate)) return candidate;
   }
   if (requestedSource) return null;
-  const buildDirectory = join(project.localPath, ".tex-build");
+  const buildDirectory = join(project.localPath, COMPILER_ASSETS_DIRECTORY);
   async function findNested(directory, depth = 0) {
     if (depth > 4 || !(await exists(directory))) return null;
     for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -979,7 +1078,7 @@ async function buildLayoutProject(project, sourcePath, cleanFirst = false) {
   } catch (error) {
     throw httpError(422, `${error.name || "LayoutError"}: ${error.message}`);
   }
-  const result = await command("latexmk", [
+  const result = await command(LATEXMK, [
     "-norc", "-lualatex", "-interaction=nonstopmode", "-file-line-error", "-halt-on-error",
     `-outdir=${generated.outDir}`, generated.texPath,
   ], project.localPath, { timeout: 240000, maxOutput: 4 * 1024 * 1024 });
@@ -1006,7 +1105,7 @@ async function buildHtmlProject(project, sourcePath, cleanFirst = false, exportT
   const resolvedSource = await resolveExisting(project, sourcePath);
   if (!resolvedSource.relativePath.toLowerCase().endsWith(".html")) throw httpError(415, "HTML print sources must end in .html");
   const stem = basename(resolvedSource.relativePath, ".html").replace(/[^A-Za-z0-9._-]/g, "_");
-  const outputDirectory = join(project.localPath, ".tex-build", "undertree-html-preview", stem);
+  const outputDirectory = join(project.localPath, COMPILER_ASSETS_DIRECTORY, "undertree-html-preview", stem);
   if (cleanFirst) await rm(outputDirectory, { recursive: true, force: true });
   await mkdir(outputDirectory, { recursive: true });
   const pdfPath = join(outputDirectory, `${stem}.pdf`);
@@ -1065,8 +1164,8 @@ async function buildProject(project, cleanFirst = false, sourcePath = "", option
     } else {
       const sourceDirectory = dirname(resolvedSource.relativePath);
       const outputDirectory = sourceDirectory === "."
-        ? join(project.localPath, ".tex-build")
-        : join(project.localPath, ".tex-build", sourceDirectory);
+        ? join(project.localPath, COMPILER_ASSETS_DIRECTORY)
+        : join(project.localPath, COMPILER_ASSETS_DIRECTORY, sourceDirectory);
       const args = ["-norc", "-interaction=nonstopmode", "-file-line-error", "-halt-on-error", "-synctex=1", `-outdir=${outputDirectory}`];
       const shellEscape = (await configValue(project, "build", "shellEscape", "false")).toLowerCase() === "true";
       if (shellEscape) args.push("-shell-escape");
@@ -1075,10 +1174,10 @@ async function buildProject(project, cleanFirst = false, sourcePath = "", option
       args.push(resolvedSource.relativePath);
       await mkdir(outputDirectory, { recursive: true });
       if (cleanFirst) {
-        const cleaned = await command("latexmk", ["-norc", "-C", `-outdir=${outputDirectory}`, resolvedSource.relativePath], project.localPath, { timeout: 60000, maxOutput: 1024 * 1024 });
+        const cleaned = await command(LATEXMK, ["-norc", "-C", `-outdir=${outputDirectory}`, resolvedSource.relativePath], project.localPath, { timeout: 60000, maxOutput: 1024 * 1024 });
         if (cleaned.code !== 0) throw httpError(409, `Could not clean the previous build:\n${cleaned.stdout}${cleaned.stderr}`);
       }
-      result = await command("latexmk", args, project.localPath, { timeout: 240000, maxOutput: 4 * 1024 * 1024 });
+      result = await command(LATEXMK, args, project.localPath, { timeout: 240000, maxOutput: 4 * 1024 * 1024 });
     }
     const pdf = await locatePdf(project, resolvedSource.relativePath);
     if (pdf) previewPdfs.set(project.id, pdf);
@@ -1157,35 +1256,76 @@ function createZip(entries) {
 async function buildPdfBundle(project) {
   if (builds.has(project.id) || bundleBuilds.has(project.id)) throw httpError(409, "This project is already compiling");
   bundleBuilds.add(project.id);
-  let temporary = "";
   try {
-    temporary = await mkdtemp(join(tmpdir(), "localtex-pdf-bundle-"));
     const sources = await standaloneTexFiles(project);
     if (!sources.length) throw httpError(400, "No standalone .tex files with a document class were found");
     const defaultEngine = await configValue(project, "build", "engine", project.engine || "pdflatex");
     const shellEscape = (await configValue(project, "build", "shellEscape", "false")).toLowerCase() === "true";
     const entries = [];
     const failures = [];
-    for (let index = 0; index < sources.length; index += 1) {
-      const source = sources[index];
-      const outputDirectory = join(temporary, String(index));
+    for (const source of sources) {
+      const sourceDirectory = dirname(source);
+      const outputDirectory = sourceDirectory === "."
+        ? join(project.localPath, COMPILER_ASSETS_DIRECTORY)
+        : join(project.localPath, COMPILER_ASSETS_DIRECTORY, sourceDirectory);
       await mkdir(outputDirectory, { recursive: true });
-      const args = ["-norc", "-cd", "-interaction=nonstopmode", "-file-line-error", "-halt-on-error", `-outdir=${outputDirectory}`];
+      const args = ["-norc", "-interaction=nonstopmode", "-file-line-error", "-halt-on-error", `-outdir=${outputDirectory}`];
       if (shellEscape) args.push("-shell-escape");
-      const sourcePath = join(project.localPath, source);
-      const sourceEngine = await texEngineForFile(sourcePath, defaultEngine);
+      const sourceEngine = await texEngineForFile(join(project.localPath, source), defaultEngine);
       addLatexmkEngine(args, sourceEngine);
-      args.push(sourcePath);
-      await command("latexmk", args, project.localPath, { timeout: 240000, maxOutput: 2 * 1024 * 1024 });
+      args.push(source);
+      const result = await command(LATEXMK, args, project.localPath, { timeout: 240000, maxOutput: 2 * 1024 * 1024 });
       const pdfPath = join(outputDirectory, `${basename(source, extname(source))}.pdf`);
-      if (await exists(pdfPath)) entries.push({ name: source.slice(0, -extname(source).length) + ".pdf", data: await readFile(pdfPath) });
+      if (result.code === 0 && await exists(pdfPath)) entries.push({ name: source.slice(0, -extname(source).length) + ".pdf", data: await readFile(pdfPath) });
       else failures.push(source);
     }
     if (!entries.length) throw httpError(422, `None of the ${sources.length} standalone .tex files compiled successfully`);
     return { archive: createZip(entries), compiled: entries.length, failed: failures.length, failures };
   } finally {
     bundleBuilds.delete(project.id);
-    if (temporary) await rm(temporary, { recursive: true, force: true });
+  }
+}
+
+async function buildAllProjectPdfs(project) {
+  if (builds.has(project.id) || bundleBuilds.has(project.id)) throw httpError(409, "This project is already compiling");
+  bundleBuilds.add(project.id);
+  try {
+    const sources = await standaloneTexFiles(project);
+    if (!sources.length) throw httpError(400, "No standalone .tex files with a document class were found");
+    const defaultEngine = await configValue(project, "build", "engine", project.engine || "pdflatex");
+    const shellEscape = (await configValue(project, "build", "shellEscape", "false")).toLowerCase() === "true";
+    const results = [];
+    for (const source of sources) {
+      const sourceDirectory = dirname(source);
+      const outputDirectory = sourceDirectory === "."
+        ? join(project.localPath, COMPILER_ASSETS_DIRECTORY)
+        : join(project.localPath, COMPILER_ASSETS_DIRECTORY, sourceDirectory);
+      await mkdir(outputDirectory, { recursive: true });
+      const args = ["-norc", "-interaction=nonstopmode", "-file-line-error", "-halt-on-error", `-outdir=${outputDirectory}`];
+      if (shellEscape) args.push("-shell-escape");
+      const sourceEngine = await texEngineForFile(join(project.localPath, source), defaultEngine);
+      addLatexmkEngine(args, sourceEngine);
+      args.push(source);
+      const result = await command(LATEXMK, args, project.localPath, { timeout: 240000, maxOutput: 2 * 1024 * 1024 });
+      const pdfPath = join(outputDirectory, `${basename(source, extname(source))}.pdf`);
+      const pdfAvailable = result.code === 0 && await exists(pdfPath);
+      results.push({
+        source,
+        engine: sourceEngine,
+        code: result.code,
+        pdfAvailable,
+        pdfPath: pdfAvailable ? relative(project.localPath, pdfPath).replaceAll("\\", "/") : "",
+        output: pdfAvailable ? "" : compilerDiagnostic(`${result.stdout}${result.stderr}`),
+      });
+    }
+    return {
+      total: results.length,
+      compiled: results.filter((entry) => entry.pdfAvailable).length,
+      failed: results.filter((entry) => !entry.pdfAvailable).length,
+      results,
+    };
+  } finally {
+    bundleBuilds.delete(project.id);
   }
 }
 
@@ -1355,6 +1495,13 @@ async function handleApi(req, res, url) {
     const projects = (await loadProjects()).filter((project) => !query || [project.name, project.repository, project.semanticDomain, project.themes].join(" ").toLocaleLowerCase().includes(query));
     return json(res, 200, { projects: projects.map(({ iconPath, ...project }) => ({ ...project, hasIcon: Boolean(iconPath) })) });
   }
+  if (url.pathname === "/api/projects/bridge" && req.method === "POST") {
+    const body = await readJson(req);
+    const project = await addProjectBridge(body.localPath, body.name);
+    if (!project) throw httpError(500, "The project bridge could not be loaded");
+    const { iconPath, ...safeProject } = project;
+    return json(res, 201, { project: { ...safeProject, hasIcon: Boolean(iconPath) } });
+  }
   const match = url.pathname.match(/^\/api\/project\/([a-f0-9]{16})(?:\/(.+))?$/);
   if (!match) throw httpError(404, "Unknown API endpoint");
   const project = await projectById(match[1]);
@@ -1469,7 +1616,7 @@ async function handleApi(req, res, url) {
       ? await ensureBuildSourceContent(project, sourcePath, body.sourceContent)
       : null;
     const result = await buildProject(project, body.clean === true, sourcePath, { exportTex: body.exportTex === true });
-    if (body.recoverWithCodex === true && (result.code !== 0 || !result.pdfAvailable) && result.sourcePath?.toLowerCase().endsWith(".tex")) {
+    if (CODEX_RECOVERY_ENABLED && body.recoverWithCodex === true && (result.code !== 0 || !result.pdfAvailable) && result.sourcePath?.toLowerCase().endsWith(".tex")) {
       const { engine: configuredEngine } = await buildInfo(project);
       const resolvedSource = await resolveExisting(project, result.sourcePath);
       const sourceEngine = await texEngineForFile(resolvedSource.path, configuredEngine);
@@ -1552,6 +1699,10 @@ async function handleApi(req, res, url) {
       "X-LocalTeX-Failed-Sources": encodeURIComponent(bundle.failures.join("\n")).slice(0, 4000),
     });
     return res.end(bundle.archive);
+  }
+  if (action === "build-all" && req.method === "POST") {
+    await readJson(req);
+    return json(res, 200, await buildAllProjectPdfs(project));
   }
   if (action === "sync" && req.method === "POST") {
     const body = await readJson(req);

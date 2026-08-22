@@ -7,13 +7,16 @@
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/GeorgeFejer91/localtex-studio.git"
+    "url": "git+https://github.com/GeorgeFejer91/undertree_texstudio.git"
   },
+  "main": "native/windows/main.cjs",
+  "bin": { "undertree": "cli.mjs" },
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
     "build": "vite build",
+    "build:windows": "npm run build && electron-builder --win nsis",
     "layout:example": "node layout/compiler.mjs examples/adaptive-boxes.layout.xml",
     "start": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
@@ -40,7 +43,32 @@
     "pdfjs-dist": "6.2.108"
   },
   "devDependencies": {
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12",
     "playwright-core": "^1.62.1",
     "vite": "^8.2.1"
+  },
+  "build": {
+    "appId": "io.github.georgefejer91.UnderTree",
+    "productName": "UnderTree",
+    "artifactName": "UnderTree-${version}-Windows-${arch}.${ext}",
+    "directories": { "output": "release/windows" },
+    "files": [
+      "dist/**/*", "layout/**/*", "src/**/*.js", "src/**/*.mjs",
+      "native/windows/**/*", "native/html_print_renderer.py", "server.mjs",
+      "cli.mjs", "package.json", "node_modules/**/*"
+    ],
+    "extraFiles": [
+      { "from": "native/windows/undertree.cmd", "to": "undertree.cmd" }
+    ],
+    "asarUnpack": ["node_modules/@openai/codex-sdk/**/*", "node_modules/@openai/codex/**/*"],
+    "win": { "target": ["nsis"] },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "include": "native/windows/installer.nsh"
+    }
   }
 }

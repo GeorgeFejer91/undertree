@@ -1,10 +1,28 @@
 # UnderTree
 
-UnderTree is a standalone Linux desktop workspace for local LaTeX and fixed-page
+UnderTree is a standalone Linux and Windows desktop workspace for local LaTeX and fixed-page
 HTML print projects. It provides an Overleaf-style three-pane interface while
-using existing Git repositories, WebKitGTK, `latexmk`, and TeX engines. Editing,
-fitting, and rendering remain fully offline. Its name is a tongue-in-cheek
-inverse of Overleaf: the same kind of workspace, kept firmly under your own tree.
+using existing Git repositories, a native web view, `latexmk`, and TeX engines. On Windows,
+UnderTree automatically discovers `latexmk` from your PATH or common MiKTeX/TeX Live locations,
+then remembers the verified path for later launches. Editing, fitting, and rendering remain fully
+offline. Its name is a tongue-in-cheek inverse of Overleaf: the same kind of workspace, kept firmly
+under your own tree.
+
+### Automation CLI
+
+The Windows installation registers `undertree` as a per-user terminal command. It starts the desktop
+service when necessary and prints JSON to stdout, with structured errors and non-zero exit codes.
+For example:
+
+```powershell
+undertree projects --pretty
+undertree build-all alius-internal-documents --pretty
+undertree build alius-internal-documents templates/letter.tex --pretty
+```
+
+Run `undertree help --pretty` for named project, file, search, build, PDF, and synchronization
+commands. `undertree api METHOD /api/path --data JSON` is the complete low-level hook for all
+local API capabilities, including future endpoints.
 
 It is the primary local editing application for the canonical Overleaf project
 library. It edits the library's existing Git worktrees directly, so it does not
@@ -34,9 +52,6 @@ checkpoint.
   shared grid borders, eight-way boxlet resizing, bundled `@chenglou/pretext`
   measurement, WebKitGTK PDF printing, and generated standalone LuaLaTeX
   companions;
-- opt-out Codex recovery whenever a selected TeX source fails to build, with a
-  quiet short-lived formatting-only background task, duplicate suppression,
-  automatic verification, and PDF refresh;
 - an original, PreTeXt-inspired UnderTree Layout source type for adaptive fixed
   boxes, with semantic XML, runtime validation, HTML and LuaLaTeX targets,
   bounded per-box font/spacing fitting, and visible overflow failures;
@@ -53,6 +68,30 @@ checkpoint.
 - localhost-only authenticated service that remains available offline.
 
 ## Install a release
+
+### Windows
+
+Run `UnderTree-<version>-Windows-x64.exe`. The installer includes the desktop
+runtime and creates Start-menu and optional desktop shortcuts. Install MiKTeX
+(including `latexmk`) or TeX Live separately to compile LaTeX projects; UnderTree
+finds standard MiKTeX installations itself, even if the application was launched
+without an updated `PATH`. Set `UNDERTREE_LATEXMK` to an exact executable path
+for a non-standard TeX installation. Projects
+default to `%USERPROFILE%\\Documents\\Overleaf-projects`; application state is
+stored below `%APPDATA%\\undertree`.
+
+The editor, project browser, Git synchronization, and LaTeX compilation are
+supported on Windows. The fixed-page HTML-to-PDF renderer currently remains a
+Linux-only feature because it depends on the WebKitGTK print pipeline.
+
+Build the Windows installer with Node.js 22.13 or newer:
+
+```powershell
+npm ci
+npm run build:windows
+```
+
+### Linux
 
 The private GitHub release contains a self-contained application archive with
 the compiled interface and a pinned official Codex SDK/runtime for compatible
@@ -82,6 +121,14 @@ on first start. Repositories listed in `PROJECTS.tsv`, plus Git repositories
 with a `.tex-sync.conf` bridge file, appear in the project switcher. Set
 `UNDERTREE_LIBRARY_ROOT` when launching manually, or add a systemd user override,
 to use another library directory.
+
+Adding a folder as a project bridge creates an ignored `.tex-build/`
+compiler-assets folder inside that same project. UnderTree stores a separate
+cached PDF for every standalone TeX source there, preserving the source's
+subfolder layout. Selecting a TeX tab switches to its cached PDF immediately;
+it compiles only when that source has no cached PDF or when you choose
+**Recompile**. Files without `\\documentclass`, such as shared configuration
+fragments, are not used as a project's default build document.
 
 ## Build from source
 

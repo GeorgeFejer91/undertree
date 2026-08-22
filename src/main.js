@@ -119,6 +119,7 @@ const state = {
   pdfCurrentScale: 1,
   pdfRenderTasks: new Map(),
   pdfRenderVersion: 0,
+  nativePdfUrl: "",
   pdfRefreshVersion: 0,
   pdfPageObserver: null,
   pdfScrollFrame: null,
@@ -128,7 +129,7 @@ const state = {
   autoCompileChangeTimer: null,
   compileInFlight: false,
   pendingHtmlCompile: false,
-  codexRecoveryEnabled: true,
+  codexRecoveryEnabled: false,
   monitoredRecoveries: new Set(),
   recoverySources: new Set(),
   pendingTexSelection: "",
@@ -219,7 +220,11 @@ function recordProjectActivity(projectId, field) {
 }
 
 function renderProjectPicker() {
-  elements.projectPicker.innerHTML = orderedProjects().map((project) => `<option value="${project.id}">${escapeHtml(project.name)}</option>`).join("");
+  const projects = orderedProjects();
+  elements.projectPicker.innerHTML = projects.length
+    ? projects.map((project) => `<option value="${project.id}">${escapeHtml(project.name)}</option>`).join("")
+    : `<option value="" selected>Choose or add a project</option>`;
+  elements.projectPicker.disabled = !projects.length;
   if (state.currentProject) elements.projectPicker.value = state.currentProject.id;
 }
 
@@ -268,6 +273,21 @@ function openProjectModal(focusSort = false) {
 
 function closeProjectModal() {
   elements.projectModal.hidden = true;
+}
+
+async function addProjectFolder() {
+  if (typeof window.undertree?.chooseProjectFolder !== "function") {
+    toast("Folder selection is available in the UnderTree desktop app.", "error");
+    return;
+  }
+  const localPath = await window.undertree.chooseProjectFolder();
+  if (!localPath) return;
+  const data = await api("/api/projects/bridge", { method: "POST", body: JSON.stringify({ localPath }) });
+  state.projects = [...state.projects.filter((project) => project.id !== data.project.id), data.project];
+  renderProjectPicker();
+  renderProjectDialog(elements.projectFilter.value);
+  toast(`Added ${data.project.name}. UnderTree will keep using this folder directly.`);
+  await selectProject(data.project.id);
 }
 
 function iconForFile(name) {
@@ -1412,12 +1432,14 @@ async function refreshPdf(sourcePath = previewSourcePath(), { stale } = {}) {
   const viewAnchor = preserveExisting ? capturePdfViewAnchor() : null;
   let nextDocument = null;
   let nextLoadingTask = null;
+  let previewData = null;
   try {
     const sourceQuery = requestedSource ? `sourcePath=${encodeURIComponent(requestedSource)}&` : "";
     const response = await fetch(`${projectApi("pdf")}?${sourceQuery}v=${Date.now()}`, { cache: "no-store", credentials: "same-origin" });
     if (!response.ok) throw new Error(`PDF request failed (${response.status})`);
-    const [pdfjs, data] = await Promise.all([loadPdfjs(), response.arrayBuffer()]);
-    nextLoadingTask = pdfjs.getDocument({ data });
+    previewData = await response.arrayBuffer();
+    const pdfjs = await loadPdfjs();
+    nextLoadingTask = pdfjs.getDocument({ data: previewData });
     nextDocument = await nextLoadingTask.promise;
     if (refreshVersion !== state.pdfRefreshVersion || projectId !== state.currentProject?.id) throw new Error("PDF refresh superseded");
     const sameSource = previousProjectId === state.currentProject.id && previousSourcePath === requestedSource;
@@ -1433,6 +1455,7 @@ async function refreshPdf(sourcePath = previewSourcePath(), { stale } = {}) {
     if (refreshVersion !== state.pdfRefreshVersion || projectId !== state.currentProject?.id) throw new Error("PDF refresh superseded");
     elements.htmlProof.hidden = true;
     elements.htmlProof.removeAttribute("src");
+    clearNativePdfFallback();
     elements.pdfViewer.classList.add("visible");
     elements.pdfPlaceholder.classList.add("hidden");
     elements.downloadPdf.href = `${projectApi("pdf")}?${sourceQuery}download=1`;
@@ -1448,7 +1471,7 @@ async function refreshPdf(sourcePath = previewSourcePath(), { stale } = {}) {
       if (nextLoadingTask && nextLoadingTask !== state.pdfLoadingTask) {
         await destroyPdfResource(nextLoadingTask, nextDocument);
       }
-      return false;
+      return true;
     }
     if (nextLoadingTask && nextLoadingTask !== previousLoadingTask) {
       await destroyPdfResource(nextLoadingTask, nextDocument);
@@ -1462,9 +1485,37 @@ async function refreshPdf(sourcePath = previewSourcePath(), { stale } = {}) {
     state.pdfPage = preserveExisting ? previousPage : 1;
     state.pdfScale = preserveExisting ? previousScale : null;
     if (preserveExisting) setupPdfObserver();
+    else if (previewData?.byteLength) return showNativePdfFallback(previewData, sourceQuery, requestedSource);
     else await clearPdfPreview(previousDocument, previousLoadingTask);
+    appendCompileLog(`[PDF preview] ${error?.message || String(error)}`);
     return false;
   }
+}
+
+function clearNativePdfFallback() {
+  const fallback = $("#pdf-native-preview");
+  fallback.hidden = true;
+  fallback.removeAttribute("src");
+  if (state.nativePdfUrl) URL.revokeObjectURL(state.nativePdfUrl);
+  state.nativePdfUrl = "";
+}
+
+function showNativePdfFallback(data, sourceQuery, requestedSource) {
+  clearNativePdfFallback();
+  state.nativePdfUrl = URL.createObjectURL(new Blob([data], { type: "application/pdf" }));
+  const fallback = $("#pdf-native-preview");
+  fallback.src = state.nativePdfUrl;
+  fallback.hidden = false;
+  elements.htmlProof.hidden = true;
+  elements.pdfViewer.classList.remove("visible");
+  elements.pdfPlaceholder.classList.add("hidden");
+  elements.downloadPdf.href = `${projectApi("pdf")}?${sourceQuery}download=1`;
+  elements.downloadPdf.classList.remove("disabled");
+  elements.downloadPdf.removeAttribute("aria-disabled");
+  state.pdfProjectId = state.currentProject?.id || "";
+  state.pdfSourcePath = requestedSource;
+  $("#page-status").textContent = "PDF preview";
+  return true;
 }
 
 async function clearPdfPreview(document = state.pdfDocument, loadingTask = state.pdfLoadingTask) {
@@ -1478,6 +1529,7 @@ async function clearPdfPreview(document = state.pdfDocument, loadingTask = state
   elements.previewPane?.classList.remove("stale-pdf");
   state.pdfPage = 1;
   state.pdfScale = null;
+  clearNativePdfFallback();
   elements.pdfPages.replaceChildren();
   elements.pdfViewer.classList.remove("visible");
   elements.pdfViewer.removeAttribute("aria-busy");
@@ -1743,13 +1795,7 @@ function codexRecoveryStorageKey() {
 }
 
 function setCodexRecovery(enabled, { persist = true, announce = true } = {}) {
-  state.codexRecoveryEnabled = Boolean(enabled);
-  $("#codex-auto-recovery").checked = state.codexRecoveryEnabled;
-  const key = codexRecoveryStorageKey();
-  if (persist && key) localStorage.setItem(key, String(state.codexRecoveryEnabled));
-  if (announce) toast(state.codexRecoveryEnabled
-    ? "Automatic background Codex repair is on for failed TeX builds."
-    : "Automatic Codex formatting repair is off for this project.");
+  state.codexRecoveryEnabled = false;
 }
 
 function setAutoCompile(seconds, { persist = true, announce = true } = {}) {
@@ -1802,9 +1848,7 @@ function restoreAutoCompile() {
 }
 
 function restoreCodexRecovery() {
-  const key = codexRecoveryStorageKey();
-  const stored = key ? localStorage.getItem(key) : null;
-  setCodexRecovery(stored === null ? true : stored === "true", { persist: false, announce: false });
+  state.codexRecoveryEnabled = false;
 }
 
 async function reloadCleanTabsFromDisk() {
@@ -1899,7 +1943,7 @@ async function compileProject({ clean = false, automatic = false, exportTex = fa
     elements.compileButton.textContent = clean ? "Cleaning…" : layoutSource || htmlSource ? "Rendering…" : "Compiling…";
     const buildLabel = sourcePath || "project";
     status(`${clean ? "Cleaning and compiling" : htmlSource ? "Fitting and rendering HTML" : layoutSource ? "Rendering adaptive layout" : "Compiling"} ${buildLabel}…`);
-    const recoverWithCodex = state.codexRecoveryEnabled && sourcePath.toLowerCase().endsWith(".tex");
+    const recoverWithCodex = false;
     const sourceTab = activePath === sourcePath ? state.tabs.get(activePath) : null;
     let sourceSnapshot = null;
     if (sourceTab) {
@@ -2166,6 +2210,8 @@ function bindEvents() {
   elements.projectPicker.addEventListener("change", () => selectProject(elements.projectPicker.value));
   $("#home-button").addEventListener("click", () => openProjectModal());
   $("#open-project-sort").addEventListener("click", () => openProjectModal(true));
+  $("#add-project-folder-top").addEventListener("click", () => { void addProjectFolder().catch((error) => toast(error.message, "error", 7000)); });
+  $("#add-project-folder").addEventListener("click", () => { void addProjectFolder().catch((error) => toast(error.message, "error", 7000)); });
   $("#close-project-modal").addEventListener("click", closeProjectModal);
   elements.projectModal.addEventListener("click", (event) => { if (event.target === elements.projectModal) closeProjectModal(); });
   elements.projectFilter.addEventListener("input", () => renderProjectDialog(elements.projectFilter.value));
@@ -2234,7 +2280,6 @@ function bindEvents() {
   elements.compileButton.addEventListener("click", (event) => { event.preventDefault(); compileProject(); });
   $("#compile-menu").addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); showCompileMenu(); });
   $("#auto-compile-interval").addEventListener("change", (event) => setAutoCompile(event.target.value));
-  $("#codex-auto-recovery").addEventListener("change", (event) => setCodexRecovery(event.target.checked));
   $$("[data-compile-action]").forEach((button) => button.addEventListener("click", () => {
     const action = button.dataset.compileAction;
     showCompileMenu(false);

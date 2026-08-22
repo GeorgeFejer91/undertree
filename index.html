@@ -25,8 +25,9 @@
         <div class="project-picker-wrap" title="Switch local project">
           <img id="project-icon" alt="" />
           <select id="project-picker" aria-label="Current project"></select>
-          <span aria-hidden="true">⌄</span>
-          <button type="button" class="project-sort-button" id="open-project-sort" title="Organize projects" aria-label="Organize projects">⇅</button>
+          <span class="project-chevron" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3 6 5 5 5-5"/></svg></span>
+          <button type="button" class="project-add-button" id="add-project-folder-top" title="Add a project folder" aria-label="Add a project folder"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+          <button type="button" class="project-sort-button" id="open-project-sort" title="Organize projects" aria-label="Organize projects"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3v10M2 5l2-2 2 2M12 13V3m-2 8 2 2 2-2"/></svg></button>
         </div>
         <div class="top-actions">
           <span class="offline-pill"><span class="status-dot"></span>Offline ready</span>
@@ -182,13 +183,6 @@
                   </select>
                   <small>Saved per project; edit mode only rebuilds changed sources.</small>
                 </div>
-                <div class="compile-option-group">
-                  <label class="compile-checkbox" for="codex-auto-recovery">
-                    <input id="codex-auto-recovery" type="checkbox" checked />
-                    <span>Automatically repair failed TeX with Codex</span>
-                  </label>
-                  <small>Runs quietly in the background after a failed build. Successful builds send nothing; unrecoverable errors are shown.</small>
-                </div>
               </div>
             </div>
             <button id="toggle-logs" title="View compile logs">▤</button>
@@ -212,6 +206,7 @@
             <div id="pdf-viewer" aria-label="Compiled PDF preview">
               <div class="pdf-pages" id="pdf-pages"></div>
             </div>
+            <iframe id="pdf-native-preview" title="Compiled PDF preview fallback" hidden></iframe>
             <iframe id="html-proof" title="Adaptive HTML layout proof" sandbox="allow-scripts allow-same-origin allow-modals" hidden></iframe>
             <section class="logs-panel" id="logs-panel" aria-label="Compile logs">
               <div class="logs-heading"><strong>Compile log</strong><button id="close-logs">×</button></div>
@@ -232,7 +227,7 @@
       <div class="file-context-menu" id="file-context-menu" role="menu" aria-label="File tree actions" hidden></div>
       <div class="modal-backdrop" id="project-modal" hidden>
         <section class="project-dialog" role="dialog" aria-modal="true" aria-labelledby="project-dialog-title">
-          <div class="dialog-heading"><h2 id="project-dialog-title">Open local TeX project</h2><button id="close-project-modal">×</button></div>
+          <div class="dialog-heading"><h2 id="project-dialog-title">Open local TeX project</h2><div><button id="add-project-folder" class="add-project-folder" title="Add a folder from this PC as a project bridge">＋ Add folder</button><button id="close-project-modal">×</button></div></div>
           <div class="project-dialog-controls">
             <input id="project-filter" type="search" placeholder="Search local projects by name, topic, or repository" autofocus />
             <label class="project-sort-control" for="project-sort">
