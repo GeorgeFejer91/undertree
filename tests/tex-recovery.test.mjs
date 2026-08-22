@@ -17,8 +17,8 @@ test("selection-time PDF targeting covers every selected TeX source", () => {
   assert.equal(isSelectedTexPdfTarget("references.bib", "\\documentclass{article}", "main.tex"), false);
 });
 
-test("selection reuses every existing PDF, including a stale project-local build", () => {
+test("selection reuses only a current PDF and rebuilds stale project-local output", () => {
   assert.equal(shouldReuseSelectedPdf({ available: true, stale: false }), true);
-  assert.equal(shouldReuseSelectedPdf({ available: true, stale: true }), true);
+  assert.equal(shouldReuseSelectedPdf({ available: true, stale: true }), false);
   assert.equal(shouldReuseSelectedPdf({ available: false, stale: false }), false);
 });

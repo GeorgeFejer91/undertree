@@ -10,12 +10,13 @@ import { xml } from "@codemirror/legacy-modes/mode/xml";
 import { html as htmlLanguage } from "@codemirror/lang-html";
 import { css as cssLanguage } from "@codemirror/lang-css";
 import * as pretextRich from "@chenglou/pretext/rich-inline";
-import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import { pdfSourceTree } from "./file-tree-filter.js";
 import { absoluteProjectPath, dirnamePath, pathIsEntry, remapPath } from "./file-tree-actions.js";
 import { boundedPdfOutputScale, clampPdfPage, destroyPdfResource, nextPdfScale } from "./pdf-viewer-state.js";
 import { normalizeProjectSort, projectActivityTime, sortProjects } from "./project-sorting.js";
 import { isSelectedTexPdfTarget, shouldReuseSelectedPdf } from "./tex-recovery.js";
+import { EXTERNAL_TEX_SCAN_MS, LIVE_COMPILE_DELAY_MS, externalTexChanged } from "./tex-monitor.js";
 import { documentOutline } from "./outline.js";
 import { insertBoxlet, patchEditableHtml, patchElementAttributes, patchElementStyle, removeVisualElement } from "./html-print-profile.js";
 import { fitPrintDocument } from "./pretext-fit-core.js";
@@ -26,7 +27,11 @@ let pdfjsPromise = null;
 
 async function loadPdfjs() {
   if (!pdfjsPromise) {
-    pdfjsPromise = import("pdfjs-dist").then((pdfjs) => {
+    // The standard PDF.js worker uses Uint8Array.prototype.toHex, which is not
+    // available in every Chromium runtime supported by the Windows desktop app.
+    // The legacy build carries the same renderer plus the required typed-array
+    // polyfills in both the page and worker contexts.
+    pdfjsPromise = import("pdfjs-dist/legacy/build/pdf.mjs").then((pdfjs) => {
       pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
       return pdfjs;
     });
@@ -127,6 +132,7 @@ const state = {
   autoCompileMode: "0",
   autoCompileTimer: null,
   autoCompileChangeTimer: null,
+  externalTexScanTimer: null,
   compileInFlight: false,
   pendingHtmlCompile: false,
   codexRecoveryEnabled: false,
@@ -1195,12 +1201,18 @@ async function refreshOrCompileSelectedTex(path) {
   try {
     const info = await api(`${projectApi("pdf-info")}?sourcePath=${encodeURIComponent(sourcePath)}`);
     if (projectId !== state.currentProject?.id || path !== state.activePath) return false;
-    if (shouldReuseSelectedPdf(info)) return refreshPdf(sourcePath, { stale: info.stale || tab.dirty });
+    if (shouldReuseSelectedPdf(info) && !tab.dirty) return refreshPdf(sourcePath, { stale: false });
+    // Switch to the source's existing PDF immediately, then rebuild it in the
+    // background when the TeX source is newer. This keeps tab switching fast
+    // without leaving a stale preview in place.
+    let cachedPreviewShown = false;
+    if (info.available) cachedPreviewShown = await refreshPdf(sourcePath, { stale: true });
     if (state.compileInFlight) {
       state.pendingTexSelection = `${projectId}:${path}`;
-      return false;
+      return cachedPreviewShown;
     }
-    return compileProject({ automatic: true });
+    void compileProject({ automatic: true });
+    return cachedPreviewShown;
   } catch (error) {
     if (error?.status === 404 && projectId === state.currentProject?.id && path === state.activePath) {
       try {
@@ -1378,8 +1390,10 @@ async function selectProject(id) {
   clearAllSaveTimers();
   clearInterval(state.autoCompileTimer);
   clearTimeout(state.autoCompileChangeTimer);
+  clearInterval(state.externalTexScanTimer);
   state.autoCompileTimer = null;
   state.autoCompileChangeTimer = null;
+  state.externalTexScanTimer = null;
   state.autoCompileMode = "0";
   state.pendingTexSelection = "";
   closeTreeContextMenu();
@@ -1406,6 +1420,7 @@ async function selectProject(id) {
     if (opening) await openFile(opening);
     else await refreshPdf();
     restoreAutoCompile();
+    startExternalTexScan();
     status(`${state.currentProject.name} is ready offline`);
   } catch (error) {
     toast(error.message, "error", 6500);
@@ -1787,7 +1802,10 @@ function showCompileMenu(show = $("#compile-popover").hidden) {
 }
 
 function autoCompileStorageKey() {
-  return state.currentProject ? `localtex-auto-compile:${state.currentProject.id}` : "";
+  // v2 changes the product default from manual builds to live recompilation.
+  // A new key lets existing installations receive that default once, while
+  // still preserving an explicit Off choice made after this update.
+  return state.currentProject ? `localtex-auto-compile-v2:${state.currentProject.id}` : "";
 }
 
 function codexRecoveryStorageKey() {
@@ -1810,7 +1828,7 @@ function setAutoCompile(seconds, { persist = true, announce = true } = {}) {
   state.autoCompileMode = selected;
   $("#auto-compile-interval").value = selected;
   elements.compileButton.title = selected === "changes"
-    ? "Automatically recompile one second after editing stops"
+    ? "Automatically recompile shortly after editing stops"
     : Number(selected) ? `Automatic recompile every ${selected} seconds` : "Recompile PDF";
   const key = autoCompileStorageKey();
   if (persist && key) localStorage.setItem(key, selected);
@@ -1822,7 +1840,7 @@ function setAutoCompile(seconds, { persist = true, announce = true } = {}) {
   }
   if (announce) {
     const message = selected === "changes"
-      ? "Automatic recompile will run one second after edits stop."
+      ? "Live PDF recompilation will run shortly after edits stop."
       : Number(selected) ? `Automatic recompile set to every ${selected} seconds for this project.` : "Automatic recompile turned off for this project.";
     toast(message);
   }
@@ -1839,12 +1857,44 @@ function scheduleChangeCompile() {
       return;
     }
     compileProject({ automatic: true });
-  }, 1000);
+  }, LIVE_COMPILE_DELAY_MS);
 }
 
 function restoreAutoCompile() {
   const key = autoCompileStorageKey();
-  setAutoCompile(key ? localStorage.getItem(key) : 0, { persist: false, announce: false });
+  const stored = key ? localStorage.getItem(key) : null;
+  setAutoCompile(stored === null ? "changes" : stored, { persist: false, announce: false });
+}
+
+async function scanSelectedTexForExternalChanges() {
+  const projectId = state.currentProject?.id || "";
+  const path = state.activePath;
+  const tab = state.tabs.get(path);
+  if (!projectId || !isTexSource(path) || !tab || tab.dirty || state.compileInFlight) return false;
+  try {
+    const file = await api(`${projectApi("file")}?path=${encodeURIComponent(path)}`);
+    if (projectId !== state.currentProject?.id || path !== state.activePath) return false;
+    if (externalTexChanged(tab, file)) {
+      const line = state.editor?.state.doc.lineAt(state.editor.state.selection.main.head).number || 1;
+      state.tabs.set(path, { ...file, dirty: false });
+      activateTab(path, line);
+      status(`Detected external changes in ${path}; recompiling…`);
+      return true;
+    }
+    const info = await api(`${projectApi("pdf-info")}?sourcePath=${encodeURIComponent(path)}`);
+    if (!info.available || info.stale) {
+      void compileProject({ automatic: true });
+      return true;
+    }
+  } catch (error) {
+    appendCompileLog(`[External TeX scan] ${error.message}`);
+  }
+  return false;
+}
+
+function startExternalTexScan() {
+  clearInterval(state.externalTexScanTimer);
+  state.externalTexScanTimer = setInterval(() => { void scanSelectedTexForExternalChanges(); }, EXTERNAL_TEX_SCAN_MS);
 }
 
 function restoreCodexRecovery() {
@@ -2005,7 +2055,10 @@ async function compileProject({ clean = false, automatic = false, exportTex = fa
       await saveFile(sourceTab, { flush: true });
     }
     if (state.currentProject?.id === projectId && previewSourcePath() === sourcePath && !(await refreshPdf(sourcePath, { stale: false }))) {
-      throw new Error("The PDF compiled, but its preview could not be refreshed.");
+      appendCompileLog("The PDF compiled successfully, but its preview could not be refreshed.");
+      toast("PDF compiled, but the preview renderer failed. The PDF remains available for download.", "error", 8000);
+      status("PDF compiled; preview unavailable");
+      return false;
     }
     elements.previewPane?.classList.remove("stale-pdf");
     const successMessage = result.html
@@ -2348,6 +2401,7 @@ function bindEvents() {
     clearAllSaveTimers();
     clearInterval(state.autoCompileTimer);
     clearTimeout(state.autoCompileChangeTimer);
+    clearInterval(state.externalTexScanTimer);
     clearTimeout(state.htmlCompileTimer);
     cancelPdfRenders();
     if ([...state.tabs.values()].some((tab) => tab.dirty)) {

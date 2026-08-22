@@ -4,6 +4,7 @@ release/
 .localtex-layout/
 .tex-build/
 coverage/
+artifacts/
 __pycache__/
 *.pyc
 *.log

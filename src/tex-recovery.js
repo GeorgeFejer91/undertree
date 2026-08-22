@@ -16,5 +16,5 @@ export function isSelectedTexPdfTarget(path, content, configuredRoot = "") {
 }
 
 export function shouldReuseSelectedPdf(info) {
-  return info?.available === true;
+  return info?.available === true && info?.stale !== true;
 }
