@@ -1,0 +1,42 @@
+[package]
+name = "undertree-typst"
+version = "0.3.0"
+description = "UnderTree, an offline-first Typst workspace"
+authors = ["GeorgeFejer91"]
+license = "UNLICENSED"
+repository = "https://github.com/GeorgeFejer91/undertree_texstudio"
+edition = "2024"
+rust-version = "1.92"
+
+[lib]
+name = "undertree_typst_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = "2.6.3"
+
+[dependencies]
+atomic-write-file = "0.3.1"
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"
+tauri = "2.11.5"
+tauri-plugin-dialog = "2.7.2"
+typst = "0.15.1"
+typst-kit = { version = "0.15.1", default-features = false, features = ["datetime", "embedded-fonts"] }
+typst-layout = "0.15.1"
+typst-svg = "0.15.1"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+opt-level = "s"
+panic = "abort"
+strip = true
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.test]
+debug = 0
+incremental = false

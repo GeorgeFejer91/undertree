@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-launcher_path="$(readlink -f "${BASH_SOURCE[0]}")"
-app_root="$(cd "$(dirname "$launcher_path")/.." && pwd)"
-if [[ "${1:-}" == "render-html" ]]; then
-  exec node "$app_root/cli.mjs" "$@"
-fi
-exec /usr/bin/python3 "$app_root/native/localtex_studio.py" "$@"

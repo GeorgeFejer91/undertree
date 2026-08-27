@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-compiler-info"
+description = "Enables the compiler_info command without any pre-configured scope."
+commands.allow = ["compiler_info"]
+
+[[permission]]
+identifier = "deny-compiler-info"
+description = "Denies the compiler_info command without any pre-configured scope."
+commands.deny = ["compiler_info"]

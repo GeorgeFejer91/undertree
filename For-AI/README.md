@@ -8,4 +8,4 @@ Read in this order:
 2. `module-map.md` to identify the owning runtime module.
 3. `workflows.md` for the required implementation and verification sequence.
 
-All application code and assets live outside `For-AI/`. The executable module roots are `modules/frontend/`, `modules/compiler/`, and `modules/maintenance/`; the existing `src/`, `layout/`, `native/`, and `scripts/` directories are adapters or established asset roots assigned in `module-map.md`.
+All application code and assets live outside `For-AI/`. The runtime roots are `src-tauri/` for native Rust code and `web/` for the local HTML wrapper. This directory must contain Markdown guidance only.

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231b222c'/%3E%3Cpath d='M8 4h11l5 5v19H8z' fill='none' stroke='%2338cc89' stroke-width='2'/%3E%3Cpath d='M12 14h9M16.5 14v9' stroke='%23f4f5f6' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <title>UnderTree</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <main id="app" aria-label="UnderTree offline Typst editor">
+      <header class="topbar">
+        <div class="brand-and-menu">
+          <button class="brand-mark" id="home-button" type="button" title="Choose a project" aria-label="Choose a project">
+            <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 3h13l6 6v20H7z"/><path class="fold" d="M20 3v7h6"/><path class="glyph" d="M11 15h11M11 20h8M11 25h6"/></svg>
+          </button>
+          <nav class="menubar" aria-label="Application menus">
+            <button type="button" data-menu="file">File</button>
+            <button type="button" data-menu="edit">Edit</button>
+            <button type="button" data-menu="view">View</button>
+            <button type="button" data-menu="build">Build</button>
+            <button type="button" data-menu="help">Help</button>
+          </nav>
+        </div>
+
+        <div class="project-picker-wrap" title="Current local Typst project">
+          <select id="project-picker" aria-label="Current project">
+            <option id="project-name">Scratch workspace</option>
+          </select>
+          <span class="project-chevron" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3 6 5 5 5-5"/></svg></span>
+          <button type="button" class="project-add-button" id="open-project" title="Add a Typst project folder" aria-label="Add a Typst project folder">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>
+          </button>
+        </div>
+
+        <div class="top-actions">
+          <span class="offline-pill"><span class="status-dot" id="status-dot"></span><span id="status-text">Starting compiler…</span></span>
+          <button class="round-button" id="refresh-project" type="button" title="Refresh project">↻</button>
+          <button class="pill-button remote-sync runtime-action" type="button" aria-disabled="true" title="Git integration is a later Typst slice">GitHub Sync</button>
+          <button class="pill-button remote-sync runtime-action" type="button" aria-disabled="true" title="Overleaf integration is not enabled in the offline Typst core">Overleaf Sync</button>
+        </div>
+      </header>
+
+      <section class="workspace" id="workspace">
+        <aside class="rail" aria-label="Workspace navigation">
+          <button class="rail-button active" type="button" data-panel="files" title="File tree" aria-label="File tree">▤</button>
+          <button class="rail-button" type="button" data-panel="search" title="Project search" aria-label="Project search">⌕</button>
+          <button class="rail-button" type="button" data-panel="git" title="Git and synchronization" aria-label="Git and synchronization">↔</button>
+          <span class="rail-spacer"></span>
+          <button class="rail-button" type="button" data-panel="settings" title="Settings" aria-label="Settings">⚙</button>
+        </aside>
+
+        <aside class="left-panel" id="left-panel">
+          <section class="left-view active" data-view="files">
+            <div class="panel-heading">
+              <button class="heading-title" id="collapse-files" type="button">⌄ <strong>File tree</strong></button>
+              <div class="heading-actions">
+                <button type="button" disabled title="New file is planned">＋</button>
+                <button type="button" disabled title="New folder is planned">▱</button>
+              </div>
+            </div>
+            <label class="tree-filter">
+              <input type="checkbox" checked disabled />
+              <span>Typst source files</span>
+            </label>
+            <div class="tree-scroll" id="file-list" role="tree">
+              <button class="tree-row active" type="button" data-path="">
+                <span class="tree-caret"></span><span class="tree-icon">T</span><span class="tree-label">main.typ</span>
+              </button>
+            </div>
+            <div class="outline-resizer" id="outline-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize file tree and diagnostics" tabindex="0"></div>
+            <section class="outline-panel" id="outline-panel">
+              <div class="panel-heading compact"><span>⌄ <strong>Compiler messages</strong></span></div>
+              <div id="diagnostics" class="outline-list" aria-live="polite"><p>No compiler messages.</p></div>
+            </section>
+          </section>
+
+          <section class="left-view" data-view="search">
+            <div class="panel-heading"><strong>Project search</strong></div>
+            <div class="search-box"><span>⌕</span><input type="search" placeholder="Search all Typst source" disabled /></div>
+            <div class="search-results"><p>Project-wide search is the next editor slice.</p></div>
+          </section>
+
+          <section class="left-view" data-view="git">
+            <div class="panel-heading"><strong>Git &amp; bridge</strong></div>
+            <div class="git-summary"><p>Git remains outside the least-privilege runtime for this foundation.</p></div>
+          </section>
+
+          <section class="left-view" data-view="settings">
+            <div class="panel-heading"><strong>Local settings</strong></div>
+            <div class="settings-list">
+              <label><span>Editor font size</span><input id="font-size" type="range" min="11" max="22" value="14" /></label>
+              <label><span>Live Typst preview</span><input type="checkbox" checked disabled /></label>
+              <p>Source, imports, compilation, and preview remain local to the selected project.</p>
+            </div>
+          </section>
+        </aside>
+
+        <div class="resizer" id="left-resizer" role="separator" aria-orientation="vertical" aria-label="Resize file panel"></div>
+
+        <section class="editor-pane" id="editor-pane" aria-label="Typst editor">
+          <div class="editor-tabs" id="editor-tabs">
+            <button class="editor-tab active" type="button">
+              <span class="tab-icon">T</span><span class="tab-label" id="active-tab-label">main.typ</span><span>×</span>
+            </button>
+          </div>
+          <div class="editor-toolbar" role="toolbar" aria-label="Editor toolbar">
+            <button id="undo" type="button" title="Undo">↶</button>
+            <button id="redo" type="button" title="Redo">↷</button>
+            <span class="toolbar-divider"></span>
+            <button id="bold" type="button" title="Insert Typst bold"><strong>B</strong></button>
+            <button id="italic" type="button" title="Insert Typst emphasis"><em>I</em></button>
+            <button id="insert-cite" type="button" title="Insert Typst citation">Cite</button>
+            <span class="toolbar-spacer"></span>
+            <span class="save-state" id="save-state">Scratch document</span>
+            <button id="save-button" type="button" title="Save document" disabled>Save</button>
+            <button id="search-file" type="button" title="Search current file" disabled>⌕</button>
+          </div>
+          <div class="editor-host" id="editor-host">
+            <textarea id="source" spellcheck="false" aria-label="Typst source">#set page(paper: "a4", margin: 2.2cm)
+#set text(font: "Libertinus Serif", size: 11pt)
+
+#align(center)[
+  #text(size: 28pt, weight: "bold", fill: rgb("098842"))[UnderTree]
+  #v(6pt)
+  _A local Typst workspace, rooted in Rust._
+]
+
+= A faster document loop
+
+UnderTree compiles Typst directly inside its native Rust core. The familiar interface is now a local HTML wrapper hosted by Tauri.
+
+$ integral_0^infinity e^(-x^2) dif x = sqrt(pi) / 2 $</textarea>
+            <span class="source-metrics" id="source-size">0 chars</span>
+          </div>
+        </section>
+
+        <div class="resizer" id="right-resizer" role="separator" aria-orientation="vertical" aria-label="Resize preview panel"></div>
+
+        <section class="preview-pane" id="preview-pane" aria-label="Typst preview">
+          <div class="preview-toolbar" role="toolbar" aria-label="Typst preview toolbar">
+            <div class="compile-control">
+              <button type="button" class="compile-button" id="compile-button">Recompile</button>
+              <button type="button" class="compile-menu-button" title="Compile options" disabled>⌄</button>
+            </div>
+            <button type="button" title="Compiler messages" data-panel-target="files">▤</button>
+            <button type="button" title="Export is planned" disabled>⇩</button>
+            <span class="toolbar-spacer"></span>
+            <button type="button" id="previous-page" title="Previous page">‹</button>
+            <span id="page-status"><span id="preview-meta">Typst preview</span></span>
+            <button type="button" id="next-page" title="Next page">›</button>
+            <button type="button" id="zoom-out" title="Zoom out">−</button>
+            <button type="button" id="fit-width" title="Fit preview to pane width">↔</button>
+            <button type="button" id="zoom-in" title="Zoom in">+</button>
+            <button type="button" id="reload-preview" title="Recompile">↻</button>
+          </div>
+          <div class="preview-stage" id="preview-stage">
+            <div id="preview">
+              <div class="preview-empty">Compiling the first Typst preview…</div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <footer class="statusbar">
+        <span id="status-message">Starting local Typst workspace…</span>
+        <span class="status-spacer"></span>
+        <span id="build-config">Typst · embedded Rust</span>
+        <span id="git-state">Offline project boundary</span>
+      </footer>
+    </main>
+  </body>
+</html>
