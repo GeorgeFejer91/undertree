@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createHash, randomBytes } from "node:crypto";
-import { createReadStream, createWriteStream, existsSync, watch } from "node:fs";
+import { createReadStream, createWriteStream, watch } from "node:fs";
 import {
   access,
   cp,
@@ -20,8 +20,8 @@ import { createServer } from "node:http";
 import { homedir, tmpdir } from "node:os";
 import { basename, delimiter, dirname, extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn, spawnSync } from "node:child_process";
-import { Codex } from "@openai/codex-sdk";
+import { spawn } from "node:child_process";
+import { resolveLatexmk } from "./modules/compiler/toolchain.mjs";
 import { compileLayout } from "./layout/compiler.mjs";
 import { renderHtmlPrint } from "./src/html-renderer.mjs";
 import { texEngineForContent } from "./src/tex-engine.js";
@@ -54,7 +54,6 @@ const DEFAULT_STATE_ROOT = process.platform === "win32"
   : join(homedir(), ".local", "state", "undertree");
 const STATE_ROOT = resolve(process.env.UNDERTREE_STATE_ROOT || process.env.LOCALTEX_STATE_ROOT || DEFAULT_STATE_ROOT);
 const PROJECT_BRIDGES_FILE = join(STATE_ROOT, "project-bridges.json");
-const TEX_TOOLCHAIN_FILE = join(STATE_ROOT, "tex-toolchain.json");
 const COMPILER_ASSETS_DIRECTORY = ".tex-build";
 const CODEX_RECOVERY_ENABLED = false;
 const CODEX_RECOVERY_ROOT = join(STATE_ROOT, "codex-recovery");
@@ -63,47 +62,7 @@ const CODEX_RECOVERY_TIMEOUT_MS = 20 * 60 * 1000;
 const CODEX_RECOVERY_COOLDOWN_MS = 5 * 60 * 1000;
 const MAX_CODEX_RECOVERIES = 2;
 
-async function texLiveCandidates(root) {
-  if (!root || !existsSync(root)) return [];
-  const direct = join(root, "bin", "windows", "latexmk.exe");
-  const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
-  return [direct, ...entries.filter((entry) => entry.isDirectory()).map((entry) => join(root, entry.name, "bin", "windows", "latexmk.exe"))];
-}
-
-async function resolveLatexmk() {
-  const configured = process.env.UNDERTREE_LATEXMK || process.env.LOCALTEX_LATEXMK;
-  if (configured && existsSync(configured)) {
-    await rememberLatexmk(configured, "environment");
-    return configured;
-  }
-  if (process.platform !== "win32") return "latexmk";
-  const cached = await readFile(TEX_TOOLCHAIN_FILE, "utf8").then(JSON.parse).catch(() => null);
-  if (cached?.latexmk && existsSync(cached.latexmk)) return cached.latexmk;
-  const discoveredOnPath = spawnSync("where.exe", ["latexmk.exe"], { encoding: "utf8", windowsHide: true });
-  const pathCandidate = String(discoveredOnPath.stdout || "").split(/\r?\n/).map((line) => line.trim()).find((candidate) => existsSync(candidate));
-  const driveRoots = ["C:", "D:", "E:", "F:"].map((drive) => join(drive, "texlive"));
-  const candidates = [pathCandidate,
-    join(process.env.LOCALAPPDATA || "", "Programs", "MiKTeX", "miktex", "bin", "x64", "latexmk.exe"),
-    join(process.env.ProgramFiles || "", "MiKTeX", "miktex", "bin", "x64", "latexmk.exe"),
-    join(process.env["ProgramFiles(x86)"] || "", "MiKTeX", "miktex", "bin", "x64", "latexmk.exe"),
-    ...(await texLiveCandidates(process.env.TEXLIVE_ROOT)),
-    ...(await texLiveCandidates(join(process.env.SystemDrive || "C:", "texlive"))),
-    ...(await texLiveCandidates(join(homedir(), "texlive"))),
-    ...(await Promise.all(driveRoots.map(texLiveCandidates))).flat(),
-  ];
-  const latexmk = candidates.find((candidate) => candidate && existsSync(candidate)) || "latexmk";
-  if (latexmk !== "latexmk") {
-    await rememberLatexmk(latexmk, pathCandidate === latexmk ? "PATH" : "filesystem search");
-  }
-  return latexmk;
-}
-
-async function rememberLatexmk(latexmk, source) {
-  await mkdir(STATE_ROOT, { recursive: true });
-  await writeFile(TEX_TOOLCHAIN_FILE, `${JSON.stringify({ latexmk, source, detectedAt: new Date().toISOString() }, null, 2)}\n`, "utf8");
-}
-
-const LATEXMK = await resolveLatexmk();
+const LATEXMK = await resolveLatexmk({ stateRoot: STATE_ROOT });
 const TEXT_EXTENSIONS = new Set([
   ".tex", ".bib", ".sty", ".cls", ".bst", ".bbx", ".cbx", ".ltx",
   ".md", ".txt", ".csv", ".tsv", ".json", ".yaml", ".yml", ".toml",
@@ -757,6 +716,7 @@ ${JSON.stringify(compilerDiagnostic(output))}
 }
 
 async function runCodexRecovery(job, project, engine, output, resume = false, retryKind = "verification") {
+  const { Codex } = await import("@openai/codex-sdk");
   await mkdir(CODEX_RECOVERY_ROOT, { recursive: true, mode: 0o700 });
   const logPath = join(CODEX_RECOVERY_ROOT, `${job.id}.jsonl`);
   const log = createWriteStream(logPath, { flags: "a", mode: 0o600 });

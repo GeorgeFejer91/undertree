@@ -9,7 +9,6 @@ import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { xml } from "@codemirror/legacy-modes/mode/xml";
 import { html as htmlLanguage } from "@codemirror/lang-html";
 import { css as cssLanguage } from "@codemirror/lang-css";
-import * as pretextRich from "@chenglou/pretext/rich-inline";
 import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import { pdfSourceTree } from "./file-tree-filter.js";
 import { absoluteProjectPath, dirnamePath, pathIsEntry, remapPath } from "./file-tree-actions.js";
@@ -19,12 +18,14 @@ import { normalizeProjectSort, projectActivityTime, sortProjects } from "./proje
 import { isSelectedTexPdfTarget, shouldReuseSelectedPdf } from "./tex-recovery.js";
 import { EXTERNAL_TEX_SCAN_MS, LIVE_COMPILE_DELAY_MS, externalTexChanged } from "./tex-monitor.js";
 import { documentOutline } from "./outline.js";
+import { clampTreeHeight, MINIMUM_OUTLINE_HEIGHT, MINIMUM_TREE_HEIGHT } from "../modules/frontend/sidebar-splitter.js";
+import { LatestCompileScheduler } from "../modules/frontend/latest-compile-scheduler.js";
 import { insertBoxlet, patchEditableHtml, patchElementAttributes, patchElementStyle, removeVisualElement } from "./html-print-profile.js";
-import { fitPrintDocument } from "./pretext-fit-core.js";
 import { gridTrackRange, parsePixelTracks, pixelDeltaToMillimetres, resizeTrackBoundary, tracksToMillimetres } from "./html-visual-layout.js";
 import { acceptBuildSave, buildTabSnapshot, flushTabSave, markPathEdited, markTabEdited, persistWithConflictRecovery, saveTabSnapshot, tabContent } from "./save-coordinator.js";
 
 let pdfjsPromise = null;
+let pretextRuntimePromise = null;
 
 async function loadPdfjs() {
   if (!pdfjsPromise) {
@@ -135,7 +136,6 @@ const state = {
   failedTexBuilds: new Map(),
   autoCompileMode: "0",
   autoCompileTimer: null,
-  autoCompileChangeTimer: null,
   externalTexScanTimer: null,
   compileInFlight: false,
   pendingHtmlCompile: false,
@@ -166,6 +166,15 @@ const PROJECT_SORT_STORAGE_KEY = "localtex-project-sort";
 const PROJECT_ACTIVITY_STORAGE_KEY = "localtex-project-activity";
 const AUTOSAVE_DELAY_MS = 100;
 const HTML_COMPILE_DELAY_MS = 750;
+
+const liveCompileScheduler = new LatestCompileScheduler({
+  delayMs: LIVE_COMPILE_DELAY_MS,
+  isBusy: () => state.compileInFlight,
+  run: async (key) => {
+    const currentKey = state.currentProject ? `${state.currentProject.id}:${previewSourcePath()}` : "";
+    if (state.autoCompileMode === "changes" && key === currentKey) await compileProject({ automatic: true });
+  },
+});
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -236,6 +245,11 @@ function renderProjectPicker() {
     : `<option value="" selected>Choose or add a project</option>`;
   elements.projectPicker.disabled = !projects.length;
   if (state.currentProject) elements.projectPicker.value = state.currentProject.id;
+}
+
+function loadPretextRuntime() {
+  pretextRuntimePromise ||= import("../modules/frontend/pretext-runtime.js");
+  return pretextRuntimePromise;
 }
 
 function projectMonogram(name) {
@@ -741,7 +755,8 @@ async function refitVisualDocument({ announce = false } = {}) {
   const document = state.htmlVisualFrame?.contentDocument;
   if (!document) return null;
   try {
-    const result = await fitPrintDocument(document, { pretextRich, timeoutMs: 10000 });
+    const { fitVisualPrintDocument } = await loadPretextRuntime();
+    const result = await fitVisualPrintDocument(document, { timeoutMs: 10000 });
     document.querySelectorAll("[data-ut-fit-error]").forEach((element) => {
       element.removeAttribute("data-ut-fit-error");
       element.style.boxShadow = "";
@@ -1410,10 +1425,9 @@ async function selectProject(id) {
   }
   clearAllSaveTimers();
   clearInterval(state.autoCompileTimer);
-  clearTimeout(state.autoCompileChangeTimer);
+  liveCompileScheduler.cancel();
   clearInterval(state.externalTexScanTimer);
   state.autoCompileTimer = null;
-  state.autoCompileChangeTimer = null;
   state.externalTexScanTimer = null;
   state.autoCompileMode = "0";
   state.pendingTexSelection = "";
@@ -2032,9 +2046,8 @@ function setAutoCompile(seconds, { persist = true, announce = true } = {}) {
   const numeric = Number(requested);
   const selected = requested === "changes" ? "changes" : String(allowed.has(numeric) ? numeric : 0);
   clearInterval(state.autoCompileTimer);
-  clearTimeout(state.autoCompileChangeTimer);
+  liveCompileScheduler.cancel();
   state.autoCompileTimer = null;
-  state.autoCompileChangeTimer = null;
   state.autoCompileMode = selected;
   $("#auto-compile-interval").value = selected;
   elements.compileButton.title = selected === "changes"
@@ -2058,16 +2071,7 @@ function setAutoCompile(seconds, { persist = true, announce = true } = {}) {
 
 function scheduleChangeCompile() {
   if (state.autoCompileMode !== "changes" || !state.currentProject) return;
-  clearTimeout(state.autoCompileChangeTimer);
-  const projectId = state.currentProject.id;
-  state.autoCompileChangeTimer = setTimeout(() => {
-    if (state.currentProject?.id !== projectId || state.autoCompileMode !== "changes") return;
-    if (state.compileInFlight) {
-      scheduleChangeCompile();
-      return;
-    }
-    compileProject({ automatic: true });
-  }, LIVE_COMPILE_DELAY_MS);
+  liveCompileScheduler.request(`${state.currentProject.id}:${previewSourcePath()}`);
 }
 
 function restoreAutoCompile() {
@@ -2193,10 +2197,13 @@ async function compileProject({ clean = false, automatic = false, exportTex = fa
     if (!automatic) toast("Codex is already repairing this TeX source; verification will refresh the PDF automatically.", "error", 6500);
     return false;
   }
+  // This build captures the current editor revision. Any edit that lands after
+  // this point schedules one new latest-state follow-up instead of preserving
+  // an older debounce request and causing a redundant compile.
+  liveCompileScheduler.cancel();
   state.compileInFlight = true;
   elements.compileButton.disabled = true;
   elements.compileButton.classList.add("busy");
-  elements.editorHost.inert = true;
   void loadPdfjs();
   try {
     if (!automatic) {
@@ -2314,6 +2321,7 @@ async function compileProject({ clean = false, automatic = false, exportTex = fa
     return false;
   } finally {
     state.compileInFlight = false;
+    liveCompileScheduler.release();
     elements.compileButton.disabled = false;
     elements.compileButton.classList.remove("busy");
     elements.compileButton.textContent = isLayoutSource() ? "Render layout" : isHtmlSource() ? "Render HTML" : "Recompile";
@@ -2492,6 +2500,61 @@ function setupResizer(element, side) {
   });
 }
 
+function setupOutlineResizer(element) {
+  const tree = elements.fileTree;
+  const outline = $("#outline-panel");
+
+  const resizeTo = (requestedTreeHeight) => {
+    const treeTop = tree.getBoundingClientRect().top;
+    const outlineBottom = outline.getBoundingClientRect().bottom;
+    const splitterHeight = element.getBoundingClientRect().height;
+    const availableHeight = outlineBottom - treeTop - splitterHeight;
+    const treeHeight = clampTreeHeight(requestedTreeHeight, availableHeight);
+    outline.style.setProperty("--outline-height", `${Math.round(availableHeight - treeHeight)}px`);
+    element.setAttribute("aria-valuenow", String(Math.round(treeHeight)));
+    element.setAttribute("aria-valuemax", String(Math.round(Math.max(MINIMUM_TREE_HEIGHT, availableHeight - MINIMUM_OUTLINE_HEIGHT))));
+  };
+
+  const refreshAriaValue = () => {
+    element.setAttribute("aria-valuenow", String(Math.round(tree.getBoundingClientRect().height)));
+    const availableHeight = outline.getBoundingClientRect().bottom - tree.getBoundingClientRect().top - element.getBoundingClientRect().height;
+    element.setAttribute("aria-valuemax", String(Math.round(Math.max(MINIMUM_TREE_HEIGHT, availableHeight - MINIMUM_OUTLINE_HEIGHT))));
+  };
+
+  element.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    element.classList.add("dragging");
+    element.setPointerCapture(event.pointerId);
+    const move = (moveEvent) => resizeTo(moveEvent.clientY - tree.getBoundingClientRect().top);
+    const end = () => {
+      element.classList.remove("dragging");
+      element.removeEventListener("pointermove", move);
+      element.removeEventListener("pointerup", end);
+      element.removeEventListener("pointercancel", end);
+      element.removeEventListener("lostpointercapture", end);
+    };
+    element.addEventListener("pointermove", move);
+    element.addEventListener("pointerup", end);
+    element.addEventListener("pointercancel", end);
+    element.addEventListener("lostpointercapture", end);
+  });
+
+  element.addEventListener("keydown", (event) => {
+    const currentHeight = tree.getBoundingClientRect().height;
+    let requestedHeight = currentHeight;
+    if (event.key === "ArrowUp") requestedHeight -= 10;
+    else if (event.key === "ArrowDown") requestedHeight += 10;
+    else if (event.key === "Home") requestedHeight = MINIMUM_TREE_HEIGHT;
+    else if (event.key === "End") requestedHeight = Number.POSITIVE_INFINITY;
+    else return;
+    event.preventDefault();
+    resizeTo(requestedHeight);
+  });
+
+  requestAnimationFrame(refreshAriaValue);
+}
+
 function bindEvents() {
   new ResizeObserver(schedulePdfFit).observe(elements.previewStage);
   elements.pdfViewer.addEventListener("scroll", schedulePdfScrollSync, { passive: true });
@@ -2615,6 +2678,7 @@ function bindEvents() {
   });
   setupResizer($("#left-resizer"), "left");
   setupResizer($("#right-resizer"), "right");
+  setupOutlineResizer($("#outline-resizer"));
   window.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
@@ -2635,7 +2699,7 @@ function bindEvents() {
   window.addEventListener("beforeunload", (event) => {
     clearAllSaveTimers();
     clearInterval(state.autoCompileTimer);
-    clearTimeout(state.autoCompileChangeTimer);
+    liveCompileScheduler.cancel();
     clearInterval(state.externalTexScanTimer);
     clearTimeout(state.htmlCompileTimer);
     cancelPdfRenders();

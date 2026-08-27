@@ -7,12 +7,20 @@ code.
 
 ## Process model
 
+UnderTree uses the same authenticated localhost boundary on both platforms, but
+the native shell differs. Linux uses GTK/WebKitGTK. Windows uses Electron and
+keeps the service in a dedicated utility process so compiler and filesystem
+work never shares the native window process event loop.
+
 ```text
-Native UnderTree GTK/WebKit window
+Native UnderTree window
+        (GTK/WebKitGTK on Linux; Electron renderer on Windows)
         (bundled HTML/CSS/CodeMirror/PDF.js)
                     │ localhost HTTP + authenticated JSON
                     ▼
-Node standard-library service on 127.0.0.1:37371
+Node service on 127.0.0.1:37371
+        (independent service process on Linux;
+         Electron utility process on Windows)
         ├── canonical project inventory and icons
         ├── atomic, project-root-confined text saves
         ├── tex-sync / latexmk builds
@@ -25,6 +33,33 @@ Node standard-library service on 127.0.0.1:37371
         ├── explicit safe pull/push bridge actions
         └── project-aware desktop file opening
 ```
+
+## Modular ownership
+
+- `For-AI/` is a Markdown-only Codex orchestration layer containing global
+  constraints, the module map, and change workflows. It is never packaged.
+- `modules/frontend/` owns browser-safe scheduling and responsiveness logic;
+  `src/` is its DOM/API adapter and established frontend asset root.
+- `modules/compiler/` owns compiler discovery and service-process entry points;
+  `server.mjs`, `layout/`, and platform renderers are its established adapters
+  and format assets.
+- `modules/maintenance/` owns architecture validation and runtime packaging
+  policy; `scripts/`, `packaging/`, and `.github/` remain platform-facing
+  maintenance adapters.
+
+The frontend and compiler communicate only through the authenticated local HTTP
+contract. Electron's main process owns window lifecycle and native dialogs, not
+project scanning, parsing, search, ZIP creation, or TeX orchestration.
+
+## Responsive compilation model
+
+Fast editor state and slow compiler state are deliberately separate. Input is
+never disabled for an ordinary build. A 450 ms latest-state scheduler coalesces
+an edit burst, permits one build at a time, and retains exactly one newest
+follow-up request when edits arrive during compilation. The build request still
+carries an exact editor snapshot, and the revision acceptance guard prevents an
+older build response from marking newer text clean. The previous complete PDF
+remains visible and stale until a replacement has compiled and rendered.
 
 The systemd user service keeps the local API available without internet. The
 desktop launcher starts an independent GTK application backed by the operating

@@ -20,6 +20,7 @@
     "layout:example": "node layout/compiler.mjs examples/adaptive-boxes.layout.xml",
     "start": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
+    "verify:architecture": "node modules/maintenance/validate-architecture.mjs",
     "test:ui": "node tests/ui-smoke.mjs",
     "test:pdf-controls": "node tests/pdf-controls-smoke.mjs",
     "render:pdf-preview": "npm run build && node scripts/render-pdf-preview.mjs",
@@ -57,13 +58,15 @@
     "directories": { "output": "release/windows" },
     "files": [
       "dist/**/*", "layout/**/*", "src/**/*.js", "src/**/*.mjs",
-      "native/windows/**/*", "native/html_print_renderer.py", "server.mjs",
-      "cli.mjs", "package.json", "node_modules/**/*"
+      "native/windows/**/*", "native/html_print_renderer.py", "server.mjs", "modules/compiler/**/*.mjs",
+      "cli.mjs", "package.json", "node_modules/**/*",
+      "!node_modules/@codemirror/**/*", "!node_modules/@napi-rs/**/*",
+      "!node_modules/@openai/**/*", "!node_modules/@tiptap/**/*",
+      "!node_modules/codemirror/**/*", "!node_modules/pdfjs-dist/**/*"
     ],
     "extraFiles": [
       { "from": "native/windows/undertree.cmd", "to": "undertree.cmd" }
     ],
-    "asarUnpack": ["node_modules/@openai/codex-sdk/**/*", "node_modules/@openai/codex/**/*"],
     "win": { "target": ["nsis"] },
     "nsis": {
       "oneClick": false,

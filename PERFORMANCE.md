@@ -1,5 +1,24 @@
 # Performance and footprint audit
 
+## Realtime modularization phase (2026-08-22)
+
+The Windows shell now launches the authenticated local service in an Electron
+utility process instead of importing `server.mjs` into the native window
+process. Project discovery, parsing, fallback search, archive creation, and TeX
+orchestration can therefore no longer block Electron's window event loop.
+
+Frontend live compilation now uses a tested latest-state scheduler. It debounces
+edit bursts for 450 ms, keeps typing enabled throughout ordinary compilation,
+and retains one newest follow-up request when edits land during a slow build.
+This changes perceived responsiveness without weakening the exact-snapshot save
+barrier or pretending that the TeX engine itself has become instantaneous.
+
+Runtime packaging excludes frontend packages already compiled into `dist`, the
+optional native PDF.js canvas dependency, unused Tiptap packages, and the Codex
+runtime from the recovery-disabled Windows distribution. Codex SDK loading is
+deferred to the disabled recovery path. `modules/maintenance/` contains the
+machine-checkable package policy and architecture validator.
+
 Measured on 2026-08-05 on the Linux workstation used for development. These
 numbers separate the downloadable application from the development toolchain
 and from the system TeX distribution.

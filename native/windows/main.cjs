@@ -1,13 +1,14 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell, utilityProcess } = require("electron");
 const { randomBytes } = require("node:crypto");
 const { existsSync, mkdirSync, writeFileSync } = require("node:fs");
 const { join, resolve } = require("node:path");
-const { pathToFileURL } = require("node:url");
 const http = require("node:http");
 
 const PORT = 37371;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 let mainWindow;
+let serviceProcess;
+let stopping = false;
 
 function applicationRoot() {
   return app.isPackaged ? app.getAppPath() : resolve(__dirname, "../..");
@@ -32,34 +33,36 @@ function waitForServer(timeoutMs = 15000) {
   });
 }
 
-function addExecutableDirectoryToPath(directory, executable) {
+function addExecutableDirectoryToPath(environment, directory, executable) {
   if (!existsSync(join(directory, executable))) return false;
-  const currentPath = process.env.PATH || "";
+  const currentPath = environment.PATH || "";
   if (!currentPath.split(";").some((entry) => entry.toLowerCase() === directory.toLowerCase())) {
-    process.env.PATH = `${directory};${currentPath}`;
+    environment.PATH = `${directory};${currentPath}`;
   }
   return true;
 }
 
-function configureTexRuntime() {
+function configureTexRuntime(baseEnvironment) {
+  const environment = { ...baseEnvironment };
   // Unix locale variables inherited from development shells make Strawberry
   // Perl emit warnings on Windows. With them absent, Perl uses Windows' locale.
-  delete process.env.LC_ALL;
-  delete process.env.LC_CTYPE;
-  delete process.env.LANG;
-  const localAppData = process.env.LOCALAPPDATA || "";
-  const programFiles = process.env.ProgramFiles || "";
+  delete environment.LC_ALL;
+  delete environment.LC_CTYPE;
+  delete environment.LANG;
+  const localAppData = environment.LOCALAPPDATA || "";
+  const programFiles = environment.ProgramFiles || "";
   const miktexDirectories = [
     join(localAppData, "Programs", "MiKTeX", "miktex", "bin", "x64"),
     join(programFiles, "MiKTeX", "miktex", "bin", "x64"),
   ];
   const perlDirectories = [
-    join(process.env.UNDERTREE_PERL_ROOT || "", "perl", "bin"),
+    join(environment.UNDERTREE_PERL_ROOT || "", "perl", "bin"),
     "C:\\Strawberry\\perl\\bin",
     join(localAppData, "Programs", "Strawberry", "perl", "bin"),
   ];
-  miktexDirectories.some((directory) => addExecutableDirectoryToPath(directory, "latexmk.exe"));
-  perlDirectories.some((directory) => addExecutableDirectoryToPath(directory, "perl.exe"));
+  miktexDirectories.some((directory) => addExecutableDirectoryToPath(environment, directory, "latexmk.exe"));
+  perlDirectories.some((directory) => addExecutableDirectoryToPath(environment, directory, "perl.exe"));
+  return environment;
 }
 
 async function startServer() {
@@ -72,12 +75,27 @@ async function startServer() {
   mkdirSync(stateRoot, { recursive: true });
   writeFileSync(tokenFile, token, { encoding: "utf8", mode: 0o600 });
 
-  process.env.UNDERTREE_PORT = String(PORT);
-  process.env.UNDERTREE_TOKEN_FILE = tokenFile;
-  process.env.UNDERTREE_STATE_ROOT = stateRoot;
-  process.env.UNDERTREE_LIBRARY_ROOT = join(app.getPath("documents"), "Overleaf-projects");
-  configureTexRuntime();
-  await import(pathToFileURL(join(root, "server.mjs")).href);
+  const environment = configureTexRuntime({
+    ...process.env,
+    UNDERTREE_PORT: String(PORT),
+    UNDERTREE_TOKEN_FILE: tokenFile,
+    UNDERTREE_STATE_ROOT: stateRoot,
+    UNDERTREE_LIBRARY_ROOT: join(app.getPath("documents"), "Overleaf-projects"),
+  });
+  serviceProcess = utilityProcess.fork(join(root, "modules", "compiler", "server-process.mjs"), [], {
+    env: environment,
+    stdio: "pipe",
+    serviceName: "UnderTree Compiler Service",
+  });
+  let serviceError = "";
+  serviceProcess.stderr?.on("data", (chunk) => { serviceError = `${serviceError}${chunk}`.slice(-16_384); });
+  serviceProcess.on("exit", (code) => {
+    serviceProcess = null;
+    if (!stopping) {
+      dialog.showErrorBox("UnderTree compiler service stopped", serviceError.trim() || `The compiler service exited with code ${code}.`);
+      app.quit();
+    }
+  });
   return token;
 }
 
@@ -138,3 +156,8 @@ else {
 }
 
 app.on("window-all-closed", () => app.quit());
+app.on("before-quit", () => {
+  stopping = true;
+  serviceProcess?.kill();
+  serviceProcess = null;
+});

@@ -8,6 +8,13 @@ then remembers the verified path for later launches. Editing, fitting, and rende
 offline. Its name is a tongue-in-cheek inverse of Overleaf: the same kind of workspace, kept firmly
 under your own tree.
 
+The repository is organized into discrete frontend, compiler, and maintenance
+modules. Codex-only project constraints and orchestration live in the
+Markdown-only `For-AI/` folder; no application asset is loaded from or packaged
+with that folder. On Windows the compiler service runs in a separate Electron
+utility process, while the frontend remains editable during slow TeX builds and
+coalesces rapid edits into the newest required follow-up build.
+
 ### Automation CLI
 
 The Windows installation registers `undertree` as a per-user terminal command. It starts the desktop
@@ -96,6 +103,7 @@ Build the Windows installer with Node.js 22.13 or newer:
 
 ```powershell
 npm ci
+npm run verify:architecture
 npm run build:windows
 ```
 

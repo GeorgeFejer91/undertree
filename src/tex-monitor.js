@@ -1,4 +1,4 @@
-export const LIVE_COMPILE_DELAY_MS = 650;
+export const LIVE_COMPILE_DELAY_MS = 450;
 export const EXTERNAL_TEX_SCAN_MS = 60_000;
 
 export function externalTexChanged(tab, file) {
