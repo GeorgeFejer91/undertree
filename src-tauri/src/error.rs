@@ -31,12 +31,20 @@ impl BoundaryError {
     pub fn internal() -> Self {
         Self {
             code: "internal_error",
-            message: "UnderTree could not complete the compilation.".into(),
+            message: "UnderTree could not complete the operation.".into(),
             diagnostics: Vec::new(),
         }
     }
 
     pub fn project(code: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            diagnostics: Vec::new(),
+        }
+    }
+
+    pub fn github(code: &'static str, message: impl Into<String>) -> Self {
         Self {
             code,
             message: message.into(),

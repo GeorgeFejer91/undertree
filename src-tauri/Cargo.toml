@@ -17,20 +17,42 @@ tauri-build = "2.6.3"
 
 [dependencies]
 atomic-write-file = "0.3.1"
+biblatex = "0.12.0"
+dirs = "6.0.0"
+fs2 = "0.4.3"
+getrandom = "0.3.4"
+git2 = { version = "0.21.0", default-features = false, features = ["https", "vendored-libgit2", "vendored-openssl"] }
+hmac = "0.12.1"
+keyring = "4.1.6"
+reqwest = { version = "0.13.4", default-features = false, features = ["form", "json", "rustls", "system-proxy"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 sha2 = "0.10"
 tauri = "2.11.5"
 tauri-plugin-dialog = "2.7.2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-opener = "2.5.4"
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+tylax = { version = "=0.3.7", default-features = false }
 typst = "0.15.1"
 typst-kit = { version = "0.15.1", default-features = false, features = ["datetime", "embedded-fonts"] }
 typst-layout = "0.15.1"
+typst-pdf = "0.15.1"
 typst-svg = "0.15.1"
+zeroize = "1.9.0"
+zip = { version = "=7.0.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2"
 
 [profile.release]
 codegen-units = 1
 lto = "thin"
 opt-level = "s"
-panic = "abort"
+# LaTeX conversion is isolated behind `catch_unwind`; keep unwinding enabled so
+# malformed third-party converter input cannot terminate the whole editor.
+panic = "unwind"
 strip = true
 
 [profile.dev]

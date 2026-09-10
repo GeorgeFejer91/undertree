@@ -1,3 +1,3 @@
-fn main() {
-    undertree_typst_lib::run();
+fn main() -> std::process::ExitCode {
+    undertree_typst_lib::entrypoint()
 }

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">UnderTree roots logo</title>
+  <desc id="description">A dynamic green ground line opens into deep branching roots around a document-shaped clearing.</desc>
+  <defs>
+    <mask id="document-cutout" maskUnits="userSpaceOnUse" x="0" y="0" width="256" height="256">
+      <rect width="256" height="256" fill="white"/>
+      <path d="M105 101h31l18 18v49c0 8-6 14-14 14h-35c-8 0-14-6-14-14v-53c0-8 6-14 14-14Z" fill="black"/>
+      <path d="M136 101v19h18" fill="none" stroke="white" stroke-width="5" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <path d="M27 72C60 47 96 50 128 67c32-17 68-20 101 5-32-7-66-6-101 9-35-15-69-16-101-9Z" fill="#2AC77B"/>
+  <g fill="#087A45" mask="url(#document-cutout)">
+    <path d="M119 69c-3 29-17 38-39 52-25 16-36 37-34 63 1 17-7 30-23 43 25-8 40-22 43-42 3-18 9-30 25-40 17-11 28-23 37-39 9 16 20 28 37 39 16 10 22 22 25 40 3 20 18 34 43 42-16-13-24-26-23-43 2-26-9-47-34-63-22-14-36-23-39-52Z"/>
+    <path d="M91 131c-21 6-37 18-45 35-7 15-18 25-34 31 25 1 43-9 54-30 7-14 17-22 31-25Z"/>
+    <path d="M165 131c21 6 37 18 45 35 7 15 18 25 34 31-25 1-43-9-54-30-7-14-17-22-31-25Z"/>
+    <path d="M116 165c-6 18-5 34 3 47 6 10 7 20 3 32 17-16 21-34 12-53-4-10-5-19-2-29Z"/>
+  </g>
+  <path d="M108 133h26M108 146h32M108 159h21" fill="none" stroke="#2AC77B" stroke-width="6" stroke-linecap="round"/>
+  <path d="M19 217c10-12 20-14 30-6-2 13-11 20-26 19-3-4-4-8-4-13Zm188-6c10-8 20-6 30 6 0 5-1 9-4 13-15 1-24-6-26-19Zm-92 31c5-14 13-21 24-22 7 13 4 25-10 35-6-3-11-7-14-13Z" fill="#2AC77B"/>
+</svg>

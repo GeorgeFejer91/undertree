@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use typst::World;
 use typst::diag::{FileError, FileResult, Severity, SourceDiagnostic, Warned};
 use typst::foundations::{Bytes, Datetime};
+use typst::layout::{Abs, Frame, FrameItem, Point, Transform};
 use typst::syntax::{FileId, RootedPath, Source, VirtualPath, VirtualRoot};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
@@ -20,6 +21,9 @@ use crate::error::BoundaryError;
 const MAX_SOURCE_BYTES: usize = 1024 * 1024;
 const MAX_PAGES: usize = 128;
 const MAX_PREVIEW_BYTES: usize = 32 * 1024 * 1024;
+const MAX_PDF_BYTES: usize = 64 * 1024 * 1024;
+const MAX_PREVIEW_TEXT_RUNS: usize = 100_000;
+const MAX_PREVIEW_TEXT_BYTES: usize = 4 * 1024 * 1024;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,8 +38,37 @@ pub struct CompileRequest {
 pub struct CompileResponse {
     pub revision: u64,
     pub pages: Vec<String>,
+    pub text_pages: Vec<PreviewTextPage>,
     pub warnings: Vec<Diagnostic>,
     pub elapsed_ms: u64,
+}
+
+pub(crate) struct PdfCompileOutput {
+    pub revision: u64,
+    pub pages: usize,
+    pub bytes: Vec<u8>,
+    pub warnings: Vec<Diagnostic>,
+    pub elapsed_ms: u64,
+}
+
+/// A bounded selectable-text companion for one SVG preview page. Coordinates
+/// use Typst points so the WebView can scale them with the page image.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewTextPage {
+    pub width: f64,
+    pub height: f64,
+    pub runs: Vec<PreviewTextRun>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewTextRun {
+    pub text: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -88,6 +121,9 @@ impl CompilerAssets {
 
         let mut total_bytes = 0usize;
         let mut pages = Vec::with_capacity(document.pages().len());
+        let mut text_pages = Vec::with_capacity(document.pages().len());
+        let mut total_text_runs = 0usize;
+        let mut total_text_bytes = 0usize;
         for page in document.pages() {
             let svg = typst_svg::svg(page, &SvgOptions::default());
             total_bytes = total_bytes.saturating_add(svg.len());
@@ -97,14 +133,145 @@ impl CompilerAssets {
                 ));
             }
             pages.push(svg);
+
+            let text_page = preview_text_page(&page.frame);
+            total_text_runs = total_text_runs.saturating_add(text_page.runs.len());
+            total_text_bytes = total_text_bytes.saturating_add(
+                text_page
+                    .runs
+                    .iter()
+                    .map(|run| run.text.len())
+                    .sum::<usize>(),
+            );
+            if total_text_runs > MAX_PREVIEW_TEXT_RUNS || total_text_bytes > MAX_PREVIEW_TEXT_BYTES
+            {
+                return Err(BoundaryError::validation(
+                    "The selectable preview text layer exceeds its safety limit.",
+                ));
+            }
+            text_pages.push(text_page);
         }
 
         Ok(CompileResponse {
             revision: request.revision,
             pages,
+            text_pages,
             warnings: warnings.iter().map(Diagnostic::from).collect(),
             elapsed_ms: started.elapsed().as_millis().try_into().unwrap_or(u64::MAX),
         })
+    }
+
+    pub(crate) fn compile_pdf(
+        &self,
+        request: CompileRequest,
+        project_root: Option<PathBuf>,
+    ) -> Result<PdfCompileOutput, BoundaryError> {
+        validate_source(&request.source)?;
+        let started = Instant::now();
+        let world = DocumentWorld::new(self, request.source, project_root, request.path)?;
+        let Warned { output, warnings } = compile::<PagedDocument>(&world);
+        let document = output.map_err(|errors| {
+            BoundaryError::compilation(errors.iter().map(Diagnostic::from).collect())
+        })?;
+        let pages = document.pages().len();
+        if pages > MAX_PAGES {
+            return Err(BoundaryError::validation(format!(
+                "PDF export is limited to {MAX_PAGES} pages."
+            )));
+        }
+        let bytes =
+            typst_pdf::pdf(&document, &typst_pdf::PdfOptions::default()).map_err(|errors| {
+                BoundaryError::compilation(errors.iter().map(Diagnostic::from).collect())
+            })?;
+        if bytes.len() > MAX_PDF_BYTES {
+            return Err(BoundaryError::validation(
+                "The generated PDF is larger than 64 MiB.",
+            ));
+        }
+        Ok(PdfCompileOutput {
+            revision: request.revision,
+            pages,
+            bytes,
+            warnings: warnings.iter().map(Diagnostic::from).collect(),
+            elapsed_ms: started.elapsed().as_millis().try_into().unwrap_or(u64::MAX),
+        })
+    }
+}
+
+fn preview_text_page(frame: &Frame) -> PreviewTextPage {
+    let mut runs = Vec::new();
+    collect_preview_text(frame, Transform::identity(), &mut runs);
+    // Absolute-positioned elements remain selectable in DOM order. Sorting
+    // them into reading order makes drag selection and assistive technology
+    // substantially more predictable than frame paint order.
+    runs.sort_by(|left, right| {
+        left.y
+            .total_cmp(&right.y)
+            .then_with(|| left.x.total_cmp(&right.x))
+    });
+    PreviewTextPage {
+        width: frame.width().to_pt(),
+        height: frame.height().to_pt(),
+        runs,
+    }
+}
+
+fn collect_preview_text(frame: &Frame, transform: Transform, output: &mut Vec<PreviewTextRun>) {
+    for (position, item) in frame.items() {
+        match item {
+            FrameItem::Text(text) if !text.text.is_empty() => {
+                let font_size = text.size.to_pt().max(1.0);
+                let width = text.width().to_pt().max(font_size * 0.25);
+                // Frame text positions sit on the baseline. A line-height box
+                // is more useful for browser selection than the ink-only glyph
+                // bounds, which omit spaces and can be empty for some fonts.
+                let local_min = Point::new(position.x, position.y - Abs::pt(font_size * 0.9));
+                let local_max = Point::new(
+                    position.x + Abs::pt(width),
+                    position.y + Abs::pt(font_size * 0.3),
+                );
+                let corners = [
+                    local_min,
+                    Point::new(local_max.x, local_min.y),
+                    Point::new(local_min.x, local_max.y),
+                    local_max,
+                ]
+                .map(|point| point.transform(transform));
+                let min_x = corners
+                    .iter()
+                    .map(|point| point.x.to_pt())
+                    .fold(f64::INFINITY, f64::min);
+                let min_y = corners
+                    .iter()
+                    .map(|point| point.y.to_pt())
+                    .fold(f64::INFINITY, f64::min);
+                let max_x = corners
+                    .iter()
+                    .map(|point| point.x.to_pt())
+                    .fold(f64::NEG_INFINITY, f64::max);
+                let max_y = corners
+                    .iter()
+                    .map(|point| point.y.to_pt())
+                    .fold(f64::NEG_INFINITY, f64::max);
+                if min_x.is_finite() && min_y.is_finite() && max_x > min_x && max_y > min_y {
+                    output.push(PreviewTextRun {
+                        text: text.text.to_string(),
+                        x: min_x,
+                        y: min_y,
+                        width: max_x - min_x,
+                        height: max_y - min_y,
+                    });
+                }
+            }
+            FrameItem::Group(group) => {
+                // A child point is transformed by the group and then placed at
+                // the item's frame position before the ancestor transform.
+                let local =
+                    Transform::translate(position.x, position.y).pre_concat(group.transform);
+                collect_preview_text(&group.frame, transform.pre_concat(local), output);
+            }
+            _ => {}
+        }
     }
 }
 
@@ -281,6 +448,18 @@ impl World for DocumentWorld {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temporary_project(label: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should follow Unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "undertree-compiler-{label}-{}-{nonce}",
+            std::process::id()
+        ))
+    }
 
     #[test]
     fn compiles_a_typst_document_to_svg() {
@@ -298,6 +477,15 @@ mod tests {
         assert_eq!(result.revision, 7);
         assert_eq!(result.pages.len(), 1);
         assert!(result.pages[0].starts_with("<svg"));
+        assert_eq!(result.text_pages.len(), 1);
+        assert!(result.text_pages[0].width > 0.0);
+        assert!(result.text_pages[0].height > 0.0);
+        assert!(
+            result.text_pages[0]
+                .runs
+                .iter()
+                .any(|run| run.text.contains("UnderTree"))
+        );
     }
 
     #[test]
@@ -331,5 +519,103 @@ mod tests {
             .expect_err("oversized source should fail validation");
 
         assert_eq!(error.code, "invalid_source");
+    }
+
+    #[test]
+    fn compiles_a_typst_document_to_bounded_pdf_bytes() {
+        let result = CompilerAssets::load()
+            .compile_pdf(
+                CompileRequest {
+                    source: "= UnderTree\n\nPortable PDF export.".into(),
+                    path: None,
+                    revision: 11,
+                },
+                None,
+            )
+            .expect("valid Typst source should export to PDF");
+
+        assert_eq!(result.revision, 11);
+        assert_eq!(result.pages, 1);
+        assert!(result.bytes.starts_with(b"%PDF-"));
+        assert!(result.bytes.len() <= MAX_PDF_BYTES);
+    }
+
+    #[test]
+    fn compiles_a_project_document_with_a_bibtex_bibliography() {
+        let root = temporary_project("bibtex");
+        fs::create_dir_all(&root).expect("test project should be created");
+        fs::write(
+            root.join("references.bib"),
+            "@article{under-tree, author={Oak, Ada}, title={Under the Tree}, journal={Forest Studies}, year={2026}}",
+        )
+        .expect("bibliography should be written");
+        let root = root
+            .canonicalize()
+            .expect("test project should be canonicalized");
+
+        let result = CompilerAssets::load()
+            .compile(
+                CompileRequest {
+                    source: "UnderTree supports citations @under-tree.\n\n#bibliography(\"references.bib\")".into(),
+                    path: Some("main.typ".into()),
+                    revision: 8,
+                },
+                Some(root.clone()),
+            )
+            .expect("BibTeX bibliography should compile");
+
+        assert_eq!(result.revision, 8);
+        assert_eq!(result.pages.len(), 1);
+        fs::remove_dir_all(root).expect("test project should be removed");
+    }
+
+    #[test]
+    #[ignore = "requires UNDERTREE_TYPST_SOURCE and UNDERTREE_TYPST_PDF_OUTPUT"]
+    fn renders_external_typst_document_to_pdf_for_fidelity_review() {
+        let source_path = PathBuf::from(
+            std::env::var("UNDERTREE_TYPST_SOURCE")
+                .expect("set UNDERTREE_TYPST_SOURCE to a generated .typ document"),
+        );
+        let output_path = PathBuf::from(
+            std::env::var("UNDERTREE_TYPST_PDF_OUTPUT")
+                .expect("set UNDERTREE_TYPST_PDF_OUTPUT to the QA PDF path"),
+        );
+        let project_root = std::env::var("UNDERTREE_TYPST_PROJECT_ROOT")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                source_path
+                    .parent()
+                    .expect("source should have a parent")
+                    .to_path_buf()
+            })
+            .canonicalize()
+            .expect("project root should be available");
+        let source_path = source_path
+            .canonicalize()
+            .expect("Typst source should be available");
+        assert!(source_path.starts_with(&project_root));
+        let relative = source_path
+            .strip_prefix(&project_root)
+            .expect("source should be within project root")
+            .to_string_lossy()
+            .replace('\\', "/");
+        let source = fs::read_to_string(&source_path).expect("Typst source should be UTF-8");
+        let pdf = CompilerAssets::load()
+            .compile_pdf(
+                CompileRequest {
+                    source,
+                    path: Some(relative),
+                    revision: 0,
+                },
+                Some(project_root),
+            )
+            .unwrap_or_else(|error| {
+                panic!(
+                    "Typst PDF generation failed: {} ({:?})",
+                    error.message, error.diagnostics
+                )
+            });
+        fs::write(&output_path, pdf.bytes).expect("QA PDF should be written");
+        println!("Typst QA PDF: {}", output_path.display());
     }
 }

@@ -4,9 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark light" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231b222c'/%3E%3Cpath d='M8 4h11l5 5v19H8z' fill='none' stroke='%2338cc89' stroke-width='2'/%3E%3Cpath d='M12 14h9M16.5 14v9' stroke='%23f4f5f6' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="icon" type="image/svg+xml" href="./assets/undertree-roots-micro.svg" />
     <title>UnderTree</title>
     <link rel="stylesheet" href="./styles.css" />
+    <script src="./citation-search.js" defer></script>
+    <script src="./typst-editing.js" defer></script>
+    <script src="./agent-annotations.js" defer></script>
     <script src="./app.js" defer></script>
   </head>
   <body>
@@ -14,7 +17,7 @@
       <header class="topbar">
         <div class="brand-and-menu">
           <button class="brand-mark" id="home-button" type="button" title="Choose a project" aria-label="Choose a project">
-            <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 3h13l6 6v20H7z"/><path class="fold" d="M20 3v7h6"/><path class="glyph" d="M11 15h11M11 20h8M11 25h6"/></svg>
+            <img src="./assets/undertree-roots-micro.svg" alt="" aria-hidden="true" />
           </button>
           <nav class="menubar" aria-label="Application menus">
             <button type="button" data-menu="file">File</button>
@@ -37,9 +40,19 @@
 
         <div class="top-actions">
           <span class="offline-pill"><span class="status-dot" id="status-dot"></span><span id="status-text">Starting compiler…</span></span>
-          <button class="round-button" id="refresh-project" type="button" title="Refresh project">↻</button>
-          <button class="pill-button remote-sync runtime-action" type="button" aria-disabled="true" title="Git integration is a later Typst slice">GitHub Sync</button>
-          <button class="pill-button remote-sync runtime-action" type="button" aria-disabled="true" title="Overleaf integration is not enabled in the offline Typst core">Overleaf Sync</button>
+          <button class="round-button" id="refresh-project" type="button" title="Refresh project from disk" aria-label="Refresh project from disk">↻</button>
+          <button class="pill-button remote-sync github-sync" id="github-button" type="button" title="Connect or synchronize with GitHub" data-fit-text data-fit-label="GitHub Sync" data-fit-min="9" data-fit-max="12" data-fit-reserve="22">
+            <img src="./assets/github-invertocat-white.svg" alt="" aria-hidden="true" />
+            <span>GitHub Sync</span>
+          </button>
+          <div class="conversion-actions" role="group" aria-label="Document conversion">
+            <button class="conversion-button latex-to-typst" id="import-latex" type="button" title="Convert a .tex document or import an Overleaf ZIP without changing its originals" data-fit-text data-fit-label="LaTeX → Typst" data-fit-min="9" data-fit-max="11">
+              <span>LaTeX</span><span class="conversion-arrow" aria-hidden="true">→</span><span>Typst</span>
+            </button>
+            <button class="conversion-button typst-to-latex" id="export-latex" type="button" title="Export the open Typst document as a new editable LaTeX draft without changing the Typst original" data-fit-text data-fit-label="Typst → LaTeX" data-fit-min="9" data-fit-max="11" disabled>
+              <span>Typst</span><span class="conversion-arrow" aria-hidden="true">→</span><span>LaTeX</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -47,7 +60,10 @@
         <aside class="rail" aria-label="Workspace navigation">
           <button class="rail-button active" type="button" data-panel="files" title="File tree" aria-label="File tree">▤</button>
           <button class="rail-button" type="button" data-panel="search" title="Project search" aria-label="Project search">⌕</button>
-          <button class="rail-button" type="button" data-panel="git" title="Git and synchronization" aria-label="Git and synchronization">↔</button>
+          <button class="rail-button github-rail-button" id="github-rail-button" type="button" data-panel="git" title="GitHub connection and synchronization" aria-label="GitHub connection and synchronization">
+            <img src="./assets/github-invertocat-white.svg" alt="" aria-hidden="true" />
+            <span class="rail-status-dot" id="github-rail-status" data-state="checking" aria-hidden="true"></span>
+          </button>
           <span class="rail-spacer"></span>
           <button class="rail-button" type="button" data-panel="settings" title="Settings" aria-label="Settings">⚙</button>
         </aside>
@@ -55,16 +71,36 @@
         <aside class="left-panel" id="left-panel">
           <section class="left-view active" data-view="files">
             <div class="panel-heading">
-              <button class="heading-title" id="collapse-files" type="button">⌄ <strong>File tree</strong></button>
+              <button class="heading-title" id="collapse-files" type="button" aria-expanded="true" aria-controls="file-list">
+                <span class="ui-chevron down" aria-hidden="true"><svg class="ui-chevron-svg" viewBox="0 0 16 16"><path d="m6 3 5 5-5 5" /></svg></span>
+                <strong>File tree</strong>
+              </button>
               <div class="heading-actions">
-                <button type="button" disabled title="New file is planned">＋</button>
-                <button type="button" disabled title="New folder is planned">▱</button>
+                <button id="new-bibliography" type="button" disabled title="Create a BibTeX bibliography">＋</button>
+                <button id="collapse-tree" type="button" title="Collapse all folders" aria-label="Collapse all folders">⊟</button>
               </div>
             </div>
-            <label class="tree-filter">
-              <input type="checkbox" checked disabled />
-              <span>Typst source files</span>
-            </label>
+            <details class="tree-filter" id="tree-filter">
+              <summary>
+                <span class="tree-filter-title"><span class="ui-chevron right" aria-hidden="true"><svg class="ui-chevron-svg" viewBox="0 0 16 16"><path d="m6 3 5 5-5 5" /></svg></span><span>Smart file viewer</span></span>
+                <span class="tree-filter-count" id="tree-filter-count">Focused view</span>
+              </summary>
+              <div class="tree-filter-menu">
+                <label class="tree-filter-show-all">
+                  <input id="show-all-files" type="checkbox" />
+                  <span><strong>Show all files</strong><small>Except internal and build folders</small></span>
+                </label>
+                <div class="tree-filter-grid" aria-label="Visible file types">
+                  <label><input type="checkbox" data-file-category="typst" checked /> Typst</label>
+                  <label><input type="checkbox" data-file-category="generated-latex" checked /> Generated .tex</label>
+                  <label><input type="checkbox" data-file-category="latex" /> Original .tex</label>
+                  <label><input type="checkbox" data-file-category="bibliography" checked /> BibTeX</label>
+                  <label><input type="checkbox" data-file-category="pdf" /> PDFs</label>
+                  <label><input type="checkbox" data-file-category="image" /> Images</label>
+                  <label><input type="checkbox" data-file-category="other" /> Other files</label>
+                </div>
+              </div>
+            </details>
             <div class="tree-scroll" id="file-list" role="tree">
               <button class="tree-row active" type="button" data-path="">
                 <span class="tree-caret"></span><span class="tree-icon">T</span><span class="tree-label">main.typ</span>
@@ -72,7 +108,12 @@
             </div>
             <div class="outline-resizer" id="outline-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize file tree and diagnostics" tabindex="0"></div>
             <section class="outline-panel" id="outline-panel">
-              <div class="panel-heading compact"><span>⌄ <strong>Compiler messages</strong></span></div>
+              <div class="panel-heading compact">
+                <button class="heading-title" id="collapse-diagnostics" type="button" aria-expanded="true" aria-controls="diagnostics">
+                  <span class="ui-chevron down" aria-hidden="true"><svg class="ui-chevron-svg" viewBox="0 0 16 16"><path d="m6 3 5 5-5 5" /></svg></span>
+                  <strong>Compiler messages</strong>
+                </button>
+              </div>
               <div id="diagnostics" class="outline-list" aria-live="polite"><p>No compiler messages.</p></div>
             </section>
           </section>
@@ -84,8 +125,31 @@
           </section>
 
           <section class="left-view" data-view="git">
-            <div class="panel-heading"><strong>Git &amp; bridge</strong></div>
-            <div class="git-summary"><p>Git remains outside the least-privilege runtime for this foundation.</p></div>
+            <div class="panel-heading">
+              <strong>GitHub</strong>
+              <span class="github-panel-badge" id="github-panel-badge">Checking…</span>
+            </div>
+            <div class="git-summary">
+              <div class="github-panel-card">
+                <div class="github-panel-identity">
+                  <img src="./assets/github-invertocat-white.svg" alt="" aria-hidden="true" />
+                  <div>
+                    <strong id="github-panel-title">Checking GitHub…</strong>
+                    <p id="github-panel-detail">Reading the native connection state.</p>
+                  </div>
+                </div>
+                <button class="pill-button primary github-panel-open" id="github-panel-open" type="button">Open GitHub connection</button>
+              </div>
+              <div class="github-panel-project" id="github-panel-project" hidden>
+                <strong id="github-panel-repository"></strong>
+                <span id="github-panel-branch"></span>
+                <span id="github-panel-sync-state"></span>
+              </div>
+              <div class="github-panel-changes" id="github-panel-changes" hidden>
+                <strong>Working tree</strong>
+                <ul id="github-panel-change-list"></ul>
+              </div>
+            </div>
           </section>
 
           <section class="left-view" data-view="settings">
@@ -112,13 +176,52 @@
             <span class="toolbar-divider"></span>
             <button id="bold" type="button" title="Insert Typst bold"><strong>B</strong></button>
             <button id="italic" type="button" title="Insert Typst emphasis"><em>I</em></button>
+            <span class="toolbar-divider"></span>
+            <span class="agent-mark-tools" role="group" aria-label="AI editing marks">
+              <button id="agent-mark-keep" class="agent-mark-button keep" type="button" title="Protect the selection from coding-agent edits">
+                <span class="agent-marker-symbol" aria-hidden="true"></span><span>Keep</span>
+              </button>
+              <button id="agent-mark-revise" class="agent-mark-button revise" type="button" title="Make the selection an explicit coding-agent rewrite target">
+                <span class="agent-marker-symbol" aria-hidden="true"></span><span>Revise</span>
+              </button>
+              <button id="agent-mark-catalog" class="agent-catalog-button" type="button" aria-expanded="false" aria-controls="agent-annotation-catalog" title="Open AI editing marks">
+                <span aria-hidden="true">☷</span><span id="agent-mark-count">0</span><span class="sr-only">AI editing marks</span>
+              </button>
+            </span>
+            <select id="block-style" class="editor-tool-select" title="Turn the current line or selection into a heading, list, or quote" aria-label="Paragraph style">
+              <option value="" selected>Style</option>
+              <option value="paragraph">Paragraph</option>
+              <option value="heading-1">Heading 1</option>
+              <option value="heading-2">Heading 2</option>
+              <option value="heading-3">Heading 3</option>
+              <option value="bullet">Bulleted list</option>
+              <option value="numbered">Numbered list</option>
+              <option value="quote">Quote</option>
+            </select>
+            <button id="insert-link" type="button" title="Add a link around the selected text">Link</button>
             <button id="insert-cite" type="button" title="Insert Typst citation">Cite</button>
+            <select id="insert-element" class="editor-tool-select" title="Insert a ready-to-edit Typst element" aria-label="Insert element">
+              <option value="" selected>Insert</option>
+              <option value="page-break">Page break</option>
+              <option value="figure">Figure</option>
+              <option value="table">Table</option>
+              <option value="note">Note box</option>
+              <option value="code">Code block</option>
+            </select>
             <span class="toolbar-spacer"></span>
             <span class="save-state" id="save-state">Scratch document</span>
             <button id="save-button" type="button" title="Save document" disabled>Save</button>
-            <button id="search-file" type="button" title="Search current file" disabled>⌕</button>
+            <button id="search-file" type="button" title="Find across the open UnderTree workspace (Ctrl+F)" aria-keyshortcuts="Control+F Meta+F">⌕</button>
+            <span class="editor-mode-toggle" role="group" aria-label="Editor view">
+              <button id="source-mode" class="active" type="button" aria-pressed="true" title="Show Typst source">Code</button>
+              <button id="visual-mode" type="button" aria-pressed="false" title="Open Typst Writer surface preview"><img class="mode-widget-icon" src="./assets/typst-writer-widget.svg" alt="" />Preview</button>
+            </span>
           </div>
           <div class="editor-host" id="editor-host">
+            <div class="agent-highlight-layer" id="agent-highlight-layer" aria-hidden="true"></div>
+            <div class="editor-line-numbers" id="editor-line-numbers" aria-hidden="true">
+              <div id="editor-line-number-content"></div>
+            </div>
             <textarea id="source" spellcheck="false" aria-label="Typst source">#set page(paper: "a4", margin: 2.2cm)
 #set text(font: "Libertinus Serif", size: 11pt)
 
@@ -133,6 +236,56 @@
 UnderTree compiles Typst directly inside its native Rust core. The familiar interface is now a local HTML wrapper hosted by Tauri.
 
 $ integral_0^infinity e^(-x^2) dif x = sqrt(pi) / 2 $</textarea>
+            <section class="citation-popup" id="citation-popup" role="listbox" aria-label="Citation recommendations" hidden>
+              <div class="citation-popup-heading">
+                <strong>Citations</strong>
+                <span id="citation-result-count"></span>
+              </div>
+              <div class="citation-selected" id="citation-selected" hidden></div>
+              <div class="citation-results" id="citation-results"></div>
+              <div class="citation-popup-hint"><kbd>↑↓</kbd> choose <kbd>Enter</kbd> insert <kbd>Shift+Enter</kbd> add another <kbd>Esc</kbd> close</div>
+            </section>
+            <section class="visual-editor-shell" id="visual-editor-shell" hidden aria-label="Simplified document preview">
+              <div class="visual-editor-brand"><img src="./assets/typst-writer-widget.svg" alt="" /><strong>Typst Writer</strong><span>typewriter surface</span><span class="visual-source-badge">Typst source underneath</span></div>
+              <div class="visual-editor-toolbar" role="toolbar" aria-label="Preview formatting tools">
+                <button type="button" data-visual-command="undo" title="Undo visual preview change">↶<span class="sr-only">Undo</span></button>
+                <button type="button" data-visual-command="redo" title="Redo visual preview change">↷<span class="sr-only">Redo</span></button>
+                <span class="toolbar-divider"></span>
+                <select class="visual-style-select" id="visual-style" aria-label="Paragraph style" title="Paragraph style">
+                  <option value="body">Body Text</option>
+                  <option value="title">Title</option>
+                  <option value="heading">Heading</option>
+                  <option value="quote">Quote</option>
+                </select>
+                <select class="visual-size-select" id="visual-size" aria-label="Font size" title="Font size">
+                  <option value="small">Small</option><option value="normal" selected>11 pt</option><option value="large">14 pt</option>
+                </select>
+                <span class="toolbar-divider"></span>
+                <button type="button" data-visual-command="bold" title="Bold selected paragraph"><span class="lo-icon lo-bold" aria-hidden="true"></span><span class="sr-only">Bold</span></button>
+                <button type="button" data-visual-command="italic" title="Italic selected paragraph"><span class="lo-icon lo-italic" aria-hidden="true"></span><span class="sr-only">Italic</span></button>
+                <button type="button" data-visual-command="underline" title="Underline selected paragraph"><span class="visual-glyph visual-underline" aria-hidden="true">U</span><span class="sr-only">Underline</span></button>
+                <span class="toolbar-divider"></span>
+                <button type="button" data-visual-command="align-left" title="Align left"><span class="lo-icon lo-align-left" aria-hidden="true"></span><span class="sr-only">Align left</span></button>
+                <button type="button" data-visual-command="align-center" title="Center"><span class="lo-icon lo-align-center" aria-hidden="true"></span><span class="sr-only">Center</span></button>
+                <button type="button" data-visual-command="align-right" title="Align right"><span class="lo-icon lo-align-right" aria-hidden="true"></span><span class="sr-only">Align right</span></button>
+                <span class="toolbar-divider"></span>
+                <button type="button" data-visual-command="bullet" title="Bulleted list"><span class="lo-icon lo-bullet" aria-hidden="true"></span><span class="sr-only">Bulleted list</span></button>
+                <button type="button" data-visual-command="number" title="Numbered list"><span class="lo-icon lo-number" aria-hidden="true"></span><span class="sr-only">Numbered list</span></button>
+                <button type="button" data-visual-command="highlight" title="Highlight paragraph"><span class="visual-glyph visual-highlight" aria-hidden="true">▰</span><span class="sr-only">Highlight</span></button>
+                <button type="button" data-visual-command="clear" title="Clear visual formatting"><span class="visual-glyph" aria-hidden="true">×</span><span class="sr-only">Clear formatting</span></button>
+                <span class="toolbar-spacer"></span><span class="visual-only-note">Editorial tools · source safe</span>
+              </div>
+              <div class="visual-editor-page" id="visual-editor-page" tabindex="0"></div>
+            </section>
+            <aside class="agent-annotation-catalog" id="agent-annotation-catalog" aria-label="AI editing marks" hidden>
+              <header>
+                <div><strong>AI editing marks</strong><span id="agent-policy-version">Policy v0</span></div>
+                <button id="agent-catalog-close" type="button" title="Close AI editing marks" aria-label="Close AI editing marks">×</button>
+              </header>
+              <p class="agent-policy-summary" id="agent-policy-summary">Mark finished prose Keep, or mark work for the agent Revise.</p>
+              <div class="agent-annotation-list" id="agent-annotation-list"></div>
+              <footer><span class="agent-keep-key"><i></i>Keep is immutable</span><span class="agent-revise-key"><i></i>Revise is writable</span></footer>
+            </aside>
             <span class="source-metrics" id="source-size">0 chars</span>
           </div>
         </section>
@@ -142,18 +295,31 @@ $ integral_0^infinity e^(-x^2) dif x = sqrt(pi) / 2 $</textarea>
         <section class="preview-pane" id="preview-pane" aria-label="Typst preview">
           <div class="preview-toolbar" role="toolbar" aria-label="Typst preview toolbar">
             <div class="compile-control">
-              <button type="button" class="compile-button" id="compile-button">Recompile</button>
-              <button type="button" class="compile-menu-button" title="Compile options" disabled>⌄</button>
+              <button type="button" class="compile-button" id="compile-button" data-fit-text data-fit-label="Recompile" data-fit-min="10" data-fit-max="12">Recompile</button>
+              <button type="button" class="compile-menu-button" title="Compile options" aria-label="Compile options" disabled>
+                <span class="ui-chevron down" aria-hidden="true"><svg class="ui-chevron-svg" viewBox="0 0 16 16"><path d="m6 3 5 5-5 5" /></svg></span>
+              </button>
             </div>
             <button type="button" title="Compiler messages" data-panel-target="files">▤</button>
-            <button type="button" title="Export is planned" disabled>⇩</button>
+            <div class="pdf-actions" role="group" aria-label="PDF output">
+              <button type="button" id="pdf-export" title="Render and save the current document as PDF" aria-label="Render and save the current document as PDF">
+                <svg class="pdf-action-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v7.5m-3-3L8 9.5l3-3M2.5 13.5h11" /></svg>
+                <span>PDF</span>
+              </button>
+              <button type="button" id="pdf-reveal" title="Show the exported PDF in its folder" aria-label="Show the exported PDF in its folder" hidden>
+                <svg class="pdf-action-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.75 4.25h4l1.4 1.5h7.1v6.75H1.75zM1.75 4.25V3h4.1l1.25 1.25" /></svg>
+              </button>
+            </div>
             <span class="toolbar-spacer"></span>
-            <button type="button" id="previous-page" title="Previous page">‹</button>
+            <button type="button" id="previous-page" title="Previous page" aria-label="Previous page"><span class="ui-chevron left" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m10 3-5 5 5 5" /></svg></span></button>
             <span id="page-status"><span id="preview-meta">Typst preview</span></span>
-            <button type="button" id="next-page" title="Next page">›</button>
+            <button type="button" id="next-page" title="Next page" aria-label="Next page"><span class="ui-chevron right" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m6 3 5 5-5 5" /></svg></span></button>
             <button type="button" id="zoom-out" title="Zoom out">−</button>
             <button type="button" id="fit-width" title="Fit preview to pane width">↔</button>
             <button type="button" id="zoom-in" title="Zoom in">+</button>
+            <button type="button" id="preview-find" title="Find selectable text in the preview (Ctrl+F)" aria-label="Find selectable text in the preview" aria-keyshortcuts="Control+F Meta+F">
+              <svg class="preview-find-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.25" /><path d="m10.2 10.2 3 3" /></svg>
+            </button>
             <button type="button" id="reload-preview" title="Recompile">↻</button>
           </div>
           <div class="preview-stage" id="preview-stage">
@@ -165,11 +331,226 @@ $ integral_0^infinity e^(-x^2) dif x = sqrt(pi) / 2 $</textarea>
       </section>
 
       <footer class="statusbar">
-        <span id="status-message">Starting local Typst workspace…</span>
+        <span id="status-message" role="status" aria-live="polite" aria-atomic="true">Starting local Typst workspace…</span>
         <span class="status-spacer"></span>
         <span id="build-config">Typst · embedded Rust</span>
-        <span id="git-state">Offline project boundary</span>
+        <button class="footer-git-state" id="git-state" type="button" title="Open GitHub connection" aria-label="GitHub status: checking connection" aria-live="polite">GitHub · checking…</button>
       </footer>
     </main>
+
+    <section class="workspace-find" id="workspace-find" role="search" aria-label="Find across the open UnderTree workspace" hidden>
+      <label class="workspace-find-input-wrap">
+        <span class="sr-only">Find text</span>
+        <input id="workspace-find-input" type="search" autocomplete="off" spellcheck="false" placeholder="Find in editor, preview, and interface" />
+      </label>
+      <output id="workspace-find-count" aria-live="polite">0 results</output>
+      <button id="workspace-find-previous" type="button" title="Previous match (Shift+Enter)" aria-label="Previous match">
+        <span class="ui-chevron up" aria-hidden="true"><svg class="ui-chevron-svg" viewBox="0 0 16 16"><path d="m6 3 5 5-5 5" /></svg></span>
+      </button>
+      <button id="workspace-find-next" type="button" title="Next match (Enter)" aria-label="Next match">
+        <span class="ui-chevron down" aria-hidden="true"><svg class="ui-chevron-svg" viewBox="0 0 16 16"><path d="m6 3 5 5-5 5" /></svg></span>
+      </button>
+      <button id="workspace-find-close" type="button" title="Close find (Escape)" aria-label="Close find">
+        <svg class="workspace-find-close-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8" /></svg>
+      </button>
+    </section>
+
+    <div class="modal-backdrop github-modal-backdrop" id="github-modal-backdrop" hidden>
+      <section class="github-dialog" id="github-dialog" role="dialog" aria-modal="true" aria-labelledby="github-dialog-title" aria-describedby="github-dialog-description" tabindex="-1">
+        <header class="github-dialog-heading">
+          <div class="github-dialog-title-wrap">
+            <span class="github-dialog-logo" aria-hidden="true"><img src="./assets/github-invertocat-white.svg" alt="" /></span>
+            <div>
+              <h2 id="github-dialog-title">GitHub connection</h2>
+              <p id="github-dialog-description">Connect your GitHub account, grant UnderTree repository access, and control synchronization.</p>
+            </div>
+          </div>
+          <div class="github-dialog-heading-actions">
+            <span class="github-dialog-badge" id="github-dialog-badge">Checking…</span>
+            <button class="github-dialog-close" id="github-modal-close" type="button" aria-label="Close GitHub connection">×</button>
+          </div>
+        </header>
+
+        <div class="github-dialog-feedback" id="github-feedback" role="status" aria-live="polite" hidden></div>
+
+        <div class="github-dialog-body">
+          <section class="github-callout danger" id="github-config-unavailable" role="alert" hidden>
+            <strong>GitHub connection is unavailable in this build</strong>
+            <p>This UnderTree build is missing its built-in GitHub identity. You do not need to register an OAuth App or enter credentials. Install an official build or contact its distributor.</p>
+          </section>
+
+          <section class="github-card" id="github-auth-section">
+            <div class="github-section-heading">
+              <div>
+                <span class="github-eyebrow">Account</span>
+                <h3 id="github-account-title">Connect GitHub</h3>
+              </div>
+              <button class="pill-button primary" id="github-connect" type="button">Connect GitHub</button>
+            </div>
+            <p id="github-account-detail">UnderTree opens GitHub's secure device authorization flow and requests repository access. Your password and tokens never enter this window.</p>
+
+            <div class="github-device-code" id="github-device-code" hidden>
+              <span class="github-eyebrow">One-time code</span>
+              <button id="github-user-code" type="button" title="Select the one-time code"></button>
+              <span class="github-device-copy-state" id="github-device-copy-state" role="status" aria-live="polite">Preparing secure code…</span>
+              <p id="github-device-instructions">UnderTree will copy this code, then open GitHub. Paste it there and return to UnderTree.</p>
+              <span class="github-device-wait" id="github-device-wait" role="status" aria-live="polite">Waiting for GitHub authorization…</span>
+            </div>
+          </section>
+
+          <section class="github-card" id="github-repository-section" hidden>
+            <div class="github-section-heading">
+              <div>
+                <span class="github-eyebrow">GitHub projects</span>
+                <h3>Choose or create a project</h3>
+              </div>
+              <button class="pill-button primary" id="github-new-project-toggle" type="button" aria-expanded="false" aria-controls="github-new-project-form">New GitHub project…</button>
+            </div>
+            <p>UnderTree can use repositories available to the connected account. Link an existing local checkout, clone a local copy, or create a new GitHub and Typst project together.</p>
+
+            <div class="github-new-project-form" id="github-new-project-form" hidden>
+              <div>
+                <label for="github-new-project-name">Repository name</label>
+                <input id="github-new-project-name" type="text" maxlength="100" placeholder="my-typst-project" autocomplete="off" />
+              </div>
+              <div>
+                <label for="github-new-project-description">Description <span>(optional)</span></label>
+                <input id="github-new-project-description" type="text" maxlength="350" placeholder="What this project is for" autocomplete="off" />
+              </div>
+              <div>
+                <label for="github-new-project-visibility">Visibility</label>
+                <select id="github-new-project-visibility">
+                  <option value="private">Private</option>
+                  <option value="public">Public</option>
+                </select>
+              </div>
+              <div class="github-new-project-actions">
+                <button class="pill-button primary" id="github-create-project" type="button">Create GitHub + local project…</button>
+                <button class="text-button" id="github-new-project-cancel" type="button">Cancel</button>
+              </div>
+              <small>UnderTree asks for a parent folder, creates a repository-name child folder, adds <code>main.typ</code>, commits it, and pushes the initial branch.</small>
+            </div>
+
+            <div class="github-repository-controls">
+              <div class="github-repository-filter-grid" aria-label="Repository sorting and filters">
+                <label>
+                  <span>Sort by</span>
+                  <select id="github-repository-sort">
+                    <option value="name-asc">Name A–Z</option>
+                    <option value="name-desc">Name Z–A</option>
+                    <option value="created-desc">Newest created</option>
+                    <option value="created-asc">Oldest created</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Visibility</span>
+                  <select id="github-repository-visibility">
+                    <option value="all">Public + private</option>
+                    <option value="public">Public only</option>
+                    <option value="private">Private only</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Ownership</span>
+                  <select id="github-repository-ownership">
+                    <option value="all">Mine + shared</option>
+                    <option value="owned">Owned by me</option>
+                    <option value="shared">Shared / organization</option>
+                  </select>
+                </label>
+              </div>
+              <label for="github-repository-picker">GitHub repository</label>
+              <div>
+                <select id="github-repository-picker" aria-describedby="github-repository-help">
+                  <option value="">Loading repositories…</option>
+                </select>
+                <button class="round-button" id="github-refresh-repositories" type="button" title="Refresh repositories" aria-label="Refresh GitHub repositories">↻</button>
+              </div>
+              <small id="github-repository-help">Repositories this GitHub account can access are listed.</small>
+            </div>
+            <div class="github-repository-actions">
+              <button class="pill-button primary" id="github-link-project" type="button" aria-describedby="github-link-help" disabled>Link current project</button>
+              <button class="pill-button subdued" id="github-clone-repository" type="button" aria-describedby="github-clone-help" disabled>Clone local copy…</button>
+            </div>
+            <small class="github-local-source-note" id="github-link-help"><strong>Link</strong> keeps the open local folder as the source of truth. Use it for a matching checkout or an intentionally empty GitHub repository; UnderTree refuses a different existing origin.</small>
+            <small class="github-local-source-note" id="github-clone-help">Cloning asks for a parent folder, creates a new repository-name child folder inside it, and makes that local copy UnderTree’s source of truth.</small>
+          </section>
+
+          <section class="github-card" id="github-project-section" hidden>
+            <div class="github-section-heading">
+              <div>
+                <span class="github-eyebrow">Linked project</span>
+                <h3 id="github-project-repository">Repository</h3>
+              </div>
+            </div>
+            <div class="github-project-meta">
+              <span id="github-project-branch">Branch</span>
+              <span id="github-project-divergence">Up to date</span>
+              <span id="github-project-last-sync">Not synchronized yet</span>
+            </div>
+
+            <div class="github-changes" id="github-changes" hidden>
+              <strong>Local changes</strong>
+              <ul id="github-change-list"></ul>
+            </div>
+
+            <div class="github-commit-control">
+              <label for="github-commit-message">Commit message</label>
+              <input id="github-commit-message" type="text" maxlength="200" placeholder="Describe this update" autocomplete="off" />
+            </div>
+            <p class="github-sync-guidance" id="github-sync-guidance" hidden></p>
+
+            <div class="github-sync-actions" role="group" aria-label="Manual GitHub synchronization">
+              <button class="pill-button subdued" type="button" data-github-action="pull">Pull</button>
+              <button class="pill-button subdued" type="button" data-github-action="push">Push</button>
+              <button class="pill-button subdued" type="button" data-github-action="sync" title="Pull and push existing commits">Sync commits</button>
+              <button class="pill-button primary" type="button" data-github-action="commitAndSync">Commit &amp; Sync</button>
+            </div>
+          </section>
+
+          <section class="github-card" id="github-rules-section" hidden>
+            <div class="github-section-heading">
+              <div>
+                <span class="github-eyebrow">Automation</span>
+                <h3>Synchronization rules</h3>
+              </div>
+            </div>
+            <p>UnderTree's native scheduler applies these rules only while the application is running and this project is selected. The WebView never schedules Git operations.</p>
+            <div class="github-rules-grid">
+              <label for="github-sync-interval">Automatic sync</label>
+              <select id="github-sync-interval">
+                <option value="0">Off</option>
+                <option value="5">Every 5 minutes</option>
+                <option value="15">Every 15 minutes</option>
+                <option value="30">Every 30 minutes</option>
+                <option value="60">Every 60 minutes</option>
+              </select>
+              <label class="github-checkbox" for="github-auto-commit">
+                <input id="github-auto-commit" type="checkbox" />
+                <span>Automatically commit every non-ignored local repository change before a scheduled sync</span>
+              </label>
+              <button class="pill-button subdued" id="github-save-rules" type="button">Save rules</button>
+            </div>
+          </section>
+
+          <section class="github-danger-zone" id="github-danger-zone" hidden>
+            <button class="text-button danger" id="github-unlink-project" type="button" hidden>Unlink this project</button>
+            <button class="text-button danger" id="github-disconnect" type="button">Disconnect GitHub account</button>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop github-confirm-backdrop" id="github-confirm-backdrop" hidden>
+      <section class="github-confirm-dialog" id="github-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="github-confirm-title" aria-describedby="github-confirm-message" tabindex="-1">
+        <h2 id="github-confirm-title">Confirm GitHub action</h2>
+        <p id="github-confirm-message"></p>
+        <div class="github-confirm-actions">
+          <button class="pill-button subdued" id="github-confirm-cancel" type="button">Cancel</button>
+          <button class="pill-button secondary-danger" id="github-confirm-secondary" type="button" hidden>Discard changes</button>
+          <button class="pill-button danger" id="github-confirm-accept" type="button">Confirm</button>
+        </div>
+      </section>
+    </div>
   </body>
 </html>
