@@ -18,6 +18,7 @@ const REVIEW_FILE: &str = "paper.json";
 const REVIEW_TRANSACTION_FILE: &str = "review-transaction.json";
 const MAX_SOURCE_BYTES: usize = 1024 * 1024;
 const MAX_REVIEW_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_TRANSACTION_BYTES: u64 = 6 * 1024 * 1024;
 const MAX_MARKS: usize = 512;
 const MAX_PROPOSALS: usize = 1024;
 const MAX_COMMENTS: usize = 2048;
@@ -294,6 +295,12 @@ impl ReviewService {
                 write_project(&root, &project)?;
             }
         }
+        if project.bibliography_digest != bibliography_digest {
+            supersede_pending(&mut project.proposals);
+            project.bibliography_digest = bibliography_digest;
+            project.generation = next_version(project.generation)?;
+            write_project(&root, &project)?;
+        }
 
         Ok(materialize_state(project, source))
     }
@@ -315,6 +322,7 @@ impl ReviewService {
             .unwrap_or_else(|| ReviewProject::new(path, &request.source, bibliography_digest.clone()));
         validate_project_identity(&project, path)?;
         reconcile_saved_source(&root, path, &request.source, &mut project)?;
+        reconcile_bibliography(&root, &mut project)?;
         if request.expected_policy_version != project.policy_version {
             return Err(stale_policy(project.policy_version));
         }
@@ -411,6 +419,7 @@ impl ReviewService {
         })?;
         validate_project_identity(&project, path)?;
         reconcile_saved_source(&root, path, &request.source, &mut project)?;
+        reconcile_bibliography(&root, &mut project)?;
         if request.expected_policy_version != project.policy_version {
             return Err(stale_policy(project.policy_version));
         }
@@ -463,8 +472,19 @@ impl ReviewService {
             ));
         }
         let id = normalize_or_generate_id(request.id, "proposal", project.generation)?;
-        if project.proposals.iter().any(|proposal| proposal.id == id) {
-            return Ok(materialize_state(project, &request.source));
+        if let Some(existing) = project.proposals.iter().find(|proposal| proposal.id == id) {
+            if existing.mark_id == mark.id
+                && existing.operation == request.operation
+                && existing.replacement == replacement
+                && existing.rationale == rationale
+                && existing.actor == actor
+            {
+                return Ok(materialize_state(project, &request.source));
+            }
+            return Err(review_error(
+                "review_proposal_id_conflict",
+                "This proposal identifier already belongs to different review content.",
+            ));
         }
         project.proposals.push(ReviewProposal {
             id,
@@ -503,6 +523,7 @@ impl ReviewService {
         })?;
         validate_project_identity(&project, path)?;
         reconcile_saved_source(&root, path, &request.source, &mut project)?;
+        reconcile_bibliography(&root, &mut project)?;
         if request.expected_policy_version != project.policy_version {
             return Err(stale_policy(project.policy_version));
         }
@@ -566,6 +587,7 @@ impl ReviewService {
         })?;
         validate_project_identity(&project, path)?;
         reconcile_saved_source(&root, path, &request.source, &mut project)?;
+        reconcile_bibliography(&root, &mut project)?;
         if request.expected_policy_version != project.policy_version {
             return Err(stale_policy(project.policy_version));
         }
@@ -715,7 +737,7 @@ pub fn create_compact_project_files(root: &Path, title: &str) -> Result<(), Boun
     }
     let safe_title = title.replace(['\r', '\n', '\0'], " ").trim().to_owned();
     let source = format!(
-        "#set page(paper: \"a4\", margin: 2.2cm)\n#set text(font: \"Libertinus Serif\", size: 11pt)\n\n= {safe_title}\n\nStart writing here.\n"
+        "#set page(paper: \"a4\", margin: 2.2cm)\n#set text(size: 11pt)\n\n= {safe_title}\n\nStart writing here.\n"
     );
     let bib = "% UnderTree bibliography\n";
     atomic_write(&root.join("paper.typ"), source.as_bytes()).map_err(|_| {
@@ -929,8 +951,8 @@ fn validate_light_edit(original: &str, replacement: &str) -> Result<(), Boundary
     Ok(())
 }
 
-fn citation_tokens(text: &str) -> BTreeSet<String> {
-    let mut tokens = BTreeSet::new();
+fn citation_tokens(text: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
     let chars = text.char_indices().collect::<Vec<_>>();
     let mut index = 0;
     while index < chars.len() {
@@ -951,28 +973,50 @@ fn citation_tokens(text: &str) -> BTreeSet<String> {
             }
         }
         if end > start + 1 {
-            tokens.insert(text[start..end].to_owned());
+            tokens.push(text[start..end].to_owned());
         }
     }
+    tokens.sort();
     tokens
 }
 
-fn numeric_tokens(text: &str) -> BTreeSet<String> {
-    let mut tokens = BTreeSet::new();
+fn numeric_tokens(text: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
     let mut current = String::new();
     for character in text.chars() {
-        if character.is_ascii_digit() || (!current.is_empty() && matches!(character, '.' | ',' | '%' | '−' | '-')) {
+        if character.is_ascii_digit()
+            || (!current.is_empty() && matches!(character, '.' | ',' | '%' | '−' | '-'))
+        {
             current.push(character);
         } else if !current.is_empty() {
-            tokens.insert(current.trim_end_matches(['.', ',', '-', '−']).to_owned());
+            let token = current.trim_end_matches(['.', ',', '-', '−']).to_owned();
+            if !token.is_empty() {
+                tokens.push(token);
+            }
             current.clear();
         }
     }
     if !current.is_empty() {
-        tokens.insert(current.trim_end_matches(['.', ',', '-', '−']).to_owned());
+        let token = current.trim_end_matches(['.', ',', '-', '−']).to_owned();
+        if !token.is_empty() {
+            tokens.push(token);
+        }
     }
-    tokens.remove("");
+    tokens.sort();
     tokens
+}
+
+fn reconcile_bibliography(
+    root: &Path,
+    project: &mut ReviewProject,
+) -> Result<(), BoundaryError> {
+    let current = bibliography_digest(root)?;
+    if project.bibliography_digest != current {
+        supersede_pending(&mut project.proposals);
+        project.bibliography_digest = current;
+        project.generation = next_version(project.generation)?;
+    }
+    Ok(())
 }
 
 fn supersede_pending(proposals: &mut [ReviewProposal]) {
@@ -1183,7 +1227,10 @@ fn load_project(root: &Path) -> Result<Option<ReviewProject>, BoundaryError> {
         return Ok(None);
     }
     let metadata = fs::symlink_metadata(&path).map_err(|_| BoundaryError::internal())?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > MAX_REVIEW_BYTES {
+    if metadata.file_type().is_symlink()
+        || !metadata.is_file()
+        || metadata.len() > MAX_TRANSACTION_BYTES
+    {
         return Err(review_error(
             "review_metadata_invalid",
             "paper.json must be a bounded regular file.",
@@ -1263,6 +1310,12 @@ fn write_acceptance_transaction(
         serde_json::to_vec_pretty(project).map_err(|_| BoundaryError::internal())?,
     )
     .map_err(|_| BoundaryError::internal())?;
+    if new_review.len() as u64 > MAX_REVIEW_BYTES {
+        return Err(review_error(
+            "review_metadata_too_large",
+            "paper.json exceeds the 4 MiB review metadata limit.",
+        ));
+    }
     let transaction = ReviewTransaction {
         version: 1,
         source_path: source_path.to_owned(),
@@ -1275,6 +1328,12 @@ fn write_acceptance_transaction(
     };
     let transaction_bytes =
         serde_json::to_vec_pretty(&transaction).map_err(|_| BoundaryError::internal())?;
+    if transaction_bytes.len() as u64 > MAX_TRANSACTION_BYTES {
+        return Err(review_error(
+            "review_transaction_too_large",
+            "The accepted review transaction exceeds its bounded recovery limit.",
+        ));
+    }
     let private = ensure_private_state(root)?;
     let journal = private.join(REVIEW_TRANSACTION_FILE);
     atomic_write(&journal, &transaction_bytes).map_err(|_| {

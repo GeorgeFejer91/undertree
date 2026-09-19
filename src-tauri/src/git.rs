@@ -4,7 +4,6 @@ use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-use crate::review;
 
 use atomic_write_file::AtomicWriteFile;
 use git2::build::CheckoutBuilder;
@@ -16,6 +15,7 @@ use git2::{
 use serde::Serialize;
 
 use crate::error::BoundaryError;
+use crate::review;
 
 const MAX_CHANGED_PATHS: usize = 10_000;
 const MAX_VISIBLE_CHANGES: usize = 200;

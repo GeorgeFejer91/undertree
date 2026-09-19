@@ -48,7 +48,7 @@ jobs:
           node --check web/typst-editing.js
           node --check web/review-selection.js
           node --check web/review-ui.js
-          node --check web/ui-fit.js
+          node --check web/ui-fit.mjs
           node --check web/app.js
           node --test web/citation-search.test.cjs
           node --test web/agent-annotations.test.cjs
