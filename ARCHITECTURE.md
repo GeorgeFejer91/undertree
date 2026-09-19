@@ -1,6 +1,6 @@
 # UnderTree architecture
 
-UnderTree is a local Tauri application with an embedded Typst compiler. The WebView is presentation-only; the Rust process owns compilation, filesystem policy, and persistence.
+UnderTree is a local Tauri application with an embedded Typst compiler. The WebView is presentation-only; Rust owns compilation, project/review state, source-provenance validation, persistence, and authorization. The generated PDF is the primary review surface.
 
 ~~~text
 web/ HTML, CSS, JavaScript
@@ -11,9 +11,11 @@ src-tauri/src/commands.rs
           |
           +--> project.rs: approved root, inventory, reads, atomic saves
           |
-          +--> compiler.rs: Typst world, validation, layout, SVG pages/PDF bytes
+          +--> compiler.rs: Typst world, one layout, PDF bytes, PDF page rendering, source provenance
           |         |
           |         +--> pdf.rs: native Save As, atomic write, remembered reveal target
+          |
+          +--> review.rs: paper.json, marks, proposals/comments, human decisions, recovery journal
           |
           +--> latex.rs: bounded ZIP import, include graph, draft conversion
           |
@@ -31,17 +33,19 @@ cli.rs app commands -- authenticated loopback --> remote_control.rs
 
 The compiler loads Typst and its embedded default fonts once. Each compile receives the exact editor snapshot and creates a short-lived world with its own file cache. The editor snapshot is authoritative for the active document; imported source and assets are read from the approved project root.
 
-Project-relative imports, including BibTeX bibliography files, are canonicalized and rejected if they escape that root. Package imports and additional roots are not supported. Source size, resource size, page count, total SVG output, selectable text, and PDF bytes have explicit upper bounds. Compilation and PDF generation run on Tauri's blocking pool so editing and window events remain responsive.
+Project-relative imports, including BibTeX bibliography files, are canonicalized and rejected if they escape that root. Package imports and additional roots are not supported. Source size, resource size, page count, rendered PDF-preview output, selectable provenance text, and PDF bytes have explicit upper bounds. Compilation, PDF generation, and Hayro page rendering run on Tauri's blocking pool so editing and window events remain responsive.
 
-## PDF output boundary
+## PDF preview and output boundary
 
-PDF is an explicit on-demand product operation, separate from the debounced SVG preview loop. The WebView sends the same bounded source/path/revision snapshot used for preview. For interactive export, Rust opens the native Save dialog; the direct CLI instead requires an explicit `.pdf` output path and separate overwrite authority. Both paths compile through the same confined Typst world, render a real PDF in process, and atomically commit it only to the approved destination. Cancel is a normal no-write result. PDF bytes and the selected absolute path never cross WebView IPC; live-editor CLI destinations remain in the native claimed request.
+The live preview is the actual PDF product, not a separately typeset HTML/SVG approximation. For a preview snapshot, Rust compiles Typst once to a `PagedDocument`, generates PDF bytes with `typst-pdf`, and rasterizes those PDF pages with the pure-Rust Hayro renderer. A transparent selectable layer uses geometry from that same Typst layout; a text run receives source byte offsets only when every contributing glyph maps to the active source and the exact source substring equals the rendered text. Generated/macro text therefore remains readable/selectable but is not silently authorized as an edit target.
 
-After a successful write, Rust remembers one canonical export path in memory together with its document path and editor revision. The reveal command accepts no filesystem path: it must match that remembered document/revision, rechecks an existing regular `.pdf`, and then asks the system file browser to reveal it. The frontend exposes the reveal action only while the exported revision is still current. No generic filesystem or opener permission is granted to the WebView.
+Every preview response is tied to the editor revision. The frontend discards stale completions, keeps the previous complete render while a new build runs, scales bitmap/text/highlight layers together, and exposes PDF review actions only against the current mapped revision.
+
+Explicit PDF export remains a separate user operation. The native Save dialog suggests a name based on the active `.typ` document; the direct CLI requires an explicit output path. Export is page/size bounded, atomically committed, and remembered only for the matching document revision before Reveal is enabled. PDF bytes and writable absolute paths never become generic WebView authority.
 
 ## Project and save boundary
 
-A project root enters application state only through the native folder picker, an exact remembered selection, or an explicit canonical product-CLI request. Inventory traversal is depth- and count-bounded and skips symlinks, `.git`, `.undertree`, dependency caches, and build targets. The snapshot exposes relative-path metadata for every other regular file so the WebView can apply a non-destructive smart visibility filter, but document content remains limited to UTF-8 `.typ`, `.bib`, and UnderTree-generated `*.undertree-export*.tex` files. Original LaTeX, PDFs, images, and other support assets cannot be opened through document IPC. New bibliographies are created through a dedicated command that accepts only a relative `.bib` path whose existing parent canonicalizes inside the approved root. A separate read-only command parses at most 64 confined `.bib` files and 12,000 entries into bounded citation summaries; malformed files and cross-file duplicate keys become local issues while valid entries remain searchable. The WebView ranks those summaries in memory and never receives arbitrary project files or filesystem authority.
+A project root enters application state only through the native folder picker, an exact remembered selection, or an explicit canonical product-CLI request. Inventory traversal is depth- and count-bounded and skips symlinks, `.git`, `.undertree`, dependency caches, and build targets. The snapshot exposes relative-path metadata for every other regular file so the WebView can apply a non-destructive smart visibility filter. Generic editable document content remains limited to UTF-8 `.typ`, `.bib`, and UnderTree-generated `*.undertree-export*.tex` files. `paper.json` is visible as review metadata but is never a generic editable document. Original LaTeX, PDFs, images, and other support assets cannot be opened through document IPC. New bibliographies are created through a dedicated command that accepts only a relative `.bib` path whose existing parent canonicalizes inside the approved root. A separate read-only command parses at most 64 confined `.bib` files and 12,000 entries into bounded citation summaries; malformed files and cross-file duplicate keys become local issues while valid entries remain searchable. The WebView ranks those summaries in memory and never receives arbitrary project files or filesystem authority.
 
 The direct `project status`, `project files`, and `document read` commands use a zero-write inspection path. It canonicalizes the supplied root, reuses the bounded scanner and editable-document policy, and does not select the project, acquire its lease, run conversion, update recent projects, or create `.undertree`. Lock state is reported only when an already-existing safe advisory lock can be probed; otherwise it remains unavailable rather than creating state. Direct mutations install a short-lived approved project state and hold the normal project lease for their lifetime.
 
@@ -49,13 +53,21 @@ UnderTree keeps a bounded, versioned recent-project registry in its native appli
 
 Every opened document carries a SHA-256 digest. A save compares that digest with the current disk content. If another process changed the file, UnderTree first atomically preserves the displaced bytes in `.undertree/conflicts/`, then atomically commits the editor snapshot. The UI accepts a save result only when its revision still matches the editor revision.
 
+## Compact review state and acceptance
+
+New compact projects are created as `paper.typ`, `paper.bib`, and `paper.json`. `review.rs` owns the versioned metadata schema, exact UTF-8 anchors with prefix/suffix context, Keep/Light edit/Rework policy, pending suggestions, comments, source/bibliography digests, and idempotent reviewer record IDs. A source or bibliography change supersedes pending proposals conservatively; ambiguous rebasing fails closed.
+
+Proposal/comment submission writes `paper.json` only. Acceptance exists only on the human Tauri review command. It rechecks the saved source digest, policy version, proposal state, target bytes, mark kind, and Light-edit citation/number preservation. Accepted source plus the updated metadata are protected by a private `.undertree/review-transaction.json` recovery journal. Recovery rolls forward only when the observed files still match the expected old/new digests; an unrelated external write stops recovery rather than choosing a winner.
+
+The authenticated running-editor protocol has reviewer-specific `ReviewContext`, `ReviewPropose`, and `ReviewComment` requests with typed results and bounds. There is no reviewer Accept request. The CLI exposes those three reviewer operations and requires caller-supplied proposal/comment IDs for retry idempotency. The old direct-agent replacement request is refused by the frontend and is no longer an advertised reviewer workflow.
+
 ## IPC and frontend
 
 Commands are thin adapters over the compiler, PDF, and project services. Boundary errors are deliberately stable and sanitized. The frontend centralizes command invocation and uses latest-state-wins scheduling: at most one preview compile runs, with one newest follow-up snapshot retained. PDF completion is also revision-guarded so a saved older snapshot is never presented as the current export.
 
 The frontend reuses the checkpoint application's stylesheet and layout vocabulary. Its top bar, activity rail, split file/diagnostic sidebar, editor and preview panes, toolbars, resizers, and status bar are a compatibility contract. Capability labels may change from TeX to Typst, but layout changes require an explicit product decision and a rendered comparison against the checkpoint screenshot.
 
-Compiled pages are returned as SVG strings, converted to Blob URLs, and displayed through image elements. Generated SVG is never inserted into the document as markup.
+Compiled preview pages are returned as bounded PNG data images produced from the generated PDF and displayed inertly through image elements. The transparent text/provenance layer contains text and geometry only; generated document markup is never injected as HTML.
 
 ## LaTeX conversion boundary
 

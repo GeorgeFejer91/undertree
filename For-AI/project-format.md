@@ -1,67 +1,58 @@
-# Compact writing project: three shared files
+# Compact writing project: shipped v1 contract
 
-Proposed v1 contract; not implemented or approved for migration yet. It applies to new compact projects. Existing folder projects and original imports must not be silently flattened, rewritten, or deleted.
+New compact UnderTree projects use three shared files:
 
-## Responsibilities
-
-| Shared file | Sole responsibility |
+| File | Responsibility |
 | --- | --- |
-| `paper.typ` | Accepted Typst manuscript, layout settings, and citation calls. No injected review-control syntax or pending alternative manuscript. |
-| `paper.bib` | One ordinary UTF-8 BibTeX/BibLaTeX bibliography, retaining stable entry keys. An empty bibliography remains a file for a consistent triple. |
-| `paper.json` | Versioned project identity, paired-file digests, review scopes, instructions, proposals, comments, and decisions. Declarative data only. |
+| `paper.typ` | Accepted Typst manuscript and layout. |
+| `paper.bib` | One ordinary UTF-8 BibTeX/BibLaTeX bibliography. |
+| `paper.json` | Review metadata only: hashes, marks, suggestions, comments, decisions/status, and policy/generation counters. |
 
-Names are illustrative: one agreed stem and exactly one of each extension. Renaming is an explicit coordinated project operation. PDF/export files and app-local state are not part of the shared contract. No fourth `.txt`, per-comment file, SQLite database, or cloud record is needed to reconstruct the review project.
+PDF output, credentials, caches, locks, conflict copies, and `.undertree/review-transaction.json` are local/generated state, not synchronization files. Existing non-compact projects remain supported; UnderTree never flattens or deletes them automatically.
 
-A normal Typst source uses `#bibliography("paper.bib")` and `@key` or `#cite(<key>)`. Typst already reads `.bib`; do not convert the library to JSON/YAML or require TeX/Biber to preserve citation support. UnderTree's existing Rust `biblatex` dependency supplies parsing. See [Typst bibliography](https://typst.app/docs/reference/model/bibliography/) and [LaTeX-user guide](https://typst.app/docs/guides/for-latex-users/).
+## Runtime JSON schema
 
-Compatibility import may translate supported LaTeX citation commands into Typst citation calls. Preserve keys, supplements, original bytes, and unsupported constructs for review; broad regex replacement is not a LaTeX parser. Consolidating multiple bibliographies requires collision checks and human confirmation. Unknown fields and malformed entries must not be silently dropped. Existing full-document converters remain explicit draft import/export, not another canonical format.
-
-## Minimal JSON shape
-
-Illustrative shape, not a shipped schema or a file to evaluate:
+The Rust type is authoritative. Version 1 serializes this top-level shape:
 
 ```json
 {
   "schemaVersion": 1,
-  "projectId": "stable-project-uuid",
-  "files": { "source": "paper.typ", "bibliography": "paper.bib" },
-  "snapshot": {
-    "generation": "new-generation-uuid",
-    "parentGeneration": null,
-    "sourceSha256": "64-lowercase-hex-characters",
-    "bibliographySha256": "64-lowercase-hex-characters"
-  },
-  "policy": { "version": 1, "defaultMode": "context-only", "ranges": {} },
-  "suggestions": {},
-  "comments": {},
-  "decisions": {}
+  "generation": 0,
+  "policyVersion": 0,
+  "document": "paper.typ",
+  "bibliography": "paper.bib",
+  "sourceDigest": "<sha256 of saved paper.typ bytes>",
+  "bibliographyDigest": "<sha256 of saved paper.bib bytes>",
+  "marks": [],
+  "proposals": [],
+  "comments": []
 }
 ```
 
-Use UUID-keyed records, deterministic serialization, bounded fields/collections, and an explicit supported schema version. Proposals hold the relevant original passage, candidate, target/policy revisions, and rationale, not another full manuscript. Thread revisions link immutable proposal versions. Decisions name the exact proposal version and source transition. Persist request idempotency where retry recovery requires it; avoid an unbounded operational log in the shared JSON.
+Unknown fields are rejected by Serde and unsupported schema versions fail closed. Collections and text sizes are bounded. JSON is declarative content, never executable policy or a credential.
 
-Local editor counters are session concurrency guards, not global version identifiers. Generation IDs and exact byte hashes establish the portable pairing. Timestamps are informational, never overwrite priority. Hash raw UTF-8 file bytes consistently; do not silently normalize one side before comparison. New compact files use a documented newline policy. Unknown future schema versions are opened non-mutating until supported, not rewritten into today's shape.
+A mark contains a stable short ID, one of `keep`, `light-edit`, or `rework`, an exact UTF-8 source-byte anchor plus bounded prefix/suffix context, optional human instruction, and stale state. A proposal records its ID, target mark, replace/delete operation, pending candidate text, rationale, human/AI attribution, status, base source digest, and creation/resolution times. A comment can target a mark and optionally a proposal. Proposal/comment IDs are idempotency keys: reusing the same ID with different content is an error.
 
-Policies control editing scope, not access credentials. Project JSON contains no account tokens, tunnel URLs containing secrets, local paths, machine identities used as grants, automatic sync authorizations, shell commands, or permissions allowing an AI to approve itself. Attribution is not authenticated identity. Other editors or collaborators with raw file-write access can edit the files; this format does not claim cryptographic authorship or DRM.
+## Bibliography compatibility
 
-## Persistence and synchronization
+Typst remains the only canonical manuscript language; `paper.bib` stays ordinary BibTeX/BibLaTeX so existing citation libraries retain stable keys. UnderTree's Rust bibliography parser supplies citation search. A compact manuscript may reference `paper.bib` using normal Typst bibliography/citation syntax. No TeX/Biber runtime or bibliography conversion database is required.
 
-A coherent saved generation is the triple whose `.typ` and `.bib` byte digests match `.json`. For proposal-only changes the source/bibliography hashes stay unchanged while metadata generation advances. Accepted edits and their decision receipts become durable together from the application's perspective.
+Light-edit proposals mechanically preserve citation-token and numerical-token multiplicity. That is a structural guard, not proof of scientific equivalence.
 
-Native save sequence: obtain the existing owner/lease and verify expected hashes; record a small private recoverable transaction; stage the candidate bytes; replace the changed source/bibliography files atomically; publish JSON last as the generation marker; verify all three before acknowledging success; then finalize the private journal. A crash after any step must recover a coherent old or new generation, never report an unapplied suggestion as accepted. Individual filesystem renames are not a three-file transaction by themselves.
+## Persistence
 
-An external service may deliver the three files out of order. A receiver must settle changes, read a consistent candidate, and verify both digests before activating it. Until then retain the last good local generation and report incomplete delivery. Private recovery/cache data lives in app-local state and is never required on the other collaborator's machine. Migration must preserve the existing lease/recovery protections.
+Proposal/comment/mark changes update `paper.json` only and require the current saved manuscript digest. Manual source edits are still allowed; on the next review operation Rust attempts exact/context rebasing. Ambiguous or missing anchors become a refusal. A source or bibliography generation change conservatively supersedes pending proposals.
 
-Version one supports exchange and conflict-aware synchronization, not Google-Docs-style simultaneous keystrokes. Keep a local common-base snapshot for three-way comparison. Divergent source, policy changes, conflicting decisions, or identical record IDs with different content stop for explicit reconciliation; do not auto-accept, merge by timestamp, or treat syntactically valid JSON as a resolved semantic conflict. Distinct review records can be merged later only under a tested native rule. A file count does not remove the need for a concurrency policy.
+Acceptance is different: an authorized human names one pending proposal. Rust revalidates the proposal, target bytes, mark kind, saved source digest, policy generation, and bibliography generation. It writes a private bounded recovery journal containing expected old/new digests, atomically writes the accepted source and updated JSON, then removes the journal. On restart, recovery rolls forward only if observed files still match the expected old/new states; an unrelated external modification stops with an explicit conflict.
 
-Start with an already synchronized local folder or the existing guarded Git adapter. A Google Drive/other file service is a transport option, not the source of truth; Google Sheets is not the manuscript database. No provider SDK, cloud backend, CRDT, account system, or storage plugin framework is needed for the first slice.
+Individual file renames are not claimed to form a filesystem-wide atomic transaction. The journal is the recovery mechanism. It is private local state and never a fourth file required by a collaborator.
 
-## Portability limits to resolve before claiming completeness
+## Synchronization
 
-The first compact fixture covers prose, mathematics, tables, citations, and bundled fonts/styles. External figures, custom fonts, CSL files, package imports, and extra `.typ` files are additional dependencies: detecting them must fail the compact-portability check, not silently omit them or claim the project has only three required files.
+The three files are the portable payload. Existing Git/GitHub synchronization can transport them as one commit. Another external file-sync service may also transport them, but UnderTree must not activate mixed generations silently: `sourceDigest` and `bibliographyDigest` must match the files before review mutations/acceptance proceed.
 
-Exactly-three-file figure support needs an approved embedding scheme, not an invisible assets folder. A bounded resource section in the same JSON is a possible later choice, with size/encoding costs and an allowlisted compiler projection that excludes review/private data. It is not implemented or selected here. Do not use mutable network image URLs as an offline solution. Preserve non-compact projects while the author decides the figure requirement.
+Version 1 is asynchronous conflict-aware exchange, not Google-Docs-style simultaneous keystrokes. Timestamps do not decide conflicts. Same IDs with different content, divergent source, or ambiguous policy state require explicit reconciliation.
 
-Reproducible rendering also depends on compatible app/compiler/font versions. Record a non-secret rendering-profile identifier when necessary; do not auto-upgrade Typst or substitute fonts silently to open a collaborator's project.
+## Portability limits
 
-Existing marks in `.undertree/agent-editing.json` need a reviewed migration into the shared JSON. Verify source anchors and preserve the old state privately before retiring it; it cannot remain a hidden fourth canonical file. Existing `.undertree/github-sync.json`, locks, and credentials remain machine-local integration state, not portable policy authority.
+A truly three-file project cannot silently depend on extra figures, custom fonts, CSL files, package imports, or additional Typst sources. Existing projects with such assets remain valid UnderTree projects but are not self-contained three-file payloads. Embedding binary resources in `paper.json` is not implemented; add it only if a real compact-project use case justifies the size and compiler-projection complexity.

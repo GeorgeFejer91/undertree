@@ -9,21 +9,24 @@ This branch is the Rust/Typst rewrite. The former Electron/LaTeX application is 
 - plain local HTML/CSS/JavaScript wrapper hosted by Tauri's system WebView;
 - the checkpoint application's visual shell, pane geometry, navigation rail, toolbars, resizers, and responsive breakpoints;
 - embedded Typst compilation in Rust with bundled default fonts;
-- multi-page SVG preview without injecting generated SVG into the DOM;
+- real generated-PDF preview: Typst lays out once, `typst-pdf` produces the PDF, and the Rust Hayro renderer draws bounded PDF pages for the WebView;
+- exact-source provenance on directly mapped rendered text runs, enabling conservative PDF selections without OCR or global string matching;
 - one-click native PDF rendering and atomic Save As, followed by a direct show-in-folder action for the current export;
 - latest-edit-wins compilation scheduling that never blocks typing;
 - native folder selection for approving a project root;
-- bounded `.typ` and `.bib` inventory and switching between project documents;
+- bounded `.typ`, `.bib`, and visible read-only `paper.json` inventory and switching between project documents;
 - confined creation, editing, and conflict-safe saving of BibTeX bibliography files;
 - inline, keyboard-first citation recommendations from project BibTeX handles, matched across title, author, year, venue, DOI, and key without leaving the source editor;
-- green Keep and amber Revise highlighter marks for AI-assisted editing, with a compact catalog, durable source anchors, and native enforcement that prevents coding agents from rewriting protected or out-of-scope prose;
+- PDF-first green Keep, amber Light edit, and red Rework marks stored in `paper.json`, with exact source anchors, bounded context, stale/ambiguous mapping refusal, and native enforcement;
+- pending human/AI suggestions and comments that do not modify `paper.typ` until an explicit human Accept decision;
+- idempotent reviewer proposal/comment operations through the authenticated running-editor protocol; the reviewer surface exposes no accept or direct-source-write operation;
 - a smart file-tree viewer with focused defaults, per-type visibility controls, and a Show all files override;
 - project-relative Typst imports and assets confined to the approved root;
 - UTF-8 and size validation at the Rust IPC boundary;
 - atomic saves with revision acceptance guards;
 - SHA-256 conflict detection and preservation of displaced disk content in .undertree/conflicts/;
 - a product-specific native CLI for zero-write project inspection, confined document reads and saves, bibliography creation, compilation, conversion, Git, and GitHub lifecycle operations;
-- authenticated control of an already-running editor, including status, focus, project/document navigation, revision-guarded source replacement, save, compile, bibliography creation, reverse conversion, and guarded quit;
+- authenticated control of an already-running editor, including the narrow review context/propose/comment protocol plus the existing owner/developer status, navigation, save, compile, and maintenance commands;
 - GitHub OAuth Device Flow authorization through the user's system browser;
 - in-process Git clone, fetch, merge, commit, and push without a Git CLI or GitHub Desktop;
 - local-first projects that edit the real files in an existing folder or an authorized repository cloned to local storage;
@@ -39,6 +42,14 @@ The visual layout is a compatibility surface: future work should keep it identic
 ## PDF output
 
 Choose **PDF** in the preview toolbar to render the exact current editor snapshot with UnderTree's embedded Typst engine. The native Save dialog suggests a name based on the active `.typ` document; scratch documents work too. The export is page- and size-bounded, written atomically to the explicitly selected local destination, and never sends PDF bytes or a writable path through the WebView. After a successful current-revision export, the adjacent folder button reveals that PDF in the system file browser. Editing or opening another document hides the folder action until that exact revision is exported.
+
+## PDF review and compact projects
+
+A new UnderTree writing project contains three shared files: `paper.typ`, `paper.bib`, and `paper.json`. The PDF is generated locally and is not a synchronization file. `paper.json` stores bounded review marks, instructions, proposal/comment history, source and bibliography hashes, and policy/generation counters; it is visible in the file tree but never opened through the generic text-write path. Private credentials, leases, conflict copies, render caches, and the review recovery journal remain machine-local under application/private state.
+
+Select mapped prose in the generated PDF to create **Keep**, **Light edit**, or **Rework** marks. Only runs with exact active-source provenance can become editable targets; macros, generated text, ambiguous mappings, and stale selections fail closed. Human and AI reviewers may add suggestions and comments. Proposal submission changes review metadata only. **Accept** is a separate human UI operation that revalidates the live source, policy, bibliography generation, and target before applying the approved replacement through a crash-recoverable source-plus-JSON transaction.
+
+For automation, `app review context`, `app review propose`, and `app review comment` use the same Rust review service as the UI. There is deliberately no reviewer CLI command for acceptance. The older direct agent replacement path remains compatibility code but is no longer advertised and the running UI refuses it.
 
 ## LaTeX and Overleaf import
 
@@ -56,9 +67,9 @@ The export is designed to remove mechanical rewriting, not to pretend that diffe
 
 ## Smart file viewer
 
-The file tree starts in a focused writing view: Typst documents, UnderTree-generated LaTeX exports, and BibTeX databases are visible. Open **Smart file viewer** to independently reveal original `.tex` sources, PDFs, images, or other project support files, or choose **Show all files** for the complete user-project inventory. Git metadata, `.undertree` private state, dependency caches, build targets, symlinks, and paths beyond the inventory limits remain excluded even in Show all mode.
+The file tree starts in a focused writing view: Typst documents, BibTeX databases, portable review metadata, and preserved UnderTree-generated LaTeX exports are visible. Open **Smart file viewer** to independently reveal original `.tex` sources, PDFs, images, or other project support files, or choose **Show all files** for the complete user-project inventory. Git metadata, `.undertree` private state, dependency caches, build targets, symlinks, and paths beyond the inventory limits remain excluded even in Show all mode.
 
-Visibility is non-destructive and does not change Git, disk contents, compilation, or conversion. Original LaTeX, PDFs, images, and miscellaneous assets are labelled as visible read-only assets; only `.typ`, `.bib`, and versioned `*.undertree-export*.tex` documents cross the native text-editor boundary.
+Visibility is non-destructive and does not change Git, disk contents, compilation, or conversion. Original LaTeX, PDFs, images, miscellaneous assets, and `paper.json` are not generic editable documents; only `.typ`, `.bib`, and versioned `*.undertree-export*.tex` content crosses the native text-editor boundary. Review metadata is mutated only through typed Rust review operations.
 
 ## GitHub connection setup
 
@@ -66,7 +77,7 @@ UnderTree itself is registered once with GitHub as a public OAuth App. That regi
 
 The official **UnderTree Typst Desktop** registration's public Client ID is checked into and compiled directly into UnderTree. End users never register an app, install UnderTree into repositories, paste an identifier, supply a client secret, or configure a personal access token. Runtime environment variables and project files cannot replace this identity. User access and refresh tokens remain Rust-owned, stay out of the WebView, are stored in the operating-system credential manager, and are bound to UnderTree's compiled Client ID.
 
-Select GitHub in UnderTree and choose **Connect GitHub** either before or after opening a local project. UnderTree first displays the one-time code, copies it through the native clipboard, confirms the copy onscreen, and only then opens GitHub's fixed device-login page in the system browser. It requests repository access, polls only at GitHub's required interval, and resumes automatically after authorization. The repository list then comes directly from the connected account; no per-repository installation is required. It can be sorted by name or creation date and filtered by public/private visibility or personally owned/shared repositories. **New GitHub project** creates a repository and a matching local Typst folder with an initial commit. **Link current project** keeps an existing matching checkout—or a folder intended for an empty remote—as the source of truth. **Clone local copy** is the safe choice when the GitHub repository already contains the project. Repositories with read-only access can still be cloned, linked, pulled, and automatically refreshed; GitHub write permission is required for Push, Commit & Sync, and automatic commits.
+Select GitHub in UnderTree and choose **Connect GitHub** either before or after opening a local project. UnderTree first displays the one-time code, copies it through the native clipboard, confirms the copy onscreen, and only then opens GitHub's fixed device-login page in the system browser. It requests repository access, polls only at GitHub's required interval, and resumes automatically after authorization. The repository list then comes directly from the connected account; no per-repository installation is required. It can be sorted by name or creation date and filtered by public/private visibility or personally owned/shared repositories. **New GitHub project** creates a repository and a matching local three-file writing project (`paper.typ`, `paper.bib`, `paper.json`) with an initial commit. **Link current project** keeps an existing matching checkout—or a folder intended for an empty remote—as the source of truth. **Clone local copy** is the safe choice when the GitHub repository already contains the project. Repositories with read-only access can still be cloned, linked, pulled, and automatically refreshed; GitHub write permission is required for Push, Commit & Sync, and automatic commits.
 
 The approved local folder is always the source of truth. UnderTree reads and atomically saves the actual `.typ` and `.bib` files there, so the same folder remains usable by local Git and other editors. **Refresh project from disk** rereads the file inventory and active document after an external tool changes them; successful Git pulls and scheduled syncs perform the same refresh automatically. If the disk changes while an UnderTree edit is unsaved, the revision-aware save path preserves the displaced disk version as a conflict copy.
 

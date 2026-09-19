@@ -2,9 +2,12 @@
 
 ## Automated gates
 
-Run from the repository root:
+Run from the repository root. Node/npm are development/build tooling only; the packaged editor has no Node runtime. The web build vendors the pinned Pretext files into `dist/` before Tauri checks/package builds.
 
 ~~~powershell
+npm install --ignore-scripts --no-audit --no-fund
+npm run build:web
+npm run check:web
 cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 cargo check --locked --manifest-path src-tauri/Cargo.toml
 cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
@@ -12,13 +15,9 @@ cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
 cargo build --locked --release --manifest-path src-tauri/Cargo.toml
 ~~~
 
-Node.js is not an application dependency. When available, it can perform an additional static JavaScript syntax check:
+The GitHub workflow runs the same web bundle/syntax tests plus Rust formatting, checking, linting, unit tests, and the release build. A workflow startup/infrastructure failure with no executed steps is not test evidence and must be reported as such.
 
-~~~powershell
-node --check web/app.js
-~~~
-
-Compiler, PDF, project, conversion, and Git tests cover scratch SVG/PDF compilation, PDF signature and page metadata, atomic PDF writing, commit-time no-clobber behavior, revision-scoped reveal state, invalid Typst diagnostics, source limits, categorized smart inventory with editable and default-visibility flags, `.typ`/`.bib` inventory and external refresh, confined bibliography creation, conflict-safe bibliography saves, bounded bibliography metadata indexing with malformed-file and duplicate-key isolation, path confinement, non-destructive LaTeX and Overleaf import, archive traversal and metadata rejection, confined includes and subfiles, bibliography, color, accent, page-geometry, and supported multicolumn restoration, Unicode panic containment, bundled GitHub identity validation, GitHub name and branch validation, confined repository initialization, local commits, branch and push-destination guards, non-conflicting merge behavior, sync-rule validation, and atomic rule persistence. JavaScript tests cover multi-field, multi-token citation ranking, accent normalization, typo tolerance, and staged-handle exclusion. CI repeats JavaScript syntax and ranking checks, Rust formatting, checking, linting, testing, and the release build on Ubuntu.
+Compiler, PDF, review, project, conversion, and Git tests cover generated-PDF preview/PDF compilation, conservative source-provenance mapping, compact three-file creation, review persistence and protected Light-edit tokens, proposal-before-accept immutability, crash-recoverable acceptance, PDF signature and page metadata, atomic PDF writing, commit-time no-clobber behavior, revision-scoped reveal state, invalid Typst diagnostics, source limits, categorized smart inventory with editable and default-visibility flags, `.typ`/`.bib` inventory and external refresh, confined bibliography creation, conflict-safe bibliography saves, bounded bibliography metadata indexing with malformed-file and duplicate-key isolation, path confinement, non-destructive LaTeX and Overleaf import, archive traversal and metadata rejection, confined includes and subfiles, bibliography, color, accent, page-geometry, and supported multicolumn restoration, Unicode panic containment, bundled GitHub identity validation, GitHub name and branch validation, confined repository initialization, local commits, branch and push-destination guards, non-conflicting merge behavior, sync-rule validation, and atomic rule persistence. JavaScript tests cover multi-field, multi-token citation ranking, accent normalization, typo tolerance, and staged-handle exclusion. CI repeats JavaScript syntax and ranking checks, Rust formatting, checking, linting, testing, and the release build on Ubuntu.
 
 Project, CLI, and remote-control tests additionally cover zero-write inspection and safe advisory lock probing, preservation of a cold-start preferred document, typed document/PDF/remote options, foreign and duplicate option rejection, canonical PDF destinations, native-only destination redaction, typed PDF completion shape, bounded remote paths and source text, closed request serialization, capability comparison, nonce/request/timeout proof binding, an authenticated framed loopback round trip, exactly-once broker claims, and request expiry.
 
@@ -43,9 +42,26 @@ Run `cargo run --manifest-path src-tauri/Cargo.toml`, then verify:
 15. **Typst → LaTeX** is enabled only for a saved project `.typ`, compile-validates the exact source, creates and opens `*.undertree-export.tex`, displays journal-review warnings, and never changes the `.typ` or any existing `.tex`;
 16. a repeated reverse conversion creates `*.undertree-export-2.tex` rather than overwriting the first export;
 17. preserved legacy `.tex` files remain hidden while generated UnderTree exports are visible and editable;
-18. **Smart file viewer** independently filters Typst, generated and original LaTeX, BibTeX, PDF, image, and other categories; **Show all files** reveals the bounded user-project inventory;
+18. **Smart file viewer** independently filters Typst, BibTeX, review metadata, generated and original LaTeX, PDF, image, and other categories; **Show all files** reveals the bounded user-project inventory;
 19. selecting a visible original `.tex`, PDF, image, or other support file reports it as a read-only asset and never sends its contents through document IPC;
 20. closing and reopening the window releases preview Blob URLs.
+
+## PDF review smoke test
+
+Use a disposable compact project only.
+
+1. Create/open a new project and verify the shared root contains `paper.typ`, `paper.bib`, and `paper.json`; local `.undertree/` state is not required on another installation.
+2. Type ordinary prose, wait for the generated PDF preview, drag-select mapped prose, and create Keep, Light edit, and Rework marks from the PDF. The source text must not change.
+3. Select generated/macro text or a stale PDF revision and verify UnderTree refuses to create an editable target rather than guessing a source range.
+4. Add a human replacement proposal. `paper.typ` and `paper.bib` must remain byte-for-byte unchanged until Accept.
+5. Light edit must reject deletion and reject proposal text that changes citation-key or numerical-token multiplicity; Rework may propose replacement or deletion.
+6. Reject/Request revision and verify feedback remains in `paper.json` while the manuscript remains unchanged.
+7. Accept one pending proposal and verify the exact target changes once, the accepted proposal is resolved, overlapping/older pending proposals are superseded, and the refreshed PDF is bound to the new revision.
+8. Kill the process at each acceptance write boundary in a disposable fixture and verify the private recovery journal restores one coherent source/JSON result or refuses on an unrelated external write.
+9. Change `paper.bib` after a proposal and verify the pending proposal is superseded before acceptance.
+10. Resize/narrow the window and review panel. Pretext-fitted controls must settle without overlap, recover a larger eligible font after expanding, and keep SVG icons centered; manuscript/PDF text itself must not be re-typeset by Pretext.
+
+Focused native tests include `review::tests`; frontend tests include `review-selection.test.cjs`. The packaged desktop test remains required for actual PDF-selection geometry and Pretext/WebView visual behavior.
 
 ## Native CLI and running-editor smoke test
 
@@ -56,8 +72,9 @@ $undertreeExe = Resolve-Path '.\target\release\undertree-typst.exe'
 & $undertreeExe help
 & $undertreeExe project status --project 'C:\path\to\disposable-project' --json
 & $undertreeExe project files --project 'C:\path\to\disposable-project' --all --json
-& $undertreeExe document read --project 'C:\path\to\disposable-project' --path 'main.typ' --json
-& $undertreeExe pdf export --project 'C:\path\to\disposable-project' --source 'main.typ' --output 'C:\path\to\disposable-output\main.pdf' --json
+& $undertreeExe document read --project 'C:\path\to\disposable-project' --path 'paper.typ' --json
+& $undertreeExe pdf export --project 'C:\path\to\disposable-project' --source 'paper.typ' --output 'C:\path\to\disposable-output\paper.pdf' --json
+& $undertreeExe app review context --json
 ~~~
 
 Then verify:
@@ -73,7 +90,9 @@ Then verify:
 9. after an unsaved disposable edit, `app pdf export --output FILE.pdf` renders that exact live revision without focusing or driving the window; `app pdf reveal` succeeds only while that same document revision remains current;
 10. a second `open --project PATH [--source RELATIVE.typ]` routes to and focuses the running editor without discarding dirty work; with no valid running endpoint, it starts the application and honors an existing preferred source on cold start;
 11. normal application shutdown removes its matching endpoint record; a stale unreachable endpoint permits `open` to start a new application, while malformed or protocol-mismatched endpoint records fail closed;
-12. stopping or timing out a client before the frontend claims a request yields `remote_timeout`; a timeout after claim yields `remote_outcome_unknown`, and a mutating command is not automatically retried.
+12. `app review context` returns saved manuscript/review state; `app review propose` and `app review comment` require stable caller IDs and can create review records but expose no acceptance or raw source-write operation;
+13. the legacy `app agent replace` workflow is not advertised and the running editor refuses its direct mutation request;
+14. stopping or timing out a client before the frontend claims a request yields `remote_timeout`; a timeout after claim yields `remote_outcome_unknown`, and a mutating command is not automatically retried.
 
 Use these CLI adapters for diagnosis and automation whenever the operation exists. Do not script WebView buttons or take over the desktop merely to validate an operation that has a direct or `app` command.
 
@@ -115,7 +134,7 @@ Use the publisher-owned **UnderTree Typst Desktop** OAuth App and disposable rep
 9. manual commit-and-sync pushes a test edit, a clean remote advance fast-forwards, and non-conflicting divergence creates a normal merge commit without switching branches;
 10. an unsaved editor, dirty pull, changed fetch or push destination, ignored-file collision, symlinked `.undertree`, escaped Git metadata, active Git operation, or merge conflict is rejected without overwriting work;
 11. Off, 5, 15, 30, and 60 minute rules persist, automatic sync runs only while UnderTree and the project are active, scheduled failures remain visible in the modal, a successful scheduled pull refreshes the active document from disk, and auto-commit remains opt-in;
-12. New GitHub project validates its name, creates the selected visibility under the connected user, creates a confined repository-named local child with `main.typ`, makes and pushes the initial commit, and never exposes a delete-repository command;
+12. New GitHub project validates its name, creates the selected visibility under the connected user, creates a confined repository-named local child with `paper.typ`, `paper.bib`, and `paper.json`, makes and pushes the initial commit, and never exposes a delete-repository command;
 13. Disconnect removes the saved credential from the operating-system credential manager, while Unlink leaves the local Git repository intact;
 14. launching a second desktop process focuses the existing UnderTree window instead of starting a concurrent credential/synchronization worker.
 15. `undertree-typst help` exits without starting Tauri, CLI option parsing rejects unknown/duplicate options and token-shaped escape hatches, `open --project PATH` rejects missing/non-directory/unrelated options before Tauri starts, and `github doctor --json` returns only sanitized account/project/Git metadata;

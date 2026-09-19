@@ -1,63 +1,60 @@
 # Review operations: propose, never silently apply
 
-Target protocol for the Rust-first redesign. It replaces the old direct-agent-replacement product direction, but this documentation change does not alter the executable. Do not expose the existing privileged broker to a reviewer and call it suggestion mode.
+This is the implemented PDF-review contract on `feature/rust-pdf-review`.
 
-## Human and AI roles
+## Roles and markings
 
-An authorized author can edit accepted text, set review scopes, and accept/reject exact proposal versions. A human reviewer or AI reviewer can read authorized context, submit a proposal, and comment. Both use identical validation and proposal records; neither role gains source-write authority merely by proposing. AI identity is labeled, not presented as a human supervisor.
-
-| PDF marking | Contract |
+| PDF mark | Reviewer authority |
 | --- | --- |
-| Green / Keep | No reviewer proposal may change this protected range. It can remain readable context. |
-| Amber / Light edit | Propose scoped prose edits under a human instruction; preserve protected tokens and neighboring content. |
-| Red / Rework | Propose a replacement or explicit deletion. Red never deletes anything by itself. |
-| Unmarked | Context-only unless an authorized review scope includes it. |
+| Green / Keep | Readable context, no replacement proposal. |
+| Amber / Light edit | Replacement proposal only; citation-key and numerical-token multiplicity must remain unchanged. |
+| Red / Rework | Replacement or explicit deletion proposal. |
+| Unmarked | Context only; not an implicit edit target. |
 
-Use labels/icons as well as color. A protected subrange wins over a broader editable scope; initially reject crossing selections or partition them into verified editable targets. Do not accept a candidate because protected words appear elsewhere after a move. Preserve location, order, and unchanged protected spans. Instructions such as "tighten" are guidance; edit distance cannot certify scientific equivalence.
-
-The author must be able to authorize a section with exceptions rather than mark every sentence. Read visibility is separate: an instruction not to edit is not an instruction to withhold context. Private material excluded from context must also be excluded from broader compiler/resource reads available to the reviewer.
+Review colors are UI communication; Rust enforces the mark kind and exact source target. Read visibility, proposal authority, and human acceptance are distinct.
 
 ## PDF selection and provenance
 
-The visible selection starts in the actual generated PDF. Rust resolves it using the exact retained Typst layout/provenance for that build, not OCR, a page-number guess, or a global string replacement. The present SVG text layer is a reusable experiment, not completion of this requirement.
+The live preview is generated from the actual PDF. Rust compiles the current Typst snapshot to one `PagedDocument`, creates PDF bytes, rasterizes those PDF pages with Hayro, and emits a transparent text companion from the same Typst layout.
 
-A build ID binds source hash, bibliography hash, resource/render profile, and document revision. A target stores that build ID, source identity, UTF-8 byte boundaries, exact source passage, and bounded surrounding quote context. Page geometry is a derived display location. DOM UTF-16 indices, UTF-8 bytes, glyph clusters, and PDF coordinates require explicit tested conversion; never mix them.
+A text run receives `sourcePath`, `sourceStartByte`, and `sourceEndByte` only when its glyph spans all belong to the active source and the exact source substring equals the rendered run. The frontend converts the DOM selection from UTF-16 to UTF-8 bytes and refuses a range containing unmapped, overlapping, multi-source, or stale runs. Rust then verifies the visible text against the exact source bytes before storing the mark.
 
-Click-to-source gives a candidate, not proof of a complete selected range. Verify the selected glyph/run provenance and source interval. Repeated text, ligatures, columns, hyphenation, math, citations, generated references, loops, and macros may be non-contiguous or many-to-one. Unresolved selections remain PDF comments or request a narrower PDF selection; never silently modify an approximate match. An imported PDF without source supports annotation only.
+Generated references, macro output, formula/layout content, or any ambiguous mapping can still be read in the PDF; they are not silently promoted to writable prose.
 
-Selecting from a stale PDF requires verified remapping through known non-overlapping edits or a new build. Changed/ambiguous targets are stale and cannot be accepted. Any future remapping must retain protected scope and revalidate the exact old text; fuzzy similarity is not authority.
+## Shared Rust service
 
-## Shared native API; thin MCP adapter
+`review.rs` owns:
+- state/materialization of `paper.json`;
+- mark creation/removal and conservative rebasing;
+- proposal/comment creation and idempotent IDs;
+- Keep/Light edit/Rework enforcement;
+- source/bibliography generation tracking;
+- human accept/reject decisions;
+- crash recovery for source + metadata acceptance.
 
-Implement ordinary typed Rust operations first. Tauri commands, the local review API, and later MCP delegate to those operations. Do not duplicate rules in each adapter. MCP is an optional tool interface; zrok/Secret Tunnel is optional connectivity.
+Tauri commands and the remote reviewer protocol delegate to this service. The browser does not decide whether an edit is permitted.
 
-Start with four conceptual reviewer operations (names are proposed, not currently callable):
+## Human UI
 
-- `review_context`: returns authorized targets, instructions, permitted operations, and coherent revision identifiers; obtain active unsaved state through the current editor owner.
-- `submit_proposal`: validates one target or a bounded batch, stores pending alternatives, and returns durable IDs without applying source changes.
-- `add_comment`: attaches a question, explanation, or revision response to a target/thread.
-- `review_state`: reads current decisions, feedback, and the outcome of a prior submission.
+A user selects mapped PDF prose and creates a mark/instruction. Human suggestions are stored as pending records. Reject may include revision feedback. Accept is a dedicated human Tauri command and is the only review operation that can write accepted manuscript text.
 
-A submission carries review/target IDs, base source and bibliography hashes, policy generation, operation, replacement text, rationale, parent proposal/feedback reference where relevant, and an idempotency key. Rust obtains original bytes and effective actor/permissions from trusted state, computes the diff, and enforces scope. Model-supplied offsets, original text, claims of approval, or role fields confer no authority.
+The UI refreshes review state before each mutation so source, bibliography, and policy generations are current. Accepted source is reloaded into the editor and recompiled.
 
-Prefer plain-prose replacement targets. Escape inserted text or use a tightly validated structural patch; never turn AI output into arbitrary Typst code. Keep citation/math tokens outside editable slots initially, and reject selections whose structure cannot be preserved. Broader markup edits require a separate approved design, not an implicit capability of rework.
+## AI reviewer surface
 
-Submission writes `paper.json` only. Show the original, proposed diff, rationale, warnings, and Accept/Reject/Edit suggestion/Request revision controls. Editing a suggestion creates a new version for review. A request for revision retains prior versions and feedback. No proposed prose appears in the accepted manuscript/PDF before acceptance; an optional candidate proof must be separately labeled and isolated.
+The authenticated running-editor protocol supports:
+- `ReviewContext`: returns the saved source plus portable review state;
+- `ReviewPropose`: submits one idempotent pending proposal;
+- `ReviewComment`: submits one idempotent comment.
 
-## Acceptance transaction
+The CLI exposes those as `app review context|propose|comment`. Proposal/comment callers provide stable IDs so retry after an uncertain transport result cannot create duplicates. There is deliberately no `app review accept`.
 
-An authenticated human action names an immutable proposal version. Native code serializes it with editing/autosave, validates the live buffer and policy, verifies source/bibliography anchors, and applies only the approved patch. A policy change to Keep invalidates older editing permission. Reject stale input rather than reusing the old conflict-preserving overwrite path.
+The frontend refuses legacy `agent-replace` direct mutation. Existing owner/developer document commands are separate privileged capabilities and must never be exported as reviewer MCP tools.
 
-Persist the resulting source and decision with the recoverable transaction in `project-format.md`; update frontend state and compile from the resulting snapshot. Only acknowledge an accepted-and-saved result once verified; expose unknown outcomes for reconciliation. Undo records a new explicit state transition and must preserve later manual edits. A repeated acceptance cannot apply twice. Overlapping proposals become stale or are revalidated, not silently applied together.
+A future Secret Tunnel MCP adapter should map only the review context/propose/comment operations. It should not reimplement policy, expose raw document replacement, or add a second tunnel stack inside UnderTree.
 
-Preserve important scientific tokens mechanically where possible; flag changes to numbers, citation keys, negation, terminology, or qualifications. These checks are warnings/structural guarantees, not proof of unchanged meaning or correct evidence. A real bibliography key does not prove support for a new claim.
+## Staleness and scientific guards
 
-## Close every alternative write path
+A manual source edit may rebase a mark only by exact unique text/context; ambiguity refuses. Source or bibliography generation changes supersede pending proposals. Accept rechecks exact target bytes and the proposal base digest. A repeated/resolved proposal cannot apply twice.
 
-Reviewer authority excludes source save/replace, `app agent replace`, `app document replace`, bibliography editing, project navigation/discard, conversion/export paths with write effects, Git operations, policy edits, arbitrary filesystem/HTTP access, and the human acceptance operation. Inspect actual native dispatch and authorization before connecting MCP. Existing privileged local CLI operations may remain for the author/developer, but never with reviewer credentials.
-
-A reviewer can write review records, so proposal tools are not read-only in protocol annotations. Persist idempotency and return structured refusals for stale source/policy, protected overlap, unresolved anchor, denied authority, and unknown outcomes. After timeout query the receipt; never blindly repeat a mutation.
-
-Shared files are not credentials. A network adapter must authenticate a reviewer, limit project/operation scope, and remain separate from the existing same-OS-user broker capability. Neither another MCP connector with raw source writes nor a privileged local process is constrained by this review API. Do not claim otherwise.
-
-Feedback in UnderTree does not restart an idle external chat automatically. External agents read it on their next turn. Any later in-app model runner uses this same proposal contract; no unrestricted writer or extra approval path is introduced.
+Light edit preserves citation and numerical tokens mechanically. This does not prove unchanged meaning, correct evidence, preserved negation, or scientific validity; the human still evaluates the visible diff before acceptance.
