@@ -14,6 +14,10 @@ use crate::github::{
 };
 use crate::latex::{self, ConversionReport, TypstToLatexReport};
 use crate::pdf::{self, PdfExportResult, PdfExportState, RevealPdfRequest};
+use crate::review::{
+    ReviewActor, ReviewCommentRequest, ReviewDecisionRequest, ReviewDecisionResult,
+    ReviewMarkRequest, ReviewProposalRequest, ReviewRemoveMarkRequest, ReviewService, ReviewState,
+};
 use crate::project::{
     BibliographyIndex, CreateFileResponse, DocumentData, ProjectSnapshot, ProjectState,
     RecentProject, SaveRequest, SaveResponse,
@@ -39,6 +43,102 @@ pub struct CompilerInfo {
     engine: &'static str,
     engine_version: &'static str,
     mode: &'static str,
+}
+
+
+#[tauri::command]
+pub async fn review_state(
+    reviews: State<'_, ReviewService>,
+    projects: State<'_, ProjectState>,
+    path: String,
+    source: String,
+) -> Result<ReviewState, BoundaryError> {
+    let root = projects.root()?.ok_or_else(|| {
+        BoundaryError::project("project_required", "Choose a Typst project first.")
+    })?;
+    let reviews = reviews.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || reviews.state(&root, &path, &source))
+        .await
+        .map_err(|_| BoundaryError::internal())?
+}
+
+#[tauri::command]
+pub async fn review_upsert_mark(
+    reviews: State<'_, ReviewService>,
+    projects: State<'_, ProjectState>,
+    request: ReviewMarkRequest,
+) -> Result<ReviewState, BoundaryError> {
+    let root = projects.root()?.ok_or_else(|| {
+        BoundaryError::project("project_required", "Choose a Typst project first.")
+    })?;
+    let reviews = reviews.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || reviews.upsert_mark(&root, request))
+        .await
+        .map_err(|_| BoundaryError::internal())?
+}
+
+#[tauri::command]
+pub async fn review_remove_mark(
+    reviews: State<'_, ReviewService>,
+    projects: State<'_, ProjectState>,
+    request: ReviewRemoveMarkRequest,
+) -> Result<ReviewState, BoundaryError> {
+    let root = projects.root()?.ok_or_else(|| {
+        BoundaryError::project("project_required", "Choose a Typst project first.")
+    })?;
+    let reviews = reviews.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || reviews.remove_mark(&root, request))
+        .await
+        .map_err(|_| BoundaryError::internal())?
+}
+
+#[tauri::command]
+pub async fn review_create_proposal(
+    reviews: State<'_, ReviewService>,
+    projects: State<'_, ProjectState>,
+    request: ReviewProposalRequest,
+) -> Result<ReviewState, BoundaryError> {
+    let root = projects.root()?.ok_or_else(|| {
+        BoundaryError::project("project_required", "Choose a Typst project first.")
+    })?;
+    let reviews = reviews.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        reviews.create_proposal(&root, request, ReviewActor::Human)
+    })
+    .await
+    .map_err(|_| BoundaryError::internal())?
+}
+
+#[tauri::command]
+pub async fn review_add_comment(
+    reviews: State<'_, ReviewService>,
+    projects: State<'_, ProjectState>,
+    request: ReviewCommentRequest,
+) -> Result<ReviewState, BoundaryError> {
+    let root = projects.root()?.ok_or_else(|| {
+        BoundaryError::project("project_required", "Choose a Typst project first.")
+    })?;
+    let reviews = reviews.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        reviews.add_comment(&root, request, ReviewActor::Human)
+    })
+    .await
+    .map_err(|_| BoundaryError::internal())?
+}
+
+#[tauri::command]
+pub async fn review_decide(
+    reviews: State<'_, ReviewService>,
+    projects: State<'_, ProjectState>,
+    request: ReviewDecisionRequest,
+) -> Result<ReviewDecisionResult, BoundaryError> {
+    let root = projects.root()?.ok_or_else(|| {
+        BoundaryError::project("project_required", "Choose a Typst project first.")
+    })?;
+    let reviews = reviews.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || reviews.decide(&root, request))
+        .await
+        .map_err(|_| BoundaryError::internal())?
 }
 
 #[tauri::command]

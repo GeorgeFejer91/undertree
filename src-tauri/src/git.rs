@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
+use crate::review;
 
 use atomic_write_file::AtomicWriteFile;
 use git2::build::CheckoutBuilder;
@@ -414,33 +415,7 @@ pub fn create_repository_project(
     let parent = target.parent().ok_or_else(BoundaryError::internal)?;
     let staging = OwnedCloneDirectory::create(parent)?;
 
-    let main_path = staging.path().join("main.typ");
-    let mut main = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&main_path)
-        .map_err(|_| {
-            github_error(
-                "project_create_failed",
-                "UnderTree could not create the starter Typst document.",
-            )
-        })?;
-    writeln!(
-        main,
-        "= {repository_name}\n\nStart writing your Typst project here."
-    )
-    .map_err(|_| {
-        github_error(
-            "project_create_failed",
-            "UnderTree could not write the starter Typst document.",
-        )
-    })?;
-    main.sync_all().map_err(|_| {
-        github_error(
-            "project_create_failed",
-            "UnderTree could not save the starter Typst document safely.",
-        )
-    })?;
+    review::create_compact_project_files(staging.path(), repository_name)?;
 
     link_repository(staging.path(), repository, branch)?;
     if !commit_all(

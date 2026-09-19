@@ -848,6 +848,11 @@ fn choose_active_path(files: &[String], preferred: Option<&str>) -> Result<Strin
         .or_else(|| {
             files
                 .iter()
+                .find(|path| path.eq_ignore_ascii_case("paper.typ"))
+        })
+        .or_else(|| {
+            files
+                .iter()
                 .find(|path| path.eq_ignore_ascii_case("main.typ"))
         })
         .or_else(|| {
@@ -1177,6 +1182,8 @@ fn project_file_entry(path: String, absolute: &Path) -> ProjectFileEntry {
         .is_some_and(|extension| extension.eq_ignore_ascii_case("bib"))
     {
         ("bibliography", true, true)
+    } else if absolute.file_name().is_some_and(|name| name.eq_ignore_ascii_case("paper.json")) {
+        ("review", false, true)
     } else if latex::is_undertree_latex_export(absolute) {
         ("generated-latex", true, true)
     } else if absolute
@@ -1375,6 +1382,7 @@ mod tests {
     fn accepts_only_relative_editable_paths() {
         assert!(validate_relative_document_path("chapters/intro.typ").is_ok());
         assert!(validate_relative_document_path("references.bib").is_ok());
+        assert!(validate_relative_document_path("paper.json").is_err());
         assert!(validate_relative_document_path("main.undertree-export.tex").is_ok());
         assert!(validate_relative_document_path("main.undertree-export-2.tex").is_ok());
         assert!(validate_relative_document_path("../secret.typ").is_err());

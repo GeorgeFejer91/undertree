@@ -10,6 +10,7 @@ mod markdown;
 mod pdf;
 mod project;
 mod remote_control;
+mod review;
 
 use tauri::Manager;
 
@@ -53,6 +54,7 @@ fn run_with_project(
     let agent_annotations = agent_annotations::AgentAnnotationService::default();
     let github = github::GitHubService::new();
     let remote_control = remote_control::RemoteControlState::default();
+    let review = review::ReviewService::default();
     let scheduler_projects = projects.clone();
     let setup_projects = projects.clone();
     let scheduler_github = github.clone();
@@ -84,6 +86,7 @@ fn run_with_project(
         .manage(agent_annotations)
         .manage(github)
         .manage(remote_control)
+        .manage(review)
         .setup(move |app| {
             let recent_projects_path = app
                 .path()
@@ -139,6 +142,12 @@ fn run_with_project(
             commands::open_recent_project,
             commands::recent_projects,
             commands::refresh_project,
+            commands::review_state,
+            commands::review_upsert_mark,
+            commands::review_remove_mark,
+            commands::review_create_proposal,
+            commands::review_add_comment,
+            commands::review_decide,
             commands::reveal_exported_pdf,
             commands::save_document,
             commands::set_agent_annotations,

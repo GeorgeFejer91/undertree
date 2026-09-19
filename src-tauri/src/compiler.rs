@@ -4,23 +4,28 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use hayro::hayro_interpret::InterpreterSettings;
+use hayro::hayro_syntax::Pdf;
+use hayro::vello_cpu::color::palette::css::WHITE;
+use hayro::{RenderCache, RenderSettings, render};
 use serde::{Deserialize, Serialize};
 use typst::World;
 use typst::diag::{FileError, FileResult, Severity, SourceDiagnostic, Warned};
 use typst::foundations::{Bytes, Datetime};
 use typst::layout::{Abs, Frame, FrameItem, Point, Transform};
 use typst::syntax::{FileId, RootedPath, Source, VirtualPath, VirtualRoot};
-use typst::text::{Font, FontBook};
+use typst::text::{Font, FontBook, TextItem};
 use typst::utils::LazyHash;
 use typst::{Library, LibraryExt, compile};
 use typst_layout::PagedDocument;
-use typst_svg::SvgOptions;
 
 use crate::error::BoundaryError;
 
 const MAX_SOURCE_BYTES: usize = 1024 * 1024;
 const MAX_PAGES: usize = 128;
-const MAX_PREVIEW_BYTES: usize = 32 * 1024 * 1024;
+const MAX_PREVIEW_BYTES: usize = 48 * 1024 * 1024;
+const PDF_PREVIEW_SCALE: f32 = 1.35;
 const MAX_PDF_BYTES: usize = 64 * 1024 * 1024;
 const MAX_PREVIEW_TEXT_RUNS: usize = 100_000;
 const MAX_PREVIEW_TEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -37,6 +42,7 @@ pub struct CompileRequest {
 #[serde(rename_all = "camelCase")]
 pub struct CompileResponse {
     pub revision: u64,
+    pub preview_format: &'static str,
     pub pages: Vec<String>,
     pub text_pages: Vec<PreviewTextPage>,
     pub warnings: Vec<Diagnostic>,
@@ -69,6 +75,9 @@ pub struct PreviewTextRun {
     pub y: f64,
     pub width: f64,
     pub height: f64,
+    pub source_path: Option<String>,
+    pub source_start_byte: Option<usize>,
+    pub source_end_byte: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
@@ -107,6 +116,7 @@ impl CompilerAssets {
         validate_source(&request.source)?;
 
         let started = Instant::now();
+        let source_path = request.path.clone();
         let world = DocumentWorld::new(self, request.source, project_root, request.path)?;
         let Warned { output, warnings } = compile::<PagedDocument>(&world);
         let document = output.map_err(|errors| {
@@ -119,22 +129,26 @@ impl CompilerAssets {
             )));
         }
 
-        let mut total_bytes = 0usize;
-        let mut pages = Vec::with_capacity(document.pages().len());
+        let pdf_bytes = typst_pdf::pdf(&document, &typst_pdf::PdfOptions::default())
+            .map_err(|errors| {
+                BoundaryError::compilation(errors.iter().map(Diagnostic::from).collect())
+            })?;
+        if pdf_bytes.len() > MAX_PDF_BYTES {
+            return Err(BoundaryError::validation(
+                "The generated PDF is larger than 64 MiB.",
+            ));
+        }
+        let pages = render_pdf_preview(&pdf_bytes)?;
+
         let mut text_pages = Vec::with_capacity(document.pages().len());
         let mut total_text_runs = 0usize;
         let mut total_text_bytes = 0usize;
         for page in document.pages() {
-            let svg = typst_svg::svg(page, &SvgOptions::default());
-            total_bytes = total_bytes.saturating_add(svg.len());
-            if total_bytes > MAX_PREVIEW_BYTES {
-                return Err(BoundaryError::validation(
-                    "The generated preview is larger than 32 MiB.",
-                ));
-            }
-            pages.push(svg);
-
-            let text_page = preview_text_page(&page.frame);
+            let text_page = preview_text_page(
+                &page.frame,
+                &world.source,
+                source_path.as_deref(),
+            );
             total_text_runs = total_text_runs.saturating_add(text_page.runs.len());
             total_text_bytes = total_text_bytes.saturating_add(
                 text_page
@@ -154,6 +168,7 @@ impl CompilerAssets {
 
         Ok(CompileResponse {
             revision: request.revision,
+            preview_format: "pdf-raster",
             pages,
             text_pages,
             warnings: warnings.iter().map(Diagnostic::from).collect(),
@@ -197,13 +212,48 @@ impl CompilerAssets {
         })
     }
 }
+fn render_pdf_preview(bytes: &[u8]) -> Result<Vec<String>, BoundaryError> {
+    let pdf = Pdf::new(bytes.to_vec()).ok_or_else(|| {
+        BoundaryError::validation("UnderTree could not reopen its generated PDF for preview.")
+    })?;
+    let cache = RenderCache::new();
+    let interpreter = InterpreterSettings::default();
+    let settings = RenderSettings {
+        x_scale: PDF_PREVIEW_SCALE,
+        y_scale: PDF_PREVIEW_SCALE,
+        bg_color: WHITE,
+        ..Default::default()
+    };
+    let mut total = 0usize;
+    let mut pages = Vec::with_capacity(pdf.pages().len());
+    for page in pdf.pages() {
+        let png = render(page, &cache, &interpreter, &settings)
+            .into_png()
+            .map_err(|_| BoundaryError::validation("The generated PDF page could not be rendered."))?;
+        total = total.saturating_add(png.len());
+        if total > MAX_PREVIEW_BYTES {
+            return Err(BoundaryError::validation(
+                "The generated PDF preview is larger than 48 MiB.",
+            ));
+        }
+        pages.push(format!("data:image/png;base64,{}", BASE64.encode(png)));
+    }
+    Ok(pages)
+}
 
-fn preview_text_page(frame: &Frame) -> PreviewTextPage {
+fn preview_text_page(
+    frame: &Frame,
+    source: &Source,
+    source_path: Option<&str>,
+) -> PreviewTextPage {
     let mut runs = Vec::new();
-    collect_preview_text(frame, Transform::identity(), &mut runs);
-    // Absolute-positioned elements remain selectable in DOM order. Sorting
-    // them into reading order makes drag selection and assistive technology
-    // substantially more predictable than frame paint order.
+    collect_preview_text(
+        frame,
+        Transform::identity(),
+        source,
+        source_path,
+        &mut runs,
+    );
     runs.sort_by(|left, right| {
         left.y
             .total_cmp(&right.y)
@@ -216,15 +266,18 @@ fn preview_text_page(frame: &Frame) -> PreviewTextPage {
     }
 }
 
-fn collect_preview_text(frame: &Frame, transform: Transform, output: &mut Vec<PreviewTextRun>) {
+fn collect_preview_text(
+    frame: &Frame,
+    transform: Transform,
+    source: &Source,
+    source_path: Option<&str>,
+    output: &mut Vec<PreviewTextRun>,
+) {
     for (position, item) in frame.items() {
         match item {
             FrameItem::Text(text) if !text.text.is_empty() => {
                 let font_size = text.size.to_pt().max(1.0);
                 let width = text.width().to_pt().max(font_size * 0.25);
-                // Frame text positions sit on the baseline. A line-height box
-                // is more useful for browser selection than the ink-only glyph
-                // bounds, which omit spaces and can be empty for some fonts.
                 let local_min = Point::new(position.x, position.y - Abs::pt(font_size * 0.9));
                 let local_max = Point::new(
                     position.x + Abs::pt(width),
@@ -254,25 +307,68 @@ fn collect_preview_text(frame: &Frame, transform: Transform, output: &mut Vec<Pr
                     .map(|point| point.y.to_pt())
                     .fold(f64::NEG_INFINITY, f64::max);
                 if min_x.is_finite() && min_y.is_finite() && max_x > min_x && max_y > min_y {
+                    let mapped = text_item_source_range(text, source);
                     output.push(PreviewTextRun {
                         text: text.text.to_string(),
                         x: min_x,
                         y: min_y,
                         width: max_x - min_x,
                         height: max_y - min_y,
+                        source_path: mapped.and(source_path).map(str::to_owned),
+                        source_start_byte: mapped.map(|range| range.0),
+                        source_end_byte: mapped.map(|range| range.1),
                     });
                 }
             }
             FrameItem::Group(group) => {
-                // A child point is transformed by the group and then placed at
-                // the item's frame position before the ancestor transform.
                 let local =
                     Transform::translate(position.x, position.y).pre_concat(group.transform);
-                collect_preview_text(&group.frame, transform.pre_concat(local), output);
+                collect_preview_text(
+                    &group.frame,
+                    transform.pre_concat(local),
+                    source,
+                    source_path,
+                    output,
+                );
             }
             _ => {}
         }
     }
+}
+
+fn text_item_source_range(text: &TextItem, source: &Source) -> Option<(usize, usize)> {
+    let mut first = None;
+    let mut end = 0usize;
+    for glyph in &text.glyphs {
+        let glyph_text = text.text.as_str().get(glyph.range())?;
+        if glyph_text.is_empty() {
+            continue;
+        }
+        let (span, span_offset) = glyph.span;
+        if span.id() != Some(source.id()) {
+            return None;
+        }
+        let node = source.find(span)?;
+        let start = node.range().start.checked_add(span_offset as usize)?;
+        let stop = start.checked_add(glyph_text.len())?;
+        if source.text().get(start..stop)? != glyph_text {
+            return None;
+        }
+        if first.is_none() {
+            first = Some(start);
+        }
+        end = stop.max(end);
+    }
+    let start = first?;
+    let source_text = source.text().get(start..end)?;
+    if normalize_preview_text(source_text) != normalize_preview_text(text.text.as_str()) {
+        return None;
+    }
+    Some((start, end))
+}
+
+fn normalize_preview_text(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn validate_source(source: &str) -> Result<(), BoundaryError> {
