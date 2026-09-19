@@ -207,6 +207,8 @@ pub struct ReviewCommentRequest {
     pub expected_digest: String,
     pub expected_policy_version: u64,
     #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
     pub mark_id: Option<String>,
     #[serde(default)]
     pub proposal_id: Option<String>,
@@ -567,8 +569,22 @@ impl ReviewService {
                 "A review comment cannot be empty.",
             ));
         }
+        let id = normalize_or_generate_id(request.id, "comment", project.generation)?;
+        if let Some(existing) = project.comments.iter().find(|comment| comment.id == id) {
+            if existing.mark_id == request.mark_id
+                && existing.proposal_id == request.proposal_id
+                && existing.body == body
+                && existing.actor == actor
+            {
+                return Ok(materialize_state(project, &request.source));
+            }
+            return Err(review_error(
+                "review_comment_id_conflict",
+                "This comment identifier already belongs to different review content.",
+            ));
+        }
         project.comments.push(ReviewComment {
-            id: generate_id("comment", project.generation),
+            id,
             mark_id: request.mark_id,
             proposal_id: request.proposal_id,
             body,
