@@ -88,11 +88,24 @@
     return after;
   }
 
+  async function currentSavedReviewState() {
+    const current = await editor().ensureSaved();
+    state = await editor().invoke("review_state", {
+      path: current.path,
+      source: current.source,
+    });
+    return current;
+  }
+
   async function markSelection(kind) {
     if (busy) return;
     busy = true;
     try {
       const current = await ensureSavedSelection();
+      state = await editor().invoke("review_state", {
+        path: current.path,
+        source: current.source,
+      });
       state = await editor().invoke("review_upsert_mark", {
         request: {
           path: current.path,
@@ -168,7 +181,7 @@
     if (busy) return;
     busy = true;
     try {
-      const current = await editor().ensureSaved();
+      const current = await currentSavedReviewState();
       state = await editor().invoke("review_create_proposal", {
         request: {
           path: current.path,
@@ -195,7 +208,7 @@
     if (busy) return;
     busy = true;
     try {
-      const current = await editor().ensureSaved();
+      const current = await currentSavedReviewState();
       state = await editor().invoke("review_remove_mark", {
         request: {
           path: current.path,
@@ -218,7 +231,7 @@
     if (busy) return;
     busy = true;
     try {
-      const current = await editor().ensureSaved();
+      const current = await currentSavedReviewState();
       const result = await editor().invoke("review_decide", {
         request: {
           path: current.path,
@@ -252,7 +265,7 @@
     if (busy || !input.value.trim()) return;
     busy = true;
     try {
-      const current = await editor().ensureSaved();
+      const current = await currentSavedReviewState();
       state = await editor().invoke("review_add_comment", {
         request: {
           path: current.path,
