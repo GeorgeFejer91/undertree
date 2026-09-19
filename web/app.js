@@ -2090,6 +2090,110 @@ async function executeRemoteControlRequest(requestId, request) {
         policy: agentPolicy,
       };
     }
+    case "review-context": {
+      if (!activeProjectRoot || !activePath || !isTypstDocument(activePath)) {
+        throwRemoteFailure(
+          "typst_document_required",
+          "Open a saved Typst project document before requesting review context.",
+        );
+      }
+      return withRemoteEditorLock(async () => {
+        const outcome = await saveLatestResult();
+        if (!outcome.saved) {
+          throw outcome.error || {
+            code: "save_failed",
+            message: "The manuscript could not be saved before review context was read.",
+          };
+        }
+        const review = await nativeInvoke("review_state", {
+          path: activePath,
+          source: source.value,
+        });
+        if (!review.inSync) {
+          throwRemoteFailure(
+            "review_state_stale",
+            "The portable review state is not synchronized with the saved manuscript.",
+          );
+        }
+        return {
+          kind: "review-document",
+          state: remoteEditorState(),
+          source: source.value,
+          review,
+        };
+      });
+    }
+    case "review-propose": {
+      if (!activeProjectRoot || !activePath || !isTypstDocument(activePath)) {
+        throwRemoteFailure(
+          "typst_document_required",
+          "Open a saved Typst project document before proposing a review change.",
+        );
+      }
+      return withRemoteEditorLock(async () => {
+        const outcome = await saveLatestResult();
+        if (!outcome.saved) {
+          throw outcome.error || {
+            code: "save_failed",
+            message: "The manuscript could not be saved before the proposal was submitted.",
+          };
+        }
+        const review = await nativeInvoke("review_create_proposal", {
+          actor: "ai",
+          request: {
+            path: activePath,
+            source: source.value,
+            expectedDigest: activeDigest,
+            expectedPolicyVersion: request.expectedPolicyVersion,
+            id: request.id || null,
+            markId: request.markId,
+            operation: request.operation,
+            replacement: request.replacement,
+            rationale: request.rationale,
+          },
+        });
+        return {
+          kind: "review-updated",
+          state: remoteEditorState(),
+          review,
+        };
+      });
+    }
+    case "review-comment": {
+      if (!activeProjectRoot || !activePath || !isTypstDocument(activePath)) {
+        throwRemoteFailure(
+          "typst_document_required",
+          "Open a saved Typst project document before adding a review comment.",
+        );
+      }
+      return withRemoteEditorLock(async () => {
+        const outcome = await saveLatestResult();
+        if (!outcome.saved) {
+          throw outcome.error || {
+            code: "save_failed",
+            message: "The manuscript could not be saved before the comment was submitted.",
+          };
+        }
+        const review = await nativeInvoke("review_add_comment", {
+          actor: "ai",
+          request: {
+            path: activePath,
+            source: source.value,
+            expectedDigest: activeDigest,
+            expectedPolicyVersion: request.expectedPolicyVersion,
+            id: request.id || null,
+            markId: request.markId,
+            proposalId: request.proposalId || null,
+            body: request.body,
+          },
+        });
+        return {
+          kind: "review-updated",
+          state: remoteEditorState(),
+          review,
+        };
+      });
+    }
     case "document-replace": {
       if (!Number.isSafeInteger(request.expectedRevision) || request.expectedRevision !== revision) {
         throwRemoteFailure(
