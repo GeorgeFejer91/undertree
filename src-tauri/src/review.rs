@@ -138,8 +138,8 @@ struct ReviewProject {
     comments: Vec<ReviewComment>,
 }
 
-#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ReviewState {
     pub schema_version: u32,
     pub generation: u64,

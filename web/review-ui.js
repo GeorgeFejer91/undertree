@@ -183,6 +183,7 @@
     try {
       const current = await currentSavedReviewState();
       state = await editor().invoke("review_create_proposal", {
+        actor: "human",
         request: {
           path: current.path,
           source: current.source,
@@ -267,6 +268,7 @@
     try {
       const current = await currentSavedReviewState();
       state = await editor().invoke("review_add_comment", {
+        actor: "human",
         request: {
           path: current.path,
           source: current.source,
