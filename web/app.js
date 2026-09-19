@@ -2130,52 +2130,10 @@ async function executeRemoteControlRequest(requestId, request) {
       return remoteDocumentResult();
     }
     case "agent-replace": {
-      if (!Number.isSafeInteger(request.expectedRevision) || request.expectedRevision !== revision) {
-        throwRemoteFailure(
-          "stale_editor_revision",
-          `The expected editor revision does not match revision ${revision}.`,
-        );
-      }
-      if (!Number.isSafeInteger(request.expectedPolicyVersion) || request.expectedPolicyVersion < 0) {
-        throwRemoteFailure("invalid_remote_request", "An agent policy version is required.");
-      }
-      if (typeof request.source !== "string" || !activeProjectRoot || !activePath || !isTypstDocument(activePath)) {
-        throwRemoteFailure(
-          "typst_document_required",
-          "Agent replacement requires an open saved Typst project document.",
-        );
-      }
-      const policy = await withRemoteEditorLock(async () => {
-        if (!(await flushAgentAnnotations())) {
-          throwRemoteFailure(
-            "agent_annotations_unsaved",
-            "The AI editing marks could not be synchronized before the agent run.",
-          );
-        }
-        const prepared = await nativeInvoke("remote_control_prepare_agent_replace", {
-          requestId,
-          path: activePath,
-          currentSource: source.value,
-        });
-        agentPolicy = normalizeAgentPolicy(prepared);
-        agentAnnotationsDirty = false;
-        agentAnnotationMutationSuppressed = true;
-        try {
-          source.value = request.source;
-          source.dispatchEvent(new Event("input", { bubbles: true }));
-        } finally {
-          agentAnnotationMutationSuppressed = false;
-          agentAnnotationSourceSnapshot = source.value;
-        }
-        renderAgentAnnotations();
-        return agentPolicy;
-      });
-      return {
-        kind: "agent-document",
-        state: remoteEditorState(),
-        source: source.value,
-        policy,
-      };
+      throwRemoteFailure(
+        "agent_direct_edit_disabled",
+        "Direct AI manuscript replacement is disabled. Use the review proposal API so a human can accept or reject the change.",
+      );
     }
     case "document-save": {
       const outcome = await withRemoteEditorLock(() => saveLatestResult());
@@ -2875,34 +2833,53 @@ function renderPages(pages, textPages = []) {
   releasePreviewUrls();
   const fragment = document.createDocumentFragment();
 
-  for (const [index, svg] of pages.entries()) {
+  for (const [index, pageData] of pages.entries()) {
     const page = document.createElement("figure");
     page.className = "page";
-    page.style.width = `min(100%, ${Math.round(820 * previewZoom)}px)`;
+    page.dataset.pageNumber = String(index + 1);
+    page.style.width = "min(100%, " + Math.round(820 * previewZoom) + "px)";
 
     const image = document.createElement("img");
-    const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
-    previewUrls.push(url);
-    image.src = url;
-    image.alt = `Typst preview page ${index + 1}`;
+    if (typeof pageData === "string" && pageData.startsWith("data:image/")) {
+      image.src = pageData;
+    } else {
+      const url = URL.createObjectURL(new Blob([pageData], { type: "image/svg+xml" }));
+      previewUrls.push(url);
+      image.src = url;
+    }
+    image.alt = "Typst generated PDF page " + (index + 1);
     page.append(image);
+
+    const highlightLayer = document.createElement("div");
+    highlightLayer.className = "review-highlight-layer";
+    highlightLayer.setAttribute("aria-hidden", "true");
+    page.append(highlightLayer);
 
     const textPage = textPages[index];
     if (textPage && Number(textPage.width) > 0 && Number(textPage.height) > 0) {
       const textLayer = document.createElement("div");
       textLayer.className = "preview-text-layer";
       textLayer.setAttribute("role", "document");
-      textLayer.setAttribute("aria-label", `Selectable text for preview page ${index + 1}`);
+      textLayer.setAttribute("aria-label", "Selectable text for generated PDF page " + (index + 1));
       for (const run of Array.isArray(textPage.runs) ? textPage.runs : []) {
         if (!run || typeof run.text !== "string" || !run.text) continue;
         const textRun = document.createElement("span");
         textRun.className = "preview-text-run";
         textRun.textContent = run.text;
-        textRun.style.left = `${Math.max(0, Number(run.x)) / Number(textPage.width) * 100}%`;
-        textRun.style.top = `${Math.max(0, Number(run.y)) / Number(textPage.height) * 100}%`;
-        textRun.style.width = `${Math.max(0, Number(run.width)) / Number(textPage.width) * 100}%`;
-        textRun.style.height = `${Math.max(0, Number(run.height)) / Number(textPage.height) * 100}%`;
-        textRun.style.fontSize = `${Math.max(0.1, Number(run.height) / 1.2 / Number(textPage.width) * 100)}cqw`;
+        textRun.style.left = (Math.max(0, Number(run.x)) / Number(textPage.width) * 100) + "%";
+        textRun.style.top = (Math.max(0, Number(run.y)) / Number(textPage.height) * 100) + "%";
+        textRun.style.width = (Math.max(0, Number(run.width)) / Number(textPage.width) * 100) + "%";
+        textRun.style.height = (Math.max(0, Number(run.height)) / Number(textPage.height) * 100) + "%";
+        textRun.style.fontSize = Math.max(0.1, Number(run.height) / 1.2 / Number(textPage.width) * 100) + "cqw";
+        if (
+          typeof run.sourcePath === "string" &&
+          Number.isSafeInteger(run.sourceStartByte) &&
+          Number.isSafeInteger(run.sourceEndByte)
+        ) {
+          textRun.dataset.sourcePath = run.sourcePath;
+          textRun.dataset.sourceStartByte = String(run.sourceStartByte);
+          textRun.dataset.sourceEndByte = String(run.sourceEndByte);
+        }
         textLayer.append(textRun);
       }
       page.append(textLayer);
@@ -2911,7 +2888,9 @@ function renderPages(pages, textPages = []) {
   }
 
   preview.replaceChildren(fragment);
+  preview.dataset.sourceRevision = String(revision);
   scheduleWorkspaceFindRefresh();
+  window.dispatchEvent(new CustomEvent("undertree-preview-rendered"));
 }
 
 function updateSourceMetrics() {
@@ -2969,6 +2948,7 @@ function fileCategoryIcon(category) {
     bibliography: "B",
     pdf: "P",
     image: "I",
+    review: "R",
     other: "·",
   }[category] || "·";
 }
@@ -3245,6 +3225,7 @@ function loadDocument(documentData) {
   updateGithubLinkAvailability();
   void loadAgentAnnotations();
   setStatus("ready", "Saved");
+  window.dispatchEvent(new CustomEvent("undertree-document-changed"));
   if (typstDocument) {
     void compileLatest();
   } else {
@@ -3632,8 +3613,9 @@ function beginCitationFromToolbar() {
 function setPreviewZoom(nextZoom) {
   previewZoom = Math.min(1.8, Math.max(0.55, nextZoom));
   for (const page of preview.querySelectorAll(".page")) {
-    page.style.width = `min(100%, ${Math.round(820 * previewZoom)}px)`;
+    page.style.width = "min(100%, " + Math.round(820 * previewZoom) + "px)";
   }
+  window.dispatchEvent(new CustomEvent("undertree-preview-resized"));
 }
 
 function exportedPdfMatchesEditor(exported = lastPdfExport) {
@@ -4176,6 +4158,35 @@ async function saveLatest() {
   return outcome.saved;
 }
 
+window.UnderTreeEditorBridge = {
+  getState() {
+    return {
+      projectRoot: activeProjectRoot,
+      path: activePath,
+      source: source.value,
+      digest: activeDigest,
+      revision,
+      dirty: editorDirty,
+    };
+  },
+  async ensureSaved() {
+    if (editorDirty) {
+      const outcome = await saveLatestResult();
+      if (!outcome.saved || editorDirty) {
+        throw outcome.error || { code: "save_failed", message: "The manuscript could not be saved." };
+      }
+    }
+    return this.getState();
+  },
+  invoke(command, args = {}) {
+    return nativeInvoke(command, args);
+  },
+  applyDecision(result) {
+    if (!result?.changedSource || typeof result.source !== "string" || typeof result.digest !== "string" || !activePath) return;
+    loadDocument({ path: activePath, source: result.source, digest: result.digest });
+  },
+};
+
 async function exportCurrentPdf() {
   if (pdfExportInFlight || compileInFlight || !isTypstDocument(activePath)) return;
   const requestedPath = activePath;
@@ -4393,6 +4404,7 @@ source.addEventListener("input", () => {
   rebaseAgentAnnotationsAfterHumanEdit(previousAgentSource, nextAgentSource);
   agentAnnotationSourceSnapshot = nextAgentSource;
   revision += 1;
+  window.dispatchEvent(new CustomEvent("undertree-source-changed"));
   updatePdfActions();
   updateSourceMetrics();
   scheduleWorkspaceFindRefresh();
@@ -4663,7 +4675,6 @@ window.addEventListener("beforeunload", () => {
   releasePreviewUrls();
 });
 
-initializeFittedText();
 updateSourceMetrics();
 renderAgentAnnotations();
 editorLineNumberObserver = new ResizeObserver(() => {

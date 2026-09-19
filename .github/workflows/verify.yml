@@ -36,15 +36,24 @@ jobs:
       - name: Check Rust and Tauri integration
         run: cargo check --locked --manifest-path src-tauri/Cargo.toml
 
+      - name: Install local UI dependency and build bundled frontend
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm run build:web
+
       - name: Check frontend JavaScript
         run: |
           node --check web/citation-search.js
           node --check web/agent-annotations.js
           node --check web/typst-editing.js
+          node --check web/review-selection.js
+          node --check web/review-ui.js
+          node --check web/ui-fit.js
           node --check web/app.js
           node --test web/citation-search.test.cjs
           node --test web/agent-annotations.test.cjs
           node --test web/typst-editing.test.cjs
+          node --test web/review-selection.test.cjs
 
       - name: Lint
         run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings

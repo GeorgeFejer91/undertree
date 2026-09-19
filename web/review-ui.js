@@ -508,7 +508,8 @@
       elements.selection.hidden = true;
     });
     window.addEventListener("undertree-preview-rendered", renderHighlights);
-    window.addEventListener("resize", renderHighlights, { passive: true });
+    window.addEventListener("undertree-preview-resized", () => requestAnimationFrame(renderHighlights));
+    window.addEventListener("resize", () => requestAnimationFrame(renderHighlights), { passive: true });
     void loadState();
   }
 

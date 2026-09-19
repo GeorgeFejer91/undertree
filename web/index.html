@@ -10,7 +10,10 @@
     <script src="./citation-search.js" defer></script>
     <script src="./typst-editing.js" defer></script>
     <script src="./agent-annotations.js" defer></script>
+    <script src="./review-selection.js" defer></script>
     <script src="./app.js" defer></script>
+    <script src="./review-ui.js" defer></script>
+    <script type="module" src="./ui-fit.js"></script>
   </head>
   <body>
     <main id="app" aria-label="UnderTree offline Typst editor">
@@ -310,6 +313,10 @@ $ integral_0^infinity e^(-x^2) dif x = sqrt(pi) / 2 $</textarea>
                 <svg class="pdf-action-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.75 4.25h4l1.4 1.5h7.1v6.75H1.75zM1.75 4.25V3h4.1l1.25 1.25" /></svg>
               </button>
             </div>
+            <button type="button" id="review-toggle" class="review-toggle" aria-expanded="false" aria-controls="review-panel" title="Open PDF review suggestions" data-fit-text data-fit-label="Review" data-fit-min="9" data-fit-max="11">
+              <svg class="review-toggle-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10v7H8l-3 2v-2H3z"/><path d="M5 6h6M5 8h4"/></svg>
+              <span>Review</span><span class="review-count" id="review-count">0</span>
+            </button>
             <span class="toolbar-spacer"></span>
             <button type="button" id="previous-page" title="Previous page" aria-label="Previous page"><span class="ui-chevron left" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m10 3-5 5 5 5" /></svg></span></button>
             <span id="page-status"><span id="preview-meta">Typst preview</span></span>
@@ -326,6 +333,27 @@ $ integral_0^infinity e^(-x^2) dif x = sqrt(pi) / 2 $</textarea>
             <div id="preview">
               <div class="preview-empty">Compiling the first Typst preview…</div>
             </div>
+            <section class="review-selection-popover" id="review-selection" aria-label="Mark selected PDF text" hidden>
+              <div class="review-selection-copy">
+                <span class="review-eyebrow">Selected in PDF</span>
+                <p id="review-selection-text" class="review-body-text"></p>
+              </div>
+              <label class="review-instruction-label" for="review-instruction">Instruction (optional)</label>
+              <input id="review-instruction" type="text" maxlength="2000" placeholder="e.g. tighten this without changing the claim" />
+              <div class="review-selection-actions">
+                <button type="button" class="review-kind keep" data-review-kind="keep" data-fit-text data-fit-label="Keep">Keep</button>
+                <button type="button" class="review-kind light-edit" data-review-kind="light-edit" data-fit-text data-fit-label="Light edit">Light edit</button>
+                <button type="button" class="review-kind rework" data-review-kind="rework" data-fit-text data-fit-label="Rework">Rework</button>
+              </div>
+            </section>
+            <aside class="review-panel" id="review-panel" aria-label="Document review" hidden>
+              <header class="review-panel-heading">
+                <div><span class="review-eyebrow">Human + AI review</span><strong>Suggestions</strong><span id="review-version"></span></div>
+                <button id="review-close" class="review-icon-button" type="button" aria-label="Close review panel" title="Close review panel"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg></button>
+              </header>
+              <p id="review-message" class="review-message" role="status" aria-live="polite" hidden></p>
+              <div id="review-list" class="review-list"></div>
+            </aside>
           </div>
         </section>
       </section>
@@ -428,7 +456,7 @@ $ integral_0^infinity e^(-x^2) dif x = sqrt(pi) / 2 $</textarea>
                 <button class="pill-button primary" id="github-create-project" type="button">Create GitHub + local project…</button>
                 <button class="text-button" id="github-new-project-cancel" type="button">Cancel</button>
               </div>
-              <small>UnderTree asks for a parent folder, creates a repository-name child folder, adds <code>main.typ</code>, commits it, and pushes the initial branch.</small>
+              <small>UnderTree asks for a parent folder, creates a repository-name child folder, adds <code>paper.typ</code>, <code>paper.bib</code>, and <code>paper.json</code>, commits them, and pushes the initial branch.</small>
             </div>
 
             <div class="github-repository-controls">

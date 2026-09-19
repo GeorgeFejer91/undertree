@@ -57,8 +57,8 @@ pub(crate) struct PdfCompileOutput {
     pub elapsed_ms: u64,
 }
 
-/// A bounded selectable-text companion for one SVG preview page. Coordinates
-/// use Typst points so the WebView can scale them with the page image.
+/// A bounded selectable-text companion for one generated PDF preview page.
+/// Coordinates use Typst points; source offsets are emitted only for exact mappings.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PreviewTextPage {
@@ -213,7 +213,7 @@ impl CompilerAssets {
     }
 }
 fn render_pdf_preview(bytes: &[u8]) -> Result<Vec<String>, BoundaryError> {
-    let pdf = Pdf::new(bytes.to_vec()).ok_or_else(|| {
+    let pdf = Pdf::new(bytes.to_vec()).map_err(|_| {
         BoundaryError::validation("UnderTree could not reopen its generated PDF for preview.")
     })?;
     let cache = RenderCache::new();
@@ -361,14 +361,10 @@ fn text_item_source_range(text: &TextItem, source: &Source) -> Option<(usize, us
     }
     let start = first?;
     let source_text = source.text().get(start..end)?;
-    if normalize_preview_text(source_text) != normalize_preview_text(text.text.as_str()) {
+    if source_text != text.text.as_str() {
         return None;
     }
     Some((start, end))
-}
-
-fn normalize_preview_text(text: &str) -> String {
-    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn validate_source(source: &str) -> Result<(), BoundaryError> {
