@@ -97,13 +97,14 @@ pub async fn review_create_proposal(
     reviews: State<'_, ReviewService>,
     projects: State<'_, ProjectState>,
     request: ReviewProposalRequest,
+    actor: Option<ReviewActor>,
 ) -> Result<ReviewState, BoundaryError> {
     let root = projects.root()?.ok_or_else(|| {
         BoundaryError::project("project_required", "Choose a Typst project first.")
     })?;
     let reviews = reviews.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        reviews.create_proposal(&root, request, ReviewActor::Human)
+        reviews.create_proposal(&root, request, actor.unwrap_or(ReviewActor::Human))
     })
     .await
     .map_err(|_| BoundaryError::internal())?
@@ -114,13 +115,14 @@ pub async fn review_add_comment(
     reviews: State<'_, ReviewService>,
     projects: State<'_, ProjectState>,
     request: ReviewCommentRequest,
+    actor: Option<ReviewActor>,
 ) -> Result<ReviewState, BoundaryError> {
     let root = projects.root()?.ok_or_else(|| {
         BoundaryError::project("project_required", "Choose a Typst project first.")
     })?;
     let reviews = reviews.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        reviews.add_comment(&root, request, ReviewActor::Human)
+        reviews.add_comment(&root, request, actor.unwrap_or(ReviewActor::Human))
     })
     .await
     .map_err(|_| BoundaryError::internal())?

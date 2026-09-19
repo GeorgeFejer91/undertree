@@ -21,6 +21,7 @@ use crate::compiler::{CompileRequest, CompilerAssets};
 use crate::error::BoundaryError;
 use crate::pdf::{self, PdfExportResult, PdfExportState, RevealPdfRequest};
 use crate::project::{ProjectSnapshot, ProjectState};
+use crate::review::{ReviewProposalOperation, ReviewState};
 
 pub const REMOTE_EVENT: &str = "undertree-remote-control";
 
@@ -73,6 +74,22 @@ pub enum RemoteRequest {
         expected_revision: u64,
         expected_policy_version: u64,
     },
+    ReviewContext,
+    ReviewPropose {
+        id: Option<String>,
+        mark_id: String,
+        operation: ReviewProposalOperation,
+        replacement: String,
+        rationale: String,
+        expected_policy_version: u64,
+    },
+    ReviewComment {
+        id: Option<String>,
+        mark_id: String,
+        proposal_id: Option<String>,
+        body: String,
+        expected_policy_version: u64,
+    },
     DocumentSave,
     BibliographyCreate {
         path: String,
@@ -121,6 +138,22 @@ pub enum FrontendRemoteRequest {
     AgentReplace {
         source: String,
         expected_revision: u64,
+        expected_policy_version: u64,
+    },
+    ReviewContext,
+    ReviewPropose {
+        id: Option<String>,
+        mark_id: String,
+        operation: ReviewProposalOperation,
+        replacement: String,
+        rationale: String,
+        expected_policy_version: u64,
+    },
+    ReviewComment {
+        id: Option<String>,
+        mark_id: String,
+        proposal_id: Option<String>,
+        body: String,
         expected_policy_version: u64,
     },
     DocumentSave,
@@ -175,6 +208,35 @@ impl From<&RemoteRequest> for FrontendRemoteRequest {
                 expected_revision: *expected_revision,
                 expected_policy_version: *expected_policy_version,
             },
+            RemoteRequest::ReviewContext => Self::ReviewContext,
+            RemoteRequest::ReviewPropose {
+                id,
+                mark_id,
+                operation,
+                replacement,
+                rationale,
+                expected_policy_version,
+            } => Self::ReviewPropose {
+                id: id.clone(),
+                mark_id: mark_id.clone(),
+                operation: *operation,
+                replacement: replacement.clone(),
+                rationale: rationale.clone(),
+                expected_policy_version: *expected_policy_version,
+            },
+            RemoteRequest::ReviewComment {
+                id,
+                mark_id,
+                proposal_id,
+                body,
+                expected_policy_version,
+            } => Self::ReviewComment {
+                id: id.clone(),
+                mark_id: mark_id.clone(),
+                proposal_id: proposal_id.clone(),
+                body: body.clone(),
+                expected_policy_version: *expected_policy_version,
+            },
             RemoteRequest::DocumentSave => Self::DocumentSave,
             RemoteRequest::BibliographyCreate {
                 path,
@@ -225,6 +287,36 @@ impl RemoteRequest {
                     ));
                 }
             }
+            Self::ReviewPropose {
+                id,
+                mark_id,
+                replacement,
+                rationale,
+                ..
+            } => {
+                validate_review_id(id.as_deref())?;
+                validate_review_id(Some(mark_id))?;
+                validate_review_text(replacement, MAX_SOURCE_BYTES, "replacement")?;
+                validate_review_text(rationale, 16 * 1024, "rationale")?;
+            }
+            Self::ReviewComment {
+                id,
+                mark_id,
+                proposal_id,
+                body,
+                ..
+            } => {
+                validate_review_id(id.as_deref())?;
+                validate_review_id(Some(mark_id))?;
+                validate_review_id(proposal_id.as_deref())?;
+                validate_review_text(body, 16 * 1024, "comment")?;
+                if body.trim().is_empty() {
+                    return Err(RemoteFailure::new(
+                        "invalid_remote_request",
+                        "A review comment cannot be empty.",
+                    ));
+                }
+            }
             Self::BibliographyCreate { path, .. } => {
                 validate_relative_path(path, Some("bib"))?;
             }
@@ -234,6 +326,7 @@ impl RemoteRequest {
             | Self::ProjectRefresh { .. }
             | Self::DocumentRead
             | Self::AgentContext
+            | Self::ReviewContext
             | Self::DocumentSave
             | Self::Compile
             | Self::PdfReveal
@@ -279,6 +372,15 @@ pub enum RemoteResult {
         state: RemoteEditorState,
         source: String,
         policy: AgentEditingPolicy,
+    },
+    ReviewDocument {
+        state: RemoteEditorState,
+        source: String,
+        review: ReviewState,
+    },
+    ReviewUpdated {
+        state: RemoteEditorState,
+        review: ReviewState,
     },
     Saved {
         state: RemoteEditorState,
@@ -1385,6 +1487,14 @@ fn validate_completion(
                         RemoteRequest::AgentContext | RemoteRequest::AgentReplace { .. },
                         RemoteResult::AgentDocument { .. }
                     )
+                    | (
+                        RemoteRequest::ReviewContext,
+                        RemoteResult::ReviewDocument { .. }
+                    )
+                    | (
+                        RemoteRequest::ReviewPropose { .. } | RemoteRequest::ReviewComment { .. },
+                        RemoteResult::ReviewUpdated { .. }
+                    )
                     | (RemoteRequest::DocumentSave, RemoteResult::Saved { .. })
                     | (RemoteRequest::Compile, RemoteResult::Compiled { .. })
                     | (
@@ -1413,6 +1523,8 @@ fn validate_completion(
         RemoteResult::Application { state }
         | RemoteResult::Document { state, .. }
         | RemoteResult::AgentDocument { state, .. }
+        | RemoteResult::ReviewDocument { state, .. }
+        | RemoteResult::ReviewUpdated { state, .. }
         | RemoteResult::Saved { state, .. }
         | RemoteResult::Compiled { state, .. }
         | RemoteResult::PdfExported { state, .. }
@@ -1447,6 +1559,28 @@ fn validate_completion(
                 || source.contains('\0')
                 || state.path.as_deref() != Some(policy.path.as_str())
                 || !policy.validate_remote(source)
+            {
+                return Err(invalid_completion());
+            }
+        }
+        RemoteResult::ReviewDocument {
+            state,
+            source,
+            review,
+        } => {
+            if source.len() > MAX_SOURCE_BYTES
+                || source.contains('\0')
+                || state.path.as_deref() != Some(review.document.as_str())
+                || state.digest != review.current_source_digest
+                || !review.in_sync
+            {
+                return Err(invalid_completion());
+            }
+        }
+        RemoteResult::ReviewUpdated { state, review } => {
+            if state.path.as_deref() != Some(review.document.as_str())
+                || state.digest != review.current_source_digest
+                || !review.in_sync
             {
                 return Err(invalid_completion());
             }
@@ -1524,6 +1658,38 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
         .zip(right)
         .fold(0u8, |difference, (left, right)| difference | (left ^ right))
         == 0
+}
+
+fn validate_review_id(id: Option<&str>) -> Result<(), RemoteFailure> {
+    let Some(id) = id else {
+        return Ok(());
+    };
+    if id.is_empty()
+        || id.len() > 80
+        || !id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+    {
+        return Err(RemoteFailure::new(
+            "invalid_remote_request",
+            "Review identifiers must use short ASCII letters, numbers, dots, underscores, or hyphens.",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_review_text(
+    value: &str,
+    maximum: usize,
+    label: &str,
+) -> Result<(), RemoteFailure> {
+    if value.len() > maximum || value.contains('\0') {
+        return Err(RemoteFailure::new(
+            "invalid_remote_request",
+            format!("The review {label} exceeds UnderTree's size limit."),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_relative_path(
