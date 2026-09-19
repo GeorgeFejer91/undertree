@@ -38,7 +38,15 @@ Compare page fidelity, source-selection alignment, font support, accessibility, 
 - BibTeX/BibLaTeX braces/accents, duplicate keys, missing keys, supplements, and parser failures: preserve originals, report issues, compile valid citations offline.
 - Imported/legacy folders, shared-file rename, unsupported schema, external figures/fonts/imports: no silent conversion, data loss, or false three-file portability claim.
 
+## UI fitting gate
+
+The first approved UI slice establishes or reuses one shared Pretext adapter and CSS/SVG slot convention in `web/`. Later text controls use it by default; do not introduce parallel fitters or a new UI framework. Derive font bounds and geometry from shared CSS, keep long-form review text readable, and keep actual PDF selection geometry bound to Typst rather than UI font fitting.
+
+Every touched UI component must pass the [UI evidence matrix](ui-rules.md#required-ui-evidence): long/localized text, resize smaller then larger, reparenting, hidden-to-visible state, font/theme changes, user text scaling, and narrow/mobile-sized layouts. Verify text bounds, sibling separation, readable/full-content access, SVG centering/aspect ratio, and settled observer behavior on supported WebViews. Add the smallest regression check that catches the shared failure. Report untested platforms; a syntax check alone is not visual verification.
+
 ## Development discipline and gates
+
+Load/read the required Ponytail skill from [README.md](README.md) before development work. For any UI change, read [ui-rules.md](ui-rules.md) and use its shared Pretext/SVG contracts; do not solve the same overflow separately in each control. Skill guidance does not override project correctness, accessibility, or the author-approval gate.
 
 Before changing code, inspect the exact owning path and relevant tests. Describe one input/output behavior and its failure cases. Reuse existing libraries and native services; write original implementation/tests. No generic command gateway, universal plugin system, replacement typesetting language, CRDT/cloud stack, or conversion fidelity campaign.
 

@@ -26,7 +26,10 @@ These are target constraints for the approved redesign. Preserve working baselin
 - Use one bounded latest-state-wins compile worker and at most one newest pending snapshot. Never perform heavy Typst/PDF/diff work on the UI event path. Retain the last good render on failure.
 - Preserve explicit source, resource, page, output, cache, request, and history bounds. Measure latency and memory before promising real-time performance. Discarding stale output is not preemptive cancellation of a running compiler.
 - Render untrusted content inertly. Keep the existing prohibition on injecting SVG as HTML. Any PDF renderer receives only a scoped immutable artifact, no filesystem or command authority; disable document scripts and automatic remote resource loads.
-- Preserve readable text, keyboard navigation, selection, zoom, and accessibility. Use shared fitting for constrained controls; do not shrink manuscript or suggestion prose into unreadable fixed boxes. PDF review intentionally supersedes the old pixel-identical LaTeX layout rule, not basic UI quality.
+- Follow [ui-rules.md](ui-rules.md) for every application text display: CSS owns allocated geometry; shared Pretext measurement drives bounded dynamic font fitting and refits on content, box, font, and layout changes. No per-label font-size patches, character-count fitting, or accidental root/control scrollbars.
+- Use normalized, aspect-preserving SVG icons centered and scaled within CSS-owned slots. Moving/resizing a component must preserve its internal alignment without pixel offsets. Keep hit areas and focus indicators accessible.
+- Preserve readable text, keyboard navigation, selection, zoom, and accessibility. Long manuscript/suggestion prose stays complete and readable in designated panes; never independently auto-fit the PDF text/selection layer. PDF review intentionally supersedes the old pixel-identical LaTeX layout rule, not basic UI quality.
+- Pretext is an approved direction for thin, locally bundled presentation code; it grants no native authority and requires no runtime Node/CDN. The documentation-only approval gate remains in force.
 
 ## Files, processes, and optional integrations
 
