@@ -15,6 +15,7 @@ use crate::github::{
 use crate::pdf;
 use crate::project::ProjectState;
 use crate::remote_control::{RemoteClientError, RemoteFailure, RemoteRequest, RemoteResult};
+use crate::review::ReviewProposalOperation;
 
 const HELP: &str = r#"UnderTree native command line
 
@@ -46,6 +47,9 @@ Usage:
   undertree-typst [cli] app document save [--timeout SECONDS] [--json]
   undertree-typst [cli] app agent context [--timeout SECONDS] [--json]
   undertree-typst [cli] app agent replace --expected-revision N --expected-policy-version N --stdin [--timeout SECONDS] [--json]
+  undertree-typst [cli] app review context [--timeout SECONDS] [--json]
+  undertree-typst [cli] app review propose --mark-id ID --proposal-id ID --operation replace|delete --expected-policy-version N [--rationale TEXT] --stdin [--timeout SECONDS] [--json]
+  undertree-typst [cli] app review comment --mark-id ID --comment-id ID [--proposal-id ID] --expected-policy-version N --stdin [--timeout SECONDS] [--json]
   undertree-typst [cli] app bibliography create --path RELATIVE.bib [--discard-unsaved] [--timeout SECONDS] [--json]
   undertree-typst [cli] app pdf export --output FILE.pdf [--force] [--timeout SECONDS] [--json]
   undertree-typst [cli] app pdf reveal [--timeout SECONDS] [--json]
@@ -87,6 +91,11 @@ struct Options {
     revision: Option<u64>,
     expected_revision: Option<u64>,
     expected_policy_version: Option<u64>,
+    mark_id: Option<String>,
+    proposal_id: Option<String>,
+    comment_id: Option<String>,
+    operation: Option<String>,
+    rationale: Option<String>,
     category: Option<String>,
     interval: Option<u64>,
     timeout: Option<u64>,
@@ -314,6 +323,11 @@ pub fn forwarded_open_request(arguments: &[String], cwd: &str) -> Option<RemoteR
         || options.revision.is_some()
         || options.expected_revision.is_some()
         || options.expected_policy_version.is_some()
+        || options.mark_id.is_some()
+        || options.proposal_id.is_some()
+        || options.comment_id.is_some()
+        || options.operation.is_some()
+        || options.rationale.is_some()
         || options.category.is_some()
         || options.interval.is_some()
         || options.timeout.is_some()
@@ -574,6 +588,90 @@ fn run_app(arguments: &[OsString]) -> Result<(), CliError> {
                 }
             }
         }
+        "review" => {
+            let action = word(arguments.get(1), "application review command")?;
+            let options = parse_options(&arguments[2..])?;
+            match action.as_str() {
+                "context" => {
+                    reject_app_options(&options, AppOptionSet::ReviewContext)?;
+                    (RemoteRequest::ReviewContext, options)
+                }
+                "propose" => {
+                    reject_app_options(&options, AppOptionSet::ReviewPropose)?;
+                    if !options.stdin {
+                        return Err(CliError::Usage(
+                            "app review propose requires --stdin.".into(),
+                        ));
+                    }
+                    let mark_id = required_text(options.mark_id.clone(), "--mark-id")?;
+                    let id = required_text(options.proposal_id.clone(), "--proposal-id")?;
+                    let expected_policy_version =
+                        options.expected_policy_version.ok_or_else(|| {
+                            CliError::Usage(
+                                "app review propose requires --expected-policy-version N.".into(),
+                            )
+                        })?;
+                    let operation = match options.operation.as_deref() {
+                        Some("replace") => ReviewProposalOperation::Replace,
+                        Some("delete") => ReviewProposalOperation::Delete,
+                        _ => {
+                            return Err(CliError::Usage(
+                                "app review propose requires --operation replace|delete.".into(),
+                            ));
+                        }
+                    };
+                    let replacement = read_stdin_source()?;
+                    if operation == ReviewProposalOperation::Delete && !replacement.is_empty() {
+                        return Err(CliError::Usage(
+                            "A delete proposal requires empty stdin.".into(),
+                        ));
+                    }
+                    (
+                        RemoteRequest::ReviewPropose {
+                            id: Some(id),
+                            mark_id,
+                            operation,
+                            replacement,
+                            rationale: options.rationale.clone().unwrap_or_default(),
+                            expected_policy_version,
+                        },
+                        options,
+                    )
+                }
+                "comment" => {
+                    reject_app_options(&options, AppOptionSet::ReviewComment)?;
+                    if !options.stdin {
+                        return Err(CliError::Usage(
+                            "app review comment requires --stdin.".into(),
+                        ));
+                    }
+                    let mark_id = required_text(options.mark_id.clone(), "--mark-id")?;
+                    let id = required_text(options.comment_id.clone(), "--comment-id")?;
+                    let expected_policy_version =
+                        options.expected_policy_version.ok_or_else(|| {
+                            CliError::Usage(
+                                "app review comment requires --expected-policy-version N.".into(),
+                            )
+                        })?;
+                    let body = read_stdin_source()?;
+                    (
+                        RemoteRequest::ReviewComment {
+                            id: Some(id),
+                            mark_id,
+                            proposal_id: options.proposal_id.clone(),
+                            body,
+                            expected_policy_version,
+                        },
+                        options,
+                    )
+                }
+                _ => {
+                    return Err(CliError::Usage(format!(
+                        "Unknown application review command '{action}'."
+                    )));
+                }
+            }
+        }
         "bibliography" => {
             let action = word(arguments.get(1), "application bibliography command")?;
             if action != "create" {
@@ -655,6 +753,9 @@ enum AppOptionSet {
     DocumentOpen,
     DocumentReplace,
     AgentReplace,
+    ReviewContext,
+    ReviewPropose,
+    ReviewComment,
     PdfExport,
     PdfReveal,
 }
@@ -667,7 +768,25 @@ fn reject_app_options(options: &Options, allowed: AppOptionSet) -> Result<(), Cl
         allowed,
         AppOptionSet::DocumentReplace | AppOptionSet::AgentReplace
     );
-    let allows_policy_version = matches!(allowed, AppOptionSet::AgentReplace);
+    let allows_policy_version = matches!(
+        allowed,
+        AppOptionSet::AgentReplace | AppOptionSet::ReviewPropose | AppOptionSet::ReviewComment
+    );
+    let allows_mark_id = matches!(
+        allowed,
+        AppOptionSet::ReviewPropose | AppOptionSet::ReviewComment
+    );
+    let allows_proposal_id = matches!(
+        allowed,
+        AppOptionSet::ReviewPropose | AppOptionSet::ReviewComment
+    );
+    let allows_comment_id = matches!(allowed, AppOptionSet::ReviewComment);
+    let allows_operation = matches!(allowed, AppOptionSet::ReviewPropose);
+    let allows_rationale = matches!(allowed, AppOptionSet::ReviewPropose);
+    let allows_review_stdin = matches!(
+        allowed,
+        AppOptionSet::ReviewPropose | AppOptionSet::ReviewComment
+    );
     let allows_pdf_export = matches!(allowed, AppOptionSet::PdfExport);
     if (!allows_project && options.project.is_some())
         || options.parent.is_some()
@@ -681,13 +800,18 @@ fn reject_app_options(options: &Options, allowed: AppOptionSet) -> Result<(), Cl
         || options.revision.is_some()
         || (!allows_replace && options.expected_revision.is_some())
         || (!allows_policy_version && options.expected_policy_version.is_some())
+        || (!allows_mark_id && options.mark_id.is_some())
+        || (!allows_proposal_id && options.proposal_id.is_some())
+        || (!allows_comment_id && options.comment_id.is_some())
+        || (!allows_operation && options.operation.is_some())
+        || (!allows_rationale && options.rationale.is_some())
         || options.category.is_some()
         || options.interval.is_some()
         || options.auto_commit.is_some()
         || options.private.is_some()
         || (!allows_pdf_export && options.output.is_some())
         || options.all
-        || (!allows_replace && options.stdin)
+        || (!allows_replace && !allows_review_stdin && options.stdin)
         || (!allows_pdf_export && options.force)
         || options.reveal
         || (matches!(allowed, AppOptionSet::PdfExport | AppOptionSet::PdfReveal)
@@ -765,6 +889,47 @@ fn human_remote_result(result: &RemoteResult) -> Result<(), CliError> {
             if !source.ends_with('\n') {
                 println!();
             }
+        }
+        RemoteResult::ReviewDocument {
+            state,
+            source,
+            review,
+        } => {
+            let pending = review
+                .proposals
+                .iter()
+                .filter(|proposal| {
+                    proposal.status == crate::review::ReviewProposalStatus::Pending
+                })
+                .count();
+            println!(
+                "{} (revision {}, review policy {}, {} mark(s), {} pending suggestion(s))",
+                state.path.as_deref().unwrap_or("document"),
+                state.revision,
+                review.policy_version,
+                review.marks.len(),
+                pending
+            );
+            print!("{source}");
+            if !source.ends_with('\n') {
+                println!();
+            }
+        }
+        RemoteResult::ReviewUpdated { state, review } => {
+            let pending = review
+                .proposals
+                .iter()
+                .filter(|proposal| {
+                    proposal.status == crate::review::ReviewProposalStatus::Pending
+                })
+                .count();
+            println!(
+                "Updated review for {}: policy {}, {} mark(s), {} pending suggestion(s).",
+                state.path.as_deref().unwrap_or("document"),
+                review.policy_version,
+                review.marks.len(),
+                pending
+            );
         }
         RemoteResult::Saved {
             state,
@@ -1029,6 +1194,11 @@ fn reject_project_refresh_options(options: &Options) -> Result<(), CliError> {
         || options.revision.is_some()
         || options.expected_revision.is_some()
         || options.expected_policy_version.is_some()
+        || options.mark_id.is_some()
+        || options.proposal_id.is_some()
+        || options.comment_id.is_some()
+        || options.operation.is_some()
+        || options.rationale.is_some()
         || options.category.is_some()
         || options.interval.is_some()
         || options.timeout.is_some()
@@ -1057,6 +1227,11 @@ fn reject_document_options(options: &Options, save: bool) -> Result<(), CliError
         || (!save && options.revision.is_some())
         || options.expected_revision.is_some()
         || options.expected_policy_version.is_some()
+        || options.mark_id.is_some()
+        || options.proposal_id.is_some()
+        || options.comment_id.is_some()
+        || options.operation.is_some()
+        || options.rationale.is_some()
         || options.category.is_some()
         || options.interval.is_some()
         || options.timeout.is_some()
@@ -1088,6 +1263,11 @@ fn reject_bibliography_options(options: &Options) -> Result<(), CliError> {
         || options.revision.is_some()
         || options.expected_revision.is_some()
         || options.expected_policy_version.is_some()
+        || options.mark_id.is_some()
+        || options.proposal_id.is_some()
+        || options.comment_id.is_some()
+        || options.operation.is_some()
+        || options.rationale.is_some()
         || options.category.is_some()
         || options.interval.is_some()
         || options.timeout.is_some()
@@ -1695,6 +1875,11 @@ fn reject_github_create_options(options: &Options) -> Result<(), CliError> {
         || options.revision.is_some()
         || options.expected_revision.is_some()
         || options.expected_policy_version.is_some()
+        || options.mark_id.is_some()
+        || options.proposal_id.is_some()
+        || options.comment_id.is_some()
+        || options.operation.is_some()
+        || options.rationale.is_some()
         || options.category.is_some()
         || options.interval.is_some()
         || options.timeout.is_some()
@@ -1724,6 +1909,11 @@ fn reject_github_transport_options(options: &Options, clone: bool) -> Result<(),
         || options.revision.is_some()
         || options.expected_revision.is_some()
         || options.expected_policy_version.is_some()
+        || options.mark_id.is_some()
+        || options.proposal_id.is_some()
+        || options.comment_id.is_some()
+        || options.operation.is_some()
+        || options.rationale.is_some()
         || options.category.is_some()
         || options.interval.is_some()
         || options.timeout.is_some()
@@ -1757,6 +1947,11 @@ fn reject_github_sync_options(options: &Options, allow_message: bool) -> Result<
         || options.revision.is_some()
         || options.expected_revision.is_some()
         || options.expected_policy_version.is_some()
+        || options.mark_id.is_some()
+        || options.proposal_id.is_some()
+        || options.comment_id.is_some()
+        || options.operation.is_some()
+        || options.rationale.is_some()
         || options.category.is_some()
         || options.interval.is_some()
         || options.timeout.is_some()
@@ -1789,6 +1984,11 @@ fn reject_github_rules_options(options: &Options) -> Result<(), CliError> {
         || options.revision.is_some()
         || options.expected_revision.is_some()
         || options.expected_policy_version.is_some()
+        || options.mark_id.is_some()
+        || options.proposal_id.is_some()
+        || options.comment_id.is_some()
+        || options.operation.is_some()
+        || options.rationale.is_some()
         || options.category.is_some()
         || options.timeout.is_some()
         || options.private.is_some()
@@ -2072,6 +2272,30 @@ fn parse_options(arguments: &[OsString]) -> Result<Options, CliError> {
                     "--expected-policy-version",
                 )?;
             }
+            "--mark-id" => {
+                index += 1;
+                set_once_text(&mut options.mark_id, arguments.get(index), "--mark-id")?;
+            }
+            "--proposal-id" => {
+                index += 1;
+                set_once_text(
+                    &mut options.proposal_id,
+                    arguments.get(index),
+                    "--proposal-id",
+                )?;
+            }
+            "--comment-id" => {
+                index += 1;
+                set_once_text(&mut options.comment_id, arguments.get(index), "--comment-id")?;
+            }
+            "--operation" => {
+                index += 1;
+                set_once_text(&mut options.operation, arguments.get(index), "--operation")?;
+            }
+            "--rationale" => {
+                index += 1;
+                set_once_text(&mut options.rationale, arguments.get(index), "--rationale")?;
+            }
             "--category" => {
                 index += 1;
                 set_once_text(&mut options.category, arguments.get(index), "--category")?;
@@ -2171,6 +2395,11 @@ fn reject_project_options(options: &Options) -> Result<(), CliError> {
         || options.revision.is_some()
         || options.expected_revision.is_some()
         || options.expected_policy_version.is_some()
+        || options.mark_id.is_some()
+        || options.proposal_id.is_some()
+        || options.comment_id.is_some()
+        || options.operation.is_some()
+        || options.rationale.is_some()
         || options.category.is_some()
         || options.interval.is_some()
         || options.timeout.is_some()
@@ -2201,6 +2430,11 @@ fn reject_options_except_project(options: &Options, allow_message: bool) -> Resu
         || options.revision.is_some()
         || options.expected_revision.is_some()
         || options.expected_policy_version.is_some()
+        || options.mark_id.is_some()
+        || options.proposal_id.is_some()
+        || options.comment_id.is_some()
+        || options.operation.is_some()
+        || options.rationale.is_some()
         || options.category.is_some()
         || options.interval.is_some()
         || options.timeout.is_some()
@@ -2231,6 +2465,11 @@ fn reject_conversion_options(options: &Options) -> Result<(), CliError> {
         || options.revision.is_some()
         || options.expected_revision.is_some()
         || options.expected_policy_version.is_some()
+        || options.mark_id.is_some()
+        || options.proposal_id.is_some()
+        || options.comment_id.is_some()
+        || options.operation.is_some()
+        || options.rationale.is_some()
         || options.category.is_some()
         || options.interval.is_some()
         || options.timeout.is_some()
@@ -2261,6 +2500,11 @@ fn reject_pdf_export_options(options: &Options) -> Result<(), CliError> {
         || options.revision.is_some()
         || options.expected_revision.is_some()
         || options.expected_policy_version.is_some()
+        || options.mark_id.is_some()
+        || options.proposal_id.is_some()
+        || options.comment_id.is_some()
+        || options.operation.is_some()
+        || options.rationale.is_some()
         || options.category.is_some()
         || options.interval.is_some()
         || options.timeout.is_some()
@@ -2453,6 +2697,14 @@ mod tests {
             OsString::from("--stdin"),
             OsString::from("--timeout"),
             OsString::from("45"),
+            OsString::from("--mark-id"),
+            OsString::from("mark-1"),
+            OsString::from("--proposal-id"),
+            OsString::from("proposal-1"),
+            OsString::from("--operation"),
+            OsString::from("replace"),
+            OsString::from("--rationale"),
+            OsString::from("tighten"),
         ])
         .expect("valid document options");
         assert_eq!(options.path.as_deref(), Some("chapters/intro.typ"));
@@ -2460,6 +2712,10 @@ mod tests {
         assert_eq!(options.expected_policy_version, Some(7));
         assert!(options.stdin);
         assert_eq!(options.timeout, Some(45));
+        assert_eq!(options.mark_id.as_deref(), Some("mark-1"));
+        assert_eq!(options.proposal_id.as_deref(), Some("proposal-1"));
+        assert_eq!(options.operation.as_deref(), Some("replace"));
+        assert_eq!(options.rationale.as_deref(), Some("tighten"));
     }
 
     #[test]
@@ -2633,6 +2889,9 @@ mod tests {
             "app document replace",
             "app agent context",
             "app agent replace",
+            "app review context",
+            "app review propose",
+            "app review comment",
             "github create",
             "github unlink",
             "github logout",
