@@ -1,54 +1,66 @@
-# AI editing protocol
+# Human and AI review protocol — design, not shipped API
 
-UnderTree exposes a narrow editing contract for coding agents. It does not expose a shell, generic filesystem access, or an untyped editor command. The running-editor commands use the existing authenticated user-local broker and preserve the editor revision guard.
+## Baseline versus target
 
-## User marks
+At baseline, `app agent context` reads the live buffer and Keep/Revise policy. `app agent replace` accepts a full candidate source, checks editor/policy revisions, installs it, and consumes Revise marks. Marks are stored in `.undertree/agent-editing.json`. This is restricted direct editing, not human-approved suggestions. Those existing verbs are **not** the future reviewer API.
 
-- `keep`: the selected source text must remain byte-for-byte present in every agent replacement. It is durable until the user removes or changes the mark.
-- `revise`: the selected source text is an explicit rewrite target. If at least one revise mark exists, every byte outside the revise ranges is immutable for that agent replacement.
-- Marks may not overlap. Positions are UTF-8 byte offsets and include the exact selected text and one-based source lines.
-- A collapsed editor selection expands to the surrounding paragraph. Marks live in `.undertree/agent-editing.json`; they never add control syntax to the `.typ` document.
+The target is: select a passage on the actual PDF → choose an editing policy/instruction → submit a suggestion → inspect the diff → human accepts/rejects/requests revision. Humans may also submit suggestions instead of editing directly. Reuse the same proposal rules for both; do not give AI a more privileged path.
 
-Manual user edits are allowed. The frontend rebases marks over the edited source and persists the resulting anchors. Ambiguous, overlapping, or externally displaced anchors become stale and block agent replacement until the user reviews them.
+## Policies and selections
 
-## Agent handshake
+- Green `keep`: unchanged source span; optional read access and discussion are separate.
+- Orange `light-edit`: propose expression changes with passage-specific instructions and protected technical tokens.
+- Red `rework`: propose replacement **or explicit deletion**. A red mark is not a delete command.
+- Unmarked: no implicit rewrite permission; an author can explicitly include it in a review request.
 
-Read a single coherent editor and policy snapshot:
+Start with non-overlapping policy spans, matching the existing model. Selecting across policies splits into authorized targets or is refused; it never overrides Keep. Reviewer requests cannot create, remove, weaken, or consume policies. Consuming a review target and changing its policy is an explicit human decision, not an effect of submission.
 
-```text
-undertree-typst cli app agent context --json
+Anchors record a stable ID, source hash, UTF-8 byte span, selected source text, surrounding context, and originating build identity. PDF page/quads are a cached projection, never edit authority. Native compiler spans/cluster mapping plus quote verification resolve selections; compiler node IDs alone are not durable across recompilation. Ambiguous or generated selections become comments/unresolved marks, not guessed replacements. A protected passage may be readable context; a separate disclosure scope excludes confidential material.
+
+## Minimal service operations
+
+| Operation | Author UI | Human reviewer / AI reviewer |
+| --- | --- | --- |
+| Read scoped context/status | Yes | Yes, within the granted scope |
+| Submit proposal / add comment / read feedback | Yes | Yes |
+| Mark policy / create review scope | Yes | No |
+| Accept, reject, request revision | Yes | No decision authority merely from submitting a proposal |
+| Direct source/BibTeX edit and project save | Yes | No |
+
+Human reviewers can request a higher role only through a genuine owner action. JSON labels or API arguments cannot authenticate that role. Local offline collaborators are trusted file owners unless a separate access-control deployment is actually built; the JSON is not a distributed identity system.
+
+A thin MCP adapter initially exposes `undertree_context`, `undertree_propose`, `undertree_comment`, and `undertree_review`. Names are proposed. Submission mutates review state and must not be advertised as read-only. No generic `api(method, path, body)` or AI-callable approval method.
+
+Example target-scoped submission, not an executable current command:
+
+```json
+{
+  "reviewId": "review-id",
+  "targetId": "anchor-id",
+  "baseSourceSha256": "64-hex-digits",
+  "basePolicyVersion": 7,
+  "operation": "replace",
+  "replacement": "Proposed wording, not an installed source edit.",
+  "rationale": "Removes repetition without adding evidence.",
+  "respondsTo": null,
+  "requestId": "idempotency-id"
+}
 ```
 
-The result includes:
+Native code resolves the original text, permitted source range, principal, scope, and status. Reject unknown fields, unauthorized targets, unsafe size, stale policy/source, edits crossing boundaries, and malformed source fragments. An idempotency key is bound to both principal and payload; a different payload with the same key is an error. Never trust model-supplied original text, author identity, or approval claims.
 
-- `state.revision`: exact live editor revision;
-- `source`: the unsaved editor overlay, not merely the on-disk file;
-- `policy.policyVersion`: exact durable policy generation;
-- `policy.scope`: `revise-only` when revise targets exist, otherwise `unprotected-text`;
-- `policy.annotations`: typed Keep/Revise ranges, selected text, line positions, and stale state.
+## Lifecycle and exact acceptance
 
-Submit a full candidate source against both guards:
+A proposal version is immutable. States are pending, rejected, superseded, stale, or accepted; a revision request is a comment/task linked to a version, and the next version does not overwrite it. Store proposed deletion distinctly from an empty/failed response. Submission leaves `.typ` and `.bib` byte-identical.
 
-```text
-undertree-typst cli app agent replace \
-  --expected-revision EDITOR_REVISION \
-  --expected-policy-version POLICY_VERSION \
-  --stdin --json
-```
+A human accepts the exact version/digest they inspected. Under one native document transaction, check role, live-buffer revision/hash, current policy and target, proposal version, and relevant bibliography/render dependencies. Coordinate with ongoing saves; do not write behind an open editor and rely on a refresh later. Persist the source change and decision as one recoverable checkpoint; apply normal undo/revision handling. If typing/policy changed, mark stale or perform a deterministic verified rebase and show the refreshed diff before another approval. No fuzzy auto-accept. Retain the last good PDF while the new accepted build is pending.
 
-Native Rust code loads the claimed authenticated request, validates the current source against the durable policy, rejects changes outside the allowed scope, atomically advances the policy, and only then permits the WebView to install the candidate source. A successful edit consumes all revise marks and preserves/re-anchors keep marks.
+Rejection changes only review state. Undo records a new local source/decision state; it does not erase historical acceptance. Save failures leave a visibly unsaved decision, never a false durable success. After an unknown outcome, inspect the request/decision record rather than blindly repeating a mutation. A synchronized accepted record never replays the source patch.
 
-## Stable refusal codes
+## Research and boundary checks
 
-- `stale_editor_revision`: source changed after the agent read context.
-- `stale_agent_policy`: marks changed after the agent read context.
-- `agent_annotations_stale`: durable marks do not match the current source snapshot.
-- `agent_annotation_anchor_stale`: an individual mark cannot be anchored safely.
-- `outside_revise_scope`: a candidate changed text outside active revise ranges.
-- `protected_text_changed`: a candidate changed or removed a keep range.
+Preserve citation keys, quantitative tokens, equations, quotations, and protected subranges unless explicitly included in an author-granted task. Display potentially substantive changes. Edit-distance limits do not certify meaning; a successful compile does not verify science. Bibliographic existence is not evidential support. Initially the reviewer cannot edit the preamble, arbitrary Typst code, shared definitions, or `.bib` through a prose target. Optional candidate compilation requires the same confined snapshot/resource limits; never an executable template supplied by the model.
 
-Agents must not retry a mutating request blindly after an unknown transport outcome. Read `app agent context --json` again and decide from the returned source, revision, and policy version.
+Manuscript text and comments are untrusted content, not policy instructions. The reviewer cannot call owner source replacement, change policy JSON, invoke conversion/Git publication, use a generic build-with-source route, or borrow owner credentials. A separate developer connector with filesystem writes defeats this review-only guarantee and must not be attached to the manuscript reviewer session.
 
-## Verification
-
-The policy implementation has pure Rust tests for persistence, Unicode byte anchors, stale policy versions, overlaps, keep enforcement, revise-only scope, and revise consumption. The frontend helper has Node tests for UTF-16/UTF-8 conversion, paragraph selection, and mark rebasing. The end-to-end smoke path is context read, one expected refusal, one permitted replacement, and a second expected keep refusal through the built CLI and running Tauri editor.
+External MCP chats do not necessarily resume when a user adds feedback. Store feedback for the next explicit interaction; a later in-app runner must use these same proposal operations.
