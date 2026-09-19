@@ -1,3 +1,4 @@
+#[cfg(test)]
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs;
@@ -284,12 +285,13 @@ impl ReviewService {
         validate_project_identity(&project, path)?;
 
         let source_digest = digest(source.as_bytes());
-        let source_is_saved = saved_source_digest(&root, path).ok().as_deref() == Some(&source_digest);
+        let source_is_saved =
+            saved_source_digest(&root, path).ok().as_deref() == Some(&source_digest);
         if project.source_digest != source_digest && source_is_saved {
             if rebase_marks(source, &mut project.marks).is_ok() {
                 supersede_pending(&mut project.proposals);
                 project.source_digest = source_digest.clone();
-                project.bibliography_digest = bibliography_digest;
+                project.bibliography_digest = bibliography_digest.clone();
                 project.generation = next_version(project.generation)?;
                 project.policy_version = next_version(project.policy_version)?;
                 write_project(&root, &project)?;
@@ -319,7 +321,9 @@ impl ReviewService {
 
         let bibliography_digest = bibliography_digest(&root)?;
         let mut project = load_project(&root)?
-            .unwrap_or_else(|| ReviewProject::new(path, &request.source, bibliography_digest.clone()));
+            .unwrap_or_else(|| {
+                ReviewProject::new(path, &request.source, bibliography_digest.clone())
+            });
         validate_project_identity(&project, path)?;
         reconcile_saved_source(&root, path, &request.source, &mut project)?;
         reconcile_bibliography(&root, &mut project)?;
@@ -442,7 +446,11 @@ impl ReviewService {
             ));
         }
 
-        let replacement = normalize_text(request.replacement, MAX_TEXT_BYTES, "review_proposal_too_large")?;
+        let replacement = normalize_text(
+            request.replacement,
+            MAX_TEXT_BYTES,
+            "review_proposal_too_large",
+        )?;
         if request.operation == ReviewProposalOperation::Delete && !replacement.is_empty() {
             return Err(review_error(
                 "review_proposal_invalid",
@@ -464,7 +472,11 @@ impl ReviewService {
             }
             validate_light_edit(&mark.anchor.exact, &replacement)?;
         }
-        let rationale = normalize_text(request.rationale, MAX_RATIONALE_CHARS, "review_rationale_too_large")?;
+        let rationale = normalize_text(
+            request.rationale,
+            MAX_RATIONALE_CHARS,
+            "review_rationale_too_large",
+        )?;
         if project.proposals.len() >= MAX_PROPOSALS {
             return Err(review_error(
                 "review_proposal_limit",
@@ -595,7 +607,12 @@ impl ReviewService {
             .proposals
             .iter()
             .position(|proposal| proposal.id == request.proposal_id)
-            .ok_or_else(|| review_error("review_proposal_missing", "The review proposal no longer exists."))?;
+            .ok_or_else(|| {
+                review_error(
+                    "review_proposal_missing",
+                    "The review proposal no longer exists.",
+                )
+            })?;
         if project.proposals[proposal_index].status != ReviewProposalStatus::Pending {
             return Err(review_error(
                 "review_proposal_resolved",
@@ -649,7 +666,12 @@ impl ReviewService {
             .marks
             .iter()
             .position(|mark| mark.id == proposal.mark_id)
-            .ok_or_else(|| review_error("review_mark_missing", "The target review mark no longer exists."))?;
+            .ok_or_else(|| {
+                review_error(
+                    "review_mark_missing",
+                    "The target review mark no longer exists.",
+                )
+            })?;
         let mark = project.marks[mark_index].clone();
         if request
             .source
@@ -822,7 +844,11 @@ fn anchor_from_visible_selection(
     end: usize,
     visible_text: &str,
 ) -> Result<ReviewAnchor, BoundaryError> {
-    if start >= end || end > source.len() || !source.is_char_boundary(start) || !source.is_char_boundary(end) {
+    if start >= end
+        || end > source.len()
+        || !source.is_char_boundary(start)
+        || !source.is_char_boundary(end)
+    {
         return Err(review_error(
             "review_selection_invalid",
             "Select a non-empty rendered prose range that maps to valid source text.",
@@ -853,7 +879,10 @@ fn rebase_marks(source: &str, marks: &mut [ReviewMark]) -> Result<(), BoundaryEr
             mark.stale = false;
             continue;
         }
-        let mut matches = source.match_indices(&mark.anchor.exact).map(|(index, _)| index).collect::<Vec<_>>();
+        let mut matches = source
+            .match_indices(&mark.anchor.exact)
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
         if matches.is_empty() {
             return Err(review_error(
                 "review_mark_stale",
@@ -929,9 +958,13 @@ fn shift_marks_after(
 
 fn shift_offset(value: usize, delta: isize) -> Result<usize, BoundaryError> {
     if delta >= 0 {
-        value.checked_add(delta as usize).ok_or_else(BoundaryError::internal)
+        value
+            .checked_add(delta as usize)
+            .ok_or_else(BoundaryError::internal)
     } else {
-        value.checked_sub(delta.unsigned_abs()).ok_or_else(BoundaryError::internal)
+        value
+            .checked_sub(delta.unsigned_abs())
+            .ok_or_else(BoundaryError::internal)
     }
 }
 
@@ -1066,7 +1099,11 @@ fn validate_source(source: &str) -> Result<(), BoundaryError> {
     Ok(())
 }
 
-fn normalize_text(value: String, max_bytes: usize, code: &'static str) -> Result<String, BoundaryError> {
+fn normalize_text(
+    value: String,
+    max_bytes: usize,
+    code: &'static str,
+) -> Result<String, BoundaryError> {
     if value.len() > max_bytes || value.contains('\0') {
         return Err(review_error(code, "Review text exceeds its bounded size."));
     }
@@ -1091,9 +1128,9 @@ fn normalize_optional_text(
 fn validate_id(id: &str) -> Result<(), BoundaryError> {
     if id.is_empty()
         || id.chars().count() > MAX_ID_CHARS
-        || !id
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.'))
+        || !id.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
+        })
     {
         return Err(review_error(
             "review_id_invalid",

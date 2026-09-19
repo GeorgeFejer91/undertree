@@ -41,7 +41,6 @@ typst = "0.15.1"
 typst-kit = { version = "0.15.1", default-features = false, features = ["datetime", "embedded-fonts"] }
 typst-layout = "0.15.1"
 typst-pdf = "0.15.1"
-typst-svg = "0.15.1"
 zeroize = "1.9.0"
 zip = { version = "=7.0.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
