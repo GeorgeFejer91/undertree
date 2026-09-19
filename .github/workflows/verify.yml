@@ -30,16 +30,16 @@ jobs:
           rustup toolchain install 1.92.0 --profile minimal --component rustfmt,clippy
           rustup override set 1.92.0
 
+      - name: Install local UI dependency and build bundled frontend
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm run build:web
+
       - name: Check formatting
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 
       - name: Check Rust and Tauri integration
         run: cargo check --locked --manifest-path src-tauri/Cargo.toml
-
-      - name: Install local UI dependency and build bundled frontend
-        run: |
-          npm install --ignore-scripts --no-audit --no-fund
-          npm run build:web
 
       - name: Check frontend JavaScript
         run: |

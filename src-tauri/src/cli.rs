@@ -45,8 +45,6 @@ Usage:
   undertree-typst [cli] app document read [--timeout SECONDS] [--json]
   undertree-typst [cli] app document replace --expected-revision N --stdin [--timeout SECONDS] [--json]
   undertree-typst [cli] app document save [--timeout SECONDS] [--json]
-  undertree-typst [cli] app agent context [--timeout SECONDS] [--json]
-  undertree-typst [cli] app agent replace --expected-revision N --expected-policy-version N --stdin [--timeout SECONDS] [--json]
   undertree-typst [cli] app review context [--timeout SECONDS] [--json]
   undertree-typst [cli] app review propose --mark-id ID --proposal-id ID --operation replace|delete --expected-policy-version N [--rationale TEXT] --stdin [--timeout SECONDS] [--json]
   undertree-typst [cli] app review comment --mark-id ID --comment-id ID [--proposal-id ID] --expected-policy-version N --stdin [--timeout SECONDS] [--json]
@@ -1019,6 +1017,7 @@ fn run_project(arguments: &[OsString]) -> Result<(), CliError> {
                     category,
                     "typst"
                         | "bibliography"
+                        | "review"
                         | "generated-latex"
                         | "latex"
                         | "pdf"
@@ -1027,7 +1026,7 @@ fn run_project(arguments: &[OsString]) -> Result<(), CliError> {
                 )
             {
                 return Err(CliError::Usage(
-                    "--category must be typst, bibliography, generated-latex, latex, pdf, image, or other."
+                    "--category must be typst, bibliography, review, generated-latex, latex, pdf, image, or other."
                         .into(),
                 ));
             }

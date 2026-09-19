@@ -4,7 +4,7 @@
   "version": "0.3.0",
   "scripts": {
     "build:web": "node scripts/build-web.mjs",
-    "check:web": "node --check web/app.js && node --check web/review-ui.js && node --check web/review-selection.js && node --check web/ui-fit.js && node --test web/citation-search.test.cjs web/agent-annotations.test.cjs web/typst-editing.test.cjs web/review-selection.test.cjs"
+    "check:web": "node --check web/app.js && node --check web/review-ui.js && node --check web/review-selection.js && node --check web/ui-fit.mjs && node --test web/citation-search.test.cjs web/agent-annotations.test.cjs web/typst-editing.test.cjs web/review-selection.test.cjs"
   },
   "dependencies": {
     "@chenglou/pretext": "0.0.9"

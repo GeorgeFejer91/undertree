@@ -2498,7 +2498,7 @@ async function createGithubProject() {
   const owner = githubStatus.account?.login || "the connected account";
   const accepted = await showGithubConfirmation({
     title: `Create ${owner}/${name}?`,
-    message: `UnderTree will create a ${isPrivate ? "private" : "public"} GitHub repository, ask for a parent folder, create a new “${name}” local child folder with main.typ, make the initial commit, and push it to GitHub. The local folder becomes the source of truth.`,
+    message: `UnderTree will create a ${isPrivate ? "private" : "public"} GitHub repository, ask for a parent folder, create a new “${name}” local child folder with paper.typ, paper.bib, and paper.json, make the initial commit, and push it to GitHub. The local folder becomes the source of truth.`,
     confirmLabel: "Choose parent folder",
     destructive: false,
   });
@@ -2526,7 +2526,7 @@ async function createGithubProject() {
     if (requested !== githubOperationRequest || requestedNavigation !== navigationRequest) return;
     setGithubFeedback(
       statusRefreshed
-        ? `Created ${owner}/${name}, pushed main.typ, and selected its local source-of-truth folder.`
+        ? `Created ${owner}/${name}, pushed the three-file writing project, and selected its local source-of-truth folder.`
         : `Created ${owner}/${name} and its local project. GitHub status will refresh when the native service is available.`,
       statusRefreshed ? "success" : "warning",
     );
