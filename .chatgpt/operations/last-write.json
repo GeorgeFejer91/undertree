@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "operation_id": "write-2026-09-19T12-57-17-186Z-c7ceacfd",
+  "tool": "repo_write_changes",
+  "repo_id": "folder-c4f8c5223ba1f297",
+  "timestamp": "2026-09-19T12:57:17.187Z",
+  "head_sha_before": "1864bcac882da0cfe0587f33306395105c640240",
+  "head_sha_after": "1864bcac882da0cfe0587f33306395105c640240",
+  "touched_paths": [
+    "For-AI/README.md",
+    "For-AI/ui-layout.md"
+  ],
+  "changed_paths": [
+    "For-AI/README.md",
+    "For-AI/ui-layout.md"
+  ],
+  "created_paths": [
+    "For-AI/ui-layout.md"
+  ],
+  "modified_paths": [
+    "For-AI/README.md"
+  ],
+  "counts": {
+    "requested": 2,
+    "changed": 2,
+    "created": 1,
+    "unchanged": 0
+  },
+  "summary": "Applied 2 changes across 2 files.",
+  "files": [
+    {
+      "path": "For-AI/README.md",
+      "action": "write",
+      "changed": true,
+      "created": false,
+      "old_sha256": "269ae309d98a119812d7b714bc4072c41776ee51427e08c85f5a2a17b5d15b49",
+      "new_sha256": "c4e87107c807df214fbc20a6bf3c2200785ebc496cd4733eb9345f56f517fbe0"
+    },
+    {
+      "path": "For-AI/ui-layout.md",
+      "action": "write",
+      "changed": true,
+      "created": true,
+      "new_sha256": "ba65fc255ecdfc5cd086bc3b9d23e6203638409cef6cae643e3d7bfd216f15a4"
+    }
+  ],
+  "rollback_hint": {
+    "executable": false,
+    "reason": "First-class rollback is not implemented yet; use reviewed git restore or cleanup workflows.",
+    "paths": [
+      {
+        "path": "For-AI/README.md",
+        "strategy": "restore_tracked",
+        "reason": "Modified tracked path can be restored through reviewed git restore workflow."
+      },
+      {
+        "path": "For-AI/ui-layout.md",
+        "strategy": "cleanup_created",
+        "reason": "Created path can be removed through reviewed cleanup workflow."
+      }
+    ]
+  }
+}
