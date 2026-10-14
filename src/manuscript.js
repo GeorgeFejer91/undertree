@@ -1,7 +1,7 @@
 import './manuscript.css';
 import { basicSetup } from 'codemirror';
 import { EditorView, Decoration } from '@codemirror/view';
-import { EditorState, StateEffect, StateField } from '@codemirror/state';
+import { EditorState, StateEffect, StateField, Compartment } from '@codemirror/state';
 import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
 import { ReviewSession } from '../modules/frontend/review-session.js';
@@ -10,6 +10,10 @@ import { observeReviewText } from '../modules/frontend/review-text-layout.js';
 import { setupWindowChrome } from '../modules/frontend/window-chrome.js';
 import { setupConnectionManager } from './connection-manager.js';
 import { LatestCompileScheduler } from '../modules/frontend/latest-compile-scheduler.js';
+import { manuscriptTree, clampPaneWidth } from '../modules/frontend/manuscript-workspace.js';
+import { ManuscriptPdfViewer } from '../modules/frontend/manuscript-pdf-viewer.js';
+import { undo, redo, selectAll } from '@codemirror/commands';
+import { openSearchPanel } from '@codemirror/search';
 import * as pdfjs from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -32,6 +36,25 @@ const explicitCompiles = [];
 let pdfLoadingTask = null;
 let pdfBytes = null;
 let pdfGeneration = 0;
+let windowClosing = false;
+let windowFocus = null;
+let reviewCursor = -1;
+let showingLogs = false;
+const expandedFolders = new Set();
+try {
+  const folders = JSON.parse(localStorage.getItem('undertree.expanded-folders') || '[]');
+  if (Array.isArray(folders)) for (const folder of folders.slice(-500)) if (typeof folder === 'string') expandedFolders.add(folder);
+} catch { /* Storage availability does not affect editing. */ }
+const workspace = document.querySelector('.review-workspace');
+const pdfViewer = new ManuscriptPdfViewer({
+  scroller: $('typst-preview'), pages: $('typst-pages'), onError: error => status(error.message, true),
+  onChange: ({ page, total, scale, fit }) => {
+    $('pdf-page-number').value = String(page); $('pdf-page-number').max = String(total);
+    $('pdf-page-count').textContent = `of ${total}`; $('pdf-zoom-label').textContent = `${Math.round(scale * 100)}%${fit ? ' · fit' : ''}`;
+    $('pdf-previous').disabled = page <= 1; $('pdf-next').disabled = page >= total;
+  },
+});
+const windowEditing = new Compartment();
 const compileScheduler = new LatestCompileScheduler({delayMs:700,isBusy:()=>compiling,run:async key=>{
   const session = sessions.get(key);
   if (session && session === active) { try { await compileSession(session); } catch (error) { status(error.message,true); } }
@@ -51,11 +74,58 @@ function element(tag, text, className = '') {
   const node = document.createElement(tag); node.textContent = text; node.className = className; return node;
 }
 function status(message, error = false) { $('review-status').textContent = message; $('review-status').classList.toggle('error', error); }
+function windowEditorAccess() { return [EditorState.readOnly.of(windowClosing), EditorView.editable.of(!windowClosing)]; }
+function setWindowClosing(busy) {
+  if (busy && view?.composing) throw new Error('Finish the current text composition before closing the window.');
+  if (busy) windowFocus = document.activeElement;
+  windowClosing = busy;
+  for (const region of document.querySelectorAll('.review-topbar,.review-workspace,.mobile-views,dialog')) region.inert = busy;
+  if (view) view.dispatch({ effects: windowEditing.reconfigure(windowEditorAccess()) });
+  if (!busy) { if (windowFocus?.isConnected) windowFocus.focus(); windowFocus = null; }
+}
 function task(callback) { return async event => { try { await callback(event); } catch (error) { status(error.message || String(error), true); } }; }
 function closeDialogs() { for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close(); }
 function mobileView(name) {
   document.querySelector('.review-workspace').dataset.mobileView = name;
   for (const button of document.querySelectorAll('[data-view]')) button.setAttribute('aria-pressed', String(button.dataset.view === name));
+}
+function reviewPanel(open) {
+  workspace.dataset.reviewOpen = String(open);
+  $('review-toggle').setAttribute('aria-pressed', String(open));
+  if (open && innerWidth <= 900) mobileView('review');
+  else if (!open && workspace.dataset.mobileView === 'review') mobileView('editor');
+}
+function showPane(name) {
+  workspace.dataset[`${name === 'files' ? 'files' : name}Collapsed`] = 'false';
+  mobileView(name);
+}
+function renderOutline() {
+  const outline = $('manuscript-outline'); outline.replaceChildren();
+  if (!active) return;
+  let entries;
+  if (active.path.endsWith('.typ')) entries = [...active.content.matchAll(/^(={1,6})\s+(.+)$/gm)].slice(0, 200).map(match => ({ title: match[2], from: match.index, to: match.index + match[0].length }));
+  else if (/\.html?$/.test(active.path)) entries = [...active.content.matchAll(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/gi)].slice(0, 200).map(match => ({ title: new DOMParser().parseFromString(match[1], 'text/html').body.textContent, from: match.index, to: match.index + match[0].length }));
+  else entries = [];
+  for (const entry of entries) outline.append(actionButton(entry.title, () => selectAnchor(entry), 'outline-button'));
+  if (!entries.length) outline.append(element('p', 'This source has no headings.', 'file-help'));
+}
+function treeMode(outline) {
+  showPane('files'); $('manuscript-files').hidden = outline; $('manuscript-outline').hidden = !outline;
+  $('files-heading').textContent = outline ? 'Outline' : 'Files';
+  $('rail-files').setAttribute('aria-pressed', String(!outline)); $('rail-outline').setAttribute('aria-pressed', String(outline));
+  if (outline) renderOutline();
+}
+function reviewAnchors() {
+  if (!active) return [];
+  return [...active.snapshot.review.markers, ...active.snapshot.review.suggestions.filter(s => s.status === 'pending')].filter(item => !item.anchor.stale).sort((a, b) => a.anchor.from - b.anchor.from);
+}
+function navigateReview(delta) {
+  const entries = reviewAnchors(); if (!entries.length) return;
+  reviewCursor = reviewCursor < 0 ? (delta < 0 ? entries.length - 1 : 0) : (reviewCursor + delta + entries.length) % entries.length;
+  const item = entries[reviewCursor]; reviewPanel(true); selectAnchor(item.anchor);
+  const card = [...$('review-list').querySelectorAll('[data-review-id]')].find(node => node.dataset.reviewId === item.id);
+  for (const node of $('review-list').querySelectorAll('[data-review-id]')) node.dataset.selected = String(node === card);
+  card?.scrollIntoView({ block: 'nearest' });
 }
 function keyFor(project, path) { return `${project}:${path}`; }
 function currentProject() { return projects.find(p => p.id === $('project-select').value); }
@@ -111,20 +181,13 @@ async function showPdf(result, session) {
   const loadingTask = pdfjs.getDocument({data:bytes.slice(),isEvalSupported:false,useSystemFonts:true});
   const pdf = await loadingTask.promise;
   if (generation !== pdfGeneration || session !== active) { await loadingTask.destroy(); return; }
-  const pages = document.createDocumentFragment();
-  let pixelBudget = 12_000_000;
-  for (let i=1;i<=Math.min(pdf.numPages,6);i++) {
-    const page = await pdf.getPage(i); const viewport = page.getViewport({scale:1});
-    if (viewport.width * viewport.height > pixelBudget) break;
-    pixelBudget -= viewport.width * viewport.height;
-    const canvas = document.createElement('canvas'); canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
-    await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
-    if (generation !== pdfGeneration || session !== active) { await loadingTask.destroy(); return; }
-    pages.append(canvas);
-  }
-  await pdfLoadingTask?.destroy(); pdfLoadingTask = loadingTask; pdfBytes = bytes;
-  $('typst-pages').replaceChildren(pages);
-  $('typst-preview-status').textContent = `${result.current && !session.dirty ? 'Current PDF' : 'Last good PDF · source changed'} · ${pdf.numPages} page${pdf.numPages===1?'':'s'}${pdf.numPages>6?' · first six shown; export for the full document':''}`;
+  await pdfLoadingTask?.destroy();
+  if (generation !== pdfGeneration || session !== active) { await loadingTask.destroy(); return; }
+  pdfViewer.clear(); pdfLoadingTask = loadingTask; pdfBytes = bytes;
+  $('pdf-toolbar').hidden = false;
+  await pdfViewer.setDocument(pdf);
+  if (generation !== pdfGeneration || session !== active || pdfLoadingTask !== loadingTask) return;
+  $('typst-preview-status').textContent = `${result.current && !session.dirty ? 'Current PDF' : 'Last good PDF · source changed'} · ${pdf.numPages} page${pdf.numPages===1?'':'s'}`;
   $('export-pdf').hidden = false;
 }
 async function compileSession(session, explicit = false) {
@@ -137,11 +200,15 @@ async function compileSession(session, explicit = false) {
     return;
   }
   compiling = true; $('typst-compile').textContent = 'Compiling…';
+  $('compile-log').textContent = `Compiling ${session.path} with Typst…`;
   try {
     const snapshot = await saveSession(session);
     const result = await request({action:'compile',project:session.project,path:session.path,revision:snapshot.review.revision});
     await showPdf(result,session);
+    $('compile-log').textContent = `Compiled ${session.path} successfully.\n${result.current && !session.dirty ? 'PDF matches the saved source.' : 'Newer source changes remain in the editor.'}`;
     status(result.current && !session.dirty ? 'Typst PDF compiled locally.' : 'Compiled preview retained; newer source still needs compilation.');
+  } catch (error) {
+    $('compile-log').textContent = error.message || String(error); status(error.message, true); throw error;
   } finally {
     compiling=false; $('typst-compile').textContent = 'Recompile';
     if (explicitCompiles.length) void task(() => compileSession(explicitCompiles.shift(),true))();
@@ -161,7 +228,7 @@ function renderTabs() {
       sessions.delete(keyFor(session.project,session.path));
       if (active === session) {
         view?.destroy();view=null;active=null;compileScheduler.cancel();
-        $('manuscript-source').replaceChildren();pdfGeneration+=1;await pdfLoadingTask?.destroy();pdfLoadingTask=null;pdfBytes=null;
+        $('manuscript-source').replaceChildren();pdfGeneration+=1;pdfViewer.clear();await pdfLoadingTask?.destroy();pdfLoadingTask=null;pdfBytes=null;
         const next=[...sessions.values()].find(s=>s.project===session.project);
         if (next) await openSession(next);
       }
@@ -169,10 +236,17 @@ function renderTabs() {
     });
     close.setAttribute('aria-label',`Close ${session.path}`);tab.append(button,close);$('manuscript-tabs').append(tab);
   }
+  requestAnimationFrame(() => {
+    const tabs = $('manuscript-tabs'); const selected = tabs.querySelector('[aria-selected="true"]')?.parentElement;
+    if (!selected) return;
+    const item = selected.getBoundingClientRect(); const bounds = tabs.getBoundingClientRect();
+    if (item.left < bounds.left) tabs.scrollLeft -= bounds.left - item.left;
+    else if (item.right > bounds.right) tabs.scrollLeft += item.right - bounds.right;
+  });
 }
 function selectAnchor(anchor) {
   if (!view || anchor.stale || anchor.to > view.state.doc.length) return;
-  mobileView('editor'); view.dispatch({ selection: { anchor: anchor.from, head: anchor.to }, scrollIntoView: true }); view.focus();
+  showPane('editor'); view.dispatch({ selection: { anchor: anchor.from, head: anchor.to }, scrollIntoView: true }); view.focus();
 }
 function actionButton(text, callback, className = '') {
   const button = element('button', text, className); button.dataset.measure = ''; button.onclick = task(callback); return button;
@@ -183,7 +257,9 @@ function renderReview() {
   if (sharingSession !== active) $('manuscript-share').checked = Boolean(active?.snapshot.shared);
   $('review-conflict').hidden = !active?.conflict;
   for (const id of ['manuscript-save','highlight-selection','palette-open','export-manuscript','highlight-rule']) $(id).disabled = !active;
-  if (!active) { list.append(element('p', 'Select text in the editor to add a highlight or reviewer instruction.', 'review-empty')); return; }
+  const noReviewPassages = !reviewAnchors().length;
+  $('review-previous').disabled = noReviewPassages; $('review-next').disabled = noReviewPassages;
+  if (!active) { $('typst-compile').hidden = true; $('pdf-toolbar').hidden = true; $('export-pdf').hidden = true; list.append(element('p', 'Select text in the editor to add a highlight or reviewer instruction.', 'review-empty')); return; }
   const review = active.snapshot.review;
   for (const id of ['highlight-rule', 'highlight-dialog-rule']) {
     const select = $(id); const previous = select.value; select.replaceChildren();
@@ -194,6 +270,7 @@ function renderReview() {
   for (const marker of review.markers) {
     const rule = review.rules.find(r => r.id === marker.rule);
     const card = element('article', '', 'review-card'); card.style.setProperty('--review-color', rule?.color || '#666666');
+    card.dataset.reviewId = marker.id; card.dataset.sourcePosition = String(marker.anchor.from);
     const heading = element('h3', rule?.label || 'Highlight'); heading.dataset.measure = ''; card.append(heading);
     card.append(element('blockquote', marker.anchor.quote));
     if (rule?.prompt || marker.prompt) card.append(element('p', [rule?.prompt, marker.prompt].filter(Boolean).join(' '), 'rationale'));
@@ -208,6 +285,7 @@ function renderReview() {
   if (!pending.length) list.append(element('p', 'Agent suggestions will appear here after you share this manuscript and connect ChatGPT. Your text changes only when you accept.', 'review-empty'));
   for (const suggestion of pending) {
     const card = element('article', '', 'review-card suggestion-card'); card.style.setProperty('--review-color', suggestion.color);
+    card.dataset.reviewId = suggestion.id; card.dataset.sourcePosition = String(suggestion.anchor.from);
     const heading = element('h3', 'Proposed wording'); heading.dataset.measure = ''; card.append(heading);
     card.append(element('blockquote', suggestion.anchor.quote), element('p', suggestion.replacement, 'replacement'), element('p', suggestion.rationale, 'rationale'));
     if (suggestion.prompt) card.append(element('p', suggestion.prompt, 'rationale'));
@@ -236,17 +314,18 @@ function renderReview() {
 import { Annotation } from '@codemirror/state';
 const authoritative = Annotation.define();
 async function openSession(session) {
+  if (active === session && view) return;
   if (active?.dirty) await saveSession(active);
-  if (active && view) active.editorState = view.state;
+  if (active && view) { active.editorState = view.state; active.editorScroll = { top: view.scrollDOM.scrollTop, left: view.scrollDOM.scrollLeft }; }
   clearTimeout(saveTimer); view?.destroy(); active = session;
-  pdfGeneration += 1; pdfBytes = null; await pdfLoadingTask?.destroy(); pdfLoadingTask = null;
+  pdfGeneration += 1; pdfBytes = null; pdfViewer.clear(); await pdfLoadingTask?.destroy(); pdfLoadingTask = null;
   $('manuscript-source').replaceChildren();
-  const extensions = [basicSetup, EditorView.lineWrapping, reviewField, EditorView.updateListener.of(update => {
+  const extensions = [basicSetup, EditorView.lineWrapping, reviewField, windowEditing.of(windowEditorAccess()), EditorView.updateListener.of(update => {
     if (!update.docChanged || update.transactions.some(t => t.annotation(authoritative))) return;
     session.edit(update.state.doc.toString());
     if (active === session) { $('save-label').textContent = 'Unsaved changes'; renderTabs(); }
     clearTimeout(saveTimer); saveTimer = setTimeout(() => task(() => saveSession(session))(), 450);
-    clearTimeout(previewTimer); previewTimer = setTimeout(preview, 250);
+    clearTimeout(previewTimer); previewTimer = setTimeout(() => { preview(); renderOutline(); }, 250);
     if (session.path.endsWith('.typ')) { $('typst-preview-status').textContent='Source changed · last good PDF retained'; compileScheduler.request(keyFor(session.project,session.path)); }
   })];
   if (/\.html?$/i.test(session.path)) extensions.push(html());
@@ -254,13 +333,20 @@ async function openSession(session) {
   let editorState = session.editorState;
   if (editorState && editorState.doc.toString() !== session.content) editorState = editorState.update({changes:{from:0,to:editorState.doc.length,insert:session.content},annotations:authoritative.of(true)}).state;
   view = new EditorView({ state: editorState || EditorState.create({ doc: session.content, extensions }), parent: $('manuscript-source') });
-  renderTabs(); renderReview(); decorations(); preview(); mobileView('editor');
+  if (session.editorScroll) requestAnimationFrame(() => { if (active === session && view) { view.scrollDOM.scrollTop = session.editorScroll.top; view.scrollDOM.scrollLeft = session.editorScroll.left; } });
+  renderTabs(); renderReview(); decorations(); preview(); renderOutline(); showPane('editor');
   const typst = session.path.endsWith('.typ');
   $('typst-compile').hidden = !typst; $('tex-import').hidden = !session.path.endsWith('.tex');
-  $('manuscript-preview').hidden = typst; $('typst-preview').hidden = !typst; $('export-pdf').hidden = true;
+  $('manuscript-preview').hidden = typst || showingLogs; $('typst-preview').hidden = !typst || showingLogs; $('export-pdf').hidden = true; $('pdf-toolbar').hidden = true; $('typst-preview-status').hidden = !typst;
   if (typst) { $('typst-pages').replaceChildren(); $('typst-preview-status').textContent='Compile this Typst manuscript to see its PDF.'; const result=await request({action:'pdf',project:session.project,path:session.path}); await showPdf(result,session); }
   $('save-label').textContent = session.dirty ? 'Unsaved changes' : 'Saved locally';
-  for (const button of document.querySelectorAll('.file-button')) button.setAttribute('aria-current', String(button.dataset.path === session.path));
+  for (const button of document.querySelectorAll('.file-button')) {
+    button.setAttribute('aria-current', String(button.dataset.path === session.path));
+    if (button.dataset.path === session.path) {
+      let folder = button.closest('.file-folder');
+      while (folder) { folder.open = true; folder = folder.parentElement.closest('.file-folder'); }
+    }
+  }
 }
 async function openFile(path) {
   const project = $('project-select').value;
@@ -275,9 +361,23 @@ async function loadFiles() {
   const project = $('project-select').value; $('manuscript-files').replaceChildren();
   if (!project) return;
   const files = await request({ action: 'files', project });
-  for (const path of files) {
-    const button = actionButton(path, () => openFile(path), 'file-button'); button.dataset.path = path; $('manuscript-files').append(button);
+  function appendTree(nodes, parent) {
+    for (const node of nodes) {
+      if (node.file) {
+        const button = actionButton(node.name, () => openFile(node.path), 'file-button'); button.dataset.path = node.path; button.title = node.path; button.setAttribute('aria-current', String(active?.path === node.path)); parent.append(button);
+      } else {
+        const folder = element('details', '', 'file-folder'); const key = `${project}:${node.path}`;
+        folder.open = expandedFolders.has(key); const summary = element('summary', node.name); summary.dataset.measure = ''; summary.setAttribute('aria-label', `Folder ${node.path}`);
+        folder.ontoggle = () => {
+          if (folder.open) expandedFolders.add(key); else expandedFolders.delete(key);
+          while (expandedFolders.size > 500) expandedFolders.delete(expandedFolders.values().next().value);
+          try { localStorage.setItem('undertree.expanded-folders', JSON.stringify([...expandedFolders])); } catch { /* Offline storage may be unavailable. */ }
+        };
+        const children = element('div', '', 'tree-children'); appendTree(node.children, children); folder.append(summary, children); parent.append(folder);
+      }
+    }
   }
+  appendTree(manuscriptTree(files), $('manuscript-files'));
   if (!files.length) $('manuscript-files').append(element('p', 'No manuscript sources yet. Use + to create one.', 'file-help'));
 }
 async function loadProjects(selected) {
@@ -324,7 +424,7 @@ $('highlight-selection').onclick = task(async () => {
   selection = { session: active, from: selected.from, to: selected.to, quote: view.state.sliceDoc(selected.from, selected.to), version: active.version };
   $('highlight-quote').textContent = selection.quote; $('highlight-dialog-rule').value = $('highlight-rule').value; $('highlight-prompt').value = ''; $('highlight-dialog').showModal();
 });
-$('highlight-form').onsubmit = task(async event => { event.preventDefault(); if (!selection || selection.session !== active || selection.version !== active.version) throw {message:'The selection changed. Select the passage again.'}; await active.mutate('mark', { from: selection.from, to: selection.to, rule: $('highlight-dialog-rule').value, prompt: $('highlight-prompt').value }); closeDialogs(); renderReview(); decorations(); queueSync(active.project); });
+$('highlight-form').onsubmit = task(async event => { event.preventDefault(); if (!selection || selection.session !== active || selection.version !== active.version) throw {message:'The selection changed. Select the passage again.'}; await active.mutate('mark', { from: selection.from, to: selection.to, rule: $('highlight-dialog-rule').value, prompt: $('highlight-prompt').value }); closeDialogs(); renderReview(); decorations(); reviewPanel(true); queueSync(active.project); });
 $('palette-open').onclick = task(async () => { if (!active) return; palette = structuredClone(active.snapshot.review.rules); paletteRows(); $('palette-dialog').showModal(); });
 $('rule-add').onclick = () => { if (palette.length >= 24) return; palette.push({ id: crypto.randomUUID(), label: 'Custom instruction', color: '#8295d2', action: 'prompt', prompt: '' }); paletteRows(); };
 $('palette-form').onsubmit = task(async event => { event.preventDefault(); if (!active) return; await active.mutate('palette', { rules: palette }); closeDialogs(); renderReview(); decorations(); queueSync(active.project); });
@@ -366,10 +466,83 @@ const connections = setupConnectionManager({
 $('git-open').onclick = task(async () => { const project = currentProject(); if (!project) throw {message:'Choose a project first.'}; $('github-repository').value = project.repository; $('github-auto').checked = project.autoSync; try { const result = await request({action:'git_status',project:project.id}); $('github-status').textContent = `Branch: ${result.branch}\n${result.status || 'Working tree clean'}`; } catch { $('github-status').textContent = 'Connect this local folder to an existing GitHub repository.'; } $('git-dialog').showModal(); });
 $('git-form').onsubmit = task(async event => { event.preventDefault(); const project = currentProject(); await request({action:'bind_github',project:project.id,repository:$('github-repository').value,auto_sync:$('github-auto').checked}); pausedSync.delete(project.id); await loadProjects(project.id); status('GitHub repository connected.'); });
 $('github-sync-now').onclick = task(async () => { if (active) await saveSession(active); const project = currentProject(); const result = await request({action:'sync',project:project.id}); pausedSync.delete(project.id); status(result.message); $('github-status').textContent = result.message; });
-document.addEventListener('keydown', task(async event => { if ((event.ctrlKey || event.metaKey) && event.key === 's') { event.preventDefault(); if (active) await saveSession(active); } }));
+document.addEventListener('keydown', task(async event => {
+  if ((event.ctrlKey || event.metaKey) && event.key === 's') { event.preventDefault(); if (active) await saveSession(active); }
+  if (event.key === 'F5' || ((event.ctrlKey || event.metaKey) && event.key === 'Enter')) { event.preventDefault(); await compileSession(active, true); }
+  if (event.key === 'Escape') $('workspace-menu').open = false;
+}));
+
+$('review-toggle').onclick = () => reviewPanel(workspace.dataset.reviewOpen !== 'true');
+$('review-close').onclick = () => reviewPanel(false);
+$('review-previous').onclick = () => navigateReview(-1); $('review-next').onclick = () => navigateReview(1);
+$('rail-files').onclick = () => treeMode(false); $('rail-outline').onclick = () => treeMode(true);
+$('rail-editor').onclick = () => showPane('editor'); $('rail-preview').onclick = () => showPane('preview');
+$('files-collapse').onclick = () => { workspace.dataset.filesCollapsed = 'true'; };
+$('editor-collapse').onclick = () => { workspace.dataset.editorCollapsed = 'true'; workspace.dataset.previewCollapsed = 'false'; mobileView('preview'); };
+$('preview-collapse').onclick = () => { workspace.dataset.previewCollapsed = 'true'; workspace.dataset.editorCollapsed = 'false'; mobileView('editor'); };
+$('editor-search').onclick = () => { if (view) { showPane('editor'); openSearchPanel(view); } };
+$('pdf-previous').onclick = () => pdfViewer.go(pdfViewer.page - 1); $('pdf-next').onclick = () => pdfViewer.go(pdfViewer.page + 1);
+$('pdf-page-number').onchange = () => pdfViewer.go(Number($('pdf-page-number').value));
+$('pdf-zoom-out').onclick = () => pdfViewer.zoom(1 / 1.2); $('pdf-zoom-in').onclick = () => pdfViewer.zoom(1.2); $('pdf-fit-width').onclick = () => pdfViewer.fit();
+$('compile-log-toggle').onclick = () => {
+  showingLogs = !showingLogs; $('compile-log').hidden = !showingLogs; $('compile-log-toggle').setAttribute('aria-pressed', String(showingLogs));
+  $('manuscript-preview').hidden = showingLogs || active?.path.endsWith('.typ');
+  $('typst-preview').hidden = showingLogs || !active?.path.endsWith('.typ'); $('pdf-toolbar').hidden = showingLogs || !pdfBytes;
+};
+for (const button of document.querySelectorAll('[data-command]')) button.onclick = task(async () => {
+  const command = button.dataset.command; $('workspace-menu').open = false;
+  const triggers = { 'open-project': 'project-open', 'new-file': 'file-new', github: 'git-open', connections: 'connection-open', download: 'export-manuscript' };
+  if (triggers[command]) $(triggers[command]).click();
+  else if (['files', 'editor', 'preview'].includes(command)) showPane(command);
+  else if (command === 'review') reviewPanel(true);
+  else if (view) { showPane('editor'); ({ undo, redo, 'select-all': selectAll, find: openSearchPanel })[command]?.(view); view.focus(); }
+});
+document.addEventListener('pointerdown', event => { if (!$('workspace-menu').contains(event.target)) $('workspace-menu').open = false; });
+
+function resizeFiles(width) {
+  const available = workspace.clientWidth - 40;
+  const next = clampPaneWidth(width, available); workspace.style.setProperty('--files-size', `${next}px`);
+  $('files-splitter').setAttribute('aria-valuenow', String(Math.round(next))); $('files-splitter').setAttribute('aria-valuemax', String(Math.max(150, available - 400)));
+}
+function resizePreview(fraction) {
+  const next = Math.max(.2, Math.min(.8, fraction));
+  workspace.style.setProperty('--editor-size', `${next}fr`); workspace.style.setProperty('--preview-size', `${1 - next}fr`);
+  $('preview-splitter').setAttribute('aria-valuenow', String(Math.round(next * 100)));
+}
+for (const id of ['files-splitter', 'preview-splitter']) {
+  const splitter = $(id);
+  splitter.onpointerdown = event => {
+    if (event.button !== 0) return; event.preventDefault(); splitter.setPointerCapture(event.pointerId);
+    const move = event => {
+      if (id === 'files-splitter') resizeFiles(event.clientX - workspace.getBoundingClientRect().left - 40);
+      else {
+        const editor = document.querySelector('.manuscript-editor').getBoundingClientRect();
+        const preview = document.querySelector('.manuscript-preview').getBoundingClientRect();
+        const review = workspace.dataset.reviewOpen === 'true' ? document.querySelector('.manuscript-review').getBoundingClientRect().width : 0;
+        resizePreview((event.clientX - editor.left - review) / (preview.right - editor.left - review));
+      }
+    };
+    const finish = () => { splitter.removeEventListener('pointermove', move); splitter.removeEventListener('pointerup', finish); splitter.removeEventListener('lostpointercapture', finish); };
+    splitter.addEventListener('pointermove', move); splitter.addEventListener('pointerup', finish); splitter.addEventListener('lostpointercapture', finish);
+  };
+  splitter.onkeydown = event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home'].includes(event.key)) return; event.preventDefault();
+    const direction = event.key === 'ArrowLeft' ? -1 : 1;
+    if (id === 'files-splitter') resizeFiles(event.key === 'Home' ? 220 : Number(splitter.getAttribute('aria-valuenow')) + direction * 20);
+    else resizePreview(event.key === 'Home' ? .5 : Number(splitter.getAttribute('aria-valuenow')) / 100 + direction * .05);
+  };
+  splitter.ondblclick = () => id === 'files-splitter' ? resizeFiles(220) : resizePreview(.5);
+}
+new ResizeObserver(([entry]) => {
+  const { width, height } = entry.contentRect;
+  workspace.style.setProperty('--chrome-gap', `${Math.max(4, Math.min(9, width / 180, height / 70))}px`);
+  workspace.style.setProperty('--chrome-font-scale', String(Math.max(.9, Math.min(1, width / 700, height / 450))));
+  if (workspace.style.getPropertyValue('--files-size') && width > 900) resizeFiles(Number.parseFloat(workspace.style.getPropertyValue('--files-size')));
+}).observe(workspace);
 window.addEventListener('beforeunload', event => { if ([...sessions.values()].some(s => s.dirty || s.conflict)) { event.preventDefault(); event.returnValue = ''; } });
 await setupWindowChrome({
   status,
+  onClosing: setWindowClosing,
   canClose: () => ![...sessions.values()].some(session => session.dirty || session.conflict),
   beforeClose: async () => {
     clearTimeout(saveTimer);

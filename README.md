@@ -63,7 +63,11 @@ credentials, then choose explicit or optional automatic checkpoints.
 Synchronization includes UnderTree's pending manuscript/review files and stops
 on unrelated changes, staged work or divergence. A clean project can receive a
 fast-forward update; the app never force-pushes or silently changes an existing
-origin. Actual GitHub autosync still requires live qualification.
+origin. A disposable live GitHub branch verified native checkpoints, browser
+autosave/autosync, clean incoming updates and conflict preservation. The opt-in
+`UNDERTREE_LIVE_GITHUB_TEST=1 npm run test:live-github` gate requires existing
+GitHub CLI authentication and publishes only synthetic test files before
+conditionally removing its own temporary branch.
 
 TeX import preserves the original `.tex` and creates a new `.typ` plus
 `<target>.import-report.json`. Common headings, emphasis, lists, footnotes and
@@ -74,6 +78,12 @@ Run `npm run test:review`, `npm run test:review-ui`, and
 `npm run verify:architecture` for the native policy, rendered review UI and
 module-boundary checks. See [the review module](modules/review/README.md) for
 the local CLI and [architecture](ARCHITECTURE.md) for authority boundaries.
+
+`npm run test:native-ui` exercises the bundled Linux Tauri window in an isolated
+X11 display, including real Typst rendering and save-aware Close/Minimize.
+It requires a built custom-protocol desktop binary, `tauri-driver`,
+`WebKitWebDriver`, `Xvfb`, `xfwm4`, `xdotool`, and `wmctrl`. Browser checks alone
+do not establish native window behavior or installer support on other platforms.
 
 ## Existing TeX and HTML workflows
 

@@ -47,6 +47,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${base}/manuscript.html#session=${token}`);
   await page.getByRole('button', { name: 'main.html', exact: true }).click();
+  await page.locator('#review-toggle').click();
   await page.locator('#manuscript-share').check();
   await page.getByRole('button', { name: 'Connections', exact: true }).click();
   const dialog = page.locator('#connection-dialog');

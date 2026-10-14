@@ -32,6 +32,9 @@
     "test:review": "node --test tests/review-session.test.mjs && cargo test -p undertree-review",
     "test:review-ui": "node tests/review-ui-smoke.mjs",
     "test:connections-ui": "node tests/connections-ui-smoke.mjs",
+    "test:native-ui": "node tests/native-ui-smoke.mjs",
+    "test:live-github": "node tests/live-github-sync.mjs",
+    "test:review-text-layout": "node tests/review-text-layout-smoke.mjs",
     "build:native": "npm run build && cargo build -p undertree-desktop --release --features custom-protocol"
   },
   "dependencies": {

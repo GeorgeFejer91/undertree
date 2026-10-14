@@ -14,8 +14,9 @@ export function createWindowCloseGuard(appWindow, { beforeClose, canClose, onErr
   const closeSafely = async () => {
     if (closing) return;
     closing = true;
-    onClosing(true);
+    let closed = false;
     try {
+      onClosing(true);
       await beforeClose();
       // The pinned API's unlisten returns a promise. Remove the guard before
       // normal close, avoiding the force-destroy permission used by its default.
@@ -23,6 +24,7 @@ export function createWindowCloseGuard(appWindow, { beforeClose, canClose, onErr
       unlisten = null;
       if (!canClose()) throw new Error('Your manuscript changed while closing. Save or resolve it before closing the window.');
       await appWindow.close();
+      closed = true;
     } catch (failure) {
       if (!unlisten) {
         try { await listenForClose(); }
@@ -31,13 +33,13 @@ export function createWindowCloseGuard(appWindow, { beforeClose, canClose, onErr
       onError(failure);
     } finally {
       closing = false;
-      onClosing(false);
+      if (!closed) onClosing(false);
     }
   };
   return { listen: listenForClose, close: closeSafely };
 }
 
-export async function setupWindowChrome({ beforeClose, canClose, status }) {
+export async function setupWindowChrome({ beforeClose, canClose, status, onClosing }) {
   if (!isTauri()) return;
   const appWindow = getCurrentWindow();
   const titlebar = document.getElementById('window-titlebar');
@@ -53,7 +55,7 @@ export async function setupWindowChrome({ beforeClose, canClose, status }) {
   const run = async action => { try { await action(); } catch (failure) { report(failure); } };
   const guard = createWindowCloseGuard(appWindow, {
     beforeClose, canClose, onError: report,
-    onClosing: busy => { close.disabled = busy; if (busy) error.hidden = true; },
+    onClosing: busy => { close.disabled = busy; if (busy) error.hidden = true; onClosing(busy); },
   });
   await run(guard.listen);
   document.getElementById('review-app').classList.add('native-window');

@@ -4,6 +4,36 @@ import { LatestCompileScheduler } from "../modules/frontend/latest-compile-sched
 
 const nextTurn = () => new Promise((resolve) => setTimeout(resolve, 5));
 
+test("default timers preserve the Window receiver required by WebKit", async () => {
+  const originals = { set: globalThis.setTimeout, clear: globalThis.clearTimeout };
+  const scheduled = [];
+  const cleared = [];
+  const compiled = [];
+  try {
+    globalThis.setTimeout = function (callback, delay) {
+      assert.equal(this, globalThis);
+      scheduled.push({ callback, delay });
+      return scheduled.length;
+    };
+    globalThis.clearTimeout = function (handle) {
+      assert.equal(this, globalThis);
+      cleared.push(handle);
+    };
+    const scheduler = new LatestCompileScheduler({ delayMs: 10, isBusy: () => false, run: async key => compiled.push(key) });
+    scheduler.request("old");
+    scheduler.request("canceled");
+    scheduler.cancel();
+    scheduler.request("current");
+    scheduled.at(-1).callback();
+  } finally {
+    globalThis.setTimeout = originals.set;
+    globalThis.clearTimeout = originals.clear;
+  }
+  await Promise.resolve();
+  assert.deepEqual(cleared, [1, 2]);
+  assert.deepEqual(compiled, ["current"]);
+});
+
 test("live compilation coalesces an edit burst to the newest project/source key", async () => {
   const compiled = [];
   const scheduler = new LatestCompileScheduler({

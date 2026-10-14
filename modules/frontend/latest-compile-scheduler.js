@@ -7,7 +7,7 @@ export class LatestCompileScheduler {
   #timer = null;
   #pendingKey = "";
 
-  constructor({ delayMs, isBusy, run, setTimer = setTimeout, clearTimer = clearTimeout }) {
+  constructor({ delayMs, isBusy, run, setTimer = (callback, delay) => globalThis.setTimeout(callback, delay), clearTimer = handle => globalThis.clearTimeout(handle) }) {
     if (!Number.isFinite(delayMs) || delayMs < 0) throw new TypeError("delayMs must be a non-negative number");
     if (typeof isBusy !== "function" || typeof run !== "function") throw new TypeError("isBusy and run callbacks are required");
     this.#delayMs = delayMs;

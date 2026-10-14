@@ -9,7 +9,7 @@ function deferred() {
   return { promise, resolve };
 }
 
-function fixture({ beforeClose, canClose, unlisten = async () => {} }) {
+function fixture({ beforeClose, canClose, unlisten = async () => {}, nativeClose = async () => {}, closingAction = () => {} }) {
   const calls = [];
   const errors = [];
   let nativeCloseRequest;
@@ -19,12 +19,12 @@ function fixture({ beforeClose, canClose, unlisten = async () => {} }) {
       nativeCloseRequest = callback;
       return async () => { calls.push('unlisten-start'); await unlisten(); calls.push('unlisten-done'); };
     },
-    close: async () => { calls.push('close'); },
+    close: async () => { calls.push('close'); await nativeClose(); },
   };
   const guard = createWindowCloseGuard(window, {
     beforeClose, canClose,
     onError: error => { errors.push(error.message); },
-    onClosing: busy => { calls.push(busy ? 'busy' : 'ready'); },
+    onClosing: busy => { calls.push(busy ? 'busy' : 'ready'); closingAction(busy); },
   });
   return { calls, errors, guard, requestNativeClose: event => nativeCloseRequest(event) };
 }
@@ -94,6 +94,43 @@ test('native close requests use the same guard and concurrent requests do not du
   assert.equal(saves, 1);
   saving.resolve();
   await closing;
-  assert.deepEqual(f.calls.slice(-3), ['unlisten-done', 'close', 'ready']);
+  assert.deepEqual(f.calls.slice(-2), ['unlisten-done', 'close']);
   assert.deepEqual(f.errors, []);
+});
+
+test('editing remains frozen through delayed native close and until native destruction', async () => {
+  const delivery = deferred();
+  const f = fixture({ beforeClose: async () => {}, canClose: () => true, nativeClose: () => delivery.promise });
+  await f.guard.listen();
+  const closing = f.guard.close();
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  assert.equal(f.calls.includes('close'), true);
+  assert.equal(f.calls.includes('busy'), true);
+  assert.equal(f.calls.includes('ready'), false, 'typing must stay blocked after the final clean check');
+  delivery.resolve();
+  await closing;
+  assert.equal(f.calls.includes('ready'), false, 'native close response can precede actual window destruction');
+});
+
+test('failed native close restores both protection and editing', async () => {
+  const f = fixture({ beforeClose: async () => {}, canClose: () => true, nativeClose: async () => { throw new Error('Native close failed'); } });
+  await f.guard.listen();
+  await f.guard.close();
+  assert.equal(f.calls.filter(call => call === 'listen').length, 2);
+  assert.deepEqual(f.errors, ['Native close failed']);
+  assert.equal(f.calls.at(-1), 'ready');
+});
+
+test('an active text composition veto restores the Close control and keeps its guard', async () => {
+  const f = fixture({
+    beforeClose: async () => assert.fail('must not save an unfinished composition'),
+    canClose: () => true,
+    closingAction: busy => { if (busy) throw new Error('Finish the text composition'); },
+  });
+  await f.guard.listen();
+  await f.guard.close();
+  assert.equal(f.calls.includes('unlisten-start'), false);
+  assert.equal(f.calls.includes('close'), false);
+  assert.equal(f.calls.at(-1), 'ready');
+  assert.deepEqual(f.errors, ['Finish the text composition']);
 });
