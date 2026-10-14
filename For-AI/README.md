@@ -8,11 +8,17 @@ Read in this order:
 2. `module-map.md` to identify the owning runtime module.
 3. `workflows.md` for the required implementation and verification sequence.
 
-For any UI, text-editing surface, typography, responsive layout or icon change, also read [ui-layout.md](ui-layout.md). It owns the standing bounded Pretext font-to-CSS-box and SVG-centering rule; do not duplicate that policy in further files.
+Then read [product-goal.md](product-goal.md) for the active Rust/Tauri/HTML and Typst goal, [skills.md](skills.md) for installed skill routes and provenance, and [reference-evidence.md](reference-evidence.md) before making claims about Overleaf, Secret Tunnel, publication, or end-to-end qualification.
+
+For any UI, text-editing surface, typography, responsive layout or icon change, also read [overleaf-ui-parity.md](overleaf-ui-parity.md) for mandatory Overleaf appearance/interaction parity and the original UnderTree window frame, then [ui-layout.md](ui-layout.md) for the mandatory outside-in accordion stretch, overflow prevention, bounded Pretext and SVG-centering rules. These files own their respective policies; do not duplicate them in further files.
+
+For ChatGPT, zrok or MCP work, read [the connection protocol](PROTOCOLS/connections.md) and [the Secret Tunnel analysis](BOARD/2026-10-14-secret-tunnel.md). They adapt Secret Tunnel's relevant protocol, skill-routing and evidence structures to UnderTree's narrower review authority. Keep runtime code and settings outside this directory.
+
+The user's latest direction expands the target to **all UnderTree functions controlled through ChatGPT chat**, including CLI capabilities, direct authoring, review decisions, settings, synchronization and workspace controls. Read [the Full control implementation plan](PLANNER/CHATGPT-FULL-CONTROL.md). It records the requested target and migration order; the runtime still exposes only the current three review tools until the corresponding authenticated actions and gates are implemented.
 
 Use [Ponytail's actual skill](https://github.com/DietrichGebert/ponytail/blob/main/skills/ponytail/SKILL.md) for implementation, fixes, refactors and review. Load it through the existing skill mechanism or read and apply the upstream instructions; do not add a skill manager. Reuse current code and platform capabilities without removing correctness, accessibility or editor-state safeguards.
 
-All application code and assets live outside `For-AI/`. The executable module roots are `modules/frontend/`, `modules/compiler/`, and `modules/maintenance/`; the existing `src/`, `layout/`, `native/`, and `scripts/` directories are adapters or established asset roots assigned in `module-map.md`.
+All application code and assets live outside `For-AI/`. The executable module roots are `modules/frontend/`, `modules/review/`, `modules/compiler/`, and `modules/maintenance/`; `native/tauri/` hosts the new desktop shell. The existing `src/`, `layout/`, other `native/`, and `scripts/` directories are adapters or established asset roots assigned in `module-map.md`.
 
 ## HTML UI skill route
 

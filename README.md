@@ -1,14 +1,88 @@
 # UnderTree
 
-UnderTree is a standalone Linux and Windows desktop workspace for local LaTeX and fixed-page
-HTML print projects. It provides an Overleaf-style three-pane interface while
-using existing Git repositories, a native web view, `latexmk`, and TeX engines. On Windows,
-UnderTree automatically discovers `latexmk` from your PATH or common MiKTeX/TeX Live locations,
-then remembers the verified path for later launches. Editing, fitting, and rendering remain fully
-offline. Its name is a tongue-in-cheek inverse of Overleaf: the same kind of workspace, kept firmly
-under your own tree.
+UnderTree is an offline manuscript workspace moving to Rust, Tauri and Typst,
+with an HTML/CSS interface required to look and feel near identical to the
+open-source Overleaf editor and review workflow. Visual and interaction parity
+are an acceptance requirement; the current workspace has not yet been qualified
+against that reference. See [the UI target](For-AI/overleaf-ui-parity.md).
+Manuscripts remain ordinary text files in your own project: `.typ` or `.html`,
+with small adjacent JSON files for highlights and suggestions. Its name is a
+tongue-in-cheek inverse of Overleaf: the workspace stays under your own tree.
 
-The repository is organized into discrete frontend, compiler, and maintenance
+Bounded control panels are required to use the [outside-in accordion stretch and overflow
+prevention standard](For-AI/ui-layout.md) from Uncodixfy Pretext. The native
+window requires an original UnderTree boundary with custom Close and Minimize
+controls; the workspace within it retains the Overleaf parity target.
+
+The new Tauri workspace can edit Typst, compile a PDF through the local Typst
+CLI, and import a supported subset of TeX into a new Typst file. It works
+without LaTeX. The existing TeX and fixed-page HTML tools remain compatibility
+workflows while the Typst migration progresses.
+
+## Rust/Tauri manuscript workspace
+
+Install Node.js 22.13 or newer, Rust and the platform's Tauri v2 build
+prerequisites, then run:
+
+```bash
+npm ci
+npm run desktop
+```
+
+`npm run desktop` builds the HTML interface and starts `undertree-desktop`.
+`npm run build:native` builds a release executable; creating and qualifying
+installers is a separate step. Install Typst separately to compile `.typ`
+documents, or set `UNDERTREE_TYPST` to its executable. The Rust backend uses
+Typst's syntax library for review validation and supervises the compiler; the
+full renderer is not embedded in the desktop binary yet.
+
+Choose a project folder, open or create a manuscript, and select a passage to
+apply a color rule. Rules can protect text, reject agent changes, or attach a
+custom instruction such as “Keep the meaning; make this snappier.” Colors and
+prompts are editable. Suggestions appear beside the source, and only your
+local Accept action changes the manuscript. Protection and rejection rules
+override prompts; outdated quotes or protection require local resolution.
+
+ChatGPT access is opt-in. Install and enable `zrok2` separately, provide an
+existing reserved public name and its HTTPS origin under **Connections → zrok**,
+then explicitly share each manuscript. `UNDERTREE_ZROK` can select the
+executable. The generated MCP URL grants access to shared sources and their
+review context through exactly three tools: `list_manuscripts`,
+`read_manuscript`, and `suggest_text`. Stopping the tunnel revokes the session's
+shares. Live ChatGPT-to-zrok use still requires qualification.
+
+The **Connections** popup also shows the private URL and observed MCP activity
+under **MCP**, and lists individual revoke controls under **Manuscripts**.
+It remembers the public name and origin, while access and the tunnel remain
+session-only. Use `npm run test:connections-ui` after `npm run build` and
+`cargo build -p undertree-review` to check the popup with an isolated native
+service and simulated zrok child.
+
+Connect a project to a GitHub `owner/repository` using your existing Git
+credentials, then choose explicit or optional automatic checkpoints.
+Synchronization includes UnderTree's pending manuscript/review files and stops
+on unrelated changes, staged work or divergence. A clean project can receive a
+fast-forward update; the app never force-pushes or silently changes an existing
+origin. Actual GitHub autosync still requires live qualification.
+
+TeX import preserves the original `.tex` and creates a new `.typ` plus
+`<target>.import-report.json`. Common headings, emphasis, lists, footnotes and
+page breaks are supported. Arbitrary math, macros, packages, fonts and page
+layout are not equivalent; read the report and inspect the output before use.
+
+Run `npm run test:review`, `npm run test:review-ui`, and
+`npm run verify:architecture` for the native policy, rendered review UI and
+module-boundary checks. See [the review module](modules/review/README.md) for
+the local CLI and [architecture](ARCHITECTURE.md) for authority boundaries.
+
+## Existing TeX and HTML workflows
+
+The retained Linux/Windows workspace uses existing Git repositories, a native
+web view, `latexmk`, and TeX engines. On Windows it discovers `latexmk` from
+your PATH or common MiKTeX/TeX Live locations and remembers the verified path.
+Its editing, fitting and rendering remain offline.
+
+The repository is organized into discrete frontend, review, compiler, and maintenance
 modules. Codex-only project constraints and orchestration live in the
 Markdown-only `For-AI/` folder; no application asset is loaded from or packaged
 with that folder. On Windows the compiler service runs in a separate Electron
@@ -109,7 +183,7 @@ npm run build:windows
 
 ### Linux
 
-The private GitHub release contains a self-contained application archive with
+The legacy GitHub release contains a self-contained application archive with
 the compiled interface and a pinned official Codex SDK/runtime for compatible
 automatic recovery. It does not bundle the much larger TeX distribution or
 operating-system web view.

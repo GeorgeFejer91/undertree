@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-review-action"
+description = "Named local manuscript and review operations; Rust validates project scope."
+commands.allow = ["review_action"]
+
+[[permission]]
+identifier = "allow-choose-project"
+description = "Approve a local project using the native folder picker."
+commands.allow = ["choose_project"]

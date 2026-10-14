@@ -1,0 +1,37 @@
+# Product goal: Typst UnderTree
+
+User direction, updated 2026-10-14: reduce reliance on LaTeX over time. Build UnderTree with a Rust authority and Tauri desktop shell, an HTML/CSS interface, and Typst as the long-term manuscript and publishing engine. HTML remains an editable and portable document format. Existing TeX workflows are compatibility adapters; new review and collaboration features must not require a TeX installation.
+
+The active implementation goal combines all requested parts: a local editor with mandatory near-identical Overleaf appearance and interaction behavior, a Typst publication path, ChatGPT access over zrok MCP, color-bound passage policies and prompts, optional GitHub storage/synchronization, and native TeX-to-Typst import. The latest user direction expands ChatGPT access to control **all UnderTree functions**, including both CLIs' capabilities, direct editing, review decisions, settings, exports, synchronization and UI/window actions. Preserve the current Review mode while adding an explicitly authorized Full control mode under [the implementation plan](PLANNER/CHATGPT-FULL-CONTROL.md). Parallel workers may own independent frontend, Rust and documentation scopes; coordinate shared manifests and integration checks.
+
+UI direction, clarified 2026-10-14: an experienced Overleaf user should feel as though they are using the same editor software. Follow [overleaf-ui-parity.md](overleaf-ui-parity.md); a merely inspired design does not meet this requirement. Use Uncodixfy Pretext's outside-in accordion stretch and overflow prevention as the standard in [ui-layout.md](ui-layout.md), following the relevant Secret Tunnel layout patterns. Give the native window its own original UnderTree boundary and custom Close/Minimize icons. This original frame is an explicit user-requested distinction; it does not relax workspace parity.
+
+The user explicitly requested making `GeorgeFejer91/undertree_texstudio` public and linked [REA](https://github.com/morluto/rea) for reverse-engineering support. Implement a native TeX-to-Typst import path as a migration aid. Preserve the original `.tex` file; convert the supported subset and emit an explicit report for unsupported macros, environments, math and layout. Formatting equivalence for arbitrary TeX is an ambitious research goal, not a guaranteed property of a first importer.
+
+## Observable target
+
+- Reproduce the pinned open-source Overleaf workspace's outward appearance and supported interaction behavior: project/file navigation, source editing, previews, reviews, suggestion cards, and synchronization controls. Follow the comparative acceptance criteria in [overleaf-ui-parity.md](overleaf-ui-parity.md); preserve upstream licensing and attribution if code is copied. Do not claim authenticated browser reverse engineering when only public source was inspected.
+- Keep manuscripts as ordinary text (`.typ`, `.html`, and related source assets), with small versioned JSON sidecars for highlight policies and review proposals. GitHub can store the project, sources, and review metadata together. Preserve offline editing and explicit conflict handling.
+- Let ChatGPT web reach a dedicated, opt-in zrok MCP endpoint, following Secret Tunnel's native process supervision. Review mode retains explicitly shared manuscripts and narrowly scoped suggestions. The planned Full control mode exposes all named UnderTree features for authorized projects through the same native action service as the desktop and CLI. Keep scope, owner authentication, revocation, dirty-buffer coordination and authoritative receipts explicit; neither mode is an arbitrary filesystem or command proxy.
+- Show proposed replacements in color-coded cards beside the editor. Review-mode agents cannot accept or reject them; the local user retains those controls. The planned Full control mode can invoke the same native decisions when authorized. Validate exact source revision, quoted passage, current policies, and anchor validity at submission and acceptance regardless of caller.
+- Let users assign colors to fixed protection/rejection actions or custom prompts, with additional prompts on individual passages. Protection/rejection wins over prompts. Ambiguous or stale protection fails closed until the user resolves it.
+- Add optional automatic GitHub checkpoint synchronization without committing unrelated work, overwriting external edits, rewriting history, or resolving divergence automatically.
+
+## Current implementation boundary
+
+- `modules/review/` is the shared Rust authority for local Tauri/CLI operations and the narrower MCP tools. It manages `.typ` and `.html` manuscript source with `<source>.undertree-review.json` sidecars; the transient `<source>.undertree-pending.json` journal recovers an interrupted source/metadata transaction.
+- The initial publishing engine parses prose with pinned `typst-syntax` and supervises the separate Typst CLI for PDF compilation. This provides a native Rust publication workflow without LaTeX, but does not yet embed the complete Typst renderer into the desktop binary. Keep the compiler invocation, diagnostics and last-good preview bounded.
+- TeX import converts common headings, emphasis, lists, footnotes and page breaks into a new `.typ` source. It emits `<target>.import-report.json`, retains unsupported constructs as raw text where supported by the parser, and always reports `exactFormatting: false`. Arbitrary class/package/macro/font/layout equivalence remains an open research target.
+- The zrok adapter requires an existing enabled `zrok2` executable, reserved public name and its exact HTTPS origin. Non-secret name/origin settings may be remembered locally; grants and a running tunnel are never restored automatically. It supervises the child process and a separate loopback MCP listener, rotates the capability URL on start, and revokes session shares on stop. Running-process status is not external connectivity proof.
+- GitHub binding uses `owner/name` and existing Git credentials. Autosync checkpoints UnderTree-owned pending sources/sidecars/report files after a debounce; clean incoming updates may fast-forward, while staged/unrelated changes, dirty newer remotes and divergence require local resolution.
+- Linux native and browser checks, actual GitHub publication, live ChatGPT/zrok use, cross-platform packages and importer fidelity have separate evidence requirements in [reference-evidence.md](reference-evidence.md).
+
+## Migration boundary
+
+`native/tauri/` is the new desktop shell. `modules/review/` owns the framework-independent Rust review authority and MCP boundary. `modules/frontend/` owns browser interaction and save coordination; `src/manuscript.js`, `src/manuscript.css`, and `manuscript.html` adapt it to the DOM. Existing Node/GTK/Electron and TeX compilation paths remain available while their capabilities are migrated and tested.
+
+The Rust/Tauri review workspace is an independent, TeX-free execution path. Typst integration must use the same save, revision, project-confinement, and last-good-preview safeguards. Do not label the Typst migration complete until real `.typ` editing, compilation, preview, and agent suggestion behavior have been exercised.
+
+## Evidence and handoff
+
+Record public-source references, installed skill provenance, module boundaries, tests, browser/native results, and remaining migration gaps. A built frontend or local MCP test does not prove a live ChatGPT-to-zrok connection, a GitHub publication, or a packaged cross-platform application.

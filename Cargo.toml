@@ -1,0 +1,10 @@
+[workspace]
+members = ["modules/review", "native/tauri"]
+default-members = ["modules/review"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+version = "0.3.0"
+license = "LicenseRef-UnderTree"
+repository = "https://github.com/GeorgeFejer91/undertree_texstudio"

@@ -10,7 +10,9 @@
     "url": "git+https://github.com/GeorgeFejer91/undertree_texstudio.git"
   },
   "main": "native/windows/main.cjs",
-  "bin": { "undertree": "cli.mjs" },
+  "bin": {
+    "undertree": "cli.mjs"
+  },
   "engines": {
     "node": ">=22.13.0"
   },
@@ -24,15 +26,22 @@
     "test:ui": "node tests/ui-smoke.mjs",
     "test:pdf-controls": "node tests/pdf-controls-smoke.mjs",
     "render:pdf-preview": "npm run build && node scripts/render-pdf-preview.mjs",
-    "stress:pdf-ui": "npm run render:pdf-preview"
+    "stress:pdf-ui": "npm run render:pdf-preview",
+    "dev:review": "vite --host 127.0.0.1",
+    "desktop": "npm run build && cargo run -p undertree-desktop --features custom-protocol",
+    "test:review": "node --test tests/review-session.test.mjs && cargo test -p undertree-review",
+    "test:review-ui": "node tests/review-ui-smoke.mjs",
+    "test:connections-ui": "node tests/connections-ui-smoke.mjs",
+    "build:native": "npm run build && cargo build -p undertree-desktop --release --features custom-protocol"
   },
   "dependencies": {
-    "@chenglou/pretext": "^0.0.8",
+    "@chenglou/pretext": "0.0.8",
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-html": "^6.4.12",
     "@codemirror/language": "^6.11.3",
     "@codemirror/legacy-modes": "^6.5.3",
     "@openai/codex-sdk": "0.147.0",
+    "@tauri-apps/api": "2.10.1",
     "@tiptap/core": "^3.30.0",
     "@tiptap/extension-color": "^3.30.0",
     "@tiptap/extension-link": "^3.30.0",
@@ -46,6 +55,7 @@
     "pdfjs-dist": "6.2.108"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "2.10.0",
     "electron": "^37.2.6",
     "electron-builder": "^26.0.12",
     "playwright-core": "^1.62.1",
@@ -55,19 +65,39 @@
     "appId": "io.github.georgefejer91.UnderTree",
     "productName": "UnderTree",
     "artifactName": "UnderTree-${version}-Windows-${arch}.${ext}",
-    "directories": { "output": "release/windows" },
+    "directories": {
+      "output": "release/windows"
+    },
     "files": [
-      "dist/**/*", "layout/**/*", "src/**/*.js", "src/**/*.mjs",
-      "native/windows/**/*", "native/html_print_renderer.py", "server.mjs", "modules/compiler/**/*.mjs",
-      "cli.mjs", "package.json", "node_modules/**/*",
-      "!node_modules/@codemirror/**/*", "!node_modules/@napi-rs/**/*",
-      "!node_modules/@openai/**/*", "!node_modules/@tiptap/**/*",
-      "!node_modules/codemirror/**/*", "!node_modules/pdfjs-dist/**/*"
+      "dist/**/*",
+      "layout/**/*",
+      "src/**/*.js",
+      "src/**/*.mjs",
+      "native/windows/**/*",
+      "native/html_print_renderer.py",
+      "server.mjs",
+      "modules/compiler/**/*.mjs",
+      "cli.mjs",
+      "package.json",
+      "node_modules/**/*",
+      "!node_modules/@codemirror/**/*",
+      "!node_modules/@napi-rs/**/*",
+      "!node_modules/@openai/**/*",
+      "!node_modules/@tiptap/**/*",
+      "!node_modules/codemirror/**/*",
+      "!node_modules/pdfjs-dist/**/*"
     ],
     "extraFiles": [
-      { "from": "native/windows/undertree.cmd", "to": "undertree.cmd" }
+      {
+        "from": "native/windows/undertree.cmd",
+        "to": "undertree.cmd"
+      }
     ],
-    "win": { "target": ["nsis"] },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,

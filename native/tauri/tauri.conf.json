@@ -1,0 +1,20 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "UnderTree",
+  "version": "0.3.0",
+  "identifier": "io.github.georgefejer91.UnderTree",
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run dev:review",
+    "devUrl": "http://localhost:5173/manuscript.html",
+    "frontendDist": "../../dist"
+  },
+  "app": {
+    "windows": [{"label":"main","title":"UnderTree","url":"manuscript.html","width":1440,"height":900,"minWidth":320,"minHeight":480,"decorations":false}],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; frame-src 'self' about:; font-src 'self'; object-src 'none'; base-uri 'none'",
+      "capabilities": ["main"]
+    }
+  },
+  "bundle": {"active":true,"targets":["deb","appimage","nsis"],"icon":["icons/icon.png"]}
+}

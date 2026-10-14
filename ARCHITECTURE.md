@@ -1,11 +1,87 @@
 # UnderTree architecture
 
-UnderTree is an original offline workspace inspired by the visible
-left-editor-preview interaction model of online LaTeX editors. It does not
+UnderTree is an original offline workspace whose required editor appearance
+and interaction behavior are near identical to the pinned open-source Overleaf
+UI under [the parity requirement](For-AI/overleaf-ui-parity.md). Bounded control
+panels follow the [outside-in accordion stretch standard](For-AI/ui-layout.md),
+inside an original UnderTree native window frame. It does not
 contain Overleaf HTML, JavaScript, images, branding, cookies, or private API
 code.
 
-## Process model
+## Rust/Tauri manuscript authority
+
+The new workspace has one framework-independent Rust authority in
+`modules/review/`. The Tauri v2 shell serves bundled `manuscript.html`, chooses
+local project folders, and forwards typed `Operation` requests. The HTML/CSS
+frontend presents sources, previews, highlights and review cards; it cannot
+apply filesystem policy independently.
+
+```text
+Bundled manuscript HTML/CSS ── typed Tauri commands ──┐
+Local CLI / loopback qualification adapter ──────────┤
+                                                   ▼
+                                      Rust review authority
+                                      ├── approved project roots
+                                      ├── revisioned text + JSON reviews
+                                      ├── protect/reject/custom prompt rules
+                                      ├── local acceptance + save journal
+                                      ├── Typst compiler + last-good PDF
+                                      ├── best-effort TeX import + report
+                                      └── optional GitHub checkpoints
+                                                   ▲
+Shared manuscript IDs ── separate zrok2 MCP listener ┘
+                         list / read / suggest only
+```
+
+`document.rs` validates UTF-16 source ranges, exact quoted text, revision,
+prose-only scope and current policy at submission and acceptance. Typst's
+syntax tree prevents agent proposals from targeting code, math or raw content;
+HTML proposals must target an ordinary text run. Accepted replacement text is
+escaped for the source format. Protect/reject rules deny overlapping changes;
+stale protection blocks suggestions until locally resolved. Custom prompts are
+passed as review constraints, with no additional operating-system authority.
+
+Source files remain ordinary UTF-8 text. `<source>.undertree-review.json`
+stores versioned rules, anchors and suggestions. A same-directory atomic
+replacement and `<source>.undertree-pending.json` journal coordinate changed
+source and review metadata. Conflicting external edits are rejected and an
+unresolvable interrupted transaction retains both versions for local recovery.
+The frontend save coordinator keeps newer edits dirty and flushes before local
+acceptance, switching files or compiling.
+
+The initial native publishing path uses pinned `typst-syntax` plus an external
+Typst CLI, confines `typst compile --root` to the approved project, bounds
+diagnostics/output/runtime and retains the last good PDF after failure. A full
+embedded renderer is a later migration step. Native TeX import creates a new
+Typst source and adjacent warning report; it preserves the original and makes
+no arbitrary formatting-equivalence claim.
+
+The opt-in zrok2 child forwards only a dedicated loopback MCP listener. The
+remote catalogue has exactly three tools (`list_manuscripts`,
+`read_manuscript`, `suggest_text`); it cannot invoke the local `Operation`
+registry. Manuscript shares and the random capability URL are session-only.
+Non-secret name/origin settings can persist without restoring access or the
+tunnel on startup. Shutdown stops the child, closes the listener and revokes
+shares. The URL is a
+secret capability and must be kept out of commits and logs. Native process
+status is explicitly distinct from verified public reachability.
+
+GitHub operations remain local and use existing Git credentials. A bound
+`owner/name` is checked against origin before each synchronization. The service
+commits only its pending sources/sidecars/import reports, refuses staged or
+unrelated work, fetches ancestry, permits a clean fast-forward, avoids force
+pushes and confirms the pushed branch head. Automatic checkpoints are opt-in
+and scheduled separately from typing; live network qualification remains a
+separate check.
+
+Tauri capabilities allow the two local commands and core window facilities,
+with no remote origins or generic shell/filesystem plugin. The CSP confines
+the UI and isolates HTML previews. The local CLI/browser adapter uses a
+separate loopback token and shares this Rust authority; it is not the agent
+endpoint. Linux debug execution, browser qualification, live ChatGPT/zrok and
+packaged platform execution have distinct evidence requirements.
+
+## Retained compatibility process model
 
 UnderTree uses the same authenticated localhost boundary on both platforms, but
 the native shell differs. Linux uses GTK/WebKitGTK. Windows uses Electron and
@@ -40,6 +116,10 @@ Node service on 127.0.0.1:37371
   constraints, the module map, and change workflows. It is never packaged.
 - `modules/frontend/` owns browser-safe scheduling and responsiveness logic;
   `src/` is its DOM/API adapter and established frontend asset root.
+- `modules/review/` owns the new Rust manuscript/review, Typst publication,
+  native TeX import, narrow MCP authority and GitHub checkpoint service.
+- `native/tauri/` owns the Tauri v2 window, least-privilege command adapter,
+  native folder picker and desktop packaging configuration.
 - `modules/compiler/` owns compiler discovery and service-process entry points;
   `server.mjs`, `layout/`, and platform renderers are its established adapters
   and format assets.
@@ -47,7 +127,7 @@ Node service on 127.0.0.1:37371
   policy; `scripts/`, `packaging/`, and `.github/` remain platform-facing
   maintenance adapters.
 
-The frontend and compiler communicate only through the authenticated local HTTP
+The retained frontend and compiler communicate only through the authenticated local HTTP
 contract. Electron's main process owns window lifecycle and native dialogs, not
 project scanning, parsing, search, ZIP creation, or TeX orchestration.
 
@@ -124,8 +204,19 @@ UnderTree window when it is launched again.
 
 ## Clean-room UI mapping
 
-The live reference was used only to measure observable behavior: a 40 px dark
+Visual and interaction parity are mandatory and remain unqualified. The
+measurements below are historical observations, not the acceptance baseline;
+use the pinned reference and matched-state checks in
+[overleaf-ui-parity.md](For-AI/overleaf-ui-parity.md).
+
+The earlier live reference was used only to measure observable behavior: a 40 px dark
 top bar, icon rail and file tree on the left, syntax editor in the middle,
 Recompile/PDF/log tools on the right, draggable dividers, compact 4 px controls,
 pill-shaped primary actions, and a dark green/charcoal palette. All source in
 this package was independently written for the local workflow.
+
+The new review workflow was also informed by focused public Overleaf source
+inspection at `e039ad26c5bf5422eb57b89fc7e57c75055e631d`. The observed card,
+selection and permission concepts were independently implemented; no Overleaf
+source or assets were copied. See [the reference ledger](For-AI/reference-evidence.md)
+for inspected source paths, evidence scope and qualification gaps.

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UnderTree · Manuscript review</title>
+</head>
+<body>
+  <main id="review-app">
+    <header id="window-titlebar" class="window-titlebar" hidden>
+      <div id="window-drag" class="window-drag" role="button" tabindex="0" aria-label="Move window; double-click or press Enter to maximize or restore" title="Drag to move · double-click to maximize or restore">
+        <span class="window-title" data-measure>UnderTree</span>
+      </div>
+      <div class="window-controls" role="group" aria-label="Window controls">
+        <button id="window-minimize" type="button" aria-label="Minimize window" title="Minimize window">
+          <svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false"><path d="M5 12h14M8 16h8"/></svg>
+        </button>
+        <button id="window-close" type="button" aria-label="Close window" title="Close window">
+          <svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+    </header>
+    <p id="window-error" class="window-error" role="alert" data-measure hidden></p>
+    <header class="review-topbar">
+      <strong class="wordmark" data-measure>UnderTree</strong>
+      <button id="project-open" data-measure>Open folder</button>
+      <select id="project-select" aria-label="Current project"><option value="">Choose a project</option></select>
+      <div class="topbar-actions">
+        <button id="git-open" data-measure>GitHub</button>
+        <button id="connection-open" aria-haspopup="dialog" data-measure>Connections</button>
+      </div>
+    </header>
+    <nav class="mobile-views" aria-label="Workspace views">
+      <button data-view="files">Files</button><button data-view="editor" aria-pressed="true">Editor</button><button data-view="review">Review</button><button data-view="preview">Preview</button>
+    </nav>
+    <section class="review-workspace" data-mobile-view="editor">
+      <aside class="manuscript-files" aria-label="Project files">
+        <div class="pane-heading"><h2 data-measure>Files</h2><button id="file-new" aria-label="New manuscript">+</button></div>
+        <div id="manuscript-files"></div>
+        <p class="file-help">Typst and HTML manuscripts and their review files stay in your project folder.</p>
+      </aside>
+      <section class="manuscript-editor" aria-label="Manuscript source editor">
+        <div id="manuscript-tabs" class="manuscript-tabs"></div>
+        <div class="manuscript-toolbar" role="toolbar" aria-label="Manuscript actions">
+          <button id="manuscript-save" data-measure>Save</button>
+          <select id="highlight-rule" aria-label="Highlight rule"></select>
+          <button id="highlight-selection" data-measure>Highlight selection</button>
+          <button id="palette-open" data-measure>Color rules</button>
+          <button id="typst-compile" data-measure hidden>Recompile</button>
+          <button id="tex-import" data-measure hidden>Import to Typst</button>
+          <span id="save-label" role="status" data-measure>No file open</span>
+        </div>
+        <div id="manuscript-source"><div class="empty-source"><h1>Open a manuscript</h1><p>Choose a local project and a Typst or HTML file to write, preview, and review.</p></div></div>
+      </section>
+      <aside class="manuscript-review" aria-label="Manuscript review">
+        <div class="pane-heading"><h2 data-measure>Review</h2><button id="review-refresh" aria-label="Refresh review">↻</button></div>
+        <label class="share-toggle"><input id="manuscript-share" type="checkbox">Share this manuscript with ChatGPT</label>
+        <div id="review-conflict" role="alert" hidden><p>The file changed while you were editing. Your buffer has been kept.</p><button id="export-buffer">Export my buffer</button><button id="reload-buffer">Load disk version</button></div>
+        <div id="review-list"></div>
+      </aside>
+      <section class="manuscript-preview" aria-label="Manuscript preview">
+        <div class="pane-heading"><h2 data-measure>Preview</h2><button id="export-manuscript" data-measure>Export source</button><button id="export-pdf" data-measure hidden>Export PDF</button></div>
+        <iframe id="manuscript-preview" sandbox="" title="Manuscript preview"></iframe>
+        <div id="typst-preview" hidden><p id="typst-preview-status" role="status">Compile this Typst manuscript to see its PDF.</p><div id="typst-pages"></div></div>
+      </section>
+    </section>
+    <footer class="review-status"><span id="review-status" role="status">Local files · offline editing</span><span id="tunnel-label">ChatGPT disconnected</span></footer>
+  </main>
+  <dialog id="project-dialog"><form id="project-form"><h2>Open local project</h2><label>Folder path<input id="project-root" required placeholder="/path/to/project"></label><p>This approves only that folder for UnderTree.</p><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Open folder</button></div></form></dialog>
+  <dialog id="new-dialog"><form id="new-form"><h2>New manuscript</h2><label>Filename<input id="new-path" value="manuscript.typ" required pattern=".+\.(typ|html)"></label><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Create</button></div></form></dialog>
+  <dialog id="highlight-dialog"><form id="highlight-form"><h2>Highlight passage</h2><blockquote id="highlight-quote"></blockquote><label>Color rule<select id="highlight-dialog-rule"></select></label><label>Additional prompt for this passage<textarea id="highlight-prompt" rows="3" maxlength="4000" placeholder="Keep the content, but make the wording snappier."></textarea></label><p>Protection and rejection rules take precedence over prompts.</p><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Add highlight</button></div></form></dialog>
+  <dialog id="palette-dialog"><form id="palette-form"><h2>Color rules</h2><p>Assign each color a fixed action or an instruction for the reviewer.</p><div id="palette-rules"></div><button id="rule-add" type="button">Add color rule</button><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Save rules</button></div></form></dialog>
+  <dialog id="connection-dialog" aria-labelledby="connection-title">
+    <div class="connection-heading"><h2 id="connection-title" data-measure>Connections</h2><button type="button" data-close data-measure>Close</button></div>
+    <p id="connection-status" role="status" data-measure>Reading local connection status…</p>
+    <p id="connection-error" role="alert" data-measure hidden></p>
+    <div class="connection-tabs" role="tablist" aria-label="Connection settings">
+      <button id="connection-tab-zrok" role="tab" aria-controls="connection-panel-zrok" aria-selected="true" data-connection-tab="zrok" data-measure>zrok</button>
+      <button id="connection-tab-mcp" role="tab" aria-controls="connection-panel-mcp" aria-selected="false" tabindex="-1" data-connection-tab="mcp" data-measure>MCP</button>
+      <button id="connection-tab-shared" role="tab" aria-controls="connection-panel-shared" aria-selected="false" tabindex="-1" data-connection-tab="shared" data-measure>Manuscripts</button>
+    </div>
+    <section id="connection-panel-zrok" role="tabpanel" aria-labelledby="connection-tab-zrok">
+      <form id="connection-form">
+        <label><span data-measure>zrok2 public name</span><input id="zrok-name" required maxlength="100" pattern="[A-Za-z0-9-]+" placeholder="my-undertree" autocomplete="off" spellcheck="false"></label>
+        <label><span data-measure>Public HTTPS origin</span><input id="zrok-origin" type="url" required maxlength="2048" placeholder="https://your-public-origin" autocomplete="off" spellcheck="false"></label>
+        <p data-measure>Use an installed, enabled zrok2 account and a public name you own. Enter its exact HTTPS origin. UnderTree remembers this setup; start each session yourself.</p>
+        <details><summary>zrok2 setup</summary><p data-measure>Install zrok2 and enable your account using its CLI. UnderTree runs zrok2 from PATH; UNDERTREE_ZROK can select another executable. Account credentials stay with zrok2.</p></details>
+        <div class="dialog-actions"><button id="tunnel-start" type="submit" data-measure>Start tunnel</button></div>
+      </form>
+    </section>
+    <section id="connection-panel-mcp" role="tabpanel" aria-labelledby="connection-tab-mcp" hidden>
+      <p id="connection-mcp-status" data-measure>Start zrok to make the review endpoint available.</p>
+      <div id="connection-result" hidden>
+        <label>Private MCP connection URL<textarea id="connection-url" readonly rows="3" spellcheck="false"></textarea></label>
+        <button id="connection-copy" type="button" data-measure>Copy URL</button>
+        <p data-measure>In ChatGPT Plugins, choose Add custom MCP server, paste this URL, and select no additional authentication. Install the plugin and select it in a new chat. This URL grants access to shared manuscripts; keep it private.</p>
+      </div>
+      <p id="connection-protocol" data-measure></p>
+      <ul id="connection-tools" aria-label="Available MCP tools"></ul>
+      <p data-measure>ChatGPT can read shared text and submit suggestions. You accept or reject them in UnderTree.</p>
+    </section>
+    <section id="connection-panel-shared" role="tabpanel" aria-labelledby="connection-tab-shared" hidden>
+      <p id="connection-share-summary" tabindex="-1" data-measure>No manuscripts shared.</p>
+      <ul id="connection-shares" aria-label="Shared manuscripts"></ul>
+      <p data-measure>Use “Share this manuscript with ChatGPT” in the review pane to grant access. Stopping the tunnel revokes all shares. Restarting UnderTree restores neither access nor a running tunnel.</p>
+    </section>
+    <div class="dialog-actions connection-actions"><button id="connection-refresh" type="button" data-measure>Refresh status</button><button id="tunnel-stop" type="button" data-measure>Stop and revoke access</button></div>
+  </dialog>
+  <dialog id="git-dialog"><form id="git-form"><h2>GitHub project storage</h2><label>Repository<input id="github-repository" required placeholder="owner/project"></label><label class="checkbox-label"><input id="github-auto" type="checkbox">Automatically sync saved manuscript checkpoints</label><p>Uses your installed Git credential helper. Create the GitHub repository first, or open an existing clone. Autosync stops on unrelated changes, staged files, newer remote history, or conflicts.</p><pre id="github-status"></pre><div class="dialog-actions"><button type="button" data-close>Close</button><button id="github-sync-now" type="button">Sync now</button><button type="submit">Connect repository</button></div></form></dialog>
+  <script type="module" src="/src/manuscript.js"></script>
+</body>
+</html>
