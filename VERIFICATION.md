@@ -61,6 +61,28 @@ root expectations and bound filesystem effects remain required before stronger
 replacement-safety claims. The publisher's uncertain-pointer error-path repair
 is also outside v9. This remains a checkpoint with the overall goal active.
 
+## Instance shutdown follow-up — 2026-10-15
+
+Both hosted runs of source commit `6e7b9a5` passed historical compatibility but
+failed the existing local-instance shutdown assertion before browser/native
+qualification. A deterministic private v9 regression reproduces it: a duplicate
+lock handle remains open, Stop preserves a replacement descriptor, and discovery
+incorrectly still sees a held authority lock. Stop now explicitly unlocks the
+owned file after revocation and descriptor cleanup. The regression passes and
+checks successor exclusion while and after the old duplicate closes, without
+sleeping or weakening the original refusal.
+
+The isolated v9 source plus this repair passes 211 Rust tests and strict
+all-target review Clippy. Source SHA-256 is
+`387eaafe29c866b36a5f45020b0cb690de3165767df1af00ea1f59de46923eec`;
+the receipt at `artifacts/instance-stop-repair/handoff.json` has SHA-256
+`53497f3e8eac996885b30a9d41239fcb619d0bc1acaa881944316eaf1a174e19`.
+Independent source review accepts the narrow repair. An inherited descriptor
+explains the hosted timing failure but was not traced in CI. The deterministic
+duplicate-handle result is observed. This runtime follow-up is separate from
+immutable v9; hosted rerun, its native/package checks and other platforms remain
+pending.
+
 ## Immutable integrity and unsigned Linux package checkpoint — 2026-10-15
 
 The Rust/Tauri v2/HTML/CSS/Typst candidate at

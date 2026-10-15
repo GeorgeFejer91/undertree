@@ -263,6 +263,8 @@ impl LocalInstance {
                 }) {
                     let _ = fs::remove_file(instance.directory.join(INSTANCE_FILE));
                 }
+                // Release the lock even while a duplicate descriptor remains open.
+                let _ = instance._lock.unlock();
             }
         }
     }
@@ -271,5 +273,48 @@ impl LocalInstance {
 impl Drop for LocalInstance {
     fn drop(&mut self) {
         self.stop();
+    }
+}
+
+#[cfg(test)]
+mod shutdown_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn shutdown_unlocks_a_retained_duplicate_without_removing_a_replacement_descriptor() {
+        let state = tempfile::tempdir().unwrap();
+        let instance = LocalInstance::start(Service::new(state.path().into()).unwrap())
+            .await
+            .unwrap();
+        let duplicate = instance
+            .running
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            ._lock
+            .try_clone()
+            .unwrap();
+        let path = state.path().join("cli/instance.json");
+        let mut replacement: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        replacement["token"] = serde_json::json!("0".repeat(64));
+        let bytes = serde_json::to_vec(&replacement).unwrap();
+        fs::write(&path, &bytes).unwrap();
+        instance.stop();
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+        assert!(LocalConnection::discover(state.path()).is_err());
+        let successor = LocalInstance::start(Service::new(state.path().into()).unwrap())
+            .await
+            .unwrap();
+        assert!(LocalConnection::discover(state.path()).is_ok());
+        drop(duplicate);
+        assert!(
+            LocalInstance::start(Service::new(state.path().into()).unwrap())
+                .await
+                .is_err()
+        );
+        drop(successor);
+        assert!(LocalConnection::discover(state.path()).is_err());
     }
 }

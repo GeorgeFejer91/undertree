@@ -456,3 +456,10 @@ and CI/notice/documentation overlays do not retroactively alter the captured
 runtime. No new installer or green expanded hosted run is inferred. The
 authenticated root-replacement counterexample and remaining captured-root,
 History, lifecycle and diagnostic work are explicitly scoped in that report.
+
+The [instance shutdown follow-up](../VERIFICATION.md#instance-shutdown-follow-up--2026-10-15)
+separately changes runtime Stop to release its owned lock even with a surviving
+duplicate handle. A deterministic red/green regression, 211 isolated Rust tests,
+strict review Clippy and independent source review pass. Original hosted failures
+are retained; inherited-descriptor timing is an inference. A hosted rerun and
+the repaired runtime's native/package qualification are still pending.
