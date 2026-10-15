@@ -7,6 +7,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer } from 'node:net';
+import { nativeFixtureContextScript } from './native-fixture-context.mjs';
 
 assert.equal(process.platform, 'linux');
 assert.notEqual(process.getuid(), 0, 'The failed-autosave proof requires a regular user.');
@@ -46,13 +47,13 @@ const command=(path,body,method)=>request(`/session/${session}${path}`,body,meth
 const execute=(script,args=[])=>command('/execute/sync',{script,args});
 const find=async selector=>(await command('/element',{using:'css selector',value:selector}))['element-6066-11e4-a52e-4f735466cecf'];
 const click=async selector=>command(`/element/${await find(selector)}/click`,{});
-const review=operation=>execute('return window.__TAURI_INTERNALS__.invoke("review_action",{operation:arguments[0]});',[operation]);
+const review=operation=>execute('return window.__TAURI_INTERNALS__.invoke("review_action",{ownerId:window.__nativeFixtureContext.owner(),operation:arguments[0]});',[operation]);
 const windowState=()=>native('xprop',['-id',nativeWindow,'WM_STATE']);
 async function screenshot(name){const encoded=await command('/screenshot',undefined,'GET');await writeFile(join(artifacts,name),Buffer.from(encoded,'base64'));}
 try{
   await stat(binary);await mkdir(project);await mkdir(state,{recursive:true});await mkdir(artifacts,{recursive:true});
   const original='= Native App controls\n\nThe saved manuscript stays unchanged.\n';await writeFile(source,original);
-  await writeFile(join(state,'projects.json'),JSON.stringify({projects:[{id:'native-app',name:'Native App controls',root:project,repository:'',autoSync:false,pending:[],pendingRevisions:{}}]}));
+  await writeFile(join(state,'projects.json'),JSON.stringify({projects:[{id:'11111111-1111-4111-8111-111111111111',name:'Native App controls',root:project,repository:'',autoSync:false,pending:[],pendingRevisions:{}}]}));
   await writeFile(zrok,`#!/bin/sh\nprintf '%s' "$3" > ${quote(targetFile)}\nexec sleep 180\n`);await chmod(zrok,0o700);
   const xvfb=child(process.env.UNDERTREE_XVFB||'Xvfb',['-displayfd','1','-screen','0','1600x1000x24','-nolisten','tcp']);let display='';xvfb.stdout.on('data',bytes=>{display+=bytes;});
   await until(()=>display.trim()&&xvfb.exitCode===null,'Private Xvfb did not start.');
@@ -64,6 +65,7 @@ try{
   const opened=await request('/session',{capabilities:{alwaysMatch:{'tauri:options':{application:binary}}}});session=opened.sessionId;evidence.webDriverCapabilities=opened.capabilities;
   await until(()=>execute('return !!document.querySelector(arguments[0])',['.file-button[data-path="main.typ"]']),'Native inventory did not render.');
   nativeWindow=native('xdotool',['search','--onlyvisible','--name','^UnderTree$']).split('\n')[0];nativePid=Number(native('xdotool',['getwindowpid',nativeWindow]));
+  await execute(nativeFixtureContextScript);
   assert.equal(await execute(`
     window.__nativeAppErrors=[];
     addEventListener('error',event=>window.__nativeAppErrors.push(event.message));
@@ -75,17 +77,18 @@ try{
     window.__nativeAppFallback=false;
     const originalFetch=window.fetch,originalWarn=console.warn;
     const observed=(input,init,...rest)=>{
+      let observedName,observedPayload;
       try{
         const url=new URL(typeof input==='string'?input:input.url);
         if(url.protocol==='ipc:'||url.hostname==='ipc.localhost'){
           const name=decodeURIComponent(url.pathname.slice(1));
           window.__nativeAppObservedCommands.push(name);
           const body=typeof init?.body==='string'?init.body:new TextDecoder().decode(init?.body);
-          const payload=JSON.parse(body);
+          const payload=JSON.parse(body);observedName=name;observedPayload=payload;
           if((name==='review_action'&&payload.operation?.action==='save')||(name==='editor_operation'&&payload.operation?.action==='editor_commit')){window.__nativeAppSaveAttempts++;window.__nativeAppLastSaveAttempt=performance.now();}
         }
       }catch{window.__nativeAppObservationErrors.push('Unsupported IPC observation body.');}
-      const dispatch=()=>Reflect.apply(originalFetch,window,[input,init,...rest]);
+      const dispatch=()=>{const response=Reflect.apply(originalFetch,window,[input,init,...rest]);window.__nativeFixtureContext.observe(observedName,observedPayload,response);return response;};
       let operation,name;
       try{const url=new URL(typeof input==='string'?input:input.url);name=decodeURIComponent(url.pathname.slice(1));const body=typeof init?.body==='string'?init.body:new TextDecoder().decode(init?.body);operation=JSON.parse(body).operation;}catch{}
       if(name==='control_operation'&&operation?.action==='control_complete'&&operation.requestId==='native-close-ack'){
@@ -100,11 +103,12 @@ try{
     window.fetch=observed;
     return window.fetch===observed;
   `),true,'Passive IPC observation is installed without replacing native dispatch.');
+  await until(()=>execute('return window.__nativeFixtureContext.status().ownerObserved;'),'A genuine successful native UI request did not reveal its existing page owner.');
   await click('.file-button[data-path="main.typ"]');await until(()=>execute('return document.querySelector(".cm-content")?.textContent.includes("The saved manuscript stays unchanged.")'),'Manuscript did not open.');
   await click('#menu-format-toggle');await click('#palette-open');await click('#palette-form button[type="submit"]');
   await until(()=>stat(policy),'The native policy setup did not persist its default color rules.');
   await until(()=>execute('return !document.getElementById("palette-dialog").open'),'The native policy save did not finish.');
-  await click('#review-toggle');await click('#manuscript-share');await until(async()=>(await review({action:'open',project:'native-app',path:'main.typ'})).shared===true,'Actual native UI did not share the manuscript.');
+  await click('#review-toggle');await click('#manuscript-share');await until(async()=>(await review({action:'open',project:'11111111-1111-4111-8111-111111111111',path:'main.typ'})).shared===true,'Actual native UI did not share the manuscript.');
   await click('#connection-open');await execute('document.getElementById("zrok-name").value="native-app-test";document.getElementById("zrok-origin").value="https://native-app.example.invalid";');await click('#tunnel-start');
   await until(async()=>(await review({action:'connection'})).running,'The isolated fake-zrok tunnel did not start.');
   await click('#connection-tab-app');assert.equal(await execute('return document.getElementById("connection-app-enabled").checked'),false);

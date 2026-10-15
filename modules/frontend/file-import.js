@@ -5,14 +5,16 @@ export class NativeFileImport {
     this.current = null; this.unresolved = new Map();
   }
   get pendingCount() { return this.unresolved.size; }
-  open(project, parent) {
-    this.canStart(project.id);
-    this.current = this.unresolved.values().next().value || { project, parent, selection: null, requestId: null, phase: 'empty', busy: false, message: '', applied: false };
+  open(project, parent, expectedRoot) {
+    expectedRoot = sourceRoot({ expectedRoot }); this.canStart(project.id, expectedRoot);
+    const context = { project: Object.freeze({ id: project.id, name: project.name }), parent, selection: null, requestId: null, phase: 'empty', busy: false, message: '', applied: false };
+    Object.defineProperty(context, 'expectedRoot', { value: expectedRoot, enumerable: true });
+    this.current = this.unresolved.values().next().value || context;
     this.changed(this.current); return this.current;
   }
   changed(context) { if (this.current === context) this.onChange(context); }
   assertStart(context) {
-    try { this.canStart(context.project.id); }
+    try { this.canStart(context.project.id, context.expectedRoot); }
     catch (error) { context.message = error.message || 'Finish composing text and reopen Import files in the intended project.'; this.changed(context); throw error; }
   }
   async cancelSelection(selection) {
@@ -41,12 +43,12 @@ export class NativeFileImport {
     context.parent = parent; context.requestId = null; context.lastStatus = null; context.applied = false; context.busy = true; context.phase = 'choosing'; context.message = '';
     this.changed(context);
     try {
-      const selection = await this.chooseNative(context.project.id, parent);
+      const selection = await this.chooseNative(context.project.id, parent, context.expectedRoot);
       if (!selection) { context.phase = 'empty'; return; }
       if (this.current !== context) { await this.cancelSelection(selection); return; }
       try {
-        this.canStart(context.project.id);
-        if (selection.project !== context.project.id || selection.parent !== parent || !selection.selectionId || !Array.isArray(selection.files) || !selection.files.length) throw { message: 'The staged files do not match the chosen project folder.' };
+        this.canStart(context.project.id, context.expectedRoot);
+        if (!sourceRootsEqual(selection, context) || selection.project !== context.project.id || selection.parent !== parent || !selection.selectionId || !Array.isArray(selection.files) || !selection.files.length) throw { message: 'The staged files do not match the chosen project folder.' };
       } catch (error) {
         await this.cancelSelection(selection); throw error;
       }
@@ -55,7 +57,7 @@ export class NativeFileImport {
     finally { context.busy = false; this.changed(context); }
   }
   async acceptReceipt(context, receipt) {
-    if (receipt.requestId !== context.requestId || (receipt.project !== undefined && (receipt.project !== context.project.id || receipt.parent !== context.parent))) throw { message: 'The import result does not match this request. Check the import before retrying.' };
+    if (receipt.requestId !== context.requestId || (receipt.status !== 'unknown' && (receipt.project !== context.project.id || receipt.parent !== context.parent || !sourceRootsEqual(receipt, context)))) throw { message: 'The import result does not match this request. Check the import before retrying.' };
     if (receipt.status === 'committed') {
       const expected = context.selection.files.map(file => ({ path: [context.parent, file.name].filter(Boolean).join('/'), kind: file.kind, editable: file.editable, bytes: file.bytes, sha256: file.sha256 }));
       const sorted = files => files.map(file => ({ path: file.path, kind: file.kind, editable: file.editable, bytes: file.bytes, sha256: file.sha256 })).sort((left, right) => left.path.localeCompare(right.path));
@@ -105,3 +107,5 @@ export class NativeFileImport {
     finally { context.busy = false; this.changed(context); }
   }
 }
+import { sourceRoot, sourceRootsEqual } from './review-session.js';
+

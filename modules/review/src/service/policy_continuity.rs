@@ -46,26 +46,23 @@ pub(super) fn conflict() -> Error {
 }
 
 fn key(path: &Path) -> Result<PathBuf> {
-    Ok(path
-        .parent()
-        .ok_or_else(conflict)?
-        .canonicalize()?
-        .join(path.file_name().ok_or_else(conflict)?))
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|part| matches!(part, Component::ParentDir | Component::CurDir))
+    {
+        return Err(conflict());
+    }
+    Ok(path.to_path_buf())
 }
 
 impl Service {
     pub(super) fn raw_review(&self, path: &Path) -> Result<Option<String>> {
-        let metadata = sidecar(path);
-        match fs::symlink_metadata(&metadata) {
-            Ok(info) if info.is_file() && !info.file_type().is_symlink() => {
-                read_text(&metadata, MAX_TEXT * 8)
-                    .map(Some)
-                    .map_err(|_| conflict())
-            }
-            Ok(_) => Err(conflict()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(_) => Err(conflict()),
-        }
+        Ok(self
+            .legacy_group(path)?
+            .read_utf8(Member::Review, MAX_TEXT * 8)?
+            .text()?
+            .map(str::to_owned))
     }
 
     // Does not create a witness. Failed no-clobber creation/import must remain retryable.
@@ -151,15 +148,6 @@ impl Service {
             return Err(conflict());
         }
         Ok(ReviewObservation::of(raw))
-    }
-
-    pub(super) fn unchanged_policy(&self, path: &Path, expected: Option<&str>) -> Result<()> {
-        let current = self.raw_review(path)?;
-        self.check_policy_continuity(path, current.as_deref())?;
-        if current.as_deref() != expected {
-            return Err(conflict());
-        }
-        Ok(())
     }
 
     pub(super) fn recovery_policy(
@@ -260,7 +248,7 @@ mod tests {
                 })
                 .unwrap_err()
                 .code,
-            "io"
+            "outcome_unknown"
         );
         assert_eq!(fs::read_to_string(&file).unwrap(), "Original");
         assert_eq!(fs::read_to_string(sidecar(&file)).unwrap(), raw);
@@ -272,7 +260,7 @@ mod tests {
         );
         assert_eq!(
             journal["ownership"],
-            json!({"project":project,"path":"main.typ","owns_source":true})
+            json!({"project":project,"path":"main.typ","source_epoch":0,"expected_root":RootedRoot::observe(file.parent().unwrap()).unwrap(),"owns_source":true})
         );
         let pending = fs::read(journal_path(&file)).unwrap();
         let registry = fs::read(service.state.join("projects.json")).unwrap();

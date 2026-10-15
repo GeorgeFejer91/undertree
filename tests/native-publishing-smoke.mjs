@@ -7,6 +7,7 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer } from 'node:net';
+import { nativeFixtureContextScript } from './native-fixture-context.mjs';
 
 assert.equal(process.platform, 'linux');
 assert.notEqual(process.getuid(), 0, 'The failed-autosave proof requires a regular user.');
@@ -49,13 +50,13 @@ const command=(path,body,method)=>request(`/session/${session}${path}`,body,meth
 const execute=(script,args=[])=>command('/execute/sync',{script,args});
 const find=async selector=>(await command('/element',{using:'css selector',value:selector}))['element-6066-11e4-a52e-4f735466cecf'];
 const click=async selector=>command(`/element/${await find(selector)}/click`,{});
-const review=operation=>execute('return window.__TAURI_INTERNALS__.invoke("review_action",{operation:arguments[0]});',[operation]);
+const review=operation=>execute('return window.__TAURI_INTERNALS__.invoke("review_action",{ownerId:window.__nativeFixtureContext.owner(),operation:arguments[0]});',[operation]);
 const windowState=()=>native('xprop',['-id',nativeWindow,'WM_STATE']);
 async function screenshot(name){const encoded=await command('/screenshot',undefined,'GET');await writeFile(join(artifacts,name),Buffer.from(encoded,'base64'));}
 try{
   await stat(binary);await mkdir(project);await mkdir(state,{recursive:true});await mkdir(artifacts,{recursive:true});
   let original='= Native publishing\r\n\r\nThe saved manuscript stays unchanged. Café UTF-8.\r\n';await writeFile(source,original);
-  await writeFile(join(state,'projects.json'),JSON.stringify({projects:[{id:'native-app',name:'Native App controls',root:project,repository:'',autoSync:false,pending:[],pendingRevisions:{}}]}));
+  await writeFile(join(state,'projects.json'),JSON.stringify({projects:[{id:'11111111-1111-4111-8111-111111111111',name:'Native App controls',root:project,repository:'',autoSync:false,pending:[],pendingRevisions:{}}]}));
   await writeFile(zrok,`#!/bin/sh\nprintf '%s' "$3" > ${quote(targetFile)}\nexec sleep 180\n`);await chmod(zrok,0o700);
   await mkdir(config);await mkdir(downloads);await writeFile(join(config,'user-dirs.dirs'),`XDG_DOWNLOAD_DIR="${downloads}"\n`);
   let probeLibrary;
@@ -86,6 +87,7 @@ try{
   const opened=await request('/session',{capabilities:{alwaysMatch:{'tauri:options':{application:binary}}}});session=opened.sessionId;evidence.webDriverCapabilities=opened.capabilities;
   await until(()=>execute('return !!document.querySelector(arguments[0])',[`.file-button[data-path="${sourceName}"]`]),'Native inventory did not render.');
   nativeWindow=native('xdotool',['search','--onlyvisible','--name','^UnderTree$']).split('\n')[0];nativePid=Number(native('xdotool',['getwindowpid',nativeWindow]));
+  await execute(nativeFixtureContextScript);
   assert.equal(await execute(`
     window.__nativeAppErrors=[];window.__nativePublishingCompiles=[];
     window.__nativePublishingSaves=[];window.__nativePublishingClicks=[];window.__nativePublishingTimers=[];window.__nativePublishingPending=new Map();window.__nativePublishingInFlight=0;window.__nativePubPhase='setup';
@@ -122,6 +124,7 @@ try{
         }
       }catch{window.__nativeAppObservationErrors.push('Unsupported IPC observation body.');}
       const response=Reflect.apply(originalFetch,window,[input,init,...rest]);
+      window.__nativeFixtureContext.observe(observedName,observedPayload,response);
       if(observedName==='review_action'&&observedPayload?.operation?.action==='save'){
         const trace={at:performance.now(),phase:window.__nativePubPhase,length:observedPayload.operation.content?.length,stack:new Error().stack,pending:[...window.__nativePublishingPending.values()]};window.__nativePublishingSaves.push(trace);window.__nativePublishingInFlight++;
         response.then(reply=>{trace.finished=performance.now();trace.ok=reply.headers.get('Tauri-Response')==='ok';window.__nativePublishingInFlight--;},()=>{window.__nativePublishingInFlight--;});
@@ -136,6 +139,7 @@ try{
     window.fetch=observed;
     return window.fetch===observed;
   `),true,'Passive IPC observation is installed without replacing native dispatch.');
+  await until(()=>execute('return window.__nativeFixtureContext.status().ownerObserved;'),'A genuine successful native UI request did not reveal its existing page owner.');
   await execute('window.__nativeAppReadOverlapEnabled=arguments[0];',[readOverlap]);
   await click(`.file-button[data-path="${sourceName}"]`);await until(()=>execute('return document.querySelector(".cm-content")?.textContent.includes("The saved manuscript stays unchanged.")'),'Manuscript did not open.');
   await chmod(project,0o555);await click('.cm-content');native('xdotool',['windowactivate','--sync',nativeWindow,'key','--clearmodifiers','ctrl+End']);native('xdotool',['type','--clearmodifiers','--delay','3','Saved by uppercase Control+S.']);
@@ -151,14 +155,14 @@ try{
   await until(()=>execute('return !document.getElementById("typst-compile").disabled'),'The native compile control did not become ready.');
   await click('#typst-compile');await until(()=>execute('return document.getElementById("typst-preview-status").textContent.startsWith("Current PDF")&&document.getElementById("typst-compile").textContent==="Recompile"&&!!document.querySelector("#typst-preview canvas")'),'Real native Typst PDF did not finish rendering.',30000);
   const pdf=value=>Buffer.from(value.base64,'base64');
-  const firstPreview=await review({action:'pdf',project:'native-app',path:sourceName});const savedPdf=pdf(firstPreview);evidence.firstPreview={readAt:await execute('return performance.now()'),revision:firstPreview.revision,current:firstPreview.current,sha256:hash(savedPdf)};assert.ok(savedPdf.subarray(0,5).equals(Buffer.from('%PDF-')));
+  const firstPreview=await review({action:'pdf',project:'11111111-1111-4111-8111-111111111111',path:sourceName});const savedPdf=pdf(firstPreview);evidence.firstPreview={readAt:await execute('return performance.now()'),revision:firstPreview.revision,current:firstPreview.current,sha256:hash(savedPdf)};assert.ok(savedPdf.subarray(0,5).equals(Buffer.from('%PDF-')));
   await click('#menu-file-toggle');await until(()=>execute('const node=document.getElementById("export-manuscript"),box=node.getBoundingClientRect();return document.getElementById("menu-file").open&&!node.disabled&&box.width>0&&box.height>0&&getComputedStyle(node).visibility!=="hidden";'),'The visible native source download action did not finish opening.');await execute('return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));');await click('#export-manuscript');
   const sourceDownload=join(downloads,sourceName);await until(async()=>{try{return (await readFile(sourceDownload)).equals(Buffer.from(original));}catch{return false;}},'Native source anchor.download did not produce exact source bytes in the isolated directory.');
   const pdfName=sourceName.replace(/\.typ$/,'.pdf');await click('#export-pdf');
   const pdfDownload=join(downloads,pdfName);await until(async()=>{try{return (await readFile(pdfDownload)).equals(savedPdf);}catch{return false;}},'Native PDF anchor.download did not produce the exact rendered PDF bytes in the isolated directory.');
   await copyFile(sourceDownload,join(artifacts,'downloaded-source.typ'));await copyFile(pdfDownload,join(artifacts,'downloaded-preview.pdf'));
   checks.push('Real native Blob downloads write exact UTF-8/CRLF source and rendered PDF bytes only into the preflight-verified private directory.');
-  await click('#review-toggle');await click('#manuscript-share');await until(async()=>(await review({action:'open',project:'native-app',path:sourceName})).shared===true,'Actual native UI did not share the manuscript.');
+  await click('#review-toggle');await click('#manuscript-share');await until(async()=>(await review({action:'open',project:'11111111-1111-4111-8111-111111111111',path:sourceName})).shared===true,'Actual native UI did not share the manuscript.');
   await click('#connection-open');await execute('document.getElementById("zrok-name").value="native-app-test";document.getElementById("zrok-origin").value="https://native-app.example.invalid";');await click('#tunnel-start');
   await until(async()=>(await review({action:'connection'})).running,'The isolated fake-zrok tunnel did not start.');
   await click('#connection-tab-app');assert.equal(await execute('return document.getElementById("connection-app-enabled").checked'),false);
@@ -197,15 +201,15 @@ try{
   await click('#connection-open');await click('#connection-tab-app');
   let connectionStatus=(await review({action:'connection'})).appControls;assert.equal(connectionStatus.pdfExport.enabled,false);assert.deepEqual(connectionStatus.pdfExport.projects,[]);
   await click('#connection-pdf-export > summary');
-  const rootSelector='#connection-pdf-export-projects input[value="native-app"]';assert.equal(await execute('return document.querySelector(arguments[0]).checked',[rootSelector]),false);
+  const rootSelector='#connection-pdf-export-projects input[value="11111111-1111-4111-8111-111111111111"]';assert.equal(await execute('return document.querySelector(arguments[0]).checked',[rootSelector]),false);
   assert.equal(await execute('return document.querySelector(".pdf-export-root").textContent'),project);
   await click(rootSelector);await click('#connection-pdf-export-apply');
-  await until(async()=>{connectionStatus=(await review({action:'connection'})).appControls;return connectionStatus.pdfExport.enabled;},'Actual native PDF consent did not apply.');assert.deepEqual(connectionStatus.pdfExport.projects,['native-app']);
+  await until(async()=>{connectionStatus=(await review({action:'connection'})).appControls;return connectionStatus.pdfExport.enabled;},'Actual native PDF consent did not apply.');assert.deepEqual(connectionStatus.pdfExport.projects,['11111111-1111-4111-8111-111111111111']);
   const listed=(await tool('list_manuscripts')).structuredContent.result;const document=listed.find(item=>item.documentId===shared.documentId);assert.equal(document.savedPdf.available,true);
   const identity={documentId:shared.documentId,revision:document.savedPdf.revision,artifactId:document.savedPdf.artifactId};const ticket=value(await tool('get_pdf_download',identity));
   secrets.push(ticket.downloadUrl,new URL(ticket.downloadUrl).pathname,new URL(ticket.downloadUrl).pathname.split('/')[3]);
   const ticketEndpoint=target+new URL(ticket.downloadUrl).pathname;const downloaded=await fetch(ticketEndpoint,{signal:AbortSignal.timeout(10000)});assert.equal(downloaded.status,200);assert.equal(downloaded.headers.get('content-type'),'application/pdf');assert.equal(downloaded.headers.get('cache-control'),'no-store');
-  const remotePdf=Buffer.from(await downloaded.arrayBuffer());const latestPreview=await review({action:'pdf',project:'native-app',path:sourceName});const latestPdf=pdf(latestPreview);evidence.pdfComparison={localInitialSha256:hash(savedPdf),remoteSha256:hash(remotePdf),nativeCurrentSha256:hash(latestPdf),initialRevision:firstPreview.revision,listedRevision:identity.revision,listedArtifactId:identity.artifactId,ticketSha256:ticket.sha256,ticketBytes:ticket.bytes,currentRevision:latestPreview.revision,current:latestPreview.current,compiles:await execute('return window.__nativePublishingCompiles')};await writeFile(join(artifacts,'mcp-export-attempt.pdf'),remotePdf);await writeFile(join(artifacts,'native-current.pdf'),latestPdf);assert.ok(remotePdf.equals(savedPdf));assert.equal(hash(remotePdf),ticket.sha256);assert.equal(remotePdf.length,ticket.bytes);await writeFile(join(artifacts,'mcp-export.pdf'),remotePdf);
+  const remotePdf=Buffer.from(await downloaded.arrayBuffer());const latestPreview=await review({action:'pdf',project:'11111111-1111-4111-8111-111111111111',path:sourceName});const latestPdf=pdf(latestPreview);evidence.pdfComparison={localInitialSha256:hash(savedPdf),remoteSha256:hash(remotePdf),nativeCurrentSha256:hash(latestPdf),initialRevision:firstPreview.revision,listedRevision:identity.revision,listedArtifactId:identity.artifactId,ticketSha256:ticket.sha256,ticketBytes:ticket.bytes,currentRevision:latestPreview.revision,current:latestPreview.current,compiles:await execute('return window.__nativePublishingCompiles')};await writeFile(join(artifacts,'mcp-export-attempt.pdf'),remotePdf);await writeFile(join(artifacts,'native-current.pdf'),latestPdf);assert.ok(remotePdf.equals(savedPdf));assert.equal(hash(remotePdf),ticket.sha256);assert.equal(remotePdf.length,ticket.bytes);await writeFile(join(artifacts,'mcp-export.pdf'),remotePdf);
   assert.equal(await execute('return window.__nativeAppSaveAttempts'),savesBefore);assert.equal(hash(await readFile(source)),sourceBefore);assert.equal(hash(await readFile(policy)),policyBefore);
   checks.push('Actual native root consent is independently off by default; selecting its displayed root authorizes only the exact existing saved PDF through real MCP and bounded download bytes, without a source save.');
   await click('#connection-pdf-export-disable');await until(async()=>!(await review({action:'connection'})).appControls.pdfExport.enabled,'Native PDF permission revocation did not apply.');

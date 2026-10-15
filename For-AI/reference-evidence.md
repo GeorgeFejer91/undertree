@@ -2,6 +2,56 @@
 
 Evidence ledger for the 2026-10-14 Rust/Tauri/Typst migration. This is authored orchestration context, not a runtime input. Source inspection establishes source behavior; only an exercised path establishes integration behavior.
 
+## Current combined capture, 2026-10-15
+
+The newer unpublished v15 capture binds 303 sources, 15 fresh assets and
+desktop `5e2be040…` / unchanged CLI `d343134a…` to final manifest `282ec7e1…`.
+It passes 378 selected JavaScript tests and both builds; v14's Rust/strict
+Clippy evidence is reused only because all 67 Rust/native inputs match.
+Actual native History passes all eight groups, including producer versions,
+pure reads/compare/input, retained editor/canvas/workers, access denials,
+late-response rejection and restart persistence. Execution `7590ead1…` and
+native evidence `a67bf901…` bind the exact copied pair and disclosed fixture
+`f5e36ede…`: only the invalid CLI call's parse-denial assertion was corrected.
+Original failures remain preserved. Native diagnostics passes all five groups
+using a separately disclosed one-action Show PDF prerequisite correction;
+its assertions/deadlines remain intact. Native publishing passes six groups
+with a passive geometry observer: no local 320 px/200% page overflow, while the
+earlier hosted public build's overflow remains unresolved. The original v15
+baseline fails after 11 groups when custom Close is refused because an
+unidentified local operation is pending; its final two groups remain
+unqualified. Captured inputs remain unchanged and cleanup completes. See the
+[current checkpoint](../VERIFICATION.md#current-viewer-and-native-history-checkpoint--2026-10-15)
+for exact receipts and limits. The goal remains active.
+
+## Previous v14 combined capture, 2026-10-15
+
+The unpublished v14 capture binds 303 sources, 15 freshly built assets and
+copied desktop `7f421368…` / CLI `d343134a…` to final manifest
+`230b9ab1b97e3c58e8c97bde0511287286c11aed7905971c6ecae71b1026b782`.
+It passes 413 Rust tests, 373 selected JavaScript tests, strict native Clippy,
+both binary builds and all 20 real-Typst publishing checks with no publishing
+skips. Three unchanged heavy History quota cases retain separate earlier
+evidence and were explicitly filtered here. All captured/guarded inputs remain
+unchanged and the publisher fixture's observed processes are gone.
+
+See the [v14 checkpoint](../VERIFICATION.md#previous-v14-combined-integration-checkpoint--2026-10-15)
+for exact binary, test and publishing receipts. Native baseline passes all 13
+groups with an explicitly declared passive failure-observer variant and
+unchanged assertions; all owned processes exit. Native History fails after
+four groups: a hidden zero-size PDF scroller replaces its canvas while editor
+and workers remain intact. Original and diagnostic failures are retained; a
+viewer repair and new matched native qualification remain pending. Native
+diagnostics confirms the same canvas replacement when logs hide the preview,
+after passing real report/provenance and last-good-byte checks. Its later
+groups remain unrun. Focused viewer regressions establish a source fix; they
+do not replace the required new native qualification.
+The corrected synthetic PDF fixture preserves historical-preview export denial,
+and observed local 999% zoom does not widen remote commands. Older source,
+runtime and package receipts remain historical to their named captures. Full
+native/installer, parity, lifecycle, live integration and resource gates remain
+open; the delivery goal stays active.
+
 ## Native tree and acknowledged App controls, 2026-10-15
 
 The next immutable snapshot, `artifacts/qa-final-tree-v3/`, contains 205 source
@@ -524,19 +574,24 @@ cases and original functional/Pretext assertions pass unchanged, with exact
 regrowth. Full values, fonts, controls and overflow policy remain intact.
 CI now retains its report and PNGs. See the linked verification follow-up for
 exact red/green inputs; this is local mocked-control presentation evidence,
-not native authorization or installer qualification. The later hosted
-`75be58e` report independently passes all nine observations on Chrome 151,
-including 903 px client/scroll height. Those runs stop before native app launch
-while checking xprop; CI now explicitly installs its x11-utils package and
-checks availability. The exact discarded spawn error remains unclassified;
-refreshed native/installer acceptance is pending.
+not hosted Chrome 151, native authorization or installer qualification.
 
-The subsequent hosted `5b75573` runs pass seven native Word count checks and
-thirteen baseline native UI checks. Native publishing passes five download,
-consent and revocation groups before its narrow/enlarged-text overflow
-assertion; the final dirty-buffer export and installer gates remain unrun.
-The failure's exact overflow axis/readiness contribution is unclassified.
-Its fixture now retains geometry before the unchanged assertions. See the
-[native publishing follow-up](../VERIFICATION.md#instance-shutdown-follow-up--2026-10-15)
-for exact runs, triage and syntax-only observability identities; no layout fix
-or complete native-publishing pass is established.
+The later [source-epoch checkpoint](../VERIFICATION.md#immutable-source-epoch-checkpoint--2026-10-15)
+captures 266 sources, 15 assets and matched Rust/Tauri binaries. Its backend
+closure passes 237 Rust tests; selected JavaScript/static gates, eight browser
+and five actual native epoch check statements pass. Earlier fixture failures
+are retained and all captured inputs remain unchanged. The stopped-startup
+epoch fixtures do not qualify live Move or root replacement containment. Newer
+expectedRoot, saved History and diagnostic integration remain separate work;
+full hosted, package and parity acceptance still keep the product goal active.
+
+The newer unpublished publishing slice bounds Rust-written PDF spool bytes to
+16 MiB while concurrently consuming bounded stderr through the existing owned
+compiler/reaper lifecycle. Its 77 focused publishing cases and strict Clippy
+pass on the exact private inputs recorded in
+`artifacts/qualification/typst-bounded-pdf-spool/handoff.json`. Dependency JSON
+is still bounded only when admitted after compilation; a hard temporary-write
+quota, compiler/cache sandboxing and crash residue remain separate gaps.
+Subsequent compiler-source capture and creation-alias fixes require their own
+receipts and a matched native integration; these focused passes do not qualify
+the newer desktop or an installer.

@@ -1,5 +1,5 @@
 use crate::service::{Service, Tunnel};
-use crate::{Error, Operation, Result};
+use crate::{Error, Result};
 use axum::{
     extract::{DefaultBodyLimit, Path, State},
     http::{HeaderMap, StatusCode},
@@ -606,7 +606,7 @@ struct LocalState {
 async fn local(
     State(state): State<LocalState>,
     headers: HeaderMap,
-    Json(request): Json<Value>,
+    body: axum::body::Bytes,
 ) -> axum::response::Response {
     let authorization = headers
         .get("authorization")
@@ -652,22 +652,14 @@ async fn local(
             return (StatusCode::CONFLICT, Json(json!({"ok":false,"error":Error::new("stale_instance","Discover the current local UnderTree instance before retrying.")}))).into_response();
         }
     }
-    if matches!(
-        request.get("action").and_then(Value::as_str),
-        Some("projects" | "connection" | "capabilities")
-    ) && request.as_object().is_none_or(|object| object.len() != 1)
-    {
-        return (StatusCode::BAD_REQUEST,Json(json!({"ok":false,"error":Error::new("format","This operation takes no extra fields.")}))).into_response();
-    }
-    let operation: Operation =
-        match serde_json::from_value(request) {
-            Ok(operation) => operation,
-            Err(_) => return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({"ok":false,"error":Error::new("format","Invalid product operation.")})),
-            )
-                .into_response(),
-        };
+    // Parse the bounded raw stream before Value can discard duplicate nested fields.
+    let request: crate::SourceRequest = match serde_json::from_slice(&body) {
+        Ok(request) => request,
+        Err(_) => return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"ok":false,"error":Error::new("format","Invalid product operation or source identity.")})),
+        ).into_response(),
+    };
     let caller = if state.cli_instance.is_some()
         || headers
             .get("x-undertree-caller")
@@ -678,7 +670,7 @@ async fn local(
     } else {
         crate::capabilities::CallerContext::Local
     };
-    match state.service.dispatch_as(caller, operation).await {
+    match state.service.dispatch_source_as(caller, request).await {
         Ok(value) => Json(json!({"ok":true,"result":value})).into_response(),
         Err(error) => (
             StatusCode::BAD_REQUEST,
@@ -848,6 +840,7 @@ const MAX_LOCAL_BODY: usize = 12 * 1024 * 1024;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Operation;
     #[test]
     fn connection_setup_is_bounded_and_origin_only() {
         let settings = validate_settings("my-review", "https://review.example.org/").unwrap();
@@ -880,11 +873,15 @@ mod tests {
                 validate_settings("my-review", "https://review.example.org").unwrap(),
             )
             .unwrap();
-        service
-            .shared
-            .lock()
-            .unwrap()
-            .insert("temporary".into(), ("project".into(), "main.html".into()));
+        service.shared.lock().unwrap().insert(
+            "temporary".into(),
+            (
+                "project".into(),
+                "main.html".into(),
+                0,
+                crate::RootObservation::new(0, 0),
+            ),
+        );
         let restarted = Service::new(temporary.path().to_owned()).unwrap();
         let status = connection(&restarted).await.unwrap();
         assert_eq!(status["config"]["reservation"], "my-review");
@@ -918,8 +915,16 @@ mod tests {
         extra: &str,
         body: Value,
     ) -> (u16, Value) {
+        request_raw(address, path, extra, &body.to_string()).await
+    }
+
+    async fn request_raw(
+        address: std::net::SocketAddr,
+        path: &str,
+        extra: &str,
+        body: &str,
+    ) -> (u16, Value) {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        let body = body.to_string();
         let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
         let raw = format!("POST {path} HTTP/1.1\r\nHost: {address}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{extra}\r\n{body}",body.len());
         stream.write_all(raw.as_bytes()).await.unwrap();
@@ -944,6 +949,76 @@ mod tests {
             axum::serve(listener, router).await.unwrap();
         });
         (address, task)
+    }
+
+    #[tokio::test]
+    async fn authenticated_raw_source_requests_preserve_strict_nested_json_and_identity() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().join("project");
+        std::fs::create_dir(&root).unwrap();
+        let file = root.join("main.typ");
+        std::fs::write(&file, "Original").unwrap();
+        let service = Service::new(temporary.path().join("state")).unwrap();
+        let project = service
+            .local(Operation::AddProject {
+                root: root.to_str().unwrap().into(),
+            })
+            .unwrap();
+        let project = project["id"].as_str().unwrap();
+        let registry = std::fs::read(temporary.path().join("state/projects.json")).unwrap();
+        let (address, server) = serve(local_router(
+            service.clone(),
+            "fixture-local".into(),
+            root.clone(),
+        ))
+        .await;
+        let auth = "Authorization: Bearer fixture-local\r\n";
+        let palette = json!({"action":"palette","project":project,"path":"main.typ","sourceEpoch":0,"revision":crate::document::digest("Original"),
+            "rules":[{"id":"r","label":"r","color":"#abcdef","action":"protect","prompt":"initial"}]}).to_string();
+        let nested_duplicate = palette.replace(
+            "\"prompt\":\"initial\"",
+            "\"prompt\":\"first\",\"prompt\":\"second\"",
+        );
+        assert_ne!(nested_duplicate, palette);
+        let outer_duplicate =
+            palette.replace("\"sourceEpoch\":0", "\"sourceEpoch\":0,\"sourceEpoch\":1");
+        assert_ne!(outer_duplicate, palette);
+        for body in [
+            nested_duplicate,
+            outer_duplicate,
+            palette.replace("\"sourceEpoch\":0", "\"sourceEpoch\":null"),
+        ] {
+            let (status, reply) = request_raw(address, "/api/review", auth, &body).await;
+            assert_eq!(status, 400);
+            assert_eq!(reply["error"]["code"], "format");
+            assert_eq!(std::fs::read(&file).unwrap(), b"Original");
+            assert!(!root.join("main.typ.undertree-review.json").exists());
+            assert_eq!(
+                std::fs::read(temporary.path().join("state/projects.json")).unwrap(),
+                registry
+            );
+        }
+        let open = json!({"action":"open","project":project,"path":"main.typ","sourceEpoch":0});
+        assert_eq!(
+            request(address, "/api/review", auth, open.clone()).await.1["result"]["sourceEpoch"],
+            0
+        );
+        service.retire_source_for_test(project, "main.typ").unwrap();
+        assert_eq!(
+            request(address, "/api/review", auth, open).await.1["error"]["code"],
+            "stale_document"
+        );
+        let review = request(
+            address,
+            "/api/review",
+            auth,
+            json!({"action":"review","project":project,"path":"main.typ"}),
+        )
+        .await;
+        assert_eq!(review.0, 200);
+        assert_eq!(review.1["result"]["sourceEpoch"], 1);
+        assert!(review.1["result"]["sidecarRevision"].is_null());
+        server.abort();
     }
 
     #[tokio::test]

@@ -1,3 +1,5 @@
+import { captureSourceBinding, sourceBindingCurrent, sourceEpoch, sourceRootsEqual } from './review-session.js';
+
 // File inventory is authoritative; this only groups its existing paths for navigation.
 export function manuscriptTree(entries) {
   const root = { children: new Map() };
@@ -28,13 +30,14 @@ export function pdfPageWindow(current, total, radius = 1) {
 }
 
 export function capturePublicationInputs(inputSessions, projectVersion) {
-  return { version: projectVersion, sessions: inputSessions.map(session => [session, session.version, session.snapshot.review.revision]) };
+  return { version: projectVersion, sessions: inputSessions.map(session => [session, session.version, session.snapshot.review.revision, captureSourceBinding(session)]) };
 }
 
 export function publicationPreviewCurrent(result, { main, inputSessions, captured, projectVersion, composing }) {
-  return result.current === true && (!main || result.revision === main.snapshot.review.revision)
-    && !inputSessions.some(input => input.dirty || input.conflict || input.reviewProblem)
-    && (!captured || (captured.version === projectVersion && captured.sessions.every(([input, version, revision]) => input.version === version
+  return result.current === true && (!main || (sourceBindingCurrent(main, captureSourceBinding(main)) && result.revision === main.snapshot.review.revision && sourceEpoch(result) === sourceEpoch(main) && sourceRootsEqual(result, main)))
+    && (!captured?.main || (sourceEpoch(result) === captured.main.sourceEpoch && sourceRootsEqual(result, captured.main)))
+    && !inputSessions.some(input => input.dirty || input.conflict || input.reviewProblem || input.identityProblem || !sourceRootsEqual(input, result))
+    && (!captured || (captured.version === projectVersion && captured.sessions.every(([input, version, revision, binding]) => (!binding || sourceBindingCurrent(input, binding)) && input.version === version
       && input.snapshot.review.revision === revision && !inputSessions.some(current => current.path === input.path && current !== input))))
     && !composing;
 }

@@ -88,6 +88,8 @@ async fn saved_export_preserves_binary_hidden_empty_and_opaque_review_without_sa
             EditorOperation::EditorRegister {
                 project: project.id.clone(),
                 path: "main.typ".into(),
+                source_epoch: 0,
+                expected_root: None,
                 generation: 3,
                 revision: digest("= Saved\n"),
                 content_digest: digest("unsaved private buffer"),
@@ -674,4 +676,58 @@ async fn chosen_unicode_destination_leaf_round_trips_without_exposing_absolute_p
         "failed"
     );
     assert!(!invalid.exists());
+}
+
+#[tokio::test]
+async fn rooted_export_admission_rejects_retired_owner_and_same_byte_root_replacement_before_effects(
+) {
+    let (temp, service, project, _) = fixture();
+    fs::write(project.root.join("main.typ"), "= Saved").unwrap();
+    let connected = service.connect_native_editor("main").unwrap();
+    let owner_id = connected["ownerId"].as_str().unwrap();
+    let root = source_files::RootedRoot::observe(&project.root).unwrap();
+    let before = fs::read(service.state.join("projects.json")).unwrap();
+    fs::rename(&project.root, temp.path().join("old-root")).unwrap();
+    fs::create_dir(&project.root).unwrap();
+    fs::write(project.root.join("main.typ"), "= Saved").unwrap();
+    assert_eq!(
+        service
+            .prepare_native_project_export_rooted("main", owner_id, &project.id, root)
+            .await
+            .unwrap_err()
+            .code,
+        "stale_root"
+    );
+    assert!(lock(&service.project_export).unwrap().tickets.is_empty());
+    assert!(fs::read_dir(&service.state).unwrap().all(|entry| !entry
+        .unwrap()
+        .file_name()
+        .to_string_lossy()
+        .starts_with(".undertree-export-")));
+    let current = source_files::RootedRoot::observe(&project.root).unwrap();
+    service.connect_native_editor("main").unwrap();
+    assert_eq!(
+        service
+            .prepare_native_project_export_rooted("main", owner_id, &project.id, current)
+            .await
+            .unwrap_err()
+            .code,
+        "stale_session"
+    );
+    assert!(lock(&service.project_export).unwrap().tickets.is_empty());
+    assert_eq!(
+        fs::read(service.state.join("projects.json")).unwrap(),
+        before
+    );
+    let connected = service.connect_native_editor("main").unwrap();
+    let ready = service
+        .prepare_native_project_export_rooted(
+            "main",
+            connected["ownerId"].as_str().unwrap(),
+            &project.id,
+            current,
+        )
+        .await
+        .unwrap();
+    assert_eq!(ready["expectedRoot"], json!(current));
 }

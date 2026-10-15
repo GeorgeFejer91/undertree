@@ -31,6 +31,9 @@ pub(crate) struct DiagnosticContext<'a> {
 pub(crate) struct DiagnosticReport {
     pub text: String,
     pub rows: Vec<PrimaryDiagnostic>,
+    /// Native capture reached completion and no stderr bytes were dropped at the input cap.
+    pub capture_complete: bool,
+    /// Normalization omitted or shortened output, including input, text, row or report bounds.
     pub truncated: bool,
 }
 
@@ -85,7 +88,7 @@ fn absolute_root(path: &Path) -> bool {
         && path.components().collect::<PathBuf>().as_os_str() == path.as_os_str()
 }
 
-fn editable_path(relative: &str) -> bool {
+pub(super) fn editable_path(relative: &str) -> bool {
     // Match the closed editable-source set and hidden/metadata rules of Service::path.
     let Ok(path) = super::input_path(relative) else {
         return false;
@@ -290,7 +293,7 @@ fn redact(bytes: &[u8], roots: &[String], cut: bool) -> String {
     while cursor < bytes.len() {
         let rest = &bytes[cursor..];
         if cut && roots.iter().any(|root| root.as_bytes().starts_with(rest)) {
-            // Input cap may cut even inside a UTF-8 private root: redact bytes before decoding.
+            // Interrupted capture may cut inside a UTF-8 private root: redact before decoding.
             // A partial longer root also takes precedence over a complete parent root.
             safe.extend_from_slice(b"[private]");
             break;
@@ -318,20 +321,28 @@ fn serialized_size(value: &impl Serialize) -> usize {
     serde_json::to_vec(value).map_or(usize::MAX, |bytes| bytes.len())
 }
 
+/// `capture_complete` is trusted native supervision input, never inferred from stderr text.
 /// Never opens files, starts a compiler, authenticates a header or grants navigation.
-pub(crate) fn normalize(stderr: &[u8], context: &DiagnosticContext<'_>) -> DiagnosticReport {
+pub(crate) fn normalize(
+    stderr: &[u8],
+    capture_complete: bool,
+    context: &DiagnosticContext<'_>,
+) -> DiagnosticReport {
+    let input_cut = stderr.len() > MAX_STDERR;
+    let capture_complete = capture_complete && !input_cut;
     let Some(roots) = redaction_roots(context) else {
         return DiagnosticReport {
             text: "Compiler diagnostics omitted: invalid private path context.".into(),
             rows: Vec::new(),
+            capture_complete,
             truncated: true,
         };
     };
-    let input_cut = stderr.len() > MAX_STDERR;
     let bytes = &stderr[..stderr.len().min(MAX_STDERR)];
     let mut report = DiagnosticReport {
-        text: redact(bytes, &roots, input_cut),
+        text: redact(bytes, &roots, !capture_complete),
         rows: Vec::new(),
+        capture_complete,
         truncated: input_cut,
     };
     // Reserve half the actual JSON budget for structured rows; escaping can expand text.
@@ -343,17 +354,12 @@ pub(crate) fn normalize(stderr: &[u8], context: &DiagnosticContext<'_>) -> Diagn
         report.text.truncate(end);
         report.truncated = true;
     }
-    let parse_length = if input_cut && bytes.last() != Some(&b'\n') {
-        bytes
-            .iter()
-            .rposition(|byte| *byte == b'\n')
-            .map_or(0, |index| index + 1)
-    } else {
-        bytes.len()
-    };
+    if !capture_complete {
+        return report;
+    }
     let aliases = source_aliases(context);
     let mut verified = BTreeMap::new();
-    for raw in bytes[..parse_length].split(|byte| *byte == b'\n') {
+    for raw in bytes.split(|byte| *byte == b'\n') {
         let Ok(line) = std::str::from_utf8(raw) else {
             continue;
         };
@@ -415,7 +421,7 @@ mod tests {
         })
     }
 
-    fn run(log: &[u8], files: &[(&str, &str)]) -> DiagnosticReport {
+    fn run(log: &[u8], capture_complete: bool, files: &[(&str, &str)]) -> DiagnosticReport {
         let hashes: Vec<_> = files.iter().map(|(_, text)| digest(text)).collect();
         let sources: Vec<_> = files
             .iter()
@@ -428,6 +434,7 @@ mod tests {
             .collect();
         normalize(
             log,
+            capture_complete,
             &DiagnosticContext {
                 staged_root: root(),
                 compiler_cwd: root(),
@@ -446,6 +453,7 @@ mod tests {
     fn observed_zero_column_and_identifier_after_hash_are_preserved() {
         let raw = run(
             b"main.typ:1:0: error: unclosed raw text\n",
+            true,
             &[("main.typ", "`")],
         );
         assert_eq!(
@@ -458,6 +466,7 @@ mod tests {
         );
         let identifier = run(
             b"main.typ:1:1: error: unknown variable: diagnostics_missing_symbol\n",
+            true,
             &[("main.typ", "#diagnostics_missing_symbol\n")],
         );
         assert_eq!(
@@ -468,6 +477,7 @@ mod tests {
             (1, 1)
         );
         assert!(!identifier.truncated);
+        assert!(identifier.capture_complete);
         assert_eq!(identifier.rows[0].severity, Severity::Error);
     }
 
@@ -481,7 +491,7 @@ mod tests {
             let log = format!(
                 "main.typ:1:{column}: error: unknown variable: diagnostics_missing_symbol\n"
             );
-            let result = run(log.as_bytes(), &[("main.typ", text)]);
+            let result = run(log.as_bytes(), true, &[("main.typ", text)]);
             assert_eq!(
                 (
                     location(&result).column_scalar0,
@@ -494,6 +504,7 @@ mod tests {
         let text = "First line.\r\n💛e\u{301}\t#diagnostics_missing_symbol\r\n";
         let result = run(
             b"main.typ:2:5: error: unknown variable: diagnostics_missing_symbol\n",
+            true,
             &[("main.typ", text)],
         );
         let expected_byte = text.find("diagnostics_missing_symbol").unwrap();
@@ -512,6 +523,7 @@ mod tests {
             let text = format!("Before.{newline}💛\t#diagnostics_missing_symbol");
             let report = run(
                 b"main.typ:2:3: error: unknown variable: diagnostics_missing_symbol\n",
+                true,
                 &[("main.typ", &text)],
             );
             let byte = text.find("diagnostics_missing_symbol").unwrap();
@@ -526,6 +538,7 @@ mod tests {
         let text = "One.\r\nTwo.\u{85}Three.\u{2028}Four.\u{2029}\t#diagnostics_missing_symbol";
         let report = run(
             b"main.typ:5:2: error: unknown variable: diagnostics_missing_symbol\n",
+            true,
             &[("main.typ", text)],
         );
         assert_eq!(
@@ -539,6 +552,7 @@ mod tests {
         for text in ["#let value =", "#let value =\r\n"] {
             let report = run(
                 b"main.typ:1:12: error: expected expression\n",
+                true,
                 &[("main.typ", text)],
             );
             assert_eq!(
@@ -553,7 +567,7 @@ mod tests {
             "main.typ:1:13: error: synthetic",
             "main.typ:3:0: error: synthetic",
         ] {
-            let report = run(header.as_bytes(), &[("main.typ", "#let value =\r\n")]);
+            let report = run(header.as_bytes(), true, &[("main.typ", "#let value =\r\n")]);
             assert!(report.rows[0].location_candidate.is_none());
         }
         assert_eq!(point("", 1, 0), Some((0, 0)));
@@ -567,7 +581,7 @@ mod tests {
             ("left/main.typ", "#set text(font: \"missing\")"),
             ("right/main.typ", "#set text(font: \"missing\")"),
         ];
-        let report = run(b"left/main.typ:1:16: warning: unknown font family: missing\nright/main.typ:1:16: warning: unknown font family: missing\n", &files);
+        let report = run(b"left/main.typ:1:16: warning: unknown font family: missing\nright/main.typ:1:16: warning: unknown font family: missing\n", true, &files);
         assert_eq!(report.rows.len(), 2);
         for (row, path) in report.rows.iter().zip(["left/main.typ", "right/main.typ"]) {
             assert_eq!(row.severity, Severity::Warning);
@@ -577,11 +591,14 @@ mod tests {
                 digest(files[1].1)
             );
         }
-        let basename = run(b"main.typ:1:1: error: synthetic basename\n", &files);
+        let basename = run(b"main.typ:1:1: error: synthetic basename\n", true, &files);
         assert!(basename.rows[0].location_candidate.is_none());
         for path in ["left/main.typ", "right/main.typ"] {
             let log = format!("{path}:1:1: error: unknown variable: diagnostics_missing_symbol\n");
-            assert_eq!(location(&run(log.as_bytes(), &files)).project_path, path);
+            assert_eq!(
+                location(&run(log.as_bytes(), true, &files)).project_path,
+                path
+            );
         }
     }
 
@@ -590,7 +607,7 @@ mod tests {
         let source = "Before.\r\n💛e\u{301}\t#set text(font: \"UnderTree Diagnostics Deliberately Missing Font\")\r\nWarning sentinel.";
         for path in ["main.typ", "chapter/main.typ"] {
             let log = format!("{path}:2:20: warning: unknown font family: undertree diagnostics deliberately missing font\n");
-            let report = run(log.as_bytes(), &[(path, source)]);
+            let report = run(log.as_bytes(), true, &[(path, source)]);
             assert_eq!(report.rows[0].severity, Severity::Warning);
             assert_eq!(
                 (
@@ -610,6 +627,7 @@ mod tests {
             assert_eq!(
                 location(&run(
                     log.as_bytes(),
+                    true,
                     &[(name, "#diagnostics_missing_symbol")]
                 ))
                 .project_path,
@@ -635,27 +653,33 @@ mod tests {
         };
         let correct = normalize(
             b"../stage/main.typ:1:1: error: synthetic cwd binding\n",
+            true,
             &context,
         );
         assert_eq!(location(&correct).project_path, "main.typ");
-        let wrong = normalize(b"main.typ:1:1: error: synthetic wrong cwd\n", &context);
+        let wrong = normalize(
+            b"main.typ:1:1: error: synthetic wrong cwd\n",
+            true,
+            &context,
+        );
         assert!(wrong.rows[0].location_candidate.is_none());
         let absolute = format!(
             "{}:1:1: error: synthetic absolute inventory binding\n",
             root().join("main.typ").display()
         );
         assert_eq!(
-            location(&normalize(absolute.as_bytes(), &context)).project_path,
+            location(&normalize(absolute.as_bytes(), true, &context)).project_path,
             "main.typ"
         );
         let noncanonical = normalize(
             b"../stage/unused/../main.typ:1:1: error: synthetic alias\n",
+            true,
             &context,
         );
         assert!(noncanonical.rows[0].location_candidate.is_none());
         let private_cwd = format!("opaque cwd: {}", cwd.display());
         assert_eq!(
-            normalize(private_cwd.as_bytes(), &context).text,
+            normalize(private_cwd.as_bytes(), true, &context).text,
             "opaque cwd: [private]"
         );
     }
@@ -675,12 +699,13 @@ mod tests {
             private_roots: &[],
         };
         assert!(
-            normalize(b"main.typ:1:1: error: synthetic\n", &context).rows[0]
+            normalize(b"main.typ:1:1: error: synthetic\n", true, &context).rows[0]
                 .location_candidate
                 .is_none()
         );
         let duplicate = run(
             b"main.typ:1:1: error: synthetic\n",
+            true,
             &[("main.typ", "#one"), ("main.typ", "#two")],
         );
         assert!(duplicate.rows[0].location_candidate.is_none());
@@ -707,7 +732,11 @@ mod tests {
             "C:\\private\\main.typ",
         ] {
             let log = format!("{path}:1:0: error: synthetic ineligible\n");
-            let report = run(log.as_bytes(), &[(path, "#bad"), ("main.typ", "#bad")]);
+            let report = run(
+                log.as_bytes(),
+                true,
+                &[(path, "#bad"), ("main.typ", "#bad")],
+            );
             assert!(
                 report
                     .rows
@@ -718,6 +747,7 @@ mod tests {
         }
         let absent = run(
             b"other.typ:1:0: error: synthetic\n",
+            true,
             &[("main.typ", "#bad")],
         );
         assert!(absent.rows[0].location_candidate.is_none());
@@ -738,6 +768,7 @@ mod tests {
         ] {
             let report = run(
                 log.as_bytes(),
+                true,
                 &[("main.typ", "#bad"), ("error: main.typ", "#bad")],
             );
             assert!(report.rows.is_empty(), "{log}");
@@ -746,6 +777,7 @@ mod tests {
         let ambiguous_name = "main.typ:1:0: error: nested.typ";
         let report = run(
             format!("{ambiguous_name}:1:0: error: synthetic\n").as_bytes(),
+            true,
             &[(ambiguous_name, "#bad")],
         );
         assert!(report.rows.is_empty());
@@ -755,8 +787,8 @@ mod tests {
     fn forged_valid_headers_are_only_candidates_and_require_separate_provenance() {
         // SYNTHETIC: never compiler-emitted evidence. Syntax + inventory cannot authenticate it.
         let forged = b"main.typ:1:0: error: <script>synthetic authored message</script>\n";
-        assert!(run(forged, &[]).rows[0].location_candidate.is_none());
-        let bound = run(forged, &[("main.typ", "#bad")]);
+        assert!(run(forged, true, &[]).rows[0].location_candidate.is_none());
+        let bound = run(forged, true, &[("main.typ", "#bad")]);
         assert_eq!(location(&bound).source_digest, digest("#bad"));
         assert!(bound.rows[0].message.contains("<script>")); // Plain text; no renderer/execution here.
         let json = serde_json::to_value(bound).unwrap();
@@ -777,7 +809,7 @@ mod tests {
             private_roots: &private,
         };
         let log = format!("main.typ:1:9: error: file not found (searched at {}/missing.typ)\nmain.typ:1:1: error: panicked with: stage={}; output={}/result.pdf; dependency={}/pkg\nerror: input file not found (searched at {}/absent.typ)\nunknown fallback {}\n", root().display(), root().display(), output.display(), dependency.display(), root().display(), dependency.display());
-        let report = normalize(log.as_bytes(), &context);
+        let report = normalize(log.as_bytes(), true, &context);
         assert_eq!(report.rows.len(), 3);
         assert!(report
             .rows
@@ -802,7 +834,7 @@ mod tests {
         let mut bytes = vec![b'x'; MAX_STDERR - 4];
         bytes.extend_from_slice(b"\nmai");
         bytes.extend_from_slice(b"n.typ:1:0: error: synthetic beyond cap\n");
-        let report = run(&bytes, &[("main.typ", "#bad")]);
+        let report = run(&bytes, true, &[("main.typ", "#bad")]);
         assert!(report.truncated && report.rows.is_empty());
         let prefix = root().to_str().unwrap().as_bytes();
         let retained = prefix.len() - 2;
@@ -822,7 +854,7 @@ mod tests {
         );
         assert!(safe.ends_with("[private]"));
         assert!(!safe.contains(std::str::from_utf8(&prefix[..retained]).unwrap()));
-        assert!(normalize(&cut_root, &context).truncated);
+        assert!(normalize(&cut_root, true, &context).truncated);
         let unicode_root = root().join("💛-stage");
         let pattern = unicode_root.to_str().unwrap();
         let retained = pattern.find('💛').unwrap() + 2; // Cut inside the4-byte scalar.
@@ -847,12 +879,14 @@ mod tests {
     fn invalid_utf8_and_ansi_stay_safe_text_without_replacement_character_path_binding() {
         let report = run(
             b"main.typ:1:0: error: invalid \xff\n",
+            true,
             &[("main.typ", "#bad")],
         );
         assert!(report.rows.is_empty());
         assert!(report.text.contains('\u{fffd}'));
         let ansi = run(
             b"\x1b[31mmain.typ:1:0: error: synthetic\x1b[0m\n",
+            true,
             &[("main.typ", "#bad")],
         );
         assert!(ansi.rows[0].location_candidate.is_none());
@@ -875,7 +909,7 @@ mod tests {
             sources: &[],
             private_roots: &private,
         };
-        let report = normalize(&bytes, &context);
+        let report = normalize(&bytes, true, &context);
         assert!(report.truncated);
         assert!(report.text.ends_with("[private]"));
         assert!(!report.text.contains("child-stage"));
@@ -884,7 +918,7 @@ mod tests {
     #[test]
     fn row_and_actual_serialized_report_limits_are_independent_of_json_expansion() {
         let log = "main.typ:1:0: error: synthetic\n".repeat(MAX_ROWS + 1);
-        let report = run(log.as_bytes(), &[("main.typ", "#bad")]);
+        let report = run(log.as_bytes(), true, &[("main.typ", "#bad")]);
         assert_eq!(report.rows.len(), MAX_ROWS);
         assert!(report.truncated);
         assert!(serde_json::to_vec(&report).unwrap().len() <= MAX_REPORT);
@@ -893,13 +927,13 @@ mod tests {
             vec![b'"'; MAX_STDERR],
             vec![0xff; MAX_STDERR + 2],
         ] {
-            let bounded = run(&input, &[]);
+            let bounded = run(&input, true, &[]);
             assert!(bounded.truncated);
             assert!(serde_json::to_vec(&bounded).unwrap().len() <= MAX_REPORT);
         }
         let message = "\\\"".repeat(10_000);
         let log = format!("main.typ:1:0: error: {message}\n").repeat(3);
-        let report = run(log.as_bytes(), &[("main.typ", "#bad")]);
+        let report = run(log.as_bytes(), true, &[("main.typ", "#bad")]);
         assert!(report.truncated);
         assert!(!report.rows.is_empty() && report.rows.len() < 3);
         assert!(serde_json::to_vec(&report).unwrap().len() <= MAX_REPORT);
@@ -908,7 +942,7 @@ mod tests {
     #[test]
     fn unrecognized_and_unlocated_output_is_retained_and_invalid_root_context_fails_closed() {
         let log = b"opaque compiler text\nerror: input unavailable\nwarning: unlocated warning\n";
-        let result = run(log, &[]);
+        let result = run(log, true, &[]);
         assert_eq!(result.text.as_bytes(), log);
         assert_eq!(result.rows.len(), 2);
         assert!(result
@@ -921,17 +955,160 @@ mod tests {
             sources: &[],
             private_roots: &[],
         };
-        let result = normalize(root().to_str().unwrap().as_bytes(), &invalid);
+        let result = normalize(root().to_str().unwrap().as_bytes(), true, &invalid);
         assert!(result.truncated && result.rows.is_empty());
         assert!(!result.text.contains(root().to_str().unwrap()));
-        let empty = run(b"", &[]);
+        let empty = run(b"", true, &[]);
         assert_eq!(
             empty,
             DiagnosticReport {
                 text: String::new(),
                 rows: Vec::new(),
+                capture_complete: true,
                 truncated: false
             }
         );
+    }
+
+    #[test]
+    fn interrupted_zero_and_below_cap_output_never_produces_structured_rows() {
+        for bytes in [
+            b"".as_slice(),
+            b"opaque compiler text\n",
+            b"main.typ:1:0: error: synthetic interrupted output\n",
+            b"main.typ:1:0: warning: synthetic interrupted output",
+        ] {
+            let report = run(bytes, false, &[("main.typ", "#bad")]);
+            assert!(!report.capture_complete);
+            assert!(!report.truncated);
+            assert!(report.rows.is_empty());
+            assert_eq!(report.text.as_bytes(), bytes);
+            let json = serde_json::to_value(&report).unwrap();
+            assert_eq!(json["captureComplete"], false);
+            assert_eq!(json["truncated"], false);
+            assert_eq!(json["rows"], serde_json::json!([]));
+        }
+        let complete = run(
+            b"main.typ:1:0: error: synthetic interrupted output\n",
+            true,
+            &[("main.typ", "#bad")],
+        );
+        assert!(complete.capture_complete);
+        assert_eq!(location(&complete).project_path, "main.typ");
+    }
+
+    #[test]
+    fn interrupted_private_root_prefixes_are_redacted_before_utf8_decoding() {
+        let child = root().join("child-💛-stage-secret");
+        let output = root().parent().unwrap().join("output-💛-secret");
+        let dependency = root().parent().unwrap().join("packages-💛-secret");
+        let private = [root(), output.as_path(), dependency.as_path()];
+        let hash = digest("#bad");
+        let sources = [StagedSource {
+            project_path: "main.typ",
+            text: "#bad",
+            source_digest: &hash,
+        }];
+        let context = DiagnosticContext {
+            staged_root: &child,
+            compiler_cwd: &child,
+            sources: &sources,
+            private_roots: &private,
+        };
+        let header = b"main.typ:1:0: error: synthetic complete-looking header\nmissing file: ";
+        for path in [&child, &output, &dependency] {
+            let spelling = path.to_str().unwrap().as_bytes();
+            // Include byte cuts inside the astral scalar and after a matching parent root.
+            for retained in 1..=spelling.len() {
+                let mut bytes = header.to_vec();
+                bytes.extend_from_slice(&spelling[..retained]);
+                assert!(bytes.len() < MAX_STDERR);
+                let report = normalize(&bytes, false, &context);
+                assert!(!report.capture_complete && !report.truncated);
+                assert!(report.rows.is_empty());
+                assert_eq!(
+                    report.text,
+                    format!("{}[private]", std::str::from_utf8(header).unwrap())
+                );
+                assert!(!report.text.contains('\u{fffd}'));
+                assert!(serde_json::to_vec(&report).unwrap().len() <= MAX_REPORT);
+            }
+        }
+    }
+
+    #[test]
+    fn interrupted_headers_and_valid_header_followed_by_cut_tail_stay_text_only() {
+        let header = "main.typ:1:0: error: synthetic complete-looking header\n";
+        for partial in [
+            "m",
+            "main.typ:1:",
+            "main.typ:1:0: error: cut",
+            "warning: cut",
+        ] {
+            for prefix in ["", header] {
+                let bytes = format!("{prefix}{partial}");
+                let report = run(bytes.as_bytes(), false, &[("main.typ", "#bad")]);
+                assert!(!report.capture_complete && !report.truncated);
+                assert!(report.rows.is_empty());
+                assert_eq!(report.text, bytes);
+                let serialized = serde_json::to_string(&report).unwrap();
+                for position_field in ["locationCandidate", "byteOffset", "utf16Offset"] {
+                    assert!(!serialized.contains(position_field));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn capture_completeness_is_explicit_at_and_beyond_the_input_cap() {
+        let header = b"main.typ:1:0: error: synthetic complete-looking header\n";
+        for length in [MAX_STDERR - 1, MAX_STDERR, MAX_STDERR + 1] {
+            let mut bytes = header.to_vec();
+            bytes.resize(length, b'x');
+            for native_complete in [false, true] {
+                let report = run(&bytes, native_complete, &[("main.typ", "#bad")]);
+                let complete = native_complete && length <= MAX_STDERR;
+                assert_eq!(report.capture_complete, complete);
+                assert_eq!(report.rows.len(), usize::from(complete));
+                if complete {
+                    assert_eq!(location(&report).project_path, "main.typ");
+                }
+                if length > MAX_STDERR {
+                    assert!(report.truncated);
+                }
+                assert!(serde_json::to_vec(&report).unwrap().len() <= MAX_REPORT);
+            }
+        }
+        let root_bytes = root().to_str().unwrap().as_bytes();
+        let mut cut_root = header.to_vec();
+        cut_root.resize(MAX_STDERR - root_bytes.len() + 2, b'x');
+        cut_root.extend_from_slice(&root_bytes[..root_bytes.len() - 2]);
+        assert_eq!(cut_root.len(), MAX_STDERR);
+        let report = run(&cut_root, false, &[("main.typ", "#bad")]);
+        assert!(!report.capture_complete && report.rows.is_empty());
+        // The separate text JSON budget may shorten the already-redacted tail away.
+        assert!(!report
+            .text
+            .contains(std::str::from_utf8(root_bytes).unwrap()));
+    }
+
+    #[test]
+    fn incomplete_text_obeys_serialized_bounds_without_processing_rows() {
+        let many_headers = "main.typ:1:0: error: synthetic\n".repeat(MAX_ROWS + 1);
+        let report = run(many_headers.as_bytes(), false, &[("main.typ", "#bad")]);
+        assert!(!report.capture_complete && !report.truncated);
+        assert!(report.rows.is_empty());
+        assert_eq!(report.text, many_headers);
+        for bytes in [
+            vec![0; MAX_STDERR],
+            vec![b'"'; MAX_STDERR],
+            vec![0xff; MAX_STDERR + 1],
+        ] {
+            let report = run(&bytes, false, &[]);
+            assert!(!report.capture_complete && report.truncated);
+            assert!(report.rows.is_empty());
+            assert!(serialized_size(&report.text) <= MAX_TEXT_JSON);
+            assert!(serialized_size(&report) <= MAX_REPORT);
+        }
     }
 }

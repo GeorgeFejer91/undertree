@@ -67,7 +67,7 @@ fn inventory_includes_empty_directories_and_binary_assets_without_opening_or_rec
             {"path":"empty/nested","kind":"directory","editable":false},
             {"path":"font.otf","kind":"asset","editable":false,"bytes":2},
             {"path":"image.png","kind":"asset","editable":false,"bytes":3},
-            {"path":"main.typ","kind":"source","editable":true,"bytes":7}
+            {"path":"main.typ","kind":"source","editable":true,"bytes":7,"sourceEpoch":0}
         ])
     );
     assert_eq!(fs::read(root.join("main.typ")).unwrap(), b"Source.");
@@ -96,6 +96,13 @@ fn folder_creation_is_one_leaf_preserves_collisions_and_never_enrolls_git_or_met
     fs::create_dir(&root).unwrap();
     let (service, project) = approve(&root, &temporary.path().join("state"));
     let registry = fs::read(temporary.path().join("state/projects.json")).unwrap();
+    let observed_tree = service
+        .local(Operation::ProjectTree {
+            project: project.clone(),
+        })
+        .unwrap();
+    let expected_root: undertree_review::RootObservation =
+        serde_json::from_value(observed_tree["expectedRoot"].clone()).unwrap();
     for path in ["chapters", "chapters/Überblick"] {
         assert_eq!(
             service
@@ -104,7 +111,7 @@ fn folder_creation_is_one_leaf_preserves_collisions_and_never_enrolls_git_or_met
                     path: path.into()
                 })
                 .unwrap(),
-            json!({"project":project,"path":path,"created":true})
+            json!({"project":project,"path":path,"created":true,"expectedRoot":expected_root})
         );
     }
     assert!(root.join("chapters/Überblick").is_dir());

@@ -354,3 +354,103 @@ test('a deferred PDF first page cannot repopulate the viewer after switching fil
     viewer.destroy();
   } finally { globalThis.ResizeObserver = previous; }
 });
+
+
+test('History hide and unchanged-size reveal preserve the installed canvases without a redraw', async t => {
+  const { viewer, pages, scroller } = viewerFixture(t, 446, 747);
+  const pdf = pdfFixture(3); await viewer.setDocument(pdf);
+  const canvas = pages.querySelectorAll('canvas')[0];
+  const dimensions = [canvas.width, canvas.height];
+  const generation = viewer.generation, renders = pdf.renders.length;
+  let scheduled = 0; viewer.schedule = () => { scheduled += 1; };
+  scroller.clientWidth = 0; scroller.clientHeight = 0;
+  viewer.observer.callback();
+  scroller.scrollTop = 0; viewer.scroll();
+  assert.equal(scheduled, 0, 'a hidden scroller is not a resize/scroll paint intent');
+  scroller.clientWidth = 446; scroller.clientHeight = 747;
+  viewer.observer.callback();
+  assert.equal(scheduled, 0, 'the already installed visible geometry needs no replacement paint');
+  assert.equal(pages.querySelectorAll('canvas')[0], canvas);
+  assert.deepEqual([canvas.width, canvas.height], dimensions);
+  assert.equal(viewer.pdf, pdf); assert.equal(viewer.generation, generation);
+  assert.equal(pdf.renders.length, renders);
+});
+
+test('explicit hidden page and zoom work resumes even when the visible size is unchanged', async t => {
+  const { viewer, pages, scroller } = viewerFixture(t, 446, 747);
+  const pdf = pdfFixture(20); await viewer.setDocument(pdf);
+  const canvas = pages.querySelectorAll('canvas')[0], dimensions = [canvas.width, canvas.height];
+  scroller.clientWidth = 0; scroller.clientHeight = 0;
+  viewer.zoom(1.25); viewer.go(10); await viewer.render();
+  assert.equal(pages.querySelectorAll('canvas')[0], canvas, 'hidden explicit work retains the last good pixels');
+  assert.deepEqual([canvas.width, canvas.height], dimensions);
+  assert.equal(viewer.targetPage, 10, 'the hidden request is not acknowledged as rendered');
+  const requestedScale = viewer.scale;
+  let scheduled = 0; viewer.schedule = () => { scheduled += 1; };
+  scroller.clientWidth = 446; scroller.clientHeight = 747; viewer.observer.callback();
+  assert.equal(scheduled, 1, 'pending explicit work defeats the unchanged-size observer no-op');
+  await viewer.render();
+  assert.equal(viewer.pdf, pdf); assert.equal(viewer.page, 10); assert.equal(viewer.scale, requestedScale);
+  assert.ok(pages.children.some(node => node.dataset.page === '10'));
+  assert.notEqual(pages.querySelectorAll('canvas')[0], canvas);
+});
+
+test('page preparation crossing History hide cannot release the retained canvases', async t => {
+  const { viewer, pages, scroller } = viewerFixture(t, 446, 747);
+  const pdf = pdfFixture(20); await viewer.setDocument(pdf);
+  const canvas = pages.querySelectorAll('canvas')[0], dimensions = [canvas.width, canvas.height];
+  let announce, release, held = false;
+  const waiting = new Promise(resolve => { announce = resolve; });
+  pdf.getPage = async number => {
+    if (number !== 9 || held) return pdf.page(number);
+    held = true; announce(); return new Promise(resolve => { release = () => resolve(pdf.page(number)); });
+  };
+  viewer.go(10); const rendering = viewer.render(); await waiting;
+  // Visibility can change before ResizeObserver delivers its notification.
+  scroller.clientWidth = 0; scroller.clientHeight = 0;
+  release(); await rendering;
+  assert.equal(pages.querySelectorAll('canvas')[0], canvas);
+  assert.deepEqual([canvas.width, canvas.height], dimensions);
+  assert.equal(viewer.targetPage, 10);
+  assert.equal(viewer.rendering, false);
+  let scheduled = 0; viewer.schedule = () => { scheduled += 1; };
+  scroller.clientWidth = 446; scroller.clientHeight = 747; viewer.observer.callback();
+  assert.equal(scheduled, 1);
+  await viewer.render();
+  assert.equal(viewer.page, 10);
+  assert.ok(pages.children.some(node => node.dataset.page === '10'));
+});
+
+test('a genuine visible geometry change after History still repaints at the new fit size', async t => {
+  const { viewer, pages, scroller } = viewerFixture(t, 446, 747);
+  await viewer.setDocument(pdfFixture(3));
+  const canvas = pages.querySelectorAll('canvas')[0];
+  let scheduled = 0; viewer.schedule = () => { scheduled += 1; };
+  scroller.clientWidth = 0; scroller.clientHeight = 0; viewer.observer.callback();
+  scroller.clientWidth = 832; scroller.clientHeight = 600; viewer.observer.callback();
+  assert.equal(scheduled, 1, 'only the real visible geometry change schedules repainting');
+  await viewer.render();
+  assert.notEqual(pages.querySelectorAll('canvas')[0], canvas);
+  assert.equal(pages.querySelectorAll('canvas')[0].style.width, '800px');
+  assert.equal(viewer.currentScale, 1);
+});
+
+test('a newly published document while hidden is painted on unchanged-size reveal', async t => {
+  const { viewer, pages, scroller } = viewerFixture(t, 446, 747);
+  await viewer.setDocument(pdfFixture(3));
+  const canvas = pages.querySelectorAll('canvas')[0], dimensions = [canvas.width, canvas.height];
+  scroller.clientWidth = 0; scroller.clientHeight = 0;
+  const replacement = pdfFixture(1, { 1: [300, 400] });
+  await viewer.setDocument(replacement);
+  assert.equal(viewer.pdf, replacement);
+  assert.equal(pages.querySelectorAll('canvas')[0], canvas);
+  assert.deepEqual([canvas.width, canvas.height], dimensions);
+  assert.equal(replacement.renders.length, 0, 'hidden publication does not paint a fallback size');
+  let scheduled = 0; viewer.schedule = () => { scheduled += 1; };
+  scroller.clientWidth = 446; scroller.clientHeight = 747; viewer.observer.callback();
+  assert.equal(scheduled, 1);
+  await viewer.render();
+  assert.notEqual(pages.querySelectorAll('canvas')[0], canvas);
+  assert.equal(replacement.renders.length, 1);
+  assert.equal(viewer.pdf, replacement);
+});

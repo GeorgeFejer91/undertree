@@ -56,6 +56,7 @@ struct Grant {
 struct Binding {
     command: AppCommand,
     document: Option<String>,
+    root: Option<RootObservation>,
     compile_started: bool,
     compile_result: Option<Value>,
     compile_error: Option<Error>,
@@ -179,7 +180,7 @@ impl Service {
                 request_id,
                 ack_token,
             } => {
-                let (project, path, revision, generation, previous) = {
+                let (project, path, source_epoch, root, revision, generation, previous) = {
                     let mut tunnel = self.tunnel.lock().await;
                     let active = active_tunnel(&mut tunnel).ok_or_else(|| {
                         Error::new("scope", "The app control session has stopped.")
@@ -199,6 +200,7 @@ impl Service {
                         ));
                     };
                     let (project, path, _) = self.control_document(document_id)?;
+                    let (_, _, source_epoch, root) = self.shared_source(document_id)?;
                     if let Some(error) = binding.compile_error {
                         return Err(error);
                     }
@@ -214,6 +216,8 @@ impl Service {
                     (
                         project.id,
                         path,
+                        source_epoch,
+                        root,
                         revision.clone(),
                         state.generation.clone(),
                         previous,
@@ -222,13 +226,28 @@ impl Service {
                 let work = if previous {
                     self.preview_pdf(&project, &path)
                 } else {
-                    self.compile_typst(&project, &path, &revision).await
+                    self.compile_typst_rooted(
+                        &project,
+                        &path,
+                        &revision,
+                        source_epoch,
+                        Some(root),
+                        None,
+                    )
+                    .await
                 };
                 let mut state = lock(&self.app_control)?;
                 if state.generation != generation || state.grant.is_none() {
                     return Err(Error::new("scope","The app control grant was revoked during compilation. Its output remains local."));
                 }
                 self.assert_editor_owner(owner)?;
+                let captured = state
+                    .bindings
+                    .get(&request_id)
+                    .ok_or_else(|| Error::new("scope", "The build request is unavailable."))?;
+                if let Some(document) = &captured.document {
+                    self.control_document(document)?;
+                }
                 let binding = state
                     .bindings
                     .get_mut(&request_id)
@@ -240,7 +259,10 @@ impl Service {
                         return Err(error);
                     }
                 };
-                if result["revision"].as_str() != Some(revision.as_str()) {
+                if result["revision"].as_str() != Some(revision.as_str())
+                    || result["sourceEpoch"].as_u64().unwrap_or(0) != source_epoch
+                    || result.get("expectedRoot") != Some(&json!(root))
+                {
                     return Err(Error::new(
                         "stale",
                         "The recorded build artifact is no longer available at its saved revision.",
@@ -412,12 +434,7 @@ impl Service {
     }
 
     fn control_document(&self, id: &str) -> Result<(Project, String, PathBuf)> {
-        let (project, path) = lock(&self.shared)?.get(id).cloned().ok_or_else(|| {
-            Error::new(
-                "scope",
-                "This manuscript is not explicitly shared in the current session.",
-            )
-        })?;
+        let (project, path, _, _) = self.shared_source(id)?;
         let approved = self.project(&project)?;
         let file = self.path(&approved, &path, false)?;
         Ok((approved, path, file))
@@ -426,6 +443,12 @@ impl Service {
     fn check_control_scope(&self, binding: &Binding) -> Result<()> {
         if let Some(id) = &binding.document {
             self.control_document(id)?;
+            if binding.root != Some(self.shared_source(id)?.3) {
+                return Err(Error::new(
+                    "scope",
+                    "This app job belongs to another project folder.",
+                ));
+            }
         }
         if requires_clean(&binding.command) {
             self.assert_clean_editor_buffers()?;
@@ -677,7 +700,7 @@ impl Service {
         match name {
             "list_manuscripts" => {
                 no_arguments()?;
-                let shared = lock(&self.shared)?.clone();
+                let shared = self.current_shared()?;
                 let mut manuscripts = Vec::new();
                 for (id, _) in shared {
                     let (_, path, _) = self.control_document(&id)?;
@@ -696,12 +719,18 @@ impl Service {
                     .documents
                     .try_lock()
                     .map_err(|_| Error::new("busy", "A local document operation is running."))?;
-                self.read_control_snapshot(&input.document_id)
+                let mut value = self.read_control_snapshot(&input.document_id)?;
+                if let Some(object) = value.as_object_mut() {
+                    object.remove("sourceEpoch");
+                    object.remove("expectedRoot");
+                    object.remove("sidecarRevision");
+                }
+                Ok(value)
             }
             "get_workspace" => {
                 no_arguments()?;
                 let mut value = state.bridge.workspace()?;
-                let shared = lock(&self.shared)?.clone();
+                let shared = self.current_shared()?;
                 for id in shared.keys() {
                     self.control_document(id)?;
                 }
@@ -769,7 +798,12 @@ impl Service {
                         "Only an explicitly shared active manuscript preview can be controlled.",
                     ));
                 }
+                let root = document
+                    .as_ref()
+                    .map(|id| self.shared_source(id).map(|source| source.3))
+                    .transpose()?;
                 let binding = Binding {
+                    root,
                     command: command.clone(),
                     document,
                     compile_started: false,
@@ -790,15 +824,17 @@ impl Service {
     }
 
     fn read_control_snapshot(&self, id: &str) -> Result<Value> {
-        let (_, path, file) = self.control_document(id)?;
-        if journal_path(&file).exists() {
-            return Err(Error::new(
-                "busy",
-                "Resolve the local pending save before remote inspection.",
-            ));
-        }
-        let (content, review) = self.read_document_without_recovery(&file)?;
-        Ok(json!({"documentId":id,"path":path,"content":content,"review":review,"shared":true}))
+        let (project, path, source_epoch, root) = self.shared_source(id)?;
+        let approved = self.project(&project)?;
+        let file = approved.root.join(&path);
+        let mut snapshot = self.snapshot_binding(
+            SourceBinding::new(&project, &path, source_epoch).rooted(Some(root)),
+            &file,
+            false,
+        )?;
+        snapshot["documentId"] = json!(id);
+        snapshot["shared"] = json!(true);
+        Ok(snapshot)
     }
 }
 
@@ -981,6 +1017,7 @@ mod tests {
                 content: "Pending replacement".into(),
                 review: Review::new("Pending replacement"),
                 editor_receipt: None,
+                history: None,
                 prior_review: None,
                 ownership: None,
             };
@@ -988,6 +1025,119 @@ mod tests {
             fs::write(journal_path(&self.file), &bytes).unwrap();
             bytes
         }
+    }
+
+    #[tokio::test]
+    async fn queued_document_job_never_rebinds_to_reenrolled_same_path() {
+        let fixture = Fixture::new().await;
+        let request = Uuid::new_v4().to_string();
+        fixture
+            .service
+            .app_remote(
+                "open_manuscript",
+                json!({"requestId":request,"documentId":fixture.id}),
+            )
+            .unwrap();
+        let jobs = fixture.poll().await;
+        let ack = jobs["jobs"][0]["ackToken"].as_str().unwrap();
+        let source = fs::read(&fixture.file).unwrap();
+        fixture
+            .service
+            .retire_source_for_test(&fixture.project, "main.typ")
+            .unwrap();
+        for action in ["control_check", "control_open"] {
+            assert_eq!(
+                fixture
+                    .ui(json!({"action":action,"requestId":request,"ackToken":ack}))
+                    .await
+                    .unwrap_err()
+                    .code,
+                "scope"
+            );
+        }
+        let enrolled = fixture
+            .service
+            .local_source(crate::SourceRequest {
+                operation: Operation::Share {
+                    project: fixture.project.clone(),
+                    path: "main.typ".into(),
+                    enabled: true,
+                },
+                source_epoch: 1,
+                expected_root: None,
+            })
+            .unwrap();
+        assert_ne!(enrolled["documentId"], fixture.id);
+        for action in ["control_check", "control_open"] {
+            assert_eq!(
+                fixture
+                    .ui(json!({"action":action,"requestId":request,"ackToken":ack}))
+                    .await
+                    .unwrap_err()
+                    .code,
+                "scope"
+            );
+        }
+        let snapshot = fixture
+            .service
+            .read_control_snapshot(enrolled["documentId"].as_str().unwrap())
+            .unwrap();
+        assert_eq!(snapshot["sourceEpoch"], 1);
+        assert!(snapshot["sidecarRevision"].is_null());
+        assert_eq!(fs::read(&fixture.file).unwrap(), source);
+        assert!(!sidecar(&fixture.file).exists());
+        assert!(!journal_path(&fixture.file).exists());
+    }
+
+    #[tokio::test]
+    async fn positive_epoch_app_compile_and_replay_verify_the_captured_artifact_identity() {
+        let mut fixture = Fixture::new().await;
+        fixture
+            .service
+            .retire_source_for_test(&fixture.project, "main.typ")
+            .unwrap();
+        let enrolled = fixture
+            .service
+            .local_source(crate::SourceRequest {
+                operation: Operation::Share {
+                    project: fixture.project.clone(),
+                    path: "main.typ".into(),
+                    enabled: true,
+                },
+                source_epoch: 1,
+                expected_root: None,
+            })
+            .unwrap();
+        fixture.id = enrolled["documentId"].as_str().unwrap().into();
+        fixture.poll().await;
+        let request = Uuid::new_v4().to_string();
+        fixture.service.app_remote("compile_manuscript",json!({"requestId":request,"documentId":fixture.id,"revision":digest("= Saved\n\nHello.\n")})).unwrap();
+        let jobs = fixture.poll().await;
+        let ack = jobs["jobs"][0]["ackToken"].as_str().unwrap();
+        let source = fs::read(&fixture.file).unwrap();
+        let result = fixture
+            .ui(json!({"action":"control_compile","requestId":request,"ackToken":ack}))
+            .await
+            .unwrap();
+        assert_eq!(result["sourceEpoch"], 1);
+        assert_eq!(result["current"], true);
+        let info = fixture.service.state.join("pdfs").join(format!(
+            "{}.json",
+            digest(&format!("{}:main.typ", fixture.project))
+        ));
+        let mut metadata: Value = serde_json::from_slice(&fs::read(&info).unwrap()).unwrap();
+        metadata["source_epoch"] = json!(2);
+        fs::write(&info, serde_json::to_vec(&metadata).unwrap()).unwrap();
+        assert_eq!(
+            fixture
+                .ui(json!({"action":"control_compile","requestId":request,"ackToken":ack}))
+                .await
+                .unwrap_err()
+                .code,
+            "stale"
+        );
+        assert_eq!(fs::read(&fixture.file).unwrap(), source);
+        assert!(!sidecar(&fixture.file).exists());
     }
 
     #[tokio::test]
@@ -1188,6 +1338,8 @@ mod tests {
         journal.ownership = Some(journal_ownership::JournalOwnership {
             project: fixture.project.clone(),
             path: "main.typ".into(),
+            source_epoch: 0,
+            expected_root: None,
             owns_source: true,
         });
         fs::write(

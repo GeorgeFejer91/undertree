@@ -1,3 +1,5 @@
+import { captureSourceBinding, sourceBindingCurrent, sourceEpoch, sourceRootsEqual, assertSourceBinding } from './review-session.js';
+
 // UI state is advisory; Rust validates each captured save and owns its durable receipt.
 export class EditorSessionBridge {
   constructor({ request, state, onSaved = () => {}, onError = () => {}, digest = sha256 }) {
@@ -7,7 +9,7 @@ export class EditorSessionBridge {
     this.running = new Set();
   }
   watch(session) {
-    const entry = { session, id: null, queue: Promise.resolve(), changed: true, retired: false };
+    const entry = { session, binding: captureSourceBinding(session), id: null, queue: Promise.resolve(), changed: true, retired: false };
     this.entries.set(session, entry);
     session.onChange = () => this.changed(session);
     this.changed(session);
@@ -30,28 +32,36 @@ export class EditorSessionBridge {
     await entry.queue.catch(() => {});
     if (entry.id) await this.request({ action: 'editor_unregister', sessionId: entry.id }).catch(() => {});
   }
-  current(entry) { return !entry.retired && this.state(entry.session).current; }
+  current(entry) { return !entry.retired && sourceBindingCurrent(entry.session, entry.binding) && this.state(entry.session).current; }
   publish(entry, captured) {
+    const binding = captureSourceBinding(entry.session);
     const work = entry.queue.catch(() => {}).then(async () => {
       const session = entry.session;
-      const buffer = captured || { generation: session.generation, revision: session.snapshot.review.revision, content: session.content };
+      assertSourceBinding(session, binding);
+      const buffer = captured || { ...binding, generation: session.generation, revision: session.snapshot.review.revision, content: session.content };
       const contentDigest = entry.digest?.generation === buffer.generation ? entry.digest.value : await this.digest(buffer.content);
       if (!this.current(entry)) throw { code: 'stale_session', message: 'This editor session was retired.' };
-      if (buffer.generation !== session.generation || buffer.content !== session.content || buffer.revision !== session.snapshot.review.revision) throw { code: 'stale_buffer', message: 'The editor changed during save preparation.' };
+      if (!sourceBindingCurrent(session, buffer) || buffer.generation !== session.generation || buffer.content !== session.content || buffer.revision !== session.snapshot.review.revision) throw { code: 'stale_buffer', message: 'The editor changed during save preparation.' };
       entry.digest = { generation: buffer.generation, value: contentDigest };
       const { composing, closing } = this.state(session);
-      const fields = { generation: buffer.generation, revision: buffer.revision, contentDigest, dirty: session.dirty, composing: composing || closing, conflict: !!(session.conflict || session.reviewProblem) };
+      const fields = { generation: buffer.generation, revision: buffer.revision, contentDigest, dirty: session.dirty, composing: composing || closing, conflict: !!(session.conflict || session.reviewProblem || session.identityProblem) };
+      let result;
       try {
-        const result = await this.request(entry.id
+        result = await this.request(entry.id
           ? { action: 'editor_update', sessionId: entry.id, ...fields }
-          : { action: 'editor_register', project: session.project, path: session.path, ...fields });
+          : { action: 'editor_register', ...binding, ...fields });
         if (result.protocolVersion !== 1 || !result.sessionId) throw { code: 'format', message: 'The native editor protocol is unavailable.' };
+        assertSourceBinding(session, binding);
+        if (!sourceRootsEqual(result, binding)) throw { code: 'stale_root', message: 'The editor registration belongs to another project folder identity.' };
+        if (!this.current(entry) || sourceEpoch(result) !== binding.sourceEpoch) throw { code: 'stale_document', message: 'The editor registration belongs to another source identity.' };
         entry.id = result.sessionId;
         entry.published = fields;
         // A later edit owns the pending update, even if this publication finished afterward.
-        if (buffer.generation === session.generation && buffer.revision === session.snapshot.review.revision && fields.dirty === session.dirty && composing === this.state(session).composing && closing === this.state(session).closing && fields.conflict === !!(session.conflict || session.reviewProblem)) entry.changed = false;
+        if (sourceBindingCurrent(session, binding) && buffer.generation === session.generation && buffer.revision === session.snapshot.review.revision && fields.dirty === session.dirty && composing === this.state(session).composing && closing === this.state(session).closing && fields.conflict === !!(session.conflict || session.reviewProblem || session.identityProblem)) entry.changed = false;
       } catch (error) {
         if (error.code === 'stale_session') entry.id = null;
+        if (result?.sessionId && (!this.current(entry) || ['stale_root', 'stale_document'].includes(error.code))) await this.request({ action: 'editor_unregister', sessionId: result.sessionId }).catch(() => {});
+        if (session.recordIdentityProblem(error, binding)) this.onError(error, session);
         throw error;
       }
     });
@@ -62,9 +72,9 @@ export class EditorSessionBridge {
     for (const entry of this.entries.values()) {
       const session = entry.session, state = this.state(session), previous = entry.published;
       // EditContext composition can begin without a DOM input/update event.
-      if (!previous || previous.composing !== (state.composing || state.closing) || previous.conflict !== !!(session.conflict || session.reviewProblem) || previous.dirty !== session.dirty || previous.generation !== session.generation || previous.revision !== session.snapshot.review.revision) entry.changed = true;
+      if (!previous || previous.composing !== (state.composing || state.closing) || previous.conflict !== !!(session.conflict || session.reviewProblem || session.identityProblem) || previous.dirty !== session.dirty || previous.generation !== session.generation || previous.revision !== session.snapshot.review.revision) entry.changed = true;
     }
-    await Promise.allSettled([...this.entries.values()].filter(entry => entry.changed).map(entry => {
+    await Promise.allSettled([...this.entries.values()].filter(entry => entry.changed && this.current(entry)).map(entry => {
       if (!entry.automatic) entry.automatic = this.publish(entry).finally(() => { entry.automatic = null; });
       return entry.automatic;
     }));
@@ -107,7 +117,7 @@ export class EditorSessionBridge {
       this.onSaved(session);
       await this.publish(entry).catch(() => {});
       const state = this.state(session);
-      const current = this.current(entry) && !state.composing && !state.closing && !session.conflict && !session.reviewProblem && session.generation === result.receipt.savedGeneration && session.content === result.snapshot.content;
+      const current = this.current(entry) && !state.composing && !state.closing && !session.conflict && !session.reviewProblem && !session.identityProblem && sourceEpoch(result.receipt) === session.sourceEpoch && session.generation === result.receipt.savedGeneration && session.content === result.snapshot.content;
       await this.request({ action: 'editor_complete', ...identity, status: current ? 'saved' : 'newer_buffer', generation: session.generation });
     } catch (error) {
       // A lost commit response stays explicitly uncertain; never manufacture a second save.

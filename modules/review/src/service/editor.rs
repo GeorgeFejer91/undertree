@@ -1,5 +1,7 @@
 //! Private UI coordination. These operations are never part of the CLI or MCP catalogue.
 use super::*;
+use cap_fs_ext::{DirExt, FollowSymlinks, MetadataExt, OpenOptionsFollowExt, OpenOptionsSyncExt};
+use cap_std::fs::{Dir, OpenOptions};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const PROTOCOL_VERSION: u32 = 1;
@@ -21,6 +23,10 @@ pub enum EditorOperation {
     EditorRegister {
         project: String,
         path: String,
+        #[serde(default)]
+        source_epoch: u64,
+        #[serde(default, deserialize_with = "crate::root_observation::optional")]
+        expected_root: Option<RootObservation>,
         generation: u64,
         revision: String,
         content_digest: String,
@@ -71,6 +77,8 @@ mod tests {
         let register = || EditorOperation::EditorRegister {
             project: project.id.clone(),
             path: "main.typ".into(),
+            source_epoch: 0,
+            expected_root: None,
             generation: 0,
             revision: digest("Original"),
             content_digest: digest("Original"),
@@ -91,6 +99,8 @@ mod tests {
                 session_id: session,
                 project: project.id.clone(),
                 path: "main.typ".into(),
+                source_epoch: 0,
+                expected_root: Some(RootedRoot::observe(&project.root).unwrap()),
                 expires_at: now_ms() + REQUEST_MS,
             },
         );
@@ -167,6 +177,8 @@ mod tests {
             instance_id: service.instance_id.clone(),
             project: project.id.clone(),
             path: "main.typ".into(),
+            source_epoch: 0,
+            expected_root: None,
             session_id: Uuid::new_v4().to_string(),
             status: "pending".into(),
             saved_generation: Some(3),
@@ -190,6 +202,7 @@ mod tests {
                 editor_receipt: Some(receipt.clone()),
                 prior_review: None,
                 ownership: None,
+                history: None,
             };
             atomic_write(
                 &journal_path(&file),
@@ -232,6 +245,7 @@ mod tests {
             editor_receipt: Some(receipt),
             prior_review: None,
             ownership: None,
+            history: None,
         };
         let bytes = serde_json::to_vec(&journal).unwrap();
         fs::write(journal_path(&file), &bytes).unwrap();
@@ -269,6 +283,8 @@ mod tests {
                 EditorOperation::EditorRegister {
                     project: project.id.clone(),
                     path: "main.typ".into(),
+                    source_epoch: 0,
+                    expected_root: None,
                     generation: 1,
                     revision: digest("Original"),
                     content_digest: digest("Captured"),
@@ -289,6 +305,8 @@ mod tests {
                 session_id: session.clone(),
                 project: project.id.clone(),
                 path: "main.typ".into(),
+                source_epoch: 0,
+                expected_root: Some(RootedRoot::observe(&project.root).unwrap()),
                 expires_at: now_ms() - 1,
             },
         );
@@ -333,6 +351,8 @@ mod tests {
                 EditorOperation::EditorRegister {
                     project: project.id.clone(),
                     path: "main.typ".into(),
+                    source_epoch: 0,
+                    expected_root: None,
                     generation: 0,
                     revision: digest("Original"),
                     content_digest: digest("Original"),
@@ -369,6 +389,8 @@ mod tests {
                     session_id: format!("other-{index}"),
                     project: project.id.clone(),
                     path: "other.typ".into(),
+                    source_epoch: 0,
+                    expected_root: None,
                     expires_at: now_ms() + REQUEST_MS,
                 },
             );
@@ -381,6 +403,253 @@ mod tests {
                 .code,
             "busy"
         );
+        assert_eq!(fs::read_to_string(file).unwrap(), "Original");
+    }
+    #[test]
+    fn nonzero_editor_producer_recovers_exact_binding_and_cannot_replay_into_retired_identity() {
+        let (_temp, service, project, file) = fixture();
+        service
+            .retire_source_for_test(&project.id, "main.typ")
+            .unwrap();
+        let owner = "native:main";
+        let registration = service
+            .editor_local(
+                owner,
+                EditorOperation::EditorRegister {
+                    project: project.id.clone(),
+                    path: "main.typ".into(),
+                    source_epoch: 1,
+                    expected_root: None,
+                    generation: 3,
+                    revision: digest("Original"),
+                    content_digest: digest("Captured"),
+                    dirty: true,
+                    composing: false,
+                    conflict: false,
+                },
+            )
+            .unwrap();
+        assert_eq!(registration["sourceEpoch"], 1);
+        let session = registration["sessionId"].as_str().unwrap().to_owned();
+        let id = Uuid::new_v4().to_string();
+        let ticket = Uuid::new_v4().to_string();
+        lock(&service.editor).unwrap().requests.insert(
+            id.clone(),
+            Request {
+                owner: owner.into(),
+                ticket: ticket.clone(),
+                session_id: session.clone(),
+                project: project.id.clone(),
+                path: "main.typ".into(),
+                source_epoch: 1,
+                expected_root: Some(RootedRoot::observe(&project.root).unwrap()),
+                expires_at: now_ms() + REQUEST_MS,
+            },
+        );
+        let commit = || EditorOperation::EditorCommit {
+            request_id: id.clone(),
+            ticket: ticket.clone(),
+            session_id: session.clone(),
+            generation: 3,
+            revision: digest("Original"),
+            content: "Captured".into(),
+        };
+        *lock(&service.fail_after_journal).unwrap() = true;
+        assert_eq!(
+            service.editor_local(owner, commit()).unwrap_err().code,
+            "outcome_unknown"
+        );
+        let journal: Value =
+            serde_json::from_slice(&fs::read(journal_path(&file)).unwrap()).unwrap();
+        assert_eq!(journal["ownership"]["source_epoch"], 1);
+        assert_eq!(journal["editor_receipt"]["sourceEpoch"], 1);
+        let recovered = service.editor_save_receipt(&id).unwrap();
+        assert_eq!(recovered["sourceEpoch"], 1);
+        assert_eq!(recovered["status"], "committed");
+        assert_eq!(fs::read(&file).unwrap(), b"Captured");
+        assert!(!journal_path(&file).exists());
+        let receipt_bytes = fs::read(service.receipt_path(&id).unwrap()).unwrap();
+        let policy_bytes = fs::read(sidecar(&file)).unwrap();
+        service
+            .retire_source_for_test(&project.id, "main.typ")
+            .unwrap();
+        assert_eq!(
+            service.editor_local(owner, commit()).unwrap_err().code,
+            "stale_document"
+        );
+        assert_eq!(service.editor_save_receipt(&id).unwrap()["sourceEpoch"], 1);
+        assert_eq!(
+            fs::read(service.receipt_path(&id).unwrap()).unwrap(),
+            receipt_bytes
+        );
+        assert_eq!(fs::read(sidecar(&file)).unwrap(), policy_bytes);
+        assert_eq!(fs::read(&file).unwrap(), b"Captured");
+    }
+    #[test]
+    fn history_receipt_fingerprint_binds_identity_but_not_outcome_or_buffer_acknowledgement() {
+        let (_temp, service, project, _file) = fixture();
+        let receipt = pending(&service, &project);
+        let fingerprint = receipt.history_fingerprint().unwrap();
+        let mut acknowledged = receipt.clone();
+        acknowledged.status = "committed".into();
+        acknowledged.buffer_status = "newer_buffer".into();
+        assert!(acknowledged.history_committed());
+        assert_eq!(acknowledged.history_fingerprint().unwrap(), fingerprint);
+        acknowledged.status = "rejected".into();
+        acknowledged.error = Some(json!({"code":"history_aborted"}));
+        assert!(!acknowledged.history_committed());
+        assert_eq!(acknowledged.history_fingerprint().unwrap(), fingerprint);
+        let mut different = receipt.clone();
+        different.request_id = Uuid::new_v4().to_string();
+        assert_ne!(different.history_fingerprint().unwrap(), fingerprint);
+        different = receipt.clone();
+        different.instance_id = Uuid::new_v4().to_string();
+        assert_ne!(different.history_fingerprint().unwrap(), fingerprint);
+        different = receipt.clone();
+        different.source_epoch += 1;
+        assert_ne!(different.history_fingerprint().unwrap(), fingerprint);
+        different = receipt.clone();
+        different.expected_root = Some(RootObservation::new(1, 2));
+        assert_ne!(different.history_fingerprint().unwrap(), fingerprint);
+    }
+
+    #[test]
+    fn history_receipt_retirement_is_exact_idempotent_and_never_relabels_a_committed_save() {
+        let (_temp, service, project, file) = fixture();
+        let original = fs::read(&file).unwrap();
+        let receipt = pending(&service, &project);
+        let fingerprint = receipt.history_fingerprint().unwrap();
+        service.write_editor_receipt(&receipt).unwrap();
+        service.history_confirm_pending(&receipt).unwrap();
+        assert!(service
+            .history_confirm_committed_fingerprint(&fingerprint)
+            .is_err());
+        let book = EditorState::default();
+        service
+            .history_retire_unarmed_receipt(Some(&fingerprint), &book)
+            .unwrap();
+        let cancelled = service
+            .read_editor_receipt(&receipt.request_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(cancelled.status, "rejected");
+        assert_eq!(cancelled.error.as_ref().unwrap()["code"], "history_aborted");
+        assert_eq!(cancelled.history_fingerprint().unwrap(), fingerprint);
+        let cancelled_bytes = fs::read(service.receipt_path(&receipt.request_id).unwrap()).unwrap();
+        service
+            .history_retire_unarmed_receipt(Some(&fingerprint), &book)
+            .unwrap();
+        assert_eq!(
+            fs::read(service.receipt_path(&receipt.request_id).unwrap()).unwrap(),
+            cancelled_bytes
+        );
+        let pending = pending(&service, &project);
+        let mut committed = pending.clone();
+        committed.status = "committed".into();
+        committed.buffer_status = "newer_buffer".into();
+        let fingerprint = committed.history_fingerprint().unwrap();
+        service.write_editor_receipt(&committed).unwrap();
+        assert!(service.history_confirm_pending(&pending).is_err());
+        service
+            .history_confirm_committed_fingerprint(&fingerprint)
+            .unwrap();
+        assert_eq!(
+            service
+                .read_editor_receipt(&committed.request_id)
+                .unwrap()
+                .unwrap()
+                .buffer_status,
+            "newer_buffer"
+        );
+        let committed_bytes =
+            fs::read(service.receipt_path(&committed.request_id).unwrap()).unwrap();
+        assert!(service
+            .history_retire_unarmed_receipt(Some(&fingerprint), &book)
+            .is_err());
+        assert_eq!(
+            fs::read(service.receipt_path(&committed.request_id).unwrap()).unwrap(),
+            committed_bytes
+        );
+        assert_eq!(fs::read(file).unwrap(), original);
+    }
+
+    #[test]
+    fn history_receipt_absence_is_observational_and_a_resumable_request_blocks_cancellation() {
+        let (_temp, service, project, file) = fixture();
+        let receipt = pending(&service, &project);
+        let fingerprint = receipt.history_fingerprint().unwrap();
+        let mut book = EditorState::default();
+        service
+            .history_retire_unarmed_receipt(Some(&fingerprint), &book)
+            .unwrap();
+        assert!(!service.state.join("editor-saves").exists());
+        book.requests.insert(
+            receipt.request_id.clone(),
+            Request {
+                owner: "native:main:current".into(),
+                ticket: Uuid::new_v4().to_string(),
+                session_id: receipt.session_id.clone(),
+                project: project.id.clone(),
+                path: "main.typ".into(),
+                source_epoch: 0,
+                expected_root: None,
+                expires_at: now_ms() + REQUEST_MS,
+            },
+        );
+        assert!(book.has_source_binding(&project.id, "main.typ", 0));
+        assert!(!book.has_source_binding(&project.id, "main.typ", 1));
+        assert_eq!(
+            service
+                .history_retire_unarmed_receipt(None, &book)
+                .unwrap_err()
+                .code,
+            "busy"
+        );
+        assert!(!service.state.join("editor-saves").exists());
+        assert_eq!(fs::read_to_string(file).unwrap(), "Original");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn history_receipt_scan_preserves_unknown_corrupt_and_linked_entries() {
+        use std::os::unix::fs::symlink;
+        let (temp, service, project, file) = fixture();
+        let mut receipt = pending(&service, &project);
+        receipt.status = "committed".into();
+        let fingerprint = receipt.history_fingerprint().unwrap();
+        service.write_editor_receipt(&receipt).unwrap();
+        service
+            .history_confirm_committed_fingerprint(&fingerprint)
+            .unwrap();
+        let path = service.receipt_path(&receipt.request_id).unwrap();
+        let bytes = fs::read(&path).unwrap();
+        let unknown = path.parent().unwrap().join("unknown.json");
+        fs::write(&unknown, b"preserve unknown bytes").unwrap();
+        assert!(service
+            .history_confirm_committed_fingerprint(&fingerprint)
+            .is_err());
+        assert_eq!(fs::read(&unknown).unwrap(), b"preserve unknown bytes");
+        fs::remove_file(unknown).unwrap();
+        let outside = temp.path().join("linked-receipt.json");
+        fs::hard_link(&path, &outside).unwrap();
+        assert!(service
+            .history_confirm_committed_fingerprint(&fingerprint)
+            .is_err());
+        assert_eq!(fs::read(&outside).unwrap(), bytes);
+        fs::remove_file(&outside).unwrap();
+        fs::rename(&path, &outside).unwrap();
+        symlink(&outside, &path).unwrap();
+        assert!(service
+            .history_confirm_committed_fingerprint(&fingerprint)
+            .is_err());
+        assert_eq!(fs::read(&outside).unwrap(), bytes);
+        fs::remove_file(&path).unwrap();
+        fs::rename(&outside, &path).unwrap();
+        fs::write(&path, b"{}").unwrap();
+        assert!(service
+            .history_confirm_committed_fingerprint(&fingerprint)
+            .is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"{}");
         assert_eq!(fs::read_to_string(file).unwrap(), "Original");
     }
 }
@@ -402,6 +671,14 @@ pub(super) struct SaveReceipt {
     instance_id: String,
     pub(super) project: String,
     pub(super) path: String,
+    #[serde(default)]
+    pub(super) source_epoch: u64,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::root_observation::optional"
+    )]
+    pub(super) expected_root: Option<RootObservation>,
     session_id: String,
     status: String,
     saved_generation: Option<u64>,
@@ -413,6 +690,53 @@ pub(super) struct SaveReceipt {
 }
 
 impl SaveReceipt {
+    pub(super) fn history_fingerprint(&self) -> Result<String> {
+        request_id(&self.request_id)?;
+        for id in [&self.instance_id, &self.project, &self.session_id] {
+            Uuid::parse_str(id).map_err(|_| history_receipt_error())?;
+        }
+        super::source_path::validate_source_path(&self.path)?;
+        if self.protocol_version != PROTOCOL_VERSION
+            || self.source_epoch > crate::MAX_SOURCE_EPOCH
+            || self.saved_generation.is_some_and(|g| g > MAX_GENERATION)
+            || self
+                .saved_revision
+                .as_ref()
+                .is_some_and(|r| !valid_digest(r))
+            || (!self.commit_fingerprint.is_empty() && !valid_digest(&self.commit_fingerprint))
+        {
+            return Err(history_receipt_error());
+        }
+        Ok(digest(&serde_json::to_string(&json!([
+            self.protocol_version,
+            self.request_id,
+            self.instance_id,
+            self.project,
+            self.path,
+            self.source_epoch,
+            self.expected_root,
+            self.session_id,
+            self.saved_generation,
+            self.saved_revision,
+            self.commit_fingerprint
+        ]))?))
+    }
+
+    pub(super) fn history_committed(&self) -> bool {
+        self.status == "committed"
+            && self.error.is_none()
+            && self.saved_generation.is_some_and(|g| g <= MAX_GENERATION)
+            && self
+                .saved_revision
+                .as_ref()
+                .is_some_and(|r| valid_digest(r))
+            && valid_digest(&self.commit_fingerprint)
+            && matches!(
+                self.buffer_status.as_str(),
+                "unconfirmed" | "saved" | "newer_buffer"
+            )
+    }
+
     fn value(&self) -> Value {
         let mut value = json!(self);
         value.as_object_mut().unwrap().remove("commitFingerprint");
@@ -420,11 +744,131 @@ impl SaveReceipt {
     }
 }
 
+fn history_receipt_error() -> Error {
+    Error::new(
+        "history_unavailable",
+        "The exact native save receipt could not be confirmed. Existing data was preserved.",
+    )
+}
+
+struct HistoryReceiptEntry {
+    name: String,
+    receipt: SaveReceipt,
+    bytes: Vec<u8>,
+    file: cap_std::fs::File,
+}
+
+fn history_read_receipt(directory: &Dir, name: &str) -> Result<HistoryReceiptEntry> {
+    let id = name
+        .strip_suffix(".json")
+        .ok_or_else(history_receipt_error)?;
+    request_id(id).map_err(|_| history_receipt_error())?;
+    let mut options = OpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No).nonblock(true);
+    let mut file = directory
+        .open_with(name, &options)
+        .map_err(|_| history_receipt_error())?;
+    let before = file.metadata().map_err(|_| history_receipt_error())?;
+    if !before.is_file() || before.nlink() != 1 || before.len() > 16 * 1024 {
+        return Err(history_receipt_error());
+    }
+    let mut bytes = Vec::new();
+    (&mut file)
+        .take(16 * 1024 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| history_receipt_error())?;
+    let after = file.metadata().map_err(|_| history_receipt_error())?;
+    let current = directory
+        .symlink_metadata(name)
+        .map_err(|_| history_receipt_error())?;
+    if bytes.len() > 16 * 1024
+        || before.len() != bytes.len() as u64
+        || after.len() != before.len()
+        || before.modified().ok() != after.modified().ok()
+        || !current.is_file()
+        || current.nlink() != 1
+        || (before.dev(), before.ino()) != (current.dev(), current.ino())
+    {
+        return Err(history_receipt_error());
+    }
+    let receipt: SaveReceipt =
+        serde_json::from_slice(&bytes).map_err(|_| history_receipt_error())?;
+    receipt
+        .history_fingerprint()
+        .map_err(|_| history_receipt_error())?;
+    if receipt.request_id != id
+        || !matches!(
+            receipt.status.as_str(),
+            "pending" | "committed" | "rejected"
+        )
+        || !matches!(
+            receipt.buffer_status.as_str(),
+            "unconfirmed" | "saved" | "newer_buffer"
+        )
+        || (receipt.status == "pending"
+            && (receipt.buffer_status != "unconfirmed"
+                || receipt.error.is_some()
+                || receipt.saved_generation.is_none()
+                || receipt.saved_revision.is_none()
+                || !valid_digest(&receipt.commit_fingerprint)))
+        || (receipt.status == "committed" && !receipt.history_committed())
+        || (receipt.status == "rejected"
+            && receipt
+                .error
+                .as_ref()
+                .and_then(|error| error.get("code"))
+                .and_then(Value::as_str)
+                .is_none())
+    {
+        return Err(history_receipt_error());
+    }
+    Ok(HistoryReceiptEntry {
+        name: name.into(),
+        receipt,
+        bytes,
+        file,
+    })
+}
+
+fn history_sync_receipt_directory(directory: &Dir) -> Result<()> {
+    directory.open(".").and_then(|file| file.sync_all()).map_err(|_| {
+        Error::new("outcome_unknown", "Native save receipt durability could not be confirmed. Inspect the same save before retrying.")
+    })
+}
+
+fn history_find_receipt(directory: &Dir, fingerprint: &str) -> Result<Option<HistoryReceiptEntry>> {
+    let mut found = None;
+    for (index, entry) in directory
+        .entries()
+        .map_err(|_| history_receipt_error())?
+        .enumerate()
+    {
+        if index >= MAX_RECEIPTS {
+            return Err(history_receipt_error());
+        }
+        let name = entry
+            .map_err(|_| history_receipt_error())?
+            .file_name()
+            .into_string()
+            .map_err(|_| history_receipt_error())?;
+        let entry = history_read_receipt(directory, &name)?;
+        if entry.receipt.history_fingerprint()? == fingerprint {
+            if found.is_some() {
+                return Err(history_receipt_error());
+            }
+            found = Some(entry);
+        }
+    }
+    Ok(found)
+}
+
 #[derive(Clone)]
 struct Session {
     owner: String,
     project: String,
     path: String,
+    source_epoch: u64,
+    expected_root: Option<RootObservation>,
     generation: u64,
     revision: String,
     content_digest: String,
@@ -441,6 +885,8 @@ struct Request {
     session_id: String,
     project: String,
     path: String,
+    source_epoch: u64,
+    expected_root: Option<RootObservation>,
     expires_at: u64,
 }
 
@@ -454,6 +900,25 @@ pub(super) struct EditorState {
 }
 
 impl EditorState {
+    pub(super) fn has_source_binding(&self, project: &str, path: &str, epoch: u64) -> bool {
+        self.sessions.values().any(|session| {
+            session.project == project && session.path == path && session.source_epoch == epoch
+        }) || self.requests.values().any(|request| {
+            request.project == project && request.path == path && request.source_epoch == epoch
+        })
+    }
+
+    pub(super) fn check_native_owner(&self, window: &str, id: &str) -> Result<String> {
+        if window != "main"
+            || self
+                .native_owners
+                .get(window)
+                .is_none_or(|current| current != id)
+        {
+            return Err(Error::new("stale_session", "This native editor page has been retired. Its callbacks cannot reconnect themselves."));
+        }
+        Ok(format!("native:{window}:{id}"))
+    }
     pub(super) fn check_import_owner(&self, owner: &str) -> Result<()> {
         if !self
             .native_owners
@@ -607,16 +1072,7 @@ impl Service {
     }
 
     pub fn native_editor_owner(&self, window_label: &str, owner_id: &str) -> Result<String> {
-        let book = lock(&self.editor)?;
-        if window_label != "main"
-            || !book
-                .native_owners
-                .get(window_label)
-                .is_some_and(|id| id == owner_id)
-        {
-            return Err(Error::new("stale_session","This native editor page has been retired. Its callbacks cannot reconnect themselves."));
-        }
-        Ok(format!("native:{window_label}:{owner_id}"))
+        lock(&self.editor)?.check_native_owner(window_label, owner_id)
     }
 
     fn retire_editor_request(
@@ -699,8 +1155,51 @@ impl Service {
             })?
     }
 
+    pub async fn editor_native(
+        self: &Arc<Self>,
+        window_label: &str,
+        owner_id: &str,
+        operation: EditorOperation,
+    ) -> Result<Value> {
+        let (service, window, id) = (self.clone(), window_label.to_owned(), owner_id.to_owned());
+        tokio::task::spawn_blocking(move || {
+            let owner = service.native_editor_owner(&window, &id)?;
+            service.editor_local_context(&owner, operation, true)
+        })
+        .await
+        .map_err(|_| {
+            Error::new(
+                "outcome_unknown",
+                "The native editor stopped; inspect its receipt before retrying.",
+            )
+        })?
+    }
+
     fn editor_local(&self, owner: &str, operation: EditorOperation) -> Result<Value> {
+        self.editor_local_context(owner, operation, false)
+    }
+    fn editor_local_context(
+        &self,
+        owner: &str,
+        operation: EditorOperation,
+        native: bool,
+    ) -> Result<Value> {
         let mut book = lock(&self.editor)?;
+        if native {
+            book.check_import_owner(owner)?;
+            if matches!(
+                &operation,
+                EditorOperation::EditorRegister {
+                    expected_root: None,
+                    ..
+                }
+            ) {
+                return Err(Error::new(
+                    "stale_root",
+                    "Capture the project folder before registering a native editor.",
+                ));
+            }
+        }
         if owner.starts_with("native:")
             && !book.native_owners.is_empty()
             && !book
@@ -713,11 +1212,28 @@ impl Service {
                 "The native editor page was retired before this callback ran.",
             ));
         }
+        let _documents = if matches!(
+            operation,
+            EditorOperation::EditorRegister { .. }
+                | EditorOperation::EditorUpdate { .. }
+                | EditorOperation::EditorCommit { .. }
+                | EditorOperation::EditorComplete { .. }
+        ) {
+            Some(
+                self.documents
+                    .try_lock()
+                    .map_err(|_| Error::new("busy", "Another document operation is running."))?,
+            )
+        } else {
+            None
+        };
         let now = now_ms();
         match operation {
             EditorOperation::EditorRegister {
                 project,
                 path,
+                source_epoch,
+                expected_root,
                 generation,
                 revision,
                 content_digest,
@@ -726,6 +1242,7 @@ impl Service {
                 conflict,
             } => {
                 validate_state(generation, &revision, &content_digest)?;
+                self.require_source_epoch(&project, &path, source_epoch)?;
                 if book.import_paths.contains(&(project.clone(), path.clone())) {
                     return Err(Error::new(
                         "busy",
@@ -734,13 +1251,23 @@ impl Service {
                 }
                 let approved = self.project(&project)?;
                 self.editor_path(&approved, &path)?;
+                let expected_root = Some(
+                    self.acquire_group(
+                        SourceBinding::new(&project, &path, source_epoch).rooted(expected_root),
+                    )?
+                    .observation(),
+                );
                 let existing = book
                     .sessions
                     .iter()
                     .find(|(_, s)| s.project == project && s.path == path)
                     .map(|(id, s)| (id.clone(), s.clone()));
                 if let Some((id, session)) = existing {
-                    if session.owner != owner && now.saturating_sub(session.seen_at) <= LEASE_MS {
+                    if session.owner != owner
+                        && session.source_epoch == source_epoch
+                        && session.expected_root == expected_root
+                        && now.saturating_sub(session.seen_at) <= LEASE_MS
+                    {
                         return Err(Error::new(
                             "busy",
                             "Another editor owns this document session.",
@@ -775,6 +1302,8 @@ impl Service {
                         owner: owner.into(),
                         project,
                         path,
+                        source_epoch,
+                        expected_root,
                         generation,
                         revision,
                         content_digest,
@@ -784,7 +1313,9 @@ impl Service {
                         seen_at: now,
                     },
                 );
-                Ok(json!({"protocolVersion":PROTOCOL_VERSION,"sessionId":id}))
+                Ok(
+                    json!({"protocolVersion":PROTOCOL_VERSION,"sessionId":id,"sourceEpoch":source_epoch,"expectedRoot":expected_root}),
+                )
             }
             EditorOperation::EditorUpdate {
                 session_id,
@@ -806,6 +1337,11 @@ impl Service {
                             "Reopen the document to register its current editor session.",
                         )
                     })?;
+                self.require_source_epoch(&session.project, &session.path, session.source_epoch)?;
+                self.acquire_group(
+                    SourceBinding::new(&session.project, &session.path, session.source_epoch)
+                        .rooted(session.expected_root),
+                )?;
                 if generation < session.generation
                     || (generation == session.generation
                         && content_digest != session.content_digest)
@@ -823,7 +1359,7 @@ impl Service {
                 session.conflict = conflict;
                 session.seen_at = now;
                 Ok(
-                    json!({"protocolVersion":PROTOCOL_VERSION,"sessionId":session_id,"generation":generation}),
+                    json!({"protocolVersion":PROTOCOL_VERSION,"sessionId":session_id,"generation":generation,"sourceEpoch":session.source_epoch,"expectedRoot":session.expected_root}),
                 )
             }
             EditorOperation::EditorUnregister { session_id } => {
@@ -859,7 +1395,7 @@ impl Service {
                     session.seen_at = now;
                 }
                 let requests: Vec<_> = book.requests.iter().filter(|(_,r)|r.owner==owner && r.expires_at>now)
-                    .map(|(id,r)|json!({"requestId":id,"ticket":r.ticket,"sessionId":r.session_id,"project":r.project,"path":r.path,"expiresAt":r.expires_at})).collect();
+                    .map(|(id,r)|json!({"requestId":id,"ticket":r.ticket,"sessionId":r.session_id,"project":r.project,"path":r.path,"sourceEpoch":r.source_epoch,"expectedRoot":r.expected_root,"expiresAt":r.expires_at})).collect();
                 Ok(json!({"protocolVersion":PROTOCOL_VERSION,"requests":requests}))
             }
             EditorOperation::EditorCommit {
@@ -872,6 +1408,11 @@ impl Service {
             } => {
                 let request =
                     check_request(&book, owner, &request_id, &ticket, &session_id)?.clone();
+                self.require_source_epoch(&request.project, &request.path, request.source_epoch)?;
+                self.acquire_group(
+                    SourceBinding::new(&request.project, &request.path, request.source_epoch)
+                        .rooted(request.expected_root),
+                )?;
                 let fingerprint = digest(&serde_json::to_string(&json!([
                     session_id,
                     generation,
@@ -879,7 +1420,12 @@ impl Service {
                     digest(&content)
                 ]))?);
                 if let Some(receipt) = self.read_editor_receipt(&request_id)? {
-                    if receipt.commit_fingerprint != fingerprint {
+                    if receipt.expected_root != request.expected_root
+                        || receipt.source_epoch != request.source_epoch
+                        || receipt.project != request.project
+                        || receipt.path != request.path
+                        || receipt.commit_fingerprint != fingerprint
+                    {
                         return Err(Error::new(
                             "request_reused",
                             "This requestId already describes a different save.",
@@ -888,13 +1434,24 @@ impl Service {
                     if receipt.status == "committed" {
                         let approved = self.project(&request.project)?;
                         let file = self.path(&approved, &request.path, false)?;
-                        if digest(&read_text(&file, MAX_TEXT)?)
-                            != receipt.saved_revision.clone().unwrap_or_default()
+                        if digest(
+                            self.acquire_group(
+                                SourceBinding::new(
+                                    &request.project,
+                                    &request.path,
+                                    request.source_epoch,
+                                )
+                                .rooted(request.expected_root),
+                            )?
+                            .read_utf8(Member::Source, MAX_TEXT)?
+                            .text()?
+                            .ok_or_else(|| Error::new("io", "The source is unavailable."))?,
+                        ) != receipt.saved_revision.clone().unwrap_or_default()
                         {
                             return Err(Error::new("conflict","The captured save is committed, but disk has changed since. Inspect its durable receipt."));
                         }
                         return Ok(
-                            json!({"snapshot":self.snapshot(&approved,&request.path,&file)?,"receipt":receipt.value()}),
+                            json!({"snapshot":self.snapshot_binding(SourceBinding::new(&request.project,&request.path,request.source_epoch).rooted(request.expected_root).guarded(native),&file,true)?,"receipt":receipt.value()}),
                         );
                     }
                     return Err(Error::new(
@@ -931,6 +1488,15 @@ impl Service {
                         "Finish composition or resolve the editor conflict before saving.",
                     ));
                 }
+                if session.expected_root != request.expected_root {
+                    return Err(Error::new(
+                        "stale_root",
+                        "The document session belongs to another project folder.",
+                    ));
+                }
+                if session.source_epoch != request.source_epoch {
+                    return Err(source_identity::stale());
+                }
                 if session.generation != generation
                     || session.revision != revision
                     || session.content_digest != digest(&content)
@@ -943,13 +1509,23 @@ impl Service {
                 if content.len() > MAX_TEXT {
                     return Err(Error::new("limit", "The manuscript exceeds 2 MB."));
                 }
-                let _documents = self
-                    .documents
-                    .try_lock()
-                    .map_err(|_| Error::new("busy", "Another document operation is running."))?;
                 let approved = self.project(&request.project)?;
                 let file = self.path(&approved, &request.path, false)?;
-                let (old, mut review) = self.read_document(&approved, &request.path, &file)?;
+                self.require_source_epoch(&request.project, &request.path, request.source_epoch)?;
+                self.acquire_group(
+                    SourceBinding::new(&request.project, &request.path, request.source_epoch)
+                        .rooted(request.expected_root),
+                )?;
+                let binding =
+                    SourceBinding::new(&request.project, &request.path, request.source_epoch)
+                        .rooted(request.expected_root)
+                        .guarded(native);
+                if native {
+                    self.history_recover_empty_producer_init()?;
+                }
+                let document = self.held_document(binding, &file, true)?;
+                let old = document.content.clone();
+                let mut review = document.review.clone();
                 review.check_revision(&revision, &old)?;
                 review.reconcile(&old, &content);
                 let receipt = SaveReceipt {
@@ -958,6 +1534,8 @@ impl Service {
                     instance_id: self.instance_id.clone(),
                     project: request.project,
                     path: request.path,
+                    source_epoch: request.source_epoch,
+                    expected_root: request.expected_root,
                     session_id: session_id.clone(),
                     status: "pending".into(),
                     saved_generation: Some(generation),
@@ -966,29 +1544,36 @@ impl Service {
                     error: None,
                     commit_fingerprint: fingerprint,
                 };
-                self.write_editor_receipt(&receipt)?;
-                if self
-                    .persist_with_receipt(
-                        &receipt.project,
-                        &receipt.path,
-                        &file,
-                        Some(&old),
-                        &content,
-                        &review,
+                let history_maintenance_pending = match self.persist_observed_cause(
+                    SourceBinding::new(&receipt.project, &receipt.path, receipt.source_epoch)
+                        .rooted(receipt.expected_root)
+                        .guarded(native),
+                    &file,
+                    &document,
+                    &content,
+                    &review,
+                    (
                         Some(&receipt),
-                    )
-                    .is_err()
-                {
-                    return Err(Error::new(
-                        "outcome_unknown",
-                        "The save may have committed. Inspect its receipt before retrying.",
-                    ));
-                }
+                        native.then_some(history::NativeCause::Save),
+                        native.then_some(&*book),
+                    ),
+                ) {
+                    Ok(pending) => pending,
+                    Err(error) => {
+                        if self.read_editor_receipt(&request_id)?.is_none() {
+                            return Err(error);
+                        }
+                        return Err(Error::new(
+                            "outcome_unknown",
+                            "The save may have committed. Inspect its receipt before retrying.",
+                        ));
+                    }
+                };
                 let receipt = self.read_editor_receipt(&request_id)?.ok_or_else(|| {
                     Error::new("outcome_unknown", "The save receipt is unavailable.")
                 })?;
                 Ok(
-                    json!({"snapshot":self.snapshot(&approved,&receipt.path,&file)?,"receipt":receipt.value()}),
+                    json!({"snapshot":self.snapshot_after_persist(SourceBinding::new(&receipt.project,&receipt.path,receipt.source_epoch).rooted(receipt.expected_root).guarded(native),&file,history_maintenance_pending)?,"receipt":receipt.value()}),
                 )
             }
             EditorOperation::EditorComplete {
@@ -1000,6 +1585,11 @@ impl Service {
             } => {
                 let request =
                     check_request(&book, owner, &request_id, &ticket, &session_id)?.clone();
+                self.require_source_epoch(&request.project, &request.path, request.source_epoch)?;
+                self.acquire_group(
+                    SourceBinding::new(&request.project, &request.path, request.source_epoch)
+                        .rooted(request.expected_root),
+                )?;
                 if let Some(mut receipt) = self.read_editor_receipt(&request_id)? {
                     if receipt.status != "committed" {
                         return Err(Error::new(
@@ -1058,6 +1648,8 @@ impl Service {
             instance_id: self.instance_id.clone(),
             project: request.project.clone(),
             path: request.path.clone(),
+            source_epoch: request.source_epoch,
+            expected_root: request.expected_root,
             session_id: request.session_id.clone(),
             status: "rejected".into(),
             saved_generation: None,
@@ -1071,6 +1663,195 @@ impl Service {
     fn receipt_path(&self, id: &str) -> Result<PathBuf> {
         request_id(id)?;
         Ok(self.state.join("editor-saves").join(format!("{id}.json")))
+    }
+
+    fn history_receipt_directories(&self) -> Result<(Dir, Option<Dir>)> {
+        let metadata = fs::symlink_metadata(&self.state).map_err(|_| history_receipt_error())?;
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Err(history_receipt_error());
+        }
+        let state = Dir::open_ambient_dir(&self.state, cap_std::ambient_authority())
+            .map_err(|_| history_receipt_error())?;
+        let directory = match state.symlink_metadata("editor-saves") {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(_) => return Err(history_receipt_error()),
+            Ok(metadata) if !metadata.is_dir() || metadata.file_type().is_symlink() => {
+                return Err(history_receipt_error())
+            }
+            Ok(_) => Some(
+                state
+                    .open_dir_nofollow("editor-saves")
+                    .map_err(|_| history_receipt_error())?,
+            ),
+        };
+        Ok((state, directory))
+    }
+
+    fn history_check_receipt_directories(
+        &self,
+        state: &Dir,
+        directory: Option<&Dir>,
+    ) -> Result<()> {
+        let (current_state, current_directory) = self.history_receipt_directories()?;
+        let held = state.dir_metadata().map_err(|_| history_receipt_error())?;
+        let current = current_state
+            .dir_metadata()
+            .map_err(|_| history_receipt_error())?;
+        if (held.dev(), held.ino()) != (current.dev(), current.ino()) {
+            return Err(history_receipt_error());
+        }
+        match (directory, current_directory) {
+            (None, None) => Ok(()),
+            (Some(held), Some(current)) => {
+                let held = held.dir_metadata().map_err(|_| history_receipt_error())?;
+                let current = current
+                    .dir_metadata()
+                    .map_err(|_| history_receipt_error())?;
+                if (held.dev(), held.ino()) == (current.dev(), current.ino()) {
+                    Ok(())
+                } else {
+                    Err(history_receipt_error())
+                }
+            }
+            _ => Err(history_receipt_error()),
+        }
+    }
+
+    fn history_sync_receipt(
+        &self,
+        state: &Dir,
+        directory: &Dir,
+        entry: &HistoryReceiptEntry,
+    ) -> Result<()> {
+        entry.file.sync_all().map_err(|_| {
+            Error::new(
+                "outcome_unknown",
+                "Native save receipt synchronization is uncertain.",
+            )
+        })?;
+        history_sync_receipt_directory(directory)?;
+        // The receipt directory itself may have been created by this save.
+        history_sync_receipt_directory(state)?;
+        let checked = history_read_receipt(directory, &entry.name)?;
+        let before = entry.file.metadata().map_err(|_| history_receipt_error())?;
+        let after = checked
+            .file
+            .metadata()
+            .map_err(|_| history_receipt_error())?;
+        if checked.bytes != entry.bytes
+            || (before.dev(), before.ino()) != (after.dev(), after.ino())
+        {
+            return Err(history_receipt_error());
+        }
+        self.history_check_receipt_directories(state, Some(directory))
+    }
+
+    pub(super) fn history_confirm_pending(&self, receipt: &SaveReceipt) -> Result<()> {
+        let current = self.matching_journal_receipt(receipt)?;
+        if current.status != "pending"
+            || current.buffer_status != "unconfirmed"
+            || current.error.is_some()
+        {
+            return Err(history_receipt_error());
+        }
+        let (state, directory) = self.history_receipt_directories()?;
+        let directory = directory.ok_or_else(history_receipt_error)?;
+        let name = format!("{}.json", receipt.request_id);
+        let before = history_read_receipt(&directory, &name)?;
+        if before.receipt != current {
+            return Err(history_receipt_error());
+        }
+        self.history_check_receipt_directories(&state, Some(&directory))?;
+        self.write_editor_receipt(&current)?;
+        let entry = history_read_receipt(&directory, &name)?;
+        if entry.receipt != current {
+            return Err(history_receipt_error());
+        }
+        self.history_sync_receipt(&state, &directory, &entry)
+    }
+
+    pub(super) fn history_confirm_committed_fingerprint(&self, fingerprint: &str) -> Result<()> {
+        if !valid_digest(fingerprint) {
+            return Err(history_receipt_error());
+        }
+        let (state, directory) = self.history_receipt_directories()?;
+        let directory = directory.ok_or_else(history_receipt_error)?;
+        let entry =
+            history_find_receipt(&directory, fingerprint)?.ok_or_else(history_receipt_error)?;
+        if !entry.receipt.history_committed() {
+            return Err(history_receipt_error());
+        }
+        self.history_sync_receipt(&state, &directory, &entry)
+    }
+
+    /// Caller holds the native book and document guard and has proved this intent unarmed.
+    pub(super) fn history_retire_unarmed_receipt(
+        &self,
+        fingerprint: Option<&str>,
+        book: &EditorState,
+    ) -> Result<()> {
+        if !book.requests.is_empty() {
+            return Err(Error::new(
+                "busy",
+                "An editor save may still resume; its receipt was preserved.",
+            ));
+        }
+        let Some(fingerprint) = fingerprint else {
+            return Ok(());
+        };
+        if !valid_digest(fingerprint) {
+            return Err(history_receipt_error());
+        }
+        let (state, directory) = self.history_receipt_directories()?;
+        let entry = directory
+            .as_ref()
+            .map(|directory| history_find_receipt(directory, fingerprint))
+            .transpose()?
+            .flatten();
+        if let Some(entry) = entry {
+            let directory = directory.as_ref().ok_or_else(history_receipt_error)?;
+            if entry.receipt.status == "pending" {
+                let mut rejected = entry.receipt.clone();
+                rejected.status = "rejected".into();
+                rejected.error = Some(
+                    json!({"code":"history_aborted","message":"This unapplied native save was cancelled; the manuscript was preserved."}),
+                );
+                self.history_check_receipt_directories(&state, Some(directory))?;
+                self.write_editor_receipt(&rejected)?;
+                let confirmed = history_read_receipt(directory, &entry.name)?;
+                if confirmed.receipt != rejected {
+                    return Err(history_receipt_error());
+                }
+                return self.history_sync_receipt(&state, directory, &confirmed);
+            }
+            if entry.receipt.status == "rejected"
+                && entry
+                    .receipt
+                    .error
+                    .as_ref()
+                    .and_then(|error| error.get("code"))
+                    .and_then(Value::as_str)
+                    == Some("history_aborted")
+            {
+                return self.history_sync_receipt(&state, directory, &entry);
+            }
+            return Err(history_receipt_error());
+        }
+        if let Some(directory) = &directory {
+            history_sync_receipt_directory(directory)?;
+        }
+        history_sync_receipt_directory(&state)?;
+        self.history_check_receipt_directories(&state, directory.as_ref())?;
+        if directory
+            .as_ref()
+            .map(|directory| history_find_receipt(directory, fingerprint))
+            .transpose()?
+            .flatten()
+            .is_some()
+        {
+            return Err(history_receipt_error());
+        }
+        Ok(())
     }
 
     fn read_editor_receipt(&self, id: &str) -> Result<Option<SaveReceipt>> {
@@ -1087,7 +1868,10 @@ impl Service {
             _ => (),
         }
         let receipt: SaveReceipt = serde_json::from_str(&read_text(&path, 16 * 1024)?)?;
-        if receipt.request_id != id || receipt.protocol_version != PROTOCOL_VERSION {
+        if receipt.request_id != id
+            || receipt.protocol_version != PROTOCOL_VERSION
+            || receipt.source_epoch > crate::MAX_SOURCE_EPOCH
+        {
             return Err(Error::new(
                 "format",
                 "The save receipt identity is invalid.",
@@ -1096,7 +1880,7 @@ impl Service {
         Ok(Some(receipt))
     }
 
-    fn write_editor_receipt(&self, receipt: &SaveReceipt) -> Result<()> {
+    pub(super) fn write_editor_receipt(&self, receipt: &SaveReceipt) -> Result<()> {
         let path = self.receipt_path(&receipt.request_id)?;
         let directory = path.parent().unwrap();
         if fs::symlink_metadata(directory).is_ok_and(|m| m.file_type().is_symlink()) {
@@ -1158,6 +1942,11 @@ impl Service {
     ) -> Result<()> {
         request_id(&receipt.request_id)?;
         let approved = self.project(&receipt.project)?;
+        self.require_source_epoch(&receipt.project, &receipt.path, receipt.source_epoch)?;
+        self.acquire_group(
+            SourceBinding::new(&receipt.project, &receipt.path, receipt.source_epoch)
+                .rooted(receipt.expected_root),
+        )?;
         if self.path(&approved, &receipt.path, false)? != path
             || receipt.saved_revision.as_deref() != Some(digest(content).as_str())
             || receipt.protocol_version != PROTOCOL_VERSION
@@ -1188,7 +1977,13 @@ impl Service {
                 .map_err(|_| Error::new("busy", "The native save is still running."))?;
             let approved = self.project(&receipt.project)?;
             let file = self.path(&approved, &receipt.path, false)?;
-            self.read_document(&approved, &receipt.path, &file)?;
+            self.held_document(
+                SourceBinding::new(&receipt.project, &receipt.path, receipt.source_epoch)
+                    .rooted(receipt.expected_root)
+                    .guarded(receipt.expected_root.is_some()),
+                &file,
+                true,
+            )?;
             receipt = self
                 .read_editor_receipt(id)?
                 .ok_or_else(|| Error::new("outcome_unknown", "The save receipt is unavailable."))?;
@@ -1218,6 +2013,7 @@ impl Service {
                 return self.editor_save_receipt(id);
             }
             if let Some(existing) = book.requests.get(id) {
+                self.require_source_epoch(project, path, existing.source_epoch)?;
                 if existing.project != project || existing.path != path {
                     return Err(Error::new(
                         "request_reused",
@@ -1225,6 +2021,10 @@ impl Service {
                     ));
                 }
             } else {
+                let _documents = self
+                    .documents
+                    .try_lock()
+                    .map_err(|_| Error::new("busy", "Another document operation is running."))?;
                 let now = now_ms();
                 let expired: Vec<_> = book
                     .requests
@@ -1245,6 +2045,11 @@ impl Service {
                 }
                 let (session_id,session)=book.sessions.iter().find(|(_,s)|s.project==project && s.path==path && now.saturating_sub(s.seen_at)<=LEASE_MS)
                     .ok_or_else(||Error::new("ui_unavailable","Open this document in a live UnderTree editor before saving from the CLI."))?;
+                self.require_source_epoch(project, path, session.source_epoch)?;
+                self.acquire_group(
+                    SourceBinding::new(project, path, session.source_epoch)
+                        .rooted(session.expected_root),
+                )?;
                 if session.composing || session.conflict {
                     return Err(Error::new(
                         "busy",
@@ -1263,6 +2068,8 @@ impl Service {
                     session_id: session_id.clone(),
                     project: project.into(),
                     path: path.into(),
+                    source_epoch: session.source_epoch,
+                    expected_root: session.expected_root,
                     expires_at: now + REQUEST_MS,
                 };
                 book.requests.insert(id.into(), request);

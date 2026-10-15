@@ -7,6 +7,7 @@ import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'n
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer } from 'node:net';
+import { nativeFixtureContextScript } from './native-fixture-context.mjs';
 
 assert.equal(process.platform, 'linux');
 assert.notEqual(process.getuid(), 0, 'Run the private native WebKit qualification as a regular desktop user.');
@@ -59,7 +60,7 @@ const command = (path, body, method) => request(`/session/${session}${path}`, bo
 const execute = (script, args = []) => command('/execute/sync', { script, args });
 const find = async selector => (await command('/element', { using: 'css selector', value: selector }))['element-6066-11e4-a52e-4f735466cecf'];
 async function click(selector) { return command(`/element/${await find(selector)}/click`, {}); }
-const review = operation => execute('return window.__TAURI_INTERNALS__.invoke("review_action",{operation:arguments[0]});', [operation]);
+const review = operation => execute('return window.__TAURI_INTERNALS__.invoke("review_action",{ownerId:window.__nativeFixtureContext.owner(),operation:arguments[0]});', [operation]);
 async function screenshot(name) { await writeFile(join(artifacts, name), Buffer.from(await command('/screenshot', undefined, 'GET'), 'base64')); }
 async function open(path) {
   await until(()=>execute('return !!document.querySelector(arguments[0]);',[`.file-button[data-path="${path}"]`]),'Native source row was not inventoried.');
@@ -69,7 +70,7 @@ async function open(path) {
     const start=await traceLength();await click(`.file-button[data-path="${path}"]`);
     const outcome=await until(()=>execute(`
       if(document.querySelector('#manuscript-tabs [aria-selected=true]')?.textContent===arguments[0])return {opened:true};
-      const call=window.__wcTrace.slice(arguments[1]).find(item=>item.name==='review_action'&&item.action==='open'&&item.project==='native-word-count'&&item.path===arguments[0]);
+      const call=window.__wcTrace.slice(arguments[1]).find(item=>item.name==='review_action'&&item.action==='open'&&item.project==='22222222-2222-4222-8222-222222222222'&&item.path===arguments[0]);
       if(!call?.finished||call.status!=='error'||call.error===undefined)return false;
       const reads=window.__wcTrace.filter(item=>item.name==='review_action'&&item.action==='review'&&item.project===call.project&&item.started<=call.started&&(!item.finished||item.finished>=call.started));
       return {opened:false,errorCode:call.error?.code,errorMessage:call.error?.message,priorReadStarts:reads.map(item=>item.started)};
@@ -134,7 +135,7 @@ try {
   await writeFile(join(project, otherPath), other); await writeFile(join(project, 'incomplete.typ'), '#strong[\nAlpha words\n');
   await writeFile(join(project, htmlPath), htmlSource); await writeFile(join(project, 'large.typ'), large);
   if(denseEnabled)await writeFile(join(project,'dense.typ'),dense);
-  await writeFile(join(state, 'projects.json'), JSON.stringify({ projects: [{ id: 'native-word-count', name: 'Native Word count', root: project, repository: '', autoSync: false, pending: [], pendingRevisions: {} }] }));
+  await writeFile(join(state, 'projects.json'), JSON.stringify({ projects: [{ id: '22222222-2222-4222-8222-222222222222', name: 'Native Word count', root: project, repository: '', autoSync: false, pending: [], pendingRevisions: {} }] }));
   const compiler = join(fixture, 'compiler-must-not-run-for-count');
   const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
   await writeFile(compiler, `#!/bin/sh\nprintf 'preexisting-user-compile\\n' >> ${quote(compilerCalls)}\nexit 1\n`); await chmod(compiler, 0o700);
@@ -150,6 +151,7 @@ try {
   await until(() => execute('return !!document.getElementById("word-count-dialog")&&!!document.querySelector(".file-button")&&!!window.__TAURI_INTERNALS__'), 'Captured native Word count UI did not load.');
   nativeWindow = native('xdotool', ['search', '--onlyvisible', '--name', '^UnderTree$']).split('\n')[0]; nativePid = Number(native('xdotool', ['getwindowpid', nativeWindow]));
   await command('/window/rect',{width:1440,height:900});
+  await execute(nativeFixtureContextScript);
   assert.equal(await execute(`
     window.__wcTrace=[];window.__wcErrors=[];window.__wcObservationErrors=[];window.__wcFallback=false;window.__wcTimers=new Map();window.__wcTimerEvents=[];window.__wcInFlight=0;window.__wcPhase='setup';window.__wcHeldWrites=[];window.__wcWorkerEvents=[];
     addEventListener('error',e=>window.__wcErrors.push(e.message));addEventListener('unhandledrejection',e=>window.__wcErrors.push(e.reason?.message||String(e.reason)));
@@ -162,13 +164,18 @@ try {
       const entry=name?{name,action:payload.operation?.action,project:payload.operation?.project,path:payload.operation?.path,phase:window.__wcPhase,started:performance.now()}:null;
       if(entry)window.__wcTrace.push(entry);
       if(name==='word_count_typst_text'){entry.request=payload.request;entry.sourceBytes=new TextEncoder().encode(payload.request.source).length;window.__wcOwner=payload.request.ownerId;}
-      const dispatch=()=>{if(entry)window.__wcInFlight++;return Reflect.apply(originalFetch,window,[input,init,...rest]).then(async response=>{if(entry){window.__wcInFlight--;entry.finished=performance.now();entry.status=response.headers.get('Tauri-Response');if(entry.status==='error')entry.error=await response.clone().json();if(name==='word_count_typst_text'){entry.reply=await response.clone().json();if(window.__wcHoldNext){window.__wcHoldNext=false;window.__wcHeldCount=entry;await new Promise(resolve=>window.__wcReleaseCount=resolve);}}}return response;},error=>{if(entry){window.__wcInFlight--;entry.transportError=String(error);}throw error;});};
+      const dispatch=()=>{if(entry)window.__wcInFlight++;const response=Reflect.apply(originalFetch,window,[input,init,...rest]);window.__nativeFixtureContext.observe(name,payload,response);return response.then(async response=>{if(entry){window.__wcInFlight--;entry.finished=performance.now();entry.status=response.headers.get('Tauri-Response');if(entry.status==='error')entry.error=await response.clone().json();if(name==='word_count_typst_text'){entry.reply=await response.clone().json();if(window.__wcHoldNext){window.__wcHoldNext=false;window.__wcHeldCount=entry;await new Promise(resolve=>window.__wcReleaseCount=resolve);}}}return response;},error=>{if(entry){window.__wcInFlight--;entry.transportError=String(error);}throw error;});};
       if(name==='review_action'&&['save','compile'].includes(payload.operation?.action)&&window.__wcHoldWrites)return new Promise(resolve=>{window.__wcHeldWrites.push(()=>resolve(dispatch()));});
       return dispatch();
     };
     window.fetch=observed;console.warn=(...args)=>{if(args.some(value=>String(value).includes('IPC custom protocol failed')))window.__wcFallback=true;return Reflect.apply(originalWarn,console,args);};return window.fetch===observed;
   `), true);
-  await review({ action: 'set_main_document', project: 'native-word-count', path: 'main.typ' });
+  await until(() => execute('return window.__nativeFixtureContext.status().ownerObserved;'), 'A genuine successful native UI request did not reveal its existing page owner.');
+  // SetMain is a producer: retain one actual UI tree response before any count/fault.
+  await click('#menu-file-toggle'); await click('#menu-file [data-command="refresh-files"]');
+  await until(() => execute('return window.__nativeFixtureContext.status().roots.some(item=>item.project===arguments[0]);', ['22222222-2222-4222-8222-222222222222']), 'The genuine UI tree refresh did not supply the intended project folder.');
+  const setupRoot = await execute('return window.__nativeFixtureContext.root(arguments[0]);', ['22222222-2222-4222-8222-222222222222']);
+  await review({ action: 'set_main_document', project: '22222222-2222-4222-8222-222222222222', path: 'main.typ', expectedRoot: setupRoot });
   await open(chapterPath); await click('#menu-format-toggle'); await click('#palette-open'); await click('#palette-form button[type=submit]');
   await until(() => stat(policy), 'Native setup did not establish portable policy bytes.'); await until(() => execute('return !document.getElementById("palette-dialog").open'), 'Palette setup did not finish.');
   const originalFiles = await snapshotFiles(); await execute('window.__wcPhase="prior-user-edit";window.__wcHoldWrites=true;'); await append('delta');

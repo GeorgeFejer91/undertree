@@ -7,6 +7,7 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, w
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer } from 'node:net';
+import { nativeFixtureContextScript } from './native-fixture-context.mjs';
 
 assert.equal(process.platform, 'linux');
 assert.notEqual(process.getuid(), 0, 'The failed-autosave proof requires a regular user.');
@@ -46,7 +47,7 @@ const command=(path,body,method)=>request(`/session/${session}${path}`,body,meth
 const execute=(script,args=[])=>command('/execute/sync',{script,args});
 const find=async selector=>(await command('/element',{using:'css selector',value:selector}))['element-6066-11e4-a52e-4f735466cecf'];
 const click=async selector=>command(`/element/${await find(selector)}/click`,{});
-const review=operation=>execute('return window.__TAURI_INTERNALS__.invoke("review_action",{operation:arguments[0]});',[operation]);
+const review=operation=>execute('return window.__TAURI_INTERNALS__.invoke("review_action",{ownerId:window.__nativeFixtureContext.owner(),operation:arguments[0]});',[operation]);
 const windowState=()=>native('xprop',['-id',nativeWindow,'WM_STATE']);
 async function screenshot(name){const encoded=await command('/screenshot',undefined,'GET');await writeFile(join(artifacts,name),Buffer.from(encoded,'base64'));}
 try{
@@ -57,7 +58,7 @@ try{
   await writeFile(join(incoming,'chapter.typ'),importedSource);await writeFile(join(incoming,'diagram.png'),importedAsset);
   await writeFile(join(incoming,'dirty-import.typ'),'= Additional import\r\n');
   await writeFile(join(incoming,'stale-import.typ'),'= Stale destination must not receive this\r\n');
-  await writeFile(join(state,'projects.json'),JSON.stringify({projects:[{id:'native-app',name:'Native App controls',root:project,repository:'',autoSync:false,pending:[],pendingRevisions:{}}]}));
+  await writeFile(join(state,'projects.json'),JSON.stringify({projects:[{id:'11111111-1111-4111-8111-111111111111',name:'Native App controls',root:project,repository:'',autoSync:false,pending:[],pendingRevisions:{}}]}));
   await writeFile(zrok,`#!/bin/sh\nprintf '%s' "$3" > ${quote(targetFile)}\nexec sleep 180\n`);await chmod(zrok,0o700);
   const xvfb=child(process.env.UNDERTREE_XVFB||'Xvfb',['-displayfd','1','-screen','0','1600x1000x24','-nolisten','tcp']);let display='';xvfb.stdout.on('data',bytes=>{display+=bytes;});
   await until(()=>display.trim()&&xvfb.exitCode===null,'Private Xvfb did not start.');
@@ -69,6 +70,7 @@ try{
   const opened=await request('/session',{capabilities:{alwaysMatch:{'tauri:options':{application:binary}}}});session=opened.sessionId;evidence.webDriverCapabilities=opened.capabilities;
   await until(()=>execute('return !!document.querySelector(arguments[0])',['.file-button[data-path="main.typ"]']),'Native inventory did not render.');
   nativeWindow=native('xdotool',['search','--onlyvisible','--name','^UnderTree$']).split('\n')[0];nativePid=Number(native('xdotool',['getwindowpid',nativeWindow]));
+  await execute(nativeFixtureContextScript);
   assert.equal(await execute(`
     window.__nativeAppErrors=[];
     addEventListener('error',event=>window.__nativeAppErrors.push(event.message));
@@ -95,6 +97,7 @@ try{
         }
       }catch{window.__nativeAppObservationErrors.push('Unsupported IPC observation body.');}
       const response=Reflect.apply(originalFetch,window,[input,init,...rest]);
+      window.__nativeFixtureContext.observe(observedName,observedPayload,response);
       if(observedName==='choose_import_files')return response.then(async value=>{window.__nativeImportSelection=await value.clone().json();return value;});
       if(observedName==='import_operation')return response.then(async value=>{
         const reply=await value.clone().json();window.__nativeImportReplies.push({operation:observedPayload.operation,reply});
@@ -119,12 +122,13 @@ try{
     window.fetch=observed;
     return window.fetch===observed;
   `),true,'Passive IPC observation is installed without replacing native dispatch.');
+  await until(()=>execute('return window.__nativeFixtureContext.status().ownerObserved;'),'A genuine successful native UI request did not reveal its existing page owner.');
   await execute('window.__nativeAppReadOverlapEnabled=arguments[0];',[readOverlap]);
   await click('.file-button[data-path="main.typ"]');await until(()=>execute('return document.querySelector(".cm-content")?.textContent.includes("The saved manuscript stays unchanged.")'),'Manuscript did not open.');
   await click('#menu-format-toggle');await click('#palette-open');await click('#palette-form button[type="submit"]');
   await until(()=>stat(policy),'The native policy setup did not persist its default color rules.');
   await until(()=>execute('return !document.getElementById("palette-dialog").open'),'The native policy save did not finish.');
-  await click('#review-toggle');await click('#manuscript-share');await until(async()=>(await review({action:'open',project:'native-app',path:'main.typ'})).shared===true,'Actual native UI did not share the manuscript.');
+  await click('#review-toggle');await click('#manuscript-share');await until(async()=>(await review({action:'open',project:'11111111-1111-4111-8111-111111111111',path:'main.typ'})).shared===true,'Actual native UI did not share the manuscript.');
   await click('#connection-open');await execute('document.getElementById("zrok-name").value="native-app-test";document.getElementById("zrok-origin").value="https://native-app.example.invalid";');await click('#tunnel-start');
   await until(async()=>(await review({action:'connection'})).running,'The isolated fake-zrok tunnel did not start.');
   await click('#connection-tab-app');assert.equal(await execute('return document.getElementById("connection-app-enabled").checked'),false);
@@ -200,7 +204,7 @@ try{
 
   await chooseFiles([join(incoming,'chapter.typ'),join(incoming,'diagram.png')]);
   assert.equal(await execute('return document.getElementById("file-import-list").children.length'),2);
-  const selection=await execute('return window.__nativeImportSelection');assert.equal(selection.project,'native-app');assert.equal(selection.parent,'');
+  const selection=await execute('return window.__nativeImportSelection');assert.equal(selection.project,'11111111-1111-4111-8111-111111111111');assert.equal(selection.parent,'');
   assert.deepEqual(selection.files.map(file=>[file.name,file.kind,file.bytes,file.sha256]).sort(),[['chapter.typ','source',importedSource.length,hash(importedSource)],['diagram.png','asset',importedAsset.length,hash(importedAsset)]].sort());
   assert.equal(await execute('return document.getElementById("file-import-submit").disabled'),false);const cleanBefore=await editor();assert.equal(cleanBefore.save,'Saved locally');
   const baseline=await execute('return {saves:window.__nativeAppSaveAttempts,effects:window.__nativeImportEffects||0};');

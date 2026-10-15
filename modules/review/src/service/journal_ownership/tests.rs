@@ -40,8 +40,11 @@ impl Fixture {
             ownership: Some(JournalOwnership {
                 project: self.project.id.clone(),
                 path: "main.typ".into(),
+                source_epoch: 0,
+                expected_root: None,
                 owns_source: content != "Original",
             }),
+            history: None,
         }
     }
     fn write(&self, journal: &Journal) -> Vec<u8> {
@@ -119,6 +122,8 @@ fn wrong_project_path_or_source_claim_preserves_every_file_before_recovery() {
                 journal.ownership = Some(JournalOwnership {
                     project: outer.id,
                     path: "project/main.typ".into(),
+                    source_epoch: 0,
+                    expected_root: None,
                     owns_source: true,
                 });
             }
@@ -211,7 +216,7 @@ fn actual_save_registry_failure_retains_generated_proof_and_unpublished_memory()
     let journal: Value = serde_json::from_slice(&journal_raw).unwrap();
     assert_eq!(
         journal["ownership"],
-        json!({"project":f.project.id,"path":"main.typ","owns_source":true})
+        json!({"project":f.project.id,"path":"main.typ","source_epoch":0,"expected_root":RootedRoot::observe(&f.project.root).unwrap(),"owns_source":true})
     );
     assert!(f.service.project(&f.project.id).unwrap().pending.is_empty());
     fs::remove_dir(&registry_path).unwrap();
@@ -429,5 +434,233 @@ fn create_and_tex_import_preserve_external_replacement_after_first_publication()
             registry
         );
         assert!(f.service.project(&f.project.id).unwrap().pending.is_empty());
+    }
+}
+
+#[test]
+fn rooted_create_publishes_complete_payloads_without_clobbering_late_metadata_or_retargeted_parent()
+{
+    for retarget in [false, true] {
+        let f = Fixture::new();
+        let root = RootedRoot::observe(&f.project.root).unwrap();
+        let old = f.project.root.clone();
+        let retained = f.project.root.with_file_name("held-project");
+        let metadata = sidecar(&f.project.root.join("new.typ"));
+        *lock(&f.service.create_after_publish).unwrap() = Some(Box::new(move || {
+            if retarget {
+                fs::rename(&old, &retained)?;
+                fs::create_dir(&old)?;
+                fs::write(old.join("sentinel"), "Replacement root")?;
+            } else {
+                fs::write(metadata, "External metadata")?;
+            }
+            Ok(())
+        }));
+        let before = fs::read(f.service.state.join("projects.json")).unwrap();
+        let request = SourceRequest {
+            operation: Operation::Create {
+                project: f.project.id.clone(),
+                path: "new.typ".into(),
+            },
+            source_epoch: 0,
+            expected_root: Some(root),
+        };
+        assert_eq!(
+            f.service.local_source(request).unwrap_err().code,
+            "outcome_unknown"
+        );
+        assert_eq!(
+            fs::read(f.service.state.join("projects.json")).unwrap(),
+            before
+        );
+        if retarget {
+            assert_eq!(
+                fs::read_to_string(f.project.root.join("sentinel")).unwrap(),
+                "Replacement root"
+            );
+            assert!(!f.project.root.join("new.typ").exists());
+            assert!(f
+                .project
+                .root
+                .with_file_name("held-project")
+                .join("new.typ")
+                .exists());
+        } else {
+            assert_eq!(
+                fs::read_to_string(sidecar(&f.project.root.join("new.typ"))).unwrap(),
+                "External metadata"
+            );
+            assert!(fs::read_to_string(f.project.root.join("new.typ"))
+                .unwrap()
+                .ends_with("Start writing here.\n"));
+        }
+    }
+}
+
+#[tokio::test]
+async fn actual_native_interruption_needs_exact_root_before_recovery_and_never_upgrades_legacy_proof(
+) {
+    let f = Fixture::new();
+    let owner = f.service.connect_native_editor("main").unwrap()["ownerId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let request = |value: Value| serde_json::from_value::<SourceRequest>(value).unwrap();
+    let observed = f
+        .service
+        .dispatch_native_source(
+            "main",
+            &owner,
+            request(json!({"action":"open","project":f.project.id,"path":"main.typ"})),
+        )
+        .await
+        .unwrap();
+    let root = observed["expectedRoot"].clone();
+    *lock(&f.service.fail_after_journal).unwrap() = true;
+    let error=f.service.dispatch_native_source("main",&owner,request(json!({"action":"save","project":f.project.id,"path":"main.typ","revision":digest("Original"),"content":"Captured native","expectedRoot":root}))).await.unwrap_err();
+    assert_eq!(error.code, "outcome_unknown");
+    let actual = fs::read(journal_path(&f.file)).unwrap();
+    let intent: Value = serde_json::from_slice(&actual).unwrap();
+    assert_eq!(intent["ownership"]["expected_root"], root);
+    let before = f.group();
+    assert_eq!(
+        f.service
+            .dispatch_native_source(
+                "main",
+                &owner,
+                request(json!({"action":"open","project":f.project.id,"path":"main.typ"}))
+            )
+            .await
+            .unwrap_err()
+            .code,
+        "busy"
+    );
+    assert_eq!(f.group(), before);
+    let mut legacy = intent.clone();
+    legacy["ownership"]
+        .as_object_mut()
+        .unwrap()
+        .remove("expected_root");
+    fs::write(journal_path(&f.file), serde_json::to_vec(&legacy).unwrap()).unwrap();
+    let legacy_before = f.group();
+    assert_eq!(f.service.dispatch_native_source("main",&owner,request(json!({"action":"open","project":f.project.id,"path":"main.typ","expectedRoot":root}))).await.unwrap_err().code,"recovery_conflict");
+    assert_eq!(f.group(), legacy_before);
+    let mut wrong = intent.clone();
+    wrong["ownership"]["expected_root"] = json!({"dev":"0","ino":"0"});
+    fs::write(journal_path(&f.file), serde_json::to_vec(&wrong).unwrap()).unwrap();
+    let wrong_before = f.group();
+    assert_eq!(f.service.dispatch_native_source("main",&owner,request(json!({"action":"open","project":f.project.id,"path":"main.typ","expectedRoot":root}))).await.unwrap_err().code,"recovery_conflict");
+    assert_eq!(f.group(), wrong_before);
+    fs::write(journal_path(&f.file), actual).unwrap();
+    let recovered=f.service.dispatch_native_source("main",&owner,request(json!({"action":"open","project":f.project.id,"path":"main.typ","expectedRoot":root}))).await.unwrap();
+    assert_eq!(recovered["content"], "Captured native");
+    assert_eq!(recovered["expectedRoot"], root);
+    assert!(!journal_path(&f.file).exists());
+    let owned = f.service.project(&f.project.id).unwrap();
+    assert_eq!(
+        owned.pending_revisions["main.typ"],
+        digest("Captured native")
+    );
+}
+
+#[test]
+fn reused_source_epoch_is_durable_before_create_names_and_cannot_revive_old_grants_on_failure() {
+    for before_publication in [true, false] {
+        let f = Fixture::new();
+        let template="#set page(paper: \"a4\")\n#set text(size: 11pt)\n\n= Manuscript\n\nStart writing here.\n";
+        fs::write(&f.file, template).unwrap();
+        f.service
+            .retire_source_for_test(&f.project.id, "main.typ")
+            .unwrap();
+        let shared = f
+            .service
+            .local_source(SourceRequest {
+                operation: Operation::Share {
+                    project: f.project.id.clone(),
+                    path: "main.typ".into(),
+                    enabled: true,
+                },
+                source_epoch: 1,
+                expected_root: None,
+            })
+            .unwrap();
+        fs::remove_file(&f.file).unwrap();
+        let config = f.service.state.join("projects.json");
+        let original = fs::read(&config).unwrap();
+        let reserved = Arc::new(Mutex::new(None));
+        if before_publication {
+            fs::remove_file(&config).unwrap();
+            fs::create_dir(&config).unwrap();
+        } else {
+            let config = config.clone();
+            let reserved = reserved.clone();
+            *lock(&f.service.create_after_publish).unwrap() = Some(Box::new(move || {
+                *reserved.lock().unwrap() = Some(fs::read(&config)?);
+                fs::remove_file(&config)?;
+                fs::create_dir(&config)?;
+                Ok(())
+            }));
+        }
+        let result = f.service.local(Operation::Create {
+            project: f.project.id.clone(),
+            path: "main.typ".into(),
+        });
+        assert!(result.is_err());
+        if before_publication {
+            assert!(!f.file.exists());
+            assert!(!sidecar(&f.file).exists());
+            assert_eq!(
+                f.service.source_epoch(&f.project.id, "main.typ").unwrap(),
+                1
+            );
+        } else {
+            assert_eq!(result.unwrap_err().code, "outcome_unknown");
+            assert_eq!(fs::read_to_string(&f.file).unwrap(), template);
+            assert_eq!(
+                f.service.source_epoch(&f.project.id, "main.typ").unwrap(),
+                2
+            );
+            assert_eq!(
+                f.service
+                    .remote(
+                        "read_manuscript",
+                        json!({"documentId":shared["documentId"]})
+                    )
+                    .unwrap_err()
+                    .code,
+                "scope"
+            );
+            let before = fs::read(&f.file).unwrap();
+            assert_eq!(
+                f.service
+                    .local_source(SourceRequest {
+                        operation: Operation::Save {
+                            project: f.project.id.clone(),
+                            path: "main.typ".into(),
+                            revision: digest(template),
+                            content: "Old caller".into()
+                        },
+                        source_epoch: 1,
+                        expected_root: None
+                    })
+                    .unwrap_err()
+                    .code,
+                "stale_document"
+            );
+            assert_eq!(fs::read(&f.file).unwrap(), before);
+            assert!(f.service.project(&f.project.id).unwrap().pending.is_empty());
+        }
+        fs::remove_dir(&config).unwrap();
+        let restored = if before_publication {
+            original
+        } else {
+            reserved.lock().unwrap().take().unwrap()
+        };
+        fs::write(&config, &restored).unwrap();
+        let restarted = Service::new(f.service.state.clone()).unwrap();
+        assert_eq!(
+            restarted.source_epoch(&f.project.id, "main.typ").unwrap(),
+            if before_publication { 1 } else { 2 }
+        );
     }
 }

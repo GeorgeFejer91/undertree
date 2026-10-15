@@ -10,14 +10,16 @@ export class NativeProjectExport {
     const receipt = await this.request({ action: 'export_cancel', exportId: prepared.exportId });
     if (receipt.exportId !== prepared.exportId || receipt.cancelled !== true) throw { message: 'The download may still be running. Check project download again.' };
   }
-  async start(project) {
+  async start(project, expectedRoot) {
     if (this.current?.busy || this.pendingCount) return;
     this.canStart();
+    expectedRoot = sourceRoot({ expectedRoot });
     const context = { project: { id: project.id, name: project.name }, prepared: null, requestId: null, busy: true, unresolved: false, phase: 'preparing', lastStatus: null, message: `Preparing saved project: ${project.name}. Unsaved editor changes are excluded.` };
+    Object.defineProperty(context, 'expectedRoot', { value: expectedRoot, enumerable: true });
     this.current = context; this.changed(context);
     try {
-      const prepared = await this.prepare(context.project.id);
-      if (prepared.project !== context.project.id || prepared.policy !== 'saved-only' || typeof prepared.exportId !== 'string' || !prepared.exportId || typeof prepared.snapshotId !== 'string' || !prepared.snapshotId
+      const prepared = await this.prepare(context.project.id, context.expectedRoot);
+      if (!sourceRootsEqual(prepared, context) || prepared.project !== context.project.id || prepared.policy !== 'saved-only' || typeof prepared.exportId !== 'string' || !prepared.exportId || typeof prepared.snapshotId !== 'string' || !prepared.snapshotId
         || !/^[a-f0-9]{64}$/.test(prepared.sha256) || !Number.isSafeInteger(prepared.bytes) || prepared.bytes <= 0
         || !Number.isSafeInteger(prepared.entries) || prepared.entries < 0 || typeof prepared.fileName !== 'string' || !prepared.fileName
         || !(prepared.mainDocument === null || typeof prepared.mainDocument === 'string')) throw { message: 'The saved project archive could not be verified. No destination was requested.' };
@@ -36,6 +38,7 @@ export class NativeProjectExport {
   acceptReceipt(context, receipt) {
     if (receipt.requestId !== context.requestId) throw { message: 'The download result does not match this request.' };
     if (receipt.status !== 'unknown') {
+      if (!sourceRootsEqual(receipt, context)) throw { message: 'The download result does not match the captured project folder.' };
       for (const field of ['exportId', 'project', 'snapshotId', 'sha256', 'bytes', 'entries', 'mainDocument', 'fileName']) {
         if (receipt[field] !== context.prepared[field]) throw { message: 'The download result does not match the prepared archive.' };
       }
@@ -79,3 +82,5 @@ export class NativeProjectExport {
     finally { context.busy = false; this.changed(context); }
   }
 }
+import { sourceRoot, sourceRootsEqual } from './review-session.js';
+

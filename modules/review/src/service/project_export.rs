@@ -383,45 +383,83 @@ impl Service {
             ));
         }
     }
+    /// Qualified legacy preparation; the native adapter supplies captured root and actual window.
     pub async fn prepare_native_project_export(
         self: &Arc<Self>,
         owner: &str,
         project: &str,
     ) -> Result<Value> {
-        self.export_owner(owner)?;
-        let approved = self.project(project)?;
-        let export_id = Uuid::new_v4().to_string();
-        {
-            let mut state = lock(&self.project_export)?;
-            Self::reap_exports(&mut state, owner);
-            if state.tickets.len()
-                + state
-                    .requests
-                    .values()
-                    .filter(|request| request.receipt["status"] == "pending")
-                    .count()
-                >= 2
-            {
-                return Err(Error::new(
-                    "busy",
-                    "Finish or cancel an existing project export first.",
-                ));
-            }
-            state.tickets.insert(
-                export_id.clone(),
-                Ticket {
-                    owner: owner.into(),
-                    expires: now() + LEASE_MS,
-                    archive: None,
-                },
-            );
-        }
+        self.prepare_project_export_for(owner, None, project, None)
+            .await
+    }
+
+    pub async fn prepare_native_project_export_rooted(
+        self: &Arc<Self>,
+        window_label: &str,
+        owner_id: &str,
+        project: &str,
+        expected_root: RootObservation,
+    ) -> Result<Value> {
+        self.prepare_project_export_for(owner_id, Some(window_label), project, Some(expected_root))
+            .await
+    }
+
+    async fn prepare_project_export_for(
+        self: &Arc<Self>,
+        owner: &str,
+        window_label: Option<&str>,
+        project: &str,
+        expected_root: Option<RootObservation>,
+    ) -> Result<Value> {
         let service = self.clone();
         let owner = owner.to_owned();
+        let window = window_label.map(str::to_owned);
+        let project = project.to_owned();
         tokio::task::spawn_blocking(move || {
-            let result = service.capture_project_export(&approved, &export_id);
+            let owner = match window {
+                Some(window) => service.native_editor_owner(&window, &owner)?,
+                None => {
+                    service.export_owner(&owner)?;
+                    owner
+                }
+            };
+            let approved = service.project(&project)?;
+            let root = expected_root.unwrap_or(source_files::RootedRoot::observe(&approved.root)?);
+            let held = source_files::RootedRoot::acquire(&approved.root, &root)?;
+            let export_id = Uuid::new_v4().to_string();
+            {
+                let editors = lock(&service.editor)?;
+                editors.check_import_owner(&owner)?;
+                held.check_current()?;
+                let mut state = lock(&service.project_export)?;
+                Self::reap_exports(&mut state, &owner);
+                if state.tickets.len()
+                    + state
+                        .requests
+                        .values()
+                        .filter(|request| request.receipt["status"] == "pending")
+                        .count()
+                    >= 2
+                {
+                    return Err(Error::new(
+                        "busy",
+                        "Finish or cancel an existing project export first.",
+                    ));
+                }
+                state.tickets.insert(
+                    export_id.clone(),
+                    Ticket {
+                        owner: owner.clone(),
+                        expires: now() + LEASE_MS,
+                        archive: None,
+                    },
+                );
+            }
+            let result = service.capture_project_export(&approved, &export_id, Some(root));
             let editors = lock(&service.editor)?;
-            let authority = editors.check_import_owner(&owner);
+            let authority = editors
+                .check_import_owner(&owner)
+                .and_then(|()| held.check_current());
             let mut state = lock(&service.project_export)?;
             if let Err(error) = authority {
                 state.tickets.remove(&export_id);
@@ -454,12 +492,19 @@ impl Service {
         })?
     }
 
-    fn capture_project_export(&self, project: &Project, export_id: &str) -> Result<Archive> {
+    fn capture_project_export(
+        &self,
+        project: &Project,
+        export_id: &str,
+        expected_root: Option<RootObservation>,
+    ) -> Result<Archive> {
         let _worker = self
             .export_capture
             .try_lock()
             .map_err(|_| Error::new("busy", "Another saved project is being captured."))?;
-        let root = project_tree::open_root(&project.root)?;
+        let expected = expected_root.unwrap_or(source_files::RootedRoot::observe(&project.root)?);
+        let held = source_files::RootedRoot::acquire(&project.root, &expected)?;
+        let root = held.directory()?;
         let root_id = id(&root.dir_metadata()?);
         let private = self.state.canonicalize()?;
         if project.root.starts_with(&private) {
@@ -578,7 +623,8 @@ impl Service {
             safe_name(&project.name),
             &snapshot_id[..12]
         );
-        let info = json!({"exportId":export_id,"project":project.id,"snapshotId":snapshot_id,"sha256":sha,"bytes":size,"entries":inventory.entries.len(),
+        held.check_current()?;
+        let info = json!({"expectedRoot":expected,"exportId":export_id,"project":project.id,"snapshotId":snapshot_id,"sha256":sha,"bytes":size,"entries":inventory.entries.len(),
             "fileCount":hashes.len(),"directoryCount":inventory.entries.len()-hashes.len(),"mainDocument":main,"policy":"saved-only",
             "exclusions":inventory.exclusions,"expiresAt":now()+LEASE_MS,"fileName":name});
         Ok(Archive {

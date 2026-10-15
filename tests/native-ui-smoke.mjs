@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { createServer } from 'node:net';
+import { nativeFixtureContextScript } from './native-fixture-context.mjs';
 import { createHash } from 'node:crypto';
 
 assert.equal(process.platform, 'linux', 'This qualification uses Linux WebKitGTK and X11.');
@@ -167,7 +168,7 @@ try {
   delete cliEnvironment.UNDERTREE_REVIEW_TOKEN;
   const runCli = args => spawnSync(cli, args, { env: cliEnvironment, encoding: 'utf8', timeout: 35_000, maxBuffer: 1_000_000 });
   await mkdir(state, { recursive: true });
-  await writeFile(join(state, 'projects.json'), JSON.stringify({ projects: [{ id: 'native-smoke', name: 'Native smoke', root: project, repository: '', autoSync: false, pending: [], pendingRevisions: {} }] }));
+  await writeFile(join(state, 'projects.json'), JSON.stringify({ projects: [{ id: '33333333-3333-4333-8333-333333333333', name: 'Native smoke', root: project, repository: '', autoSync: false, pending: [], pendingRevisions: {} }] }));
   const compiler = join(fixture, 'typst');
   const compilerCalls = join(fixture, 'compiler-calls');
   // A delay makes concurrent typing observable; the actual native Typst compiler produces the PDF.
@@ -193,6 +194,17 @@ try {
   assert.equal(opened.capabilities.browserName, 'wry');
   await waitFor(() => execute('return document.querySelector(".file-button")?.dataset.path === "main.typ"'), 'Native project inventory did not render.');
   assert.equal(await execute('return !!window.__TAURI_INTERNALS__ && !document.getElementById("window-titlebar").hidden'), true);
+  await execute(nativeFixtureContextScript);
+  await execute(`
+    window.__cliProbe={saved:0,committed:0,last:performance.now(),fallback:false,errors:[]};
+    const originalFetch=window.fetch,originalWarn=console.warn;
+    window.fetch=(input,init,...rest)=>{
+      let observedName,observedPayload;
+      try{const url=new URL(typeof input==='string'?input:input.url);if(url.protocol==='ipc:'||url.hostname==='ipc.localhost'){const name=decodeURIComponent(url.pathname.slice(1));const body=typeof init?.body==='string'?init.body:new TextDecoder().decode(init?.body);const payload=JSON.parse(body),operation=payload.operation;observedName=name;observedPayload=payload;if(name==='review_action'&&operation?.action==='save'){window.__cliProbe.saved++;window.__cliProbe.last=performance.now();}if(name==='editor_operation'&&operation?.action==='editor_commit'){window.__cliProbe.committed++;window.__cliProbe.last=performance.now();}}}catch{window.__cliProbe.errors.push('Unsupported IPC body.');}
+      const response=Reflect.apply(originalFetch,window,[input,init,...rest]);window.__nativeFixtureContext.observe(observedName,observedPayload,response);return response;
+    };
+    console.warn=(...args)=>{if(args.some(v=>String(v).includes('IPC custom protocol failed')))window.__cliProbe.fallback=true;return Reflect.apply(originalWarn,console,args);};
+  `);
   await execute(`
     window.__undertreeNativeErrors = [];
     const record = error => window.__undertreeNativeErrors.push({message:error?.message || String(error),stack:error?.stack || ''});
@@ -204,7 +216,8 @@ try {
   checks.push('Bundled custom-protocol HTML runs inside the real Tauri WebView with native controls visible.');
   await waitFor(async () => { localDescriptor = JSON.parse(await readFile(descriptor, 'utf8')); return true; }, 'The native authority did not publish its private CLI descriptor.');
   assert.equal((await stat(descriptor)).mode & 0o077, 0, 'The local CLI descriptor is private to its owner.');
-  const nativeCapabilities = await execute('return window.__TAURI_INTERNALS__.invoke("review_action", {operation:{action:"capabilities"}});');
+  await waitFor(() => execute('return window.__nativeFixtureContext.status().ownerObserved;'), 'A genuine successful native UI request did not reveal its existing page owner.');
+  const nativeCapabilities = await execute('return window.__TAURI_INTERNALS__.invoke("review_action", {ownerId:window.__nativeFixtureContext.owner(),operation:{action:"capabilities"}});');
   const discovered = runCli(['capabilities']);
   assert.equal(discovered.status, 0, 'The named CLI discovers the running desktop without a supplied token or endpoint.');
   assert.equal(discovered.stdout.includes(localDescriptor.token), false, 'CLI output does not disclose the local session credential.');
@@ -218,8 +231,8 @@ try {
   assert.deepEqual(capabilities.result.localOperations.filter(operation => operation.mutates).map(operation => operation.action), ['save_editor'], 'The local CLI can only mutate through the registered editor save barrier.');
   const cliProjects = runCli(['call', JSON.stringify({action:'projects'})]);
   assert.equal(cliProjects.status, 0);
-  assert.equal(JSON.parse(cliProjects.stdout).result.some(project => project.id === 'native-smoke'), true, 'CLI reads the desktop-approved inventory.');
-  const denied = runCli(['call', JSON.stringify({action:'save',project:'native-smoke',path:'main.typ',revision:hash(original),content:'Unauthorized CLI replacement.'})]);
+  assert.equal(JSON.parse(cliProjects.stdout).result.some(project => project.id === '33333333-3333-4333-8333-333333333333'), true, 'CLI reads the desktop-approved inventory.');
+  const denied = runCli(['call', JSON.stringify({action:'save',project:'33333333-3333-4333-8333-333333333333',path:'main.typ',revision:hash(original),content:'Unauthorized CLI replacement.'})]);
   assert.notEqual(denied.status, 0, 'The discovery listener refuses raw replacement text even when registered-editor saves are available.');
   assert.equal(JSON.parse(denied.stdout).error.code, 'unsupported_capability');
   assert.equal(await readFile(source, 'utf8'), original);
@@ -268,7 +281,7 @@ try {
   await click('#typst-compile');
   await waitFor(() => execute('return document.querySelector("#typst-pages canvas")?.width > 0 && document.getElementById("typst-preview-status").textContent.startsWith("Current PDF") && document.getElementById("typst-compile").textContent === "Recompile"'), 'Native WebView did not render a current real Typst PDF.', 30_000);
   assert.equal((await execute('return document.querySelector("#typst-pages canvas").height')) > 0, true);
-  const cache = await readFile(join(state, 'pdfs', `${hash('native-smoke:main.typ')}.json`), 'utf8');
+  const cache = await readFile(join(state, 'pdfs', `${hash('33333333-3333-4333-8333-333333333333:main.typ')}.json`), 'utf8');
   const pdfMetadata = JSON.parse(cache);
   assert.equal(pdfMetadata.revision, hash(await readFile(source)));
   assert.equal((await readFile(join(state, 'pdfs', pdfMetadata.pdf))).subarray(0, 5).toString(), '%PDF-');
@@ -280,22 +293,14 @@ try {
   await waitFor(async () => {
     const saved = await readFile(source, 'utf8');
     if (!saved.includes('Automatically compiled in native WebView.')) return false;
-    const metadata = JSON.parse(await readFile(join(state, 'pdfs', `${hash('native-smoke:main.typ')}.json`), 'utf8'));
+    const metadata = JSON.parse(await readFile(join(state, 'pdfs', `${hash('33333333-3333-4333-8333-333333333333:main.typ')}.json`), 'utf8'));
     return metadata.revision === hash(saved) && await execute('return document.getElementById("typst-preview-status").textContent.startsWith("Current PDF") && document.getElementById("typst-compile").textContent === "Recompile"');
   }, 'Automatic native save and Typst scheduling did not publish the newest edited revision.', 30_000);
   assert.ok((await readFile(compilerCalls, 'utf8')).trim().split('\n').length > callsBeforeAutomatic);
   assert.equal(await execute('return document.getElementById("review-status").classList.contains("error")'), false);
   assert.deepEqual(await execute('return window.__undertreeNativeErrors'), [], 'Native automatic scheduling uses valid Window timer receivers.');
   checks.push('A new native edit autosaves and automatically compiles its latest revision, without clicking Save or Recompile or reporting a Window timer error.');
-  await execute(`
-    window.__cliProbe={saved:0,committed:0,last:performance.now(),fallback:false,errors:[]};
-    const originalFetch=window.fetch,originalWarn=console.warn;
-    window.fetch=(input,init,...rest)=>{
-      try{const url=new URL(typeof input==='string'?input:input.url);if(url.protocol==='ipc:'||url.hostname==='ipc.localhost'){const name=decodeURIComponent(url.pathname.slice(1));const body=typeof init?.body==='string'?init.body:new TextDecoder().decode(init?.body);const operation=JSON.parse(body).operation;if(name==='review_action'&&operation?.action==='save'){window.__cliProbe.saved++;window.__cliProbe.last=performance.now();}if(name==='editor_operation'&&operation?.action==='editor_commit'){window.__cliProbe.committed++;window.__cliProbe.last=performance.now();}}}catch{window.__cliProbe.errors.push('Unsupported IPC body.');}
-      return Reflect.apply(originalFetch,window,[input,init,...rest]);
-    };
-    console.warn=(...args)=>{if(args.some(v=>String(v).includes('IPC custom protocol failed')))window.__cliProbe.fallback=true;return Reflect.apply(originalWarn,console,args);};
-  `);
+  await execute('window.__cliProbe={saved:0,committed:0,last:performance.now(),fallback:false,errors:[]};');
   const beforeCliSave = await readFile(source, 'utf8');
   await chmod(project, 0o555);
   await append('\nSaved explicitly through the native CLI barrier.\n');
@@ -304,7 +309,7 @@ try {
   await waitFor(() => execute('return window.__cliProbe.saved>0&&performance.now()-window.__cliProbe.last>1100&&document.getElementById("save-label").textContent==="Unsaved changes"&&document.getElementById("typst-compile").textContent==="Recompile"'), 'Ordinary autosave and automatic compile must settle under denied writes before explicit CLI save.');
   const beforeExplicit=await execute('return {...window.__cliProbe}');
   await chmod(project, 0o755);
-  const editorSaved = runCli(['save', 'native-smoke', 'main.typ']);
+  const editorSaved = runCli(['save', '33333333-3333-4333-8333-333333333333', 'main.typ']);
   assert.equal(editorSaved.status, 0, 'The named CLI save reaches the registered native editor through editor_connect and editor_operation.');
   const committed = JSON.parse(editorSaved.stdout);
   assert.equal(committed.result.status, 'committed');

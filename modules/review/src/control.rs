@@ -237,7 +237,7 @@ impl WorkspaceSnapshot {
                 || preview.page == 0
                 || preview.page > preview.pages
                 || preview.zoom_percent == 0
-                || preview.zoom_percent > 800
+                || preview.zoom_percent > 999
         }) {
             return Err(invalid("The preview state is outside its supported range."));
         }
@@ -848,6 +848,54 @@ mod tests {
         assert_eq!(
             bridge.enqueue("request-1", command()).unwrap_err().code,
             "unavailable"
+        );
+    }
+
+    #[test]
+    fn local_preview_observations_accept_999_without_widening_remote_zoom_commands() {
+        let bridge = ControlBridge::new();
+        let mut observed = snapshot();
+        observed.preview.as_mut().unwrap().zoom_percent = 999;
+        bridge.publish(observed.clone()).unwrap();
+        assert_eq!(
+            bridge.workspace().unwrap()["workspace"]["preview"]["zoomPercent"],
+            999
+        );
+        for zoom in [0, 1000] {
+            let mut invalid = observed.clone();
+            invalid.preview.as_mut().unwrap().zoom_percent = zoom;
+            assert_eq!(bridge.publish(invalid).unwrap_err().code, "arguments");
+        }
+        assert_eq!(
+            bridge.workspace().unwrap()["workspace"]["preview"]["zoomPercent"],
+            999
+        );
+        assert_eq!(
+            bridge
+                .enqueue(
+                    "remote-400",
+                    AppCommand::SetPreviewView {
+                        page: None,
+                        zoom_percent: Some(400),
+                        fit_width: None,
+                    },
+                )
+                .unwrap()["state"],
+            "queued"
+        );
+        assert_eq!(
+            bridge
+                .enqueue(
+                    "remote-401",
+                    AppCommand::SetPreviewView {
+                        page: None,
+                        zoom_percent: Some(401),
+                        fit_width: None,
+                    },
+                )
+                .unwrap_err()
+                .code,
+            "arguments"
         );
     }
 

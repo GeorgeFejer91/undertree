@@ -113,8 +113,12 @@ impl Fixture {
         let cache = self.service.state.join("pdfs");
         fs::create_dir_all(&cache).unwrap();
         fs::write(cache.join(&filename), bytes).unwrap();
-        fs::write(cache.join(format!("{stem}.json")),serde_json::to_vec(&json!({"revision":digest("Saved."),"pdf":filename,"pdf_hash":sha,
+        fs::write(cache.join(format!("{stem}.json")),serde_json::to_vec(&json!({"compiler_capture_version":1,"expected_root":RootedRoot::observe(&project.root).unwrap(),"revision":digest("Saved."),"pdf":filename,"pdf_hash":sha,
             "dependencies":[{"path":path,"revision":digest("Saved.")}],"inputs_stable":true,"external_dependency_count":0,"diagnostics":""})).unwrap()).unwrap();
+        assert_eq!(
+            self.service.preview_pdf(&self.project, path).unwrap()["current"],
+            true
+        );
         let info = json!({"documentId":id,"revision":digest("Saved."),"artifactId":digest(&base64::engine::general_purpose::STANDARD.encode(bytes))});
         (id, info)
     }
@@ -253,6 +257,61 @@ async fn standing_export_is_separate_local_generation_bound_permission_with_fixe
         false
     );
     assert_eq!(fixture.download(input).unwrap_err().code, "scope");
+}
+
+#[tokio::test]
+async fn historical_pdf_without_compiler_capture_marker_cannot_mint_an_export_ticket() {
+    let fixture = Fixture::new().await;
+    let pdf = b"%PDF-historical";
+    let (_, input) = fixture.write_pdf("main.typ", pdf);
+    fixture.permit(true).await;
+    let metadata = fixture.service.state.join("pdfs").join(format!(
+        "{}.json",
+        digest(&format!("{}:main.typ", fixture.project))
+    ));
+    let mut pointer: Value = serde_json::from_slice(&fs::read(&metadata).unwrap()).unwrap();
+    let pdf_path = metadata.with_file_name(pointer["pdf"].as_str().unwrap());
+    pointer
+        .as_object_mut()
+        .unwrap()
+        .remove("compiler_capture_version");
+    let pointer_bytes = serde_json::to_vec(&pointer).unwrap();
+    fs::write(&metadata, &pointer_bytes).unwrap();
+    let registry = fs::read(fixture.service.state.join("projects.json")).unwrap();
+    let project = fixture.service.project(&fixture.project).unwrap();
+
+    let preview = fixture
+        .service
+        .preview_pdf(&fixture.project, "main.typ")
+        .unwrap();
+    assert_eq!(preview["available"], true);
+    assert_eq!(preview["current"], false);
+    assert_eq!(preview["sourceEpoch"], 0);
+    assert_eq!(fixture.download(input).unwrap_err().code, "stale");
+    let list = fixture
+        .service
+        .app_remote("list_manuscripts", json!({}))
+        .unwrap();
+    assert_eq!(
+        list[0]["savedPdf"],
+        json!({"available":false,"code":"stale"})
+    );
+    assert!(lock(&fixture.service.pdf_exports)
+        .unwrap()
+        .tickets
+        .is_empty());
+    assert_eq!(fs::read(&metadata).unwrap(), pointer_bytes);
+    assert_eq!(fs::read(pdf_path).unwrap(), pdf);
+    assert_eq!(fs::read(project.root.join("main.typ")).unwrap(), b"Saved.");
+    assert!(!project.root.join("main.typ.undertree-review.json").exists());
+    assert!(!project
+        .root
+        .join("main.typ.undertree-pending.json")
+        .exists());
+    assert_eq!(
+        fs::read(fixture.service.state.join("projects.json")).unwrap(),
+        registry
+    );
 }
 
 #[tokio::test]
@@ -559,4 +618,52 @@ async fn pending_save_root_replacement_owner_rotation_and_unshare_revoke_export_
     let new_secret = Fixture::secret(&new);
     fixture.service.connect_native_editor("main").unwrap();
     assert!(fixture.service.pdf_download(&new_secret, false).is_err());
+}
+
+#[tokio::test]
+async fn downloaded_ticket_and_stream_keep_enrollment_epoch_after_same_path_reenrollment() {
+    let fixture = Fixture::new().await;
+    let mut bytes = b"%PDF-".to_vec();
+    bytes.extend(vec![b'x'; CHUNK * 2]);
+    let (_, input) = fixture.write_pdf("main.typ", &bytes);
+    fixture.permit(true).await;
+    let download = fixture.download(input.clone()).unwrap();
+    let secret = Fixture::secret(&download);
+    let (_, stream) = fixture.service.pdf_download(&secret, false).unwrap();
+    let mut stream = stream.unwrap();
+    assert!(
+        std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx))
+            .await
+            .unwrap()
+            .is_ok()
+    );
+    fixture
+        .service
+        .retire_source_for_test(&fixture.project, "main.typ")
+        .unwrap();
+    assert!(fixture.service.pdf_download(&secret, true).is_err());
+    assert!(
+        std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx))
+            .await
+            .unwrap()
+            .is_err()
+    );
+    let enrolled = fixture
+        .service
+        .local_source(crate::SourceRequest {
+            operation: Operation::Share {
+                project: fixture.project.clone(),
+                path: "main.typ".into(),
+                enabled: true,
+            },
+            source_epoch: 1,
+            expected_root: None,
+        })
+        .unwrap();
+    assert_ne!(enrolled["documentId"], fixture.document);
+    assert!(fixture.service.pdf_download(&secret, true).is_err());
+    assert_eq!(fixture.download(input).unwrap_err().code, "scope");
+    let project = fixture.service.project(&fixture.project).unwrap();
+    assert_eq!(fs::read(project.root.join("main.typ")).unwrap(), b"Saved.");
+    assert!(!project.root.join("main.typ.undertree-review.json").exists());
 }

@@ -283,7 +283,13 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflo
 .pdf-page { margin: 0 auto 16px; background: #fff; position: relative; }
 #typst-pages canvas { max-width: none; margin: 0; height: auto; }
 #typst-pages { min-width: 100%; padding-top: 0; }
-#compile-log { max-height: none; flex: 1; min-height: 0; margin: 0; padding: .8rem; background: #111820; color: var(--light); font-family: "DejaVu Sans Mono", Consolas, monospace; }
+#compile-log { max-height: none; flex: 1; min-height: 0; min-width: 0; overflow: auto; margin: 0; padding: .8rem; background: #111820; color: var(--light); font-family: "DejaVu Sans Mono", Consolas, monospace; }
+#compile-report-status { margin: 0 0 .6rem; overflow-wrap: anywhere; --text-details-lines: 3; }
+.compile-diagnostic { padding: .5rem 0; border-bottom: 1px solid var(--divider); min-inline-size: 0; }
+.compile-diagnostic p { margin: 0 0 .35rem; overflow-wrap: anywhere; --text-details-lines: 3; }
+.compile-diagnostic button { max-inline-size: 100%; white-space: normal; overflow-wrap: anywhere; }
+.compile-raw-output { margin-block-start: .6rem; }
+.compile-raw-output pre { margin: .4rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .review-card[data-selected="true"] { box-shadow: 0 0 0 2px #648773; }
 #review-list { position: relative; }
 .review-passages { position: relative; display: flex; flex-direction: column; gap: 8px; }

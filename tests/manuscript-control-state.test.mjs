@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { ReviewSession } from '../modules/frontend/review-session.js';
+import { ReviewSession, sourceEpoch, sourceRoot, sourceRootsEqual } from '../modules/frontend/review-session.js';
 import { NativeFileImport } from '../modules/frontend/file-import.js';
 import { NativeProjectExport } from '../modules/frontend/project-export.js';
 import { captureControlState, assertControlState, assertControlPassage, controlPreviewIdentity, assertControlPreview } from '../modules/frontend/manuscript-control-state.js';
+import { assertMcpCommand } from '../src/mcp-control.js';
+const expectedRoot = { dev: '18446744073709551615', ino: '9007199254740993' };
 const session = (id = 'private-1') => new ReviewSession({ documentId: id, path: 'source.typ', content: 'A 🌳 manuscript.', review: { revision: 'saved' } }, 'project', async () => {});
 const context = sessions => ({ sessions, active: sessions[0], navigation: 1, composing: false, closing: false, pending: 0 });
 
@@ -73,7 +75,7 @@ test('native import work and opening its idle dialog invalidate a prepared ackno
   const open = source.slice(source.indexOf('function openFileImport()'), source.indexOf('const projectExport ='));
   let finish, opened = 0;
   const adapter = runInNewContext(accounting + open + '\n({fileActivity, openFileImport, state:()=>({pending:localRequests,requestsVersion:localRequestsVersion})});', {
-    nativeRequest: async () => {}, $: () => ({ open: false, showModal: () => { opened += 1; } }), currentProject: () => ({ id: 'project', name: 'Project' }), active: null, fileImport: { open: () => {} },
+    nativeRequest: async () => {}, sourceRoot, inventoryRoot: () => ({ expectedRoot }), $: () => ({ open: false, showModal: () => { opened += 1; } }), currentProject: () => ({ id: 'project', name: 'Project' }), active: null, fileImport: { open: () => {} },
   });
   const current = context([session()]); Object.assign(current, adapter.state());
   let captured = captureControlState(current);
@@ -95,17 +97,17 @@ test('actual controlContext remains busy after a lost import RPC and pending sta
   const active = session(), environment = { nativeRequest: async () => {}, sessions: new Map([['active', active]]), active, view: null, navigationIntent: 1, windowClosing: false, fileImport: null, projectExport: { pendingCount: 0 } };
   const adapter = runInNewContext(accounting + contextFunction + '\n({fileActivity, context:controlContext, rpcPending:()=>localRequests});', environment);
   let checks = 0;
-  const importer = new NativeFileImport({ choose: async () => ({ selectionId: 'staged', project: 'project', parent: '', files: [{ name: 'new.typ', kind: 'source', editable: true, bytes: 4, sha256: 'hash' }] }), canStart: () => {}, requestId: () => 'request', request: operation => adapter.fileActivity(async () => {
+  const importer = new NativeFileImport({ choose: async () => ({ selectionId: 'staged', project: 'project', parent: '', expectedRoot, files: [{ name: 'new.typ', kind: 'source', editable: true, bytes: 4, sha256: 'hash' }] }), canStart: () => {}, requestId: () => 'request', request: operation => adapter.fileActivity(async () => {
     if (operation.action === 'import_files') throw new Error('lost acknowledgement');
     checks += 1;
-    return checks === 1 ? { requestId: 'request', status: 'pending', project: 'project', parent: '' } : { requestId: 'request', status: 'committed', project: 'project', parent: '', gitOwnership: 'undertree', files: [{ path: 'new.typ', kind: 'source', editable: true, bytes: 4, sha256: 'hash' }] };
+    return checks === 1 ? { requestId: 'request', status: 'pending', project: 'project', parent: '', expectedRoot } : { requestId: 'request', status: 'committed', project: 'project', parent: '', expectedRoot, gitOwnership: 'undertree', files: [{ path: 'new.typ', kind: 'source', editable: true, bytes: 4, sha256: 'hash' }] };
   }) });
-  environment.fileImport = importer; importer.open({ id: 'project', name: 'Project' }, ''); await importer.choose('');
+  environment.fileImport = importer; importer.open({ id: 'project', name: 'Project' }, '', expectedRoot); await importer.choose('');
   const captured = captureControlState(adapter.context()); await importer.commit();
   assert.equal(adapter.rpcPending(), 0); assert.equal(adapter.context().pending, 1);
   assert.throws(() => assertControlState(captured, { ...adapter.context(), closing: true }, { clean: true, allowClosing: true }), error => error.code === 'busy');
   await importer.close(); assert.equal(adapter.context().pending, 1);
-  importer.open({ id: 'project', name: 'Project' }, ''); await importer.check(); assert.equal(adapter.context().pending, 1);
+  importer.open({ id: 'project', name: 'Project' }, '', expectedRoot); await importer.check(); assert.equal(adapter.context().pending, 1);
   assert.throws(() => assertControlState(captured, adapter.context(), { clean: true }), error => error.code === 'busy');
   await importer.check(); assert.equal(adapter.context().pending, 0);
   assert.throws(() => assertControlState(captured, adapter.context(), { clean: true }), error => error.code === 'stale');
@@ -122,7 +124,7 @@ test('actual controlContext blocks prepared App effects during ZIP preparation a
   const active = session(), environment = { nativeRequest: async () => {}, sessions: new Map([['active', active]]), active, view: null, navigationIntent: 1, windowClosing: false, fileImport: { pendingCount: 0 }, projectExport: null };
   const adapter = runInNewContext(accounting + contextFunction + '\n({fileActivity, context:controlContext, rpcPending:()=>localRequests});', environment);
   let preparedReady, checks = 0;
-  const prepared = { exportId: 'archive', project: 'project', policy: 'saved-only', snapshotId: 'snapshot', sha256: 'a'.repeat(64), bytes: 400, entries: 2, mainDocument: 'main.typ', fileName: 'project.zip' };
+  const prepared = { exportId: 'archive', project: 'project', expectedRoot, policy: 'saved-only', snapshotId: 'snapshot', sha256: 'a'.repeat(64), bytes: 400, entries: 2, mainDocument: 'main.typ', fileName: 'project.zip' };
   const result = status => ({ ...prepared, requestId: 'download', status, ...(status === 'exported' ? { destinationName: 'chosen.zip' } : {}) });
   const exporter = new NativeProjectExport({
     prepare: () => adapter.fileActivity(() => new Promise(resolve => { preparedReady = resolve; })),
@@ -131,7 +133,7 @@ test('actual controlContext blocks prepared App effects during ZIP preparation a
     canStart: () => {}, requestId: () => 'download',
   });
   environment.projectExport = exporter;
-  const captured = captureControlState(adapter.context()), running = exporter.start({ id: 'project', name: 'Project' });
+  const captured = captureControlState(adapter.context()), running = exporter.start({ id: 'project', name: 'Project' }, expectedRoot);
   assert.equal(adapter.context().pending, 1);
   assert.throws(() => assertControlState(captured, { ...adapter.context(), closing: true }, { clean: true, allowClosing: true }), error => error.code === 'busy');
   preparedReady(prepared); await running; assert.equal(adapter.rpcPending(), 0); assert.equal(adapter.context().pending, 1);
@@ -145,11 +147,11 @@ test('actual File download hook captures the selected project without saving dir
   const hook = source.slice(source.indexOf('const projectExport ='), source.indexOf('async function loadProjects('));
   const active = session(); active.edit('Unsaved private manuscript'); active.conflict = { content: 'External saved manuscript' };
   const before = { content: active.content, version: active.version, generation: active.generation, queue: active.queue, conflict: active.conflict, snapshot: active.snapshot };
-  const calls = [], selected = { id: 'project', name: 'Project' }, prepared = { exportId: 'archive', project: 'project', policy: 'saved-only', snapshotId: 'snapshot', sha256: 'a'.repeat(64), bytes: 400, entries: 2, mainDocument: 'main.typ', fileName: 'project.zip' };
+  const calls = [], selected = { id: 'project', name: 'Project' }, prepared = { exportId: 'archive', project: 'project', expectedRoot, policy: 'saved-only', snapshotId: 'snapshot', sha256: 'a'.repeat(64), bytes: 400, entries: 2, mainDocument: 'main.typ', fileName: 'project.zip' };
   const unexpected = () => { throw new Error('Project download must not save, mount, compile or sync source.'); };
   const download = runInNewContext(hook + '\nrenderProjectExport=()=>{}; downloadSavedProject;', {
     NativeProjectExport, crypto: { randomUUID: () => 'download' }, nativeReview: true, windowClosing: false, view: { compositionStarted: false }, active,
-    currentProject: () => selected, fileActivity: callback => callback(), status: () => {},
+    sourceRoot, inventoryRoot: () => ({ expectedRoot }), currentProject: () => selected, fileActivity: callback => callback(), status: () => {},
     prepareProjectExport: async project => { calls.push(project); return prepared; },
     chooseProjectExportDestination: async (exportId, requestId) => { calls.push({ exportId, requestId }); return { ...prepared, requestId, status: 'exported', destinationName: 'chosen.zip' }; },
     projectExportRequest: unexpected, saveSession: unexpected, openSession: unexpected, compileSession: unexpected, queueSync: unexpected,
@@ -163,8 +165,27 @@ test('selection verifies the exact saved UTF-16 passage without editing source',
   for (const change of [{ quote: 'xx' }, { revision: 'old' }, { documentId: 'unshared' }, { to: 3 }]) assert.throws(() => assertControlPassage(active, { ...command, ...change }));
   assert.equal(active.content, 'A 🌳 manuscript.'); assert.equal(active.dirty, false);
 });
+test('the actual shared PDF snapshot reports local zoom through 999% without widening remote commands', async () => {
+  const source = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
+  const functions = source.slice(source.indexOf('function controlWorkspaceSnapshot()'), source.indexOf('function retireCompileNavigation('));
+  const active = session('shared-main'), viewer = { pdf: { numPages: 5 }, ready: true, page: 2, currentScale: 1 };
+  const snapshot = runInNewContext(functions + '\ncontrolWorkspaceSnapshot;', {
+    active, view: null, sessions: new Map([['main', active]]), pdfViewer: viewer, pdfPath: active.path, pdfGeneration: 1,
+    publicationPath: () => active.path, sharedManuscripts: [{ documentId: active.snapshot.documentId, project: active.project, path: active.path }],
+    workspace: { dataset: {} }, $: () => ({ dataset: { collapsed: 'false' } }), showingLogs: false, historyPanel: { visible: false },
+    workspacePreferences: { editorFontSize: 12, wordWrap: true }, controlPreviewIdentity, sourceEpoch, sourceRootsEqual, pdfRoot: {}, pdfSourceEpoch: 0, pdfProject: active.project,
+  });
+  for (const percent of [400, 800, 801, 900, 999]) {
+    viewer.currentScale = percent / 100;
+    const observed = snapshot();
+    assert.equal(observed.preview.zoomPercent, percent, 'local high zoom must be observed without an 800% cap');
+    assert.equal(viewer.currentScale, percent / 100, 'observation must not change the rendered zoom');
+    assert.doesNotThrow(() => assertMcpCommand({ kind: 'set_preview_view', zoomPercent: 400 }, observed));
+    for (const requested of [401, 800, 999]) assert.throws(() => assertMcpCommand({ kind: 'set_preview_view', zoomPercent: requested }, observed), error => error.code === 'arguments');
+  }
+});
 test('a shared chapter cannot expose or control a different persisted main-document PDF', () => {
-  const active = session('shared-chapter'); active.path = 'chapter.typ';
+  const active = session('shared-chapter'); active.path = 'chapter.typ'; active.snapshot = { ...active.snapshot, path: active.path };
   const context = { active, shared: true, pdf: { numPages: 10 }, pdfPath: 'private-book.typ', publicationPath: 'private-book.typ', generation: 1 };
   assert.equal(controlPreviewIdentity(context), null);
   assert.throws(() => assertControlPreview(null, controlPreviewIdentity(context)));
@@ -185,13 +206,13 @@ test('main-document, artifact, page-session and pending-PDF changes during autho
 });
 test('the actual manuscript snapshot hides an unshared main PDF and its effect rejects a switch during await', async () => {
   const source = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
-  const active = session('shared-chapter'); active.path = 'chapter.typ';
+  const active = session('shared-chapter'); active.path = 'chapter.typ'; active.snapshot = { ...active.snapshot, path: active.path };
   const pdf = { numPages: 10 }, viewer = { pdf, ready: true, page: 1, currentScale: 1 };
   const context = {
     sessions: new Map([['chapter', active]]), active, view: null, pdfViewer: viewer, pdfPath: 'private-book.typ', pdfGeneration: 1,
     publicationPath: () => 'private-book.typ', sharedManuscripts: [{ documentId: 'shared-chapter', project: active.project, path: active.path }],
-    workspace: { dataset: {} }, $: () => ({ dataset: { collapsed: 'false' } }), showingLogs: false,
-    workspacePreferences: { editorFontSize: 12, wordWrap: true }, controlPreviewIdentity,
+    workspace: { dataset: {} }, $: () => ({ dataset: { collapsed: 'false' } }), showingLogs: false, historyPanel: { visible: false },
+    workspacePreferences: { editorFontSize: 12, wordWrap: true }, controlPreviewIdentity, sourceEpoch, sourceRootsEqual, pdfRoot: {}, pdfSourceEpoch: 0, pdfProject: 'project',
   };
   const snapshotFunctions = source.slice(source.indexOf('function controlWorkspaceSnapshot()'), source.indexOf('function setCompileLogs('));
   const snapshot = runInNewContext(snapshotFunctions + '\ncontrolWorkspaceSnapshot();', context);

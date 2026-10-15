@@ -28,6 +28,7 @@
         <details id="menu-file" class="editor-menu"><summary id="menu-file-toggle" aria-haspopup="true" data-measure>File</summary><div class="workspace-menu-panel">
           <button data-command="open-project">Open project folder</button><button data-command="new-file">New file</button><button data-command="new-folder">New folder</button><button data-command="import-files">Import files…</button><button data-command="refresh-files">Refresh file tree</button>
           <button id="manuscript-save" data-measure>Save</button><button id="export-manuscript" data-measure>Download source</button>
+          <button data-command="history" data-measure aria-describedby="history-desktop-help">History</button><span id="history-desktop-help" class="history-desktop-help" hidden>Saved History requires the desktop app.</span>
           <button data-command="word-count" data-measure>Word count</button>
           <button data-command="download-project" data-measure>Download saved project (.zip)</button><p class="project-export-help" data-measure>Saved files only. Unsaved editor changes stay in the editor.</p><p class="project-export-result" data-project-export-status data-measure role="status" hidden></p><button data-command="check-project-download" data-measure hidden>Check project download</button><button data-command="inspect-project-download" data-measure hidden>I checked the destination</button>
           <button data-command="set-main-document" data-measure>Set as main document</button><button data-command="clear-main-document" data-measure>Clear main document</button>
@@ -52,6 +53,7 @@
           <button data-command="save">Save</button>
           <button data-command="undo">Undo</button><button data-command="redo">Redo</button>
           <button data-command="find">Find and replace</button><button data-command="select-all">Select all</button>
+          <button data-command="history" data-measure aria-describedby="history-mobile-help">History</button><span id="history-mobile-help" class="history-desktop-help" hidden>Saved History requires the desktop app.</span>
           <button data-command="word-count" data-measure>Word count</button>
           <button data-command="download">Download source</button><button data-command="import" hidden>Import to Typst</button>
           <button data-command="download-project" data-measure>Download saved project (.zip)</button><p class="project-export-help" data-measure>Saved files only. Unsaved editor changes stay in the editor.</p><p class="project-export-result" data-project-export-status data-measure role="status" hidden></p><button data-command="check-project-download" data-measure hidden>Check project download</button><button data-command="inspect-project-download" data-measure hidden>I checked the destination</button>
@@ -107,6 +109,13 @@
       </aside>
       <div id="preview-splitter" class="pane-splitter" role="separator" tabindex="0" aria-label="Resize editor and preview panels" aria-orientation="vertical" aria-valuemin="20" aria-valuemax="80" aria-valuenow="50"></div>
       <section class="manuscript-preview" aria-label="Manuscript preview">
+        <section id="history-panel" class="history-panel" aria-label="Saved History" hidden>
+          <header class="history-heading pane-heading"><button id="history-back" data-measure>Back</button><details class="history-navigation"><summary aria-label="Browse saved History" data-measure><h2 id="history-title" data-measure>History</h2><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMid meet"><path d="m5 9 7 7 7-7"/></svg></summary><div class="history-menu"><p id="history-details" data-measure data-text-details="History details"></p><button id="history-current" data-measure>Current project folder</button><button id="history-folders" data-measure>Project folders</button><button id="history-sources" data-measure>Saved files</button><button id="history-versions" data-measure>Versions</button><button id="history-refresh" data-measure>First page</button><button id="history-next" data-measure>Next page</button><p>Saved versions only. Your editor remains editable.</p></div></details></header>
+          <p id="history-location" data-measure data-text-details="Saved History file details"></p>
+          <p id="history-status" role="status" data-measure data-text-details="History status" hidden></p>
+          <div id="history-body" class="history-body"><div id="history-list" class="history-list"></div><div id="history-result" class="history-result" hidden></div></div>
+          <footer id="history-actions" class="history-actions" hidden><button id="history-compare" data-measure>Compare two versions</button></footer>
+        </section>
         <div class="pane-heading preview-toolbar" role="toolbar" aria-label="Compilation and preview">
           <button id="typst-compile" data-measure hidden>Recompile</button>
           <button id="compile-log-toggle" class="preview-icon" aria-label="Show compilation log" title="Compilation log" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M5 3h9l5 5v13H5zM14 3v6h5M8 13h8M8 17h6"/></svg></button>
@@ -119,7 +128,7 @@
           </div>
           <button id="preview-collapse" class="preview-icon" aria-label="Collapse preview panel" title="Collapse preview panel"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="m9 6 6 6-6 6"/></svg></button>
         </div>
-        <pre id="compile-log" role="log" aria-label="Compilation log" hidden>No compilation has run yet.</pre>
+        <section id="compile-log" role="log" aria-label="Compilation log" hidden><p id="compile-report-status" data-measure data-text-details="Compiler report status" hidden></p><div id="compile-diagnostics"></div><details class="compile-raw-output" open><summary data-measure>Compiler output</summary><pre id="compile-raw">No compilation has run yet.</pre></details></section>
         <iframe id="manuscript-preview" sandbox="" title="Manuscript preview"></iframe>
         <p id="typst-preview-status" class="preview-status" role="status" hidden>Compile this Typst manuscript to see its PDF.</p><div id="typst-preview" hidden><div id="typst-pages"></div></div>
       </section>

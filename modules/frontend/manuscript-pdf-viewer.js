@@ -8,20 +8,22 @@ const MAX_RENDER_PIXELS = 9_000_000;
 export class ManuscriptPdfViewer {
   constructor({ scroller, pages, onChange, onError }) {
     this.scroller = scroller; this.pages = pages; this.onChange = onChange; this.onError = onError;
-    this.pdf = null; this.page = 1; this.scale = null; this.generation = 0; this.tasks = new Set(); this.pending = 0; this.heights = new Map();
+    this.pdf = null; this.page = 1; this.scale = null; this.generation = 0; this.tasks = new Set(); this.pending = 0; this.heights = new Map(); this.renderDeferred = false;
     this.scroll = () => {
-      if (!this.pdf || !this.ready || !this.pageHeight || this.scroller.scrollTop === this.renderScrollTop) return;
+      if (!this.pdf || !this.ready || !this.visible() || !this.pageHeight || this.scroller.scrollTop === this.renderScrollTop) return;
       this.targetPage = null;
       this.page = this.pageAt(this.scroller.scrollTop + this.scroller.clientHeight * .4);
       if (this.rendering) this.renderAgain = true;
       else this.schedule();
     };
     scroller.addEventListener('scroll', this.scroll, { passive: true });
-    this.observer = new ResizeObserver(() => { if (this.pdf && this.ready) this.schedule(); });
+    this.observer = new ResizeObserver(() => {
+      if (this.pdf && this.ready && this.visible() && (this.renderDeferred || this.scroller.clientWidth !== this.renderedWidth || this.scroller.clientHeight !== this.renderedHeight)) this.schedule();
+    });
     this.observer.observe(scroller);
   }
   async setDocument(pdf) {
-    this.cancel(); this.pdf = pdf; this.ready = false; this.page = 1; this.targetPage = null; this.scale = null; this.heights.clear();
+    this.cancel(); this.pdf = pdf; this.ready = false; this.page = 1; this.targetPage = null; this.scale = null; this.heights.clear(); this.renderDeferred = false;
     const generation = this.generation;
     let first;
     try { first = await pdf.getPage(1); }
@@ -33,6 +35,7 @@ export class ManuscriptPdfViewer {
     return this.pdf === pdf;
   }
   cancel() { this.generation += 1; this.rendering = false; this.renderAgain = false; for (const task of this.tasks) task.cancel(); this.tasks.clear(); clearTimeout(this.pending); this.pending = 0; }
+  visible() { return this.scroller.clientWidth > 0 && this.scroller.clientHeight > 0; }
   releaseCanvases() { for (const canvas of this.pages.querySelectorAll('canvas')) { canvas.width = 0; canvas.height = 0; } }
   clear() { this.cancel(); this.pdf = null; this.ready = false; this.targetPage = null; this.releaseCanvases(); this.pages.replaceChildren(); }
   schedule() {
@@ -52,12 +55,14 @@ export class ManuscriptPdfViewer {
   }
   async render() {
     if (!this.pdf || !this.ready) return;
+    if (!this.visible()) { this.renderDeferred = true; return; }
     if (this.rendering) { this.renderAgain = true; return; }
     this.cancel();
     const generation = this.generation; const pdf = this.pdf;
     this.rendering = true;
     try {
-    const width = Math.max(100, this.scroller.clientWidth - 32);
+    const clientWidth = this.scroller.clientWidth, clientHeight = this.scroller.clientHeight;
+    const width = Math.max(100, clientWidth - 32);
     const scale = this.scale ?? Math.min(2, width / this.base.width) / PDF_TO_CSS_UNITS;
     const viewportScale = scale * PDF_TO_CSS_UNITS;
     const pageHeight = this.base.height * viewportScale + 16;
@@ -74,6 +79,7 @@ export class ManuscriptPdfViewer {
       try { page = await pdf.getPage(number); }
       catch (error) { if (generation !== this.generation) return; throw error; }
       if (generation !== this.generation) return;
+      if (!this.visible()) { this.renderDeferred = true; return; }
       if (this.renderAgain) return;
       const viewport = page.getViewport({ scale: viewportScale });
       if (heights.size >= 1000 && !heights.has(number)) heights.delete(heights.keys().next().value);
@@ -92,6 +98,7 @@ export class ManuscriptPdfViewer {
       slots.push(slot);
     }
     this.currentScale = scale; this.pageHeight = pageHeight; this.height = pageHeight; this.heights = heights;
+    this.renderedWidth = clientWidth; this.renderedHeight = clientHeight; this.renderDeferred = false;
     this.releaseCanvases(); this.pages.replaceChildren(top, ...slots, bottom);
     // Install the new full-document height before the browser clamps the intended position.
     this.scroller.scrollTop = targetScrollTop(); this.renderScrollTop = this.scroller.scrollTop; this.targetPage = null;

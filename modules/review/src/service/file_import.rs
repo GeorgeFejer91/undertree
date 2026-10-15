@@ -53,6 +53,7 @@ struct Selection {
     parent_id: (u64, u64),
     expires_at: u64,
     staging: bool,
+    source_epochs: BTreeMap<String, u64>,
     staged: Option<(tempfile::TempDir, Vec<Input>)>,
 }
 
@@ -114,6 +115,23 @@ fn relative(parent: &str, name: &str) -> String {
     } else {
         format!("{parent}/{name}")
     }
+}
+
+fn check_import_aliases(
+    selection: &Selection,
+    inputs: &[Input],
+    approved: &[Project],
+) -> Result<()> {
+    let root = RootedRoot::acquire(
+        &selection.project.root,
+        &RootObservation::new(selection.root_id.0, selection.root_id.1),
+    )?;
+    for input in inputs.iter().filter(|input| input.editable) {
+        let group = root.source_group(&relative(&selection.parent_path, &input.name))?;
+        group.require_import_parent(&selection.parent)?;
+        group.require_unaliased_creation(&selection.project, approved)?;
+    }
+    Ok(())
 }
 
 fn hash(bytes: &[u8]) -> String {
@@ -183,6 +201,28 @@ fn read_regular(
     Ok((bytes, after))
 }
 
+fn verify_output(
+    directory: &Dir,
+    name: &str,
+    revision: &str,
+    expected_id: (u64, u64),
+    expected_bytes: usize,
+    links: u64,
+) -> Result<()> {
+    let (bytes, metadata) = read_regular(directory, name, MAX_TOTAL)?;
+    if identity(&metadata) != expected_id
+        || metadata.nlink() != links
+        || bytes.len() != expected_bytes
+        || hash(&bytes) != revision
+    {
+        return Err(Error::new(
+            "stale",
+            "A completed import output changed. Its bytes were preserved for inspection.",
+        ));
+    }
+    Ok(())
+}
+
 impl Service {
     fn import_owner(&self, owner: &str) -> Result<()> {
         if !owner.starts_with("native:main:") {
@@ -217,14 +257,40 @@ impl Service {
         Ok(())
     }
 
-    /// Called before opening the platform picker; paths cannot be retargeted afterward.
+    /// Qualified legacy caller; the native adapter uses the captured-root entry below.
     pub fn begin_native_import(&self, owner: &str, project: &str, parent: &str) -> Result<Value> {
+        self.begin_import(owner, project, parent, None)
+    }
+
+    /// Call inside the native blocking worker before opening the platform picker.
+    pub fn begin_native_import_rooted(
+        &self,
+        window_label: &str,
+        owner_id: &str,
+        project: &str,
+        parent: &str,
+        expected_root: RootObservation,
+    ) -> Result<Value> {
+        let owner = self.native_editor_owner(window_label, owner_id)?;
+        self.begin_import(&owner, project, parent, Some(expected_root))
+    }
+
+    fn begin_import(
+        &self,
+        owner: &str,
+        project: &str,
+        parent: &str,
+        expected_root: Option<RootObservation>,
+    ) -> Result<Value> {
         self.import_owner(owner)?;
         if !parent.is_empty() {
             project_tree::directory_path(parent)?;
         }
         let approved = self.project(project)?;
-        let root = project_tree::open_root(&approved.root)?;
+        let observed = source_files::RootedRoot::observe(&approved.root)?;
+        let expected = expected_root.unwrap_or(observed);
+        let held = source_files::RootedRoot::acquire(&approved.root, &expected)?;
+        let root = held.directory()?;
         let directory = project_tree::open_directory(&root, parent)?;
         let root_id = identity(&root.dir_metadata()?);
         let parent_id = identity(&directory.dir_metadata()?);
@@ -238,6 +304,7 @@ impl Service {
             parent_id,
             expires_at: now() + LEASE_MS,
             staging: false,
+            source_epochs: BTreeMap::new(),
             staged: None,
         };
         self.check_import_destination(&selection)?;
@@ -250,6 +317,8 @@ impl Service {
         }
         let editors = lock(&self.editor)?;
         editors.check_import_owner(owner)?;
+        self.check_import_destination(&selection)?;
+        held.check_current()?;
         let mut imports = lock(&self.file_import)?;
         imports.selections.retain(|_, selection| {
             selection.owner == owner && (selection.staging || selection.expires_at > now())
@@ -350,6 +419,8 @@ impl Service {
                             &file.name,
                         ))?;
                     }
+                    let projects = lock(&self.registry)?.projects.clone();
+                    check_import_aliases(selection, &files, &projects)?;
                     Ok(())
                 };
                 if let Err(error) = validate() {
@@ -357,7 +428,24 @@ impl Service {
                     return Err(error);
                 }
                 let value = json!({"selectionId":id,"project":selection.project.id,"parent":selection.parent_path,
-                        "files":files,"expiresAt":selection.expires_at});
+                        "files":files,"expiresAt":selection.expires_at,"expectedRoot":RootObservation::new(selection.root_id.0,selection.root_id.1)});
+                let epochs = files
+                    .iter()
+                    .map(|file| {
+                        let path = relative(&selection.parent_path, &file.name);
+                        Ok((
+                            path.clone(),
+                            self.source_epoch(&selection.project.id, &path)?,
+                        ))
+                    })
+                    .collect::<Result<BTreeMap<_, _>>>();
+                selection.source_epochs = match epochs {
+                    Ok(epochs) => epochs,
+                    Err(error) => {
+                        imports.selections.remove(id);
+                        return Err(error);
+                    }
+                };
                 selection.staging = false;
                 selection.staged = Some((directory, files));
                 Ok(value)
@@ -557,7 +645,7 @@ impl Service {
                     }
                     let selection = imports.selections.remove(&selection_id).unwrap();
                     imports.receipts.insert(request_id.clone(),Receipt {owner:owner.into(),selection:selection_id,
-                        result:json!({"requestId":request_id,"status":"pending","project":selection.project.id,"parent":selection.parent_path})});
+                        result:json!({"requestId":request_id,"status":"pending","project":selection.project.id,"parent":selection.parent_path,"expectedRoot":RootObservation::new(selection.root_id.0,selection.root_id.1)})});
                     imports.history.push_back(request_id.clone());
                     selection
                 };
@@ -580,8 +668,25 @@ impl Service {
                             "Another document operation is running. No files were imported.",
                         ));
                     }
+                    let known_zero_result = paths
+                        .iter()
+                        .map(|path| {
+                            self.has_known_zero_binding(&editors, &selection.project.id, path)
+                                .map(|known| (path.clone(), known))
+                        })
+                        .collect::<Result<Vec<_>>>();
+                    let known_zero = match known_zero_result {
+                        Ok(values) => values,
+                        Err(error) => {
+                            editors.release_import(&selection.project.id, &paths);
+                            return Err(error);
+                        }
+                    }
+                    .into_iter()
+                    .filter_map(|(path, known)| known.then_some(path))
+                    .collect();
                     drop(editors);
-                    let result = self.commit_import(&selection, &request_id);
+                    let result = self.commit_import(&selection, &request_id, &known_zero);
                     lock(&self.editor)?.release_import(&selection.project.id, &paths);
                     drop(documents);
                     result
@@ -590,7 +695,7 @@ impl Service {
                     Ok(value) => value,
                     Err(error) => {
                         json!({"requestId":request_id,"status":if error.code == "outcome_unknown" {"outcome_unknown"} else {"failed"},
-                        "project":selection.project.id,"parent":selection.parent_path,"error":error})
+                        "project":selection.project.id,"parent":selection.parent_path,"expectedRoot":RootObservation::new(selection.root_id.0,selection.root_id.1),"error":error})
                     }
                 };
                 lock(&self.file_import)?
@@ -603,11 +708,35 @@ impl Service {
         }
     }
 
-    fn commit_import(&self, selection: &Selection, request_id: &str) -> Result<Value> {
+    fn commit_import(
+        &self,
+        selection: &Selection,
+        request_id: &str,
+        known_zero: &BTreeSet<String>,
+    ) -> Result<Value> {
         self.check_import_destination(selection)?;
+        self.history_preflight_project(&selection.project.id)?;
         let (staged, inputs) = selection.staged.as_ref().ok_or_else(expired)?;
+        let projects = lock(&self.registry)?.projects.clone();
+        check_import_aliases(selection, inputs, &projects)?;
         let input_dir = Dir::open_ambient_dir(staged.path(), cap_std::ambient_authority())?;
         preflight(selection, inputs, false)?;
+        for (path, epoch) in &selection.source_epochs {
+            self.require_source_epoch(&selection.project.id, path, *epoch)?;
+        }
+        let recorded_epochs = self.source_epochs(&selection.project.id)?;
+        let _compile = if selection.source_epochs.iter().any(|(path, epoch)| {
+            *epoch != 0 || known_zero.contains(path) || recorded_epochs.contains_key(path)
+        }) {
+            Some(self.compile_lock.try_lock().map_err(|_| {
+                Error::new(
+                    "busy",
+                    "A build owns a retired import target. Retry after compilation.",
+                )
+            })?)
+        } else {
+            None
+        };
         let policy_paths: Vec<_> = inputs
             .iter()
             .filter(|input| input.editable)
@@ -622,6 +751,51 @@ impl Service {
         for path in &policy_paths {
             self.check_policy_continuity(path, self.raw_review(path)?.as_deref())?;
         }
+        let mut payloads = Vec::new();
+        let mut accepted_policies = Vec::new();
+        let mut total = 0;
+        for input in inputs {
+            let (bytes, _) = read_regular(
+                &input_dir,
+                &input.file_id,
+                if input.editable { MAX_TEXT } else { MAX_ASSET },
+            )?;
+            if bytes.len() != input.bytes || hash(&bytes) != input.sha256 {
+                return Err(Error::new(
+                    "stale",
+                    "The staged import changed. Choose the files again.",
+                ));
+            }
+            if input.editable {
+                let text = std::str::from_utf8(&bytes)
+                    .map_err(|_| Error::new("source", "The staged source is not UTF-8."))?;
+                let review = serde_json::to_string_pretty(&Review::new(text))?;
+                accepted_policies.push((
+                    selection
+                        .project
+                        .root
+                        .join(relative(&selection.parent_path, &input.name)),
+                    review.clone(),
+                ));
+                payloads.push((
+                    format!("{}.undertree-review.json", input.name),
+                    review.into_bytes(),
+                ));
+            }
+            payloads.push((input.name.clone(), bytes));
+        }
+        for (_, bytes) in &payloads {
+            total += bytes.len();
+            if total > MAX_TOTAL {
+                return Err(Error::new("limit", "The complete import exceeds 32 MiB."));
+            }
+        }
+        let root = source_files::RootedRoot::acquire(
+            &selection.project.root,
+            &RootObservation::new(selection.root_id.0, selection.root_id.1),
+        )?;
+        root.admit_import_staging(total)?;
+        self.check_import_location(selection)?;
         let temporary = format!(".undertree-build-import-{}", Uuid::new_v4());
         selection.parent.create_dir(&temporary)?;
         let output_dir = selection.parent.open_dir_nofollow(&temporary)?;
@@ -634,62 +808,44 @@ impl Service {
                 .into_std()
                 .set_permissions(fs::Permissions::from_mode(0o700))?;
         }
-        let mut outputs: Vec<(String, String, (u64, u64))> = Vec::new();
+        let mut outputs: Vec<(String, String, (u64, u64), usize)> = Vec::new();
         let mut created = Vec::new();
-        let mut accepted_policies = Vec::new();
-        let result = (|| -> Result<Value> {
-            let mut total = 0;
-            for input in inputs {
-                let (bytes, _) = read_regular(
-                    &input_dir,
-                    &input.file_id,
-                    if input.editable { MAX_TEXT } else { MAX_ASSET },
-                )?;
-                if bytes.len() != input.bytes || hash(&bytes) != input.sha256 {
-                    return Err(Error::new(
-                        "stale",
-                        "The staged import changed. Choose the files again.",
-                    ));
-                }
-                let mut values = vec![(input.name.clone(), bytes)];
-                if input.editable {
-                    let text = std::str::from_utf8(&values[0].1)
-                        .map_err(|_| Error::new("source", "The staged source is not UTF-8."))?;
-                    let review = serde_json::to_string_pretty(&Review::new(text))?;
-                    accepted_policies.push((
-                        selection
-                            .project
-                            .root
-                            .join(relative(&selection.parent_path, &input.name)),
-                        review.clone(),
-                    ));
-                    values.push((
-                        format!("{}.undertree-review.json", input.name),
-                        review.into_bytes(),
-                    ));
-                }
-                for (name, bytes) in values {
-                    total += bytes.len();
-                    if total > MAX_TOTAL {
-                        return Err(Error::new("limit", "The complete import exceeds 32 MiB."));
-                    }
-                    let mut options = OpenOptions::new();
-                    options
-                        .write(true)
-                        .create_new(true)
-                        .follow(FollowSymlinks::No);
-                    let mut file = output_dir.open_with(&name, &options)?;
-                    let revision = hash(&bytes);
-                    outputs.push((name.clone(), revision.clone(), identity(&file.metadata()?)));
-                    file.write_all(&bytes)?;
-                    file.sync_all()?;
-                }
+        let mut retired = BTreeSet::new();
+        let mut directory_retired = false;
+        let check_stage_directory = || -> Result<()> {
+            self.check_import_location(selection)?;
+            if identity(&output_dir.dir_metadata()?) != output_id
+                || identity(&selection.parent.symlink_metadata(&temporary)?) != output_id
+            {
+                return Err(changed());
             }
+            Ok(())
+        };
+        let result = (|| -> Result<Value> {
+            for (name, bytes) in payloads {
+                let mut options = OpenOptions::new();
+                options
+                    .write(true)
+                    .create_new(true)
+                    .follow(FollowSymlinks::No);
+                let mut file = output_dir.open_with(&name, &options)?;
+                let revision = hash(&bytes);
+                let id = identity(&file.metadata()?);
+                outputs.push((name.clone(), revision.clone(), id, bytes.len()));
+                file.write_all(&bytes)?;
+                file.sync_all()?;
+                verify_output(&output_dir, &name, &revision, id, bytes.len(), 1)?;
+            }
+            output_dir.open(".")?.sync_all()?;
             // Native page retirement and new registrations cannot interleave with publication.
             // This follows editor callbacks' editor -> registry lock order. Bulk copying is done.
             #[cfg(test)]
             if let Some(hook) = lock(&self.import_before_publish)?.take() {
                 hook();
+            }
+            check_stage_directory()?;
+            for (name, revision, id, bytes) in &outputs {
+                verify_output(&output_dir, name, revision, *id, *bytes, 1)?;
             }
             let editors = lock(&self.editor)?;
             editors.check_import_owner(&selection.owner)?;
@@ -698,13 +854,45 @@ impl Service {
             }
             let mut registry = lock(&self.registry)?;
             let mut next = registry.clone();
+            let mut published_epochs = BTreeMap::new();
+            for input in inputs {
+                let path = relative(&selection.parent_path, &input.name);
+                let expected = selection
+                    .source_epochs
+                    .get(&path)
+                    .copied()
+                    .ok_or_else(source_identity::stale)?;
+                source_identity::require_in(&next, &selection.project.id, &path, expected)?;
+                let epoch = if input.editable {
+                    source_identity::rotate_reused(
+                        &mut next,
+                        &selection.project.id,
+                        &path,
+                        known_zero.contains(&path),
+                    )?
+                } else {
+                    expected
+                };
+                published_epochs.insert(path, epoch);
+            }
+            let reserved = next.clone();
+            let reserved_json = serde_json::to_string_pretty(&reserved)?;
+            if reserved_json.len() > MAX_TEXT {
+                return Err(Error::new(
+                    "limit",
+                    "The import source reservations exceed the registry bound.",
+                ));
+            }
+            let reserve_epochs = published_epochs
+                .iter()
+                .any(|(path, epoch)| selection.source_epochs.get(path) != Some(epoch));
             let registered = next
                 .projects
                 .iter_mut()
                 .find(|project| project.id == selection.project.id)
                 .ok_or_else(changed)?;
             let main = registered.main_document.clone();
-            for (name, revision, _) in &outputs {
+            for (name, revision, _, _) in &outputs {
                 let path = relative(&selection.parent_path, name);
                 registered.pending.insert(path.clone());
                 registered.pending_revisions.insert(path, revision.clone());
@@ -718,14 +906,29 @@ impl Service {
             }
             self.check_import_location(selection)?;
             preflight(selection, inputs, false)?;
-            for (name, _, id) in &outputs {
+            check_import_aliases(selection, inputs, &registry.projects)?;
+            if reserve_epochs {
+                if let Err(error) = self.save_registry(&reserved) {
+                    if read_text(&self.state.join("projects.json"), MAX_TEXT)
+                        .is_ok_and(|bytes| bytes == reserved_json)
+                    {
+                        *registry = reserved.clone();
+                    }
+                    return Err(error);
+                }
+                *registry = reserved;
+                self.check_import_location(selection)?;
+            }
+            check_import_aliases(selection, inputs, &registry.projects)?;
+            for (name, revision, id, bytes) in &outputs {
+                check_stage_directory()?;
+                verify_output(&output_dir, name, revision, *id, *bytes, 1)?;
                 output_dir.hard_link(name,&selection.parent,name).map_err(|error| {
                     if error.kind() == std::io::ErrorKind::AlreadyExists {Error::new("conflict", "A destination appeared during import. Existing files were preserved.")} else {error.into()}
                 })?;
                 created.push(name.clone());
-                if identity(&selection.parent.symlink_metadata(name)?) != *id {
-                    return Err(changed());
-                }
+                verify_output(&selection.parent, name, revision, *id, *bytes, 2)?;
+                verify_output(&output_dir, name, revision, *id, *bytes, 2)?;
             }
             #[cfg(test)]
             {
@@ -737,6 +940,24 @@ impl Service {
             #[cfg(unix)]
             selection.parent.open(".")?.sync_all()?;
             self.check_import_location(selection)?;
+            preflight(selection, inputs, true)?;
+            for (name, revision, id, bytes) in &outputs {
+                check_stage_directory()?;
+                verify_output(&selection.parent, name, revision, *id, *bytes, 2)?;
+                verify_output(&output_dir, name, revision, *id, *bytes, 2)?;
+                // Optimistic final check -> unlink; a simultaneous external writer is not a CAS.
+                output_dir.remove_file(name)?;
+                retired.insert(name.clone());
+            }
+            output_dir.open(".")?.sync_all()?;
+            check_stage_directory()?;
+            selection.parent.remove_dir(&temporary)?;
+            directory_retired = true;
+            selection.parent.open(".")?.sync_all()?;
+            self.check_import_location(selection)?;
+            for (name, revision, id, bytes) in &outputs {
+                verify_output(&selection.parent, name, revision, *id, *bytes, 1)?;
+            }
             preflight(selection, inputs, true)?;
             if let Err(error) = self.save_registry(&next) {
                 if read_text(&self.state.join("projects.json"), MAX_TEXT)
@@ -754,7 +975,7 @@ impl Service {
             Ok(
                 json!({"requestId":request_id,"status":"committed","project":selection.project.id,"parent":selection.parent_path,
                 "files":inputs.iter().map(|file| json!({"path":relative(&selection.parent_path,&file.name),"kind":file.kind,
-                    "editable":file.editable,"bytes":file.bytes,"sha256":file.sha256})).collect::<Vec<_>>(),"mainDocument":main,"gitOwnership":"undertree"}),
+                    "editable":file.editable,"bytes":file.bytes,"sha256":file.sha256,"sourceEpoch":if file.editable {published_epochs.get(&relative(&selection.parent_path,&file.name)).copied()}else{None}})).collect::<Vec<_>>(),"mainDocument":main,"gitOwnership":"undertree","expectedRoot":RootObservation::new(selection.root_id.0,selection.root_id.1)}),
             )
         })();
         let result = match result {
@@ -763,20 +984,42 @@ impl Service {
             other => other,
         };
         let mut cleanup_failed = false;
-        for (name, _, _) in &outputs {
-            cleanup_failed |= output_dir.remove_file(name).is_err();
-        }
-        if selection
-            .parent
-            .symlink_metadata(&temporary)
-            .is_ok_and(|metadata| identity(&metadata) == output_id)
-        {
-            cleanup_failed |= selection.parent.remove_dir(&temporary).is_err();
-        } else {
-            cleanup_failed = true;
+        if !directory_retired {
+            if check_stage_directory().is_err() {
+                cleanup_failed = true;
+            } else {
+                for (name, revision, id, bytes) in &outputs {
+                    if retired.contains(name) {
+                        continue;
+                    }
+                    let links = if created.contains(name) { 2 } else { 1 };
+                    if check_stage_directory().is_err()
+                        || verify_output(&output_dir, name, revision, *id, *bytes, links).is_err()
+                    {
+                        cleanup_failed = true;
+                        continue;
+                    }
+                    // Only the exact observed staging link may retire; unknown replacements stay.
+                    cleanup_failed |= output_dir.remove_file(name).is_err();
+                }
+                cleanup_failed |= output_dir
+                    .open(".")
+                    .and_then(|file| file.sync_all())
+                    .is_err();
+                if check_stage_directory().is_ok() {
+                    cleanup_failed |= selection.parent.remove_dir(&temporary).is_err();
+                    cleanup_failed |= selection
+                        .parent
+                        .open(".")
+                        .and_then(|file| file.sync_all())
+                        .is_err();
+                } else {
+                    cleanup_failed = true;
+                }
+            }
         }
         if cleanup_failed {
-            return Err(Error::new("outcome_unknown", "The import finished, but temporary-file cleanup could not be confirmed. Inspect the destination and receipt before retrying."));
+            return Err(Error::new("outcome_unknown", "Import staging retirement could not be confirmed. Published files and unknown staging entries were preserved; inspect the destination and receipt before retrying."));
         }
         result
     }
@@ -815,3 +1058,9 @@ impl Service {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(all(test, unix))]
+mod known_zero_tests;
+
+#[cfg(all(test, unix))]
+mod alias_tests;

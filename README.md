@@ -23,6 +23,17 @@ workflows while the Typst migration progresses.
 
 ## Rust/Tauri manuscript workspace
 
+### Linux installer
+
+The [v0.3.0 native preview](https://github.com/GeorgeFejer91/undertree_texstudio/releases/tag/v0.3.0)
+provides a Debian x86-64 installer and SHA-256 checksums. Download the `.deb`,
+verify its checksum, then install it with `sudo apt install ./UnderTree_0.3.0_amd64.deb`.
+Launch **UnderTree** from the applications menu. Typst 0.15.1 is installed
+separately for compilation; the editor itself does not require LaTeX.
+This Linux build targets Debian 13; other platforms need their own packages.
+
+### Build from source
+
 Install Node.js 22.13 or newer, Rust and the platform's Tauri v2 build
 prerequisites, then run:
 

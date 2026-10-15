@@ -326,8 +326,10 @@ fn an_in_project_parent_alias_cannot_bypass_known_policy_loss() {
             })
             .unwrap_err()
             .code,
-        "policy_missing"
+        "stale"
     );
+    assert_eq!(f.group(), before);
+    assert_eq!(f.open().unwrap_err().code, "policy_missing");
     assert_eq!(f.group(), before);
     fs::write(&f.metadata, &f.raw).unwrap();
     assert_eq!(f.open().unwrap()["review"]["markers"][0]["id"], "protected");

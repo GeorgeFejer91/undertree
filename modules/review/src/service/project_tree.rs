@@ -21,10 +21,13 @@ const LIMITS: Limits = Limits {
 };
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct TreeEntry {
     path: String,
     kind: &'static str,
     editable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_epoch: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     bytes: Option<u64>,
 }
@@ -162,6 +165,7 @@ impl Inventory {
             let editable = kind.is_file() && editable_source(Path::new(&path));
             let node = TreeEntry {
                 path: path.clone(),
+                source_epoch: editable.then_some(0),
                 kind: if kind.is_dir() {
                     "directory"
                 } else if editable {
@@ -245,22 +249,47 @@ impl Service {
         Ok(())
     }
 
-    pub(super) fn project_tree(&self, project: &str) -> Result<Value> {
+    pub(super) fn project_tree_rooted(
+        &self,
+        project: &str,
+        expected: Option<RootObservation>,
+    ) -> Result<Value> {
         let approved = self.project(project)?;
-        let root = open_root(&approved.root)?;
+        let observation = expected.map_or_else(|| RootedRoot::observe(&approved.root), Ok)?;
+        let held = RootedRoot::acquire(&approved.root, &observation)?;
+        let root = held.directory()?;
         let mut inventory = Inventory::new(LIMITS);
         inventory.walk(&root, &root, "", 0)?;
         self.check_tree_root(&approved, &root)?;
-        Ok(
-            json!({"project":project,"entries":inventory.entries,"truncated":inventory.truncated,
-            "omittedNonUtf8":inventory.omitted_non_utf8,"limits":LIMITS}),
-        )
+        let registry = lock(&self.registry)?;
+        for entry in &mut inventory.entries {
+            if entry.editable {
+                entry.source_epoch =
+                    Some(source_identity::epoch_in(&registry, project, &entry.path)?);
+            }
+        }
+        let value = json!({"project":project,"entries":inventory.entries,"truncated":inventory.truncated,
+            "omittedNonUtf8":inventory.omitted_non_utf8,"limits":LIMITS,"expectedRoot":observation});
+        if serde_json::to_vec(&value)?.len() > LIMITS.max_response_bytes {
+            return Err(Error::new(
+                "limit",
+                "The project tree exceeds its bounded response size.",
+            ));
+        }
+        Ok(value)
     }
 
-    pub(super) fn create_directory(&self, project: &str, path: &str) -> Result<Value> {
+    pub(super) fn create_directory_rooted(
+        &self,
+        project: &str,
+        path: &str,
+        expected: Option<RootObservation>,
+    ) -> Result<Value> {
         let (parent_path, name) = directory_path(path)?;
         let approved = self.project(project)?;
-        let root = open_root(&approved.root)?;
+        let observation = expected.map_or_else(|| RootedRoot::observe(&approved.root), Ok)?;
+        let held = RootedRoot::acquire(&approved.root, &observation)?;
+        let root = held.directory()?;
         let parent = open_directory(&root, parent_path)?;
         self.check_tree_root(&approved, &root)?;
         let parent_identity = parent.dir_metadata()?;
@@ -270,6 +299,7 @@ impl Service {
         ) {
             return Err(changed());
         }
+        held.check_current()?;
         parent.create_dir(name).map_err(|error| {
             if error.kind() == std::io::ErrorKind::AlreadyExists {
                 Error::new(
@@ -284,6 +314,7 @@ impl Service {
         let verify = || -> Result<()> {
             #[cfg(unix)]
             parent.open(".")?.sync_all()?;
+            held.check_current()?;
             self.check_tree_root(&approved, &root)?;
             if !same_directory(
                 &parent_identity,
@@ -294,7 +325,7 @@ impl Service {
             Ok(())
         };
         verify().map_err(|_| Error::new("outcome_unknown", "The folder was created, but its location or durability could not be confirmed. Refresh the project tree before retrying."))?;
-        Ok(json!({"project":project,"path":path,"created":true}))
+        Ok(json!({"project":project,"path":path,"created":true,"expectedRoot":observation}))
     }
 }
 

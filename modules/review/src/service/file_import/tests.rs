@@ -99,6 +99,19 @@ async fn native_import_captures_exact_sources_assets_and_replays_receipt_without
         after.pending_revisions["inputs/chapter.typ"],
         digest("= Imported\n")
     );
+    #[cfg(unix)]
+    {
+        for path in [
+            "inputs/chapter.typ",
+            "inputs/chapter.typ.undertree-review.json",
+            "inputs/picture.png",
+        ] {
+            assert_eq!(
+                cap_fs_ext::MetadataExt::nlink(&fs::metadata(project.root.join(path)).unwrap()),
+                1
+            );
+        }
+    }
     assert_eq!(after.pending.len(), 3);
     assert_eq!(commit(&service, &owner, &id, &request).await, result);
     assert_eq!(
@@ -247,6 +260,8 @@ async fn registered_missing_destination_buffer_blocks_import_and_reservation_blo
             EditorOperation::EditorRegister {
                 project: project.id.clone(),
                 path: "a.typ".into(),
+                source_epoch: 0,
+                expected_root: None,
                 generation: 2,
                 revision: digest("old"),
                 content_digest: digest("unsaved"),
@@ -275,6 +290,8 @@ async fn registered_missing_destination_buffer_blocks_import_and_reservation_blo
                 EditorOperation::EditorRegister {
                     project: project.id.clone(),
                     path: "b.typ".into(),
+                    source_epoch: 0,
+                    expected_root: None,
                     generation: 0,
                     revision: digest(""),
                     content_digest: digest(""),
@@ -870,5 +887,307 @@ async fn unknown_status_then_cancel_prevents_delayed_original_command_from_start
     );
     resume.send(()).unwrap();
     assert_eq!(thread.join().unwrap().unwrap_err().code, "expired_ticket");
+    assert!(fs::read_dir(&project.root).unwrap().next().is_none());
+}
+
+#[tokio::test]
+async fn staged_import_cannot_cross_retirement_and_fresh_intent_rotates_reused_source() {
+    let (temp, service, project, owner) = fixture();
+    let input = temp.path().join("main.typ");
+    fs::write(&input, "Imported same bytes").unwrap();
+    service
+        .retire_source_for_test(&project.id, "main.typ")
+        .unwrap();
+    let old = selection(&service, &owner, &project, "", vec![input.clone()]).await;
+    service
+        .retire_source_for_test(&project.id, "main.typ")
+        .unwrap();
+    let before = fs::read(service.state.join("projects.json")).unwrap();
+    let denied = commit(&service, &owner, &old, &Uuid::new_v4().to_string()).await;
+    assert_eq!(denied["status"], "failed");
+    assert_eq!(denied["error"]["code"], "stale_document");
+    assert!(!project.root.join("main.typ").exists());
+    assert!(!project.root.join("main.typ.undertree-review.json").exists());
+    assert_eq!(
+        fs::read(service.state.join("projects.json")).unwrap(),
+        before
+    );
+    let fresh = selection(&service, &owner, &project, "", vec![input]).await;
+    let imported = commit(&service, &owner, &fresh, &Uuid::new_v4().to_string()).await;
+    assert_eq!(imported["status"], "committed");
+    assert_eq!(imported["files"][0]["sourceEpoch"], 3);
+    assert_eq!(service.source_epoch(&project.id, "main.typ").unwrap(), 3);
+    assert_eq!(
+        fs::read(project.root.join("main.typ")).unwrap(),
+        b"Imported same bytes"
+    );
+}
+
+#[tokio::test]
+async fn reused_import_reserves_all_retired_epochs_before_names_and_preserves_reservation_after_failure(
+) {
+    for before_publication in [true, false] {
+        let (temp, service, project, owner) = fixture();
+        let file = project.root.join("main.typ");
+        fs::write(&file, "Same bytes").unwrap();
+        service
+            .retire_source_for_test(&project.id, "main.typ")
+            .unwrap();
+        let shared = service
+            .local_source(SourceRequest {
+                operation: Operation::Share {
+                    project: project.id.clone(),
+                    path: "main.typ".into(),
+                    enabled: true,
+                },
+                source_epoch: 1,
+                expected_root: None,
+            })
+            .unwrap();
+        fs::remove_file(&file).unwrap();
+        let input = temp.path().join("main.typ");
+        fs::write(&input, "Same bytes").unwrap();
+        let id = selection(&service, &owner, &project, "", vec![input]).await;
+        let config = service.state.join("projects.json");
+        let original = fs::read(&config).unwrap();
+        let reserved = Arc::new(Mutex::new(None));
+        if before_publication {
+            fs::remove_file(&config).unwrap();
+            fs::create_dir(&config).unwrap();
+        } else {
+            let config = config.clone();
+            let reserved = reserved.clone();
+            lock(&service.file_import).unwrap().after_publish = Some(Box::new(move || {
+                *reserved.lock().unwrap() = Some(fs::read(&config).unwrap());
+                fs::remove_file(&config).unwrap();
+                fs::create_dir(&config).unwrap();
+            }));
+        }
+        let result = commit(&service, &owner, &id, &Uuid::new_v4().to_string()).await;
+        if before_publication {
+            assert_eq!(result["status"], "failed");
+            assert!(!file.exists());
+            assert!(!sidecar(&file).exists());
+            assert_eq!(service.source_epoch(&project.id, "main.typ").unwrap(), 1);
+        } else {
+            assert_eq!(result["status"], "outcome_unknown");
+            assert_eq!(fs::read_to_string(&file).unwrap(), "Same bytes");
+            assert_eq!(service.source_epoch(&project.id, "main.typ").unwrap(), 2);
+            assert_eq!(
+                service
+                    .remote(
+                        "read_manuscript",
+                        json!({"documentId":shared["documentId"]})
+                    )
+                    .unwrap_err()
+                    .code,
+                "scope"
+            );
+            assert_eq!(
+                service
+                    .local_source(SourceRequest {
+                        operation: Operation::Save {
+                            project: project.id.clone(),
+                            path: "main.typ".into(),
+                            revision: digest("Same bytes"),
+                            content: "Old caller".into()
+                        },
+                        source_epoch: 1,
+                        expected_root: None
+                    })
+                    .unwrap_err()
+                    .code,
+                "stale_document"
+            );
+            assert!(service.project(&project.id).unwrap().pending.is_empty());
+        }
+        fs::remove_dir(&config).unwrap();
+        fs::write(
+            &config,
+            if before_publication {
+                original
+            } else {
+                reserved.lock().unwrap().take().unwrap()
+            },
+        )
+        .unwrap();
+        let restarted = Service::new(service.state.clone()).unwrap();
+        assert_eq!(
+            restarted.source_epoch(&project.id, "main.typ").unwrap(),
+            if before_publication { 1 } else { 2 }
+        );
+    }
+}
+
+fn output_stages(root: &Path) -> Vec<PathBuf> {
+    fs::read_dir(root)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with(".undertree-build-import-")
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn completed_output_tampering_before_or_after_publication_never_acquires_ownership() {
+    for after in [false, true] {
+        let (temp, service, project, owner) = fixture();
+        let source = temp.path().join("a.png");
+        fs::write(&source, b"original").unwrap();
+        let id = selection(&service, &owner, &project, "", vec![source]).await;
+        let root = project.root.clone();
+        let hook = Box::new(move || {
+            let target = if after {
+                root.join("a.png")
+            } else {
+                output_stages(&root)[0].join("a.png")
+            };
+            fs::write(target, b"modified").unwrap();
+        });
+        if after {
+            lock(&service.file_import).unwrap().after_publish = Some(hook);
+        } else {
+            *lock(&service.import_before_publish).unwrap() = Some(hook);
+        }
+        let before = fs::read(service.state.join("projects.json")).unwrap();
+        let result = commit(&service, &owner, &id, &Uuid::new_v4().to_string()).await;
+        assert_ne!(result["status"], "committed");
+        assert_eq!(
+            fs::read(service.state.join("projects.json")).unwrap(),
+            before
+        );
+        assert!(service.project(&project.id).unwrap().pending.is_empty());
+        if after {
+            assert_eq!(fs::read(project.root.join("a.png")).unwrap(), b"modified");
+        } else {
+            assert!(!project.root.join("a.png").exists());
+        }
+        let stages = output_stages(&project.root);
+        assert_eq!(stages.len(), 1);
+        assert_eq!(fs::read(stages[0].join("a.png")).unwrap(), b"modified");
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn cleanup_preserves_unknown_regular_or_symlink_stage_replacements() {
+    for link in [false, true] {
+        let (temp, service, project, owner) = fixture();
+        let source = temp.path().join("a.png");
+        let outside = temp.path().join("outside");
+        fs::write(&source, b"original").unwrap();
+        fs::write(&outside, b"external").unwrap();
+        let id = selection(&service, &owner, &project, "", vec![source]).await;
+        let root = project.root.clone();
+        let external = outside.clone();
+        *lock(&service.import_before_publish).unwrap() = Some(Box::new(move || {
+            let target = output_stages(&root)[0].join("a.png");
+            fs::remove_file(&target).unwrap();
+            if link {
+                std::os::unix::fs::symlink(external, target).unwrap();
+            } else {
+                fs::write(target, b"replacement").unwrap();
+            }
+            fs::write(
+                root.join("a.png.undertree-pending.json"),
+                b"external collision",
+            )
+            .unwrap();
+        }));
+        let result = commit(&service, &owner, &id, &Uuid::new_v4().to_string()).await;
+        assert_ne!(result["status"], "committed");
+        assert!(!project.root.join("a.png").exists());
+        assert!(service.project(&project.id).unwrap().pending.is_empty());
+        let stages = output_stages(&project.root);
+        assert_eq!(stages.len(), 1);
+        let target = stages[0].join("a.png");
+        assert_eq!(
+            fs::symlink_metadata(&target)
+                .unwrap()
+                .file_type()
+                .is_symlink(),
+            link
+        );
+        assert_eq!(
+            fs::read(target).unwrap(),
+            if link {
+                b"external".as_slice()
+            } else {
+                b"replacement".as_slice()
+            }
+        );
+        assert_eq!(fs::read(outside).unwrap(), b"external");
+    }
+}
+
+#[tokio::test]
+async fn import_admission_counts_retained_output_groups_across_project_parents() {
+    let (temp, service, project, owner) = fixture();
+    for parent in ["a", "b"] {
+        fs::create_dir(project.root.join(parent)).unwrap();
+    }
+    for index in 0..8 {
+        let path = project
+            .root
+            .join(if index < 4 { "a" } else { "b" })
+            .join(format!(".undertree-build-import-retained-{index}"));
+        fs::create_dir(&path).unwrap();
+        fs::write(path.join("asset.png"), b"retained").unwrap();
+    }
+    let source = temp.path().join("a.png");
+    fs::write(&source, b"fresh").unwrap();
+    let id = selection(&service, &owner, &project, "", vec![source]).await;
+    let before = fs::read(service.state.join("projects.json")).unwrap();
+    let result = commit(&service, &owner, &id, &Uuid::new_v4().to_string()).await;
+    assert_eq!(result["status"], "failed");
+    assert_eq!(result["error"]["code"], "limit");
+    assert!(output_stages(&project.root).is_empty());
+    assert!(!project.root.join("a.png").exists());
+    assert_eq!(
+        fs::read(service.state.join("projects.json")).unwrap(),
+        before
+    );
+    assert_eq!(output_stages(&project.root.join("a")).len(), 4);
+    assert_eq!(output_stages(&project.root.join("b")).len(), 4);
+}
+
+#[test]
+fn rooted_import_admission_validates_actual_owner_and_captured_root_before_ticket() {
+    let (temp, service, project, _) = fixture();
+    let connected = service.connect_native_editor("main").unwrap();
+    let owner_id = connected["ownerId"].as_str().unwrap();
+    let root = source_files::RootedRoot::observe(&project.root).unwrap();
+    assert_eq!(
+        service
+            .begin_native_import_rooted("other", owner_id, &project.id, "", root)
+            .unwrap_err()
+            .code,
+        "stale_session"
+    );
+    let previous = temp.path().join("old-root");
+    fs::rename(&project.root, &previous).unwrap();
+    fs::create_dir(&project.root).unwrap();
+    assert_eq!(
+        service
+            .begin_native_import_rooted("main", owner_id, &project.id, "", root)
+            .unwrap_err()
+            .code,
+        "stale_root"
+    );
+    assert!(lock(&service.file_import).unwrap().selections.is_empty());
+    let current = source_files::RootedRoot::observe(&project.root).unwrap();
+    service.connect_native_editor("main").unwrap();
+    assert_eq!(
+        service
+            .begin_native_import_rooted("main", owner_id, &project.id, "", current)
+            .unwrap_err()
+            .code,
+        "stale_session"
+    );
+    assert!(lock(&service.file_import).unwrap().selections.is_empty());
     assert!(fs::read_dir(&project.root).unwrap().next().is_none());
 }

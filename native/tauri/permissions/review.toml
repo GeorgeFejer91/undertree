@@ -9,6 +9,11 @@ description = "Analyze bounded text supplied by the current local main window wi
 commands.allow = ["word_count_typst_text"]
 
 [[permission]]
+identifier = "allow-history-query"
+description = "Read bounded saved History through the current local main-window owner without source recovery or mutation."
+commands.allow = ["history_query"]
+
+[[permission]]
 identifier = "allow-editor-operation"
 description = "Coordinate registered editor sessions in the local main window; never exposed through CLI or MCP."
 commands.allow = ["editor_connect", "editor_operation"]

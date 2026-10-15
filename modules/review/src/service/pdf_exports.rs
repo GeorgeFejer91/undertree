@@ -45,6 +45,8 @@ struct Scope {
     project: Project,
     path: String,
     document_id: String,
+    source_epoch: u64,
+    root: RootObservation,
     origin: String,
 }
 
@@ -138,9 +140,9 @@ impl Service {
     }
 
     fn eligible_pdf_projects(&self) -> Result<Value> {
-        let shared = lock(&self.shared)?.clone();
+        let shared = self.current_shared()?;
         let mut counts = BTreeMap::<String, usize>::new();
-        for (project, _) in shared.values() {
+        for (project, _, _, _) in shared.values() {
             *counts.entry(project.clone()).or_default() += 1;
         }
         let mut projects = Vec::new();
@@ -209,9 +211,11 @@ impl Service {
                     "Choose between one and twenty currently shared projects.",
                 ));
             }
-            let shared = lock(&self.shared)?.clone();
+            let shared = self.current_shared()?;
             for id in projects {
-                if !shared.values().any(|(project, _)| project == &id) || roots.contains_key(&id) {
+                if !shared.values().any(|(project, _, _, _)| project == &id)
+                    || roots.contains_key(&id)
+                {
                     return Err(denied());
                 }
                 let project = self.project(&id)?;
@@ -248,10 +252,8 @@ impl Service {
 
     fn pdf_scope(&self, document_id: &str) -> Result<Scope> {
         let (app_generation, owner, origin) = self.pdf_app_authority(true)?;
-        let (project, path) = lock(&self.shared)?
-            .get(document_id)
-            .cloned()
-            .ok_or_else(denied)?;
+        let (project, path, source_epoch, root) =
+            self.shared_source(document_id).map_err(|_| denied())?;
         let project = self.project(&project)?;
         let file = self.path(&project, &path, false)?;
         if file.extension().and_then(|e| e.to_str()) != Some("typ") {
@@ -285,6 +287,8 @@ impl Service {
             project,
             path,
             document_id: document_id.into(),
+            source_epoch,
+            root,
             origin,
         })
     }
@@ -295,6 +299,8 @@ impl Service {
             || current.project.root != scope.project.root
             || current.path != scope.path
             || current.project.id != scope.project.id
+            || current.source_epoch != scope.source_epoch
+            || current.root != scope.root
         {
             return Err(denied());
         }
@@ -309,7 +315,10 @@ impl Service {
         if result["externalDependencyCount"] != 0 {
             return Err(Error::new("unsupported_scope","This PDF uses external package-cache inputs outside the selected project roots. PDF export is unavailable under the current project-input permission."));
         }
-        if result["current"] != true {
+        if result["current"] != true
+            || result["sourceEpoch"].as_u64().unwrap_or(0) != scope.source_epoch
+            || result.get("expectedRoot") != Some(&json!(scope.root))
+        {
             return Err(Error::new("stale","The saved PDF no longer matches its verified saved project inputs. Build explicitly before exporting."));
         }
         let encoded = result["base64"].as_str().ok_or_else(unavailable)?;
@@ -345,9 +354,9 @@ impl Service {
             }
             let (app_generation, _, _) = self.pdf_app_authority(false)?;
             let export_permission = lock(&self.pdf_exports)?.permission.clone();
-            let shared = lock(&self.shared)?.clone();
+            let shared = self.current_shared()?;
             let mut results = Vec::new();
-            for (id, (project, path)) in shared {
+            for (id, (project, path, _, _)) in shared {
                 let approved = self.project(&project)?;
                 self.path(&approved, &path, false)?;
                 let mut item = json!({"documentId":id,"path":path});
@@ -385,7 +394,10 @@ impl Service {
                 return Err(denied());
             }
             for item in &results {
-                if !lock(&self.shared)?.contains_key(item["documentId"].as_str().unwrap_or("")) {
+                if self
+                    .shared_source(item["documentId"].as_str().unwrap_or(""))
+                    .is_err()
+                {
                     return Err(denied());
                 }
             }
@@ -484,8 +496,13 @@ impl Service {
             return Err(denied());
         }
         drop(state);
-        if lock(&self.shared)?.get(&ticket.scope.document_id)
-            != Some(&(ticket.scope.project.id.clone(), ticket.scope.path.clone()))
+        if self.shared_source(&ticket.scope.document_id).ok()
+            != Some((
+                ticket.scope.project.id.clone(),
+                ticket.scope.path.clone(),
+                ticket.scope.source_epoch,
+                ticket.scope.root,
+            ))
         {
             return Err(denied());
         }

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { ReviewSession } from '../modules/frontend/review-session.js';
+import { ReviewSession, sourceEpoch, captureSourceBinding, assertSourceBinding, localNoSaveClose } from '../modules/frontend/review-session.js';
 
 const source = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
 const handler = id => source.match(new RegExp(`\\$\\('${id}'\\)\\.onsubmit = task\\((async event => \\{[\\s\\S]*?\\n\\})\\);`))?.[1];
@@ -24,7 +24,7 @@ function fixture({ hold = 'save' } = {}) {
 function submitter(session, id = 'highlight-form') {
   const selected = Object.freeze({ session, version: session.version, from: 6, to: 12, quote: 'target', id: 'marker' });
   const controls = { 'highlight-dialog-rule': { value: 'protect' }, 'highlight-prompt': { value: '' }, 'highlight-dialog': { close() {} }, 'reanchor-dialog': { close() {} } };
-  const context = { active: session, selection: selected, reanchorSelection: selected, $: id => controls[id], saveSession: value => value.flush(), renderReview() {}, decorations() {}, reviewPanel() {}, queueSync() {}, markSelectedReview() {}, scheduleReviewPositions() {}, status() {} };
+  const context = { sourceEpoch, captureSourceBinding, assertSourceBinding, localNoSaveClose, active: session, selection: selected, reanchorSelection: selected, $: id => controls[id], saveSession: value => value.flush(), renderReview() {}, decorations() {}, reviewPanel() {}, queueSync() {}, markSelectedReview() {}, scheduleReviewPositions() {}, status() {} };
   assert.ok(handler(id), 'The actual selection callback must be found.');
   const callback = runInNewContext(`(${handler(id)})`, context);
   return { context, submit: () => callback({ preventDefault() {} }) };

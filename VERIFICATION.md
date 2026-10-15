@@ -1,5 +1,195 @@
 # Verification report
 
+## Current viewer and native History checkpoint — 2026-10-15
+
+The unpublished v15 capture, `artifacts/qa-current-history-diagnostics-v15`,
+contains 303 sources, 15 fresh frontend assets and two copied binaries. Final
+manifest SHA-256 is
+`282ec7e1fba06da6977bb411729ba5a2499547b903653bdf676813c20823600b`;
+desktop SHA-256 is
+`5e2be040de5966eb05ab340f9552a2608b2ee7e0d29824f90b0acee2fa010cc9`.
+The CLI remains byte-identical to v14, `d343134a…`, so its earlier real-Typst
+20-check evidence below applies to that exact CLI. The v15 build passes 378
+selected JavaScript tests with zero skips, formatting, architecture, notices
+and both binary builds. All 67 Rust/native configuration inputs match v14;
+its 413 Rust tests and strict Clippy are explicitly reused, not rerun.
+
+Native History passes all eight groups. Execution
+`artifacts/native-current-v15-history/invocation-02/execution.json` has SHA-256
+`7590ead1b6bd3103b7d805f0ac24a7ee286e4e2cfdeff99de619fd71c0c69dc9`;
+native evidence SHA-256 is
+`a67bf901af0636b61ee06a7b88cb7ed0070945cb90d8266f83fed218d8990495`.
+It proves prospective native Save, registered CLI Save and local acceptance
+versions, read-only queries/input, retained editor/canvas/workers on Back,
+CLI/HTTP/MCP denials, a held response across session replacement and ordinary
+restart persistence. All 19 observed processes exit, temporary storage is
+removed and all captured inputs plus two runtime extensions remain unchanged.
+The executed fixture `f5e36ede…` corrects only the invalid CLI operation's
+expectation to exact exit 1, empty stdout and typed `format` stderr. It is a
+declared semantic assertion correction outside the immutable capture; the
+original `72492389…` run's failure remains preserved.
+
+Original native diagnostics passes its first two groups, including actual
+Unicode provenance and last-good PDF/canvas/worker retention. It then fails a
+fixture prerequisite: a file switch clears the prior canvas while the log
+keeps the preview hidden, but the fixture waits for painting without showing
+the PDF. Execution SHA-256 is
+`042cd47672639ba71a6e75057acded1eb0249c6860f031f73580aebdbad22ecd`;
+native evidence SHA-256 is
+`af187a9e05a6b087996e47116576b31ca3eb877a5d885aedd2e479da9a34d5a3`.
+A separately declared fixture, `1c91efac…`, adds only an explicit local Show
+PDF action before that wait. All original assertions and deadlines remain.
+It passes all five diagnostics groups, including one rooted read-only native
+Inspect, rejection of a held read after newer caret/log actions, and actual
+WebKit geometry at narrow widths, enlarged text and regrowth. Execution
+`artifacts/native-current-v15-diagnostics/invocation-02/execution.json` has
+SHA-256 `c9f9d3ee2593c287108d2709b0a4a731dda37cf0e2965f4aac2a36c43b2bee6c`;
+native evidence SHA-256 is
+`845ced9d84621c81216fe149b3b9b03c873b5e541bad31f2eb73c527be621236`.
+All guarded inputs/extensions remain exact, observed processes exit and
+temporary storage is removed. The original failure remains preserved.
+
+Native publishing passes all six groups with 55 original assertion calls
+retained in the separately declared passive overflow variant `8ce6cfe8…`.
+Execution SHA-256 is
+`2c96db6ece94f6065c210c171518892f1d2bdfb4536d79d1a56b416ff5aad244`;
+native evidence SHA-256 is
+`a05d85b281e356925cd7d0ce491fda975132cf2f6c230e3b6214c0a64c6707a5`.
+The original first geometry sample and two subsequent observations show no
+page overflow at 320 CSS px with 200% root text. Wide tabs are clipped by their
+scrollport. This local result does not resolve the earlier hosted public
+build's horizontal overflow. All captured inputs/extensions remain unchanged;
+13 observed processes exit and the temporary directory is absent.
+
+The original v15 native baseline remains **FAILED** after 11 groups. The
+failed-save OS-close guard and named CLI save pass; a subsequent custom Close
+is refused with a pending-local-operations message. The source reaches disk
+but the window remains open. No specific pending operation has been observed
+yet, and the final two groups remain unqualified. Execution SHA-256 is
+`848a955f4b21ad346c36f7cfdc737700f3d66d12ddfbf72111689703d8610e80`;
+native evidence SHA-256 is
+`3165590d9ddbb7a34b1f1c530f2277f116df9ef1405b360b131bffcea8913a3e`.
+Captured inputs remain unchanged and cleanup completes. A passive diagnostic
+run is being prepared; no readiness or product fix is inferred. Remaining
+package/platform/live integration and paired-parity gates stay open. No
+final-product completion is claimed.
+
+## Previous v14 combined integration checkpoint — 2026-10-15
+
+The unpublished Rust/Tauri v2, HTML/CSS and Typst capture at
+`artifacts/qa-current-history-diagnostics-v14` contains 303 source files,
+15 freshly built assets and two copied binaries. Final manifest SHA-256 is
+`230b9ab1b97e3c58e8c97bde0511287286c11aed7905971c6ecae71b1026b782`;
+desktop SHA-256 is
+`7f4213683fb58157299e5d5a2d07563cbce6912e58cd1472f66a6dc39410c70f`
+and CLI SHA-256 is
+`d343134a7655a9abb8ea2640d7955d04247386a1e39f08a9693c9f7acf0a930c`.
+Actual compilation gates pass: 413 Rust tests (364 library and 49 integration),
+373 selected JavaScript tests with zero skips, formatting, architecture,
+attribution verification, strict native/review Clippy and both binary builds.
+Three named unchanged heavy History quota tests are explicitly filtered; their
+earlier full core evidence remains separate. The exact commands, filters and
+logs are retained in `artifacts/current-native-v14-qualification/progress.json`,
+SHA-256 `a8a6fae0306f0b9cf1c9aa1569799afa06bed96c939f0e558e05a62c510f3ea3`.
+
+The original v13 five-test PDF-export failure remains preserved. Its shared
+synthetic preview fixture lacked the new compiler-capture marker, correctly
+making the PDF stale. The corrected fixture and a missing-marker export-denial
+regression pass in v14 without relaxing production freshness. Local observed
+zoom now reports and accepts 999%; remote zoom commands retain their 400% cap.
+The final qualified Typst language/PDF helper files are captured from working
+bytes, including the original malformed-let recovery regression.
+
+The unchanged maintained real-Typst runner passes all 20 checks on this exact
+copied CLI with zero skips/failures and pinned Typst 0.15.1 plus DejaVu. Receipt
+`artifacts/qualification/typst-publishing-current-cohort-20261015/run-01/workspace/artifacts/reverse-engineering/typst-parity/evidence.json`
+has SHA-256 `3aff70671ab81784c20ab2ebcf6da5092c67716a636d7e9d1d6e81582ae3f929`.
+Outer execution SHA-256 is
+`2382ea5a600c5024c717ad95e6aa49fa8bc53b0dba0287fc77e1ba89ee04a66f`.
+All 303 sources, 15 assets, both binaries, nine prepared inputs and 567 guarded
+read-only dependencies remain unchanged; all 31 observed processes exit and
+private temporary storage is empty.
+
+Actual native baseline passes all 13 descriptive groups on this copied pair.
+Its separately declared passive failure-observer runner has SHA-256
+`14a84101a993e7e1c5699409ae567cb10d9265256d358cf03531175386e421c1`;
+the original 64 assertions/actions/deadlines remain unchanged. Outer receipt
+`artifacts/native-current-v14-baseline/invocation-01/execution.json` has SHA-256
+`5f84a1fc9b7fb5dce4d5f6cf70ef522862389eb8bf584ce8a0674c7cf1549150`;
+native evidence SHA-256 is
+`f1c5a471802d7617a456db14f7b284a7e70e4b4e4e57a838281ffb28363fee1f`.
+This includes real denied autosave followed by named CLI save, clean native
+buffer and durable receipt replay. All 28 observed owned processes exit and
+all input/extension guards remain exact. Stronger Rust original-session and
+journal-absence assertions remain separately scoped.
+
+Native History remains **FAILED** after four groups. Original invocation 01
+and a separately hashed passive diagnostic invocation 02 preserve the unchanged
+eight-group assertion contract. Split observations confirm that hiding History's
+PDF scroller at zero size replaces/zeros its retained canvas; editor identity
+and all three workers remain unchanged. A viewer repair requires a new cohort;
+no producer repair or assertion relaxation is inferred. Report
+`artifacts/native-current-v14-history/REPORT.md` has SHA-256
+`17ae2635ed937684b5f626ed75f808097dd328fe9c699a9235d1d156d3a223ad`.
+Native diagnostics also fails its retained-canvas assertion after one group;
+a separate passive diagnostic run confirms the same zero-size replacement
+when logs hide the preview. Provenance, Unicode offsets, guidance purity and
+exact last-good PDF bytes pass before that assertion. These failures remain
+unpassed; the viewer's five new regressions fail on the original helper and
+pass with the narrowly owned fix, pending a new matched native build. Remaining
+App/import/picker/installer checks, full paired
+Overleaf parity, source/PDF mapping, Rename/Move, live connections and other
+platforms remain separate gates. Historical v2/v3/v4 receipts below retain their
+original binary/assets scopes. Dependency-report hard temporary-write bounds
+and broader compiler sandbox/crash cleanup remain explicit resource gaps. This
+checkpoint is not final-product or installer completion.
+
+## Immutable source-epoch checkpoint — 2026-10-15
+
+The Rust/Tauri v2, HTML/CSS and Typst candidate at
+`artifacts/qa-final-source-epoch-v10` contains 266 captured sources and 15 built
+assets. Source receipt SHA-256 is
+`7429061520dc8ebac96c00f2f1a066ddb044bf30e68f5af798cf62c0b8467257`;
+desktop SHA-256 is
+`2a2bd6703d55bb9a3ae565f786ef88776f6300a576e72e079fd9b01a154d6c0d`
+and CLI SHA-256 is
+`a416eaae1709dbc22865c7f088966a2bfc0c78c8155910d1e9f3b5a5eab7c6ab`.
+The backend closure passes 237 Rust tests, including real Typst checks. The
+candidate passes 291 selected JavaScript tests, architecture, formatting,
+notices, both frontend outputs and strict all-target review/desktop Clippy.
+These selected tests include maintenance checks; they are not all frontend
+tests or a complete regression qualification.
+
+The browser epoch gate passes eight descriptive checks on the captured CLI and
+assets. It covers actual held Save-all admission, immutable session identity,
+configured-main/dependency epochs, stale no-effect refusals, dirty App Close,
+retired-page Save preservation and refusal to parse a retained PDF from another
+epoch. Evidence SHA-256 is
+`7e627aa64d5fa9c0bc3430bbe4e535c9b0bef99cc7b58074661065148a811a6e`
+at `artifacts/source-epoch-browser-v10/invocations/03-dd39c87d/evidence.json`.
+
+The actual Tauri/WebKit gate passes five descriptive checks: chapter epoch 7
+Save and main epoch 2 publication, legacy epoch 0 Save, malformed/stale native
+requests without project effects, an actual permission-denied autosave followed
+by one discovered-CLI editor commit and durable receipt replay, and stopped
+startup at main epoch 3 with the unchanged epoch 2 PDF. The latter observes the
+real source/PDF replies and zero cached-PDF decode, new worker, canvas or export
+adoption. Receipt SHA-256 is
+`8ccc402446d3cc80c76c79b77c22cc5a8cfaa7bffd9015889647562c74402045`
+at `artifacts/qualification/native-source-epoch-v10/attempt03/native-source-epoch-evidence.json`.
+Earlier fixture readiness/error-envelope failures remain preserved. All owned
+processes exited and captured sources, assets, binaries and manifest remained
+unchanged.
+
+This qualifies the finite logical-epoch scenarios on Linux. Registry fixture
+changes happen only while their service is stopped; these runs do not prove
+live Move, root replacement containment, inode lifetime, History, native picker
+or installer behavior. Raw duplicate JSON checks belong to the Rust HTTP
+boundary because native framework values have already lost duplicate fields.
+The newer expectedRoot frontend, undeclared filesystem/History helpers and
+diagnostic-completeness follow-up are outside this checkpoint. Full hosted,
+package, parity and product acceptance remain open.
+
 ## Immutable native Word count checkpoint — 2026-10-15
 
 `artifacts/qa-final-word-count-v9-sources.json` records 261 sources, 15 built
@@ -201,51 +391,6 @@ All guarded sources/dependencies remain exact and all 12 observed owned PIDs
 exit. CI additionally retains only this fixture's report/PNGs, excluding its
 cache. Hosted Chrome 151, native controls, the newer unpublished integration
 and complete installer acceptance remain separate gates.
-
-Both hosted runs at `75be58e` ([PR](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38715515566),
-[push](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38715509292))
-pass all browser gates, strict native Clippy and the desktop build, plus
-historical compatibility. The retained
-Connections report records Chrome 151.0.7922.34, all nine observations with
-zero issues, and 903 px client/scroll height for the previously failing state.
-Report SHA-256 is
-`737c0d5d2a9ec8bd78ad03f1709a8bafbf34232467eb7e6bb40348c0131957f1`.
-
-Both native lanes then stop in window-manager setup before any app session or
-Word count assertion. Their first xprop check returns null status without
-retaining the spawn error. Every public native fixture requires that program;
-the explicit CI package list omitted x11-utils. The setup now installs that
-package and checks command availability, preserving the native assertions and
-deadlines. Missing-executable ENOENT was not directly retained and remains an
-inference. Triage `artifacts/hosted-75be58e-triage/REPORT.md` has SHA-256
-`5a60c6a0758aedab0b640913df2f5f9dce865ec0b811b5f95e763b56f7d4a9a5`.
-Refreshed native/installer qualification remains pending.
-
-At `5b75573`, both hosted runs ([PR](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38718384452),
-[push](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38718375325))
-pass the xprop prerequisite, all browser gates, strict native Clippy, the desktop
-build, seven native Word count checks and thirteen baseline native UI checks.
-The historical archive build and extracted startup smoke also pass.
-
-Native publishing then passes five descriptive checks: real keyboard/source/PDF
-downloads, separate Review/App authority, explicit native root consent, exact
-MCP PDF bytes and ticket revocation. It stops on the later `pageOverflow`
-assertion at 320 px with 28 px root text. Both retained screenshots are identical
-and both frontend error lists are empty. The final dirty-buffer export and later
-installer checks do not run. The original failure does not retain document
-dimensions, so its overflow axis and possible resize/readiness contribution
-remain unclassified. Triage report
-`artifacts/hosted-5b75573-triage/REPORT.md` has SHA-256
-`6c316f66b3190a8f997bb809d0f2fb61a870ee7deca9f5113fe968a4055cb2ab`.
-
-The native publishing fixture now records geometry before its unchanged
-assertions, including document/body scroll sizes, dialog/root rectangles and
-measurement state. All 55 assertions, six groups, actions, deadlines and waits
-remain unchanged. Module and all embedded scripts pass syntax checks; this
-observability change has no native rerun or layout-fix claim. Public runner
-SHA-256 is `bcc2dd3916887fccbe39c324f3f7317fc71c88b0e7e86ddecdc66a681593f30a`;
-the two-copy handoff has SHA-256
-`67ea47f71df114c71d2d9a834a34ba8b822b7412909bf762a43def6fed0d39f2`.
 
 ## Immutable integrity and unsigned Linux package checkpoint — 2026-10-15
 

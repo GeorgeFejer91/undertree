@@ -1,4 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { sourceRoot } from './review-session.js';
+import { unwrapNativeCompile } from './compile-report.js';
 
 const native = isTauri();
 let token = '';
@@ -10,7 +12,13 @@ if (!native) {
 }
 
 export async function reviewRequest(operation) {
-  if (native) return invoke('review_action', { operation });
+  if (Object.hasOwn(operation, 'expectedRoot')) operation = { ...operation, expectedRoot: sourceRoot(operation) };
+  if (native && operation.action === 'compile') {
+    operation = Object.freeze({ ...operation, expectedRoot: sourceRoot({ expectedRoot: operation.expectedRoot }) });
+    const result = await invoke('review_action', { operation, ownerId: await editorOwnerId(), compileDiagnosticsVersion: 1 });
+    return unwrapNativeCompile(result, operation);
+  }
+  if (native) return invoke('review_action', { operation, ownerId: await editorOwnerId() });
   const response = await fetch('/api/review', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(operation) });
   const value = await response.json().catch(() => null);
   if (!response.ok || !value?.ok) throw value?.error || { message: 'The native review service is unavailable.' };
@@ -18,7 +26,7 @@ export async function reviewRequest(operation) {
 }
 
 let editorOwner;
-async function editorOwnerId() {
+export async function editorOwnerId() {
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
   if (!editorOwner) editorOwner = (native ? invoke('editor_connect') : fetch('/api/editor/connect', { method: 'POST', headers }).then(editorResult))
     .then(result => {
@@ -26,6 +34,11 @@ async function editorOwnerId() {
       return result.ownerId;
     }).catch(error => { editorOwner = null; throw error; });
   return editorOwner;
+}
+export async function historyRequest(query) {
+  if (!native) throw { code: 'desktop_required', message: 'Saved History requires the UnderTree desktop app.' };
+  const ownerId = await editorOwnerId();
+  return invoke('history_query', { ownerId, query });
 }
 export async function editorRequest(operation) {
   const ownerId = await editorOwnerId();
@@ -39,20 +52,22 @@ export async function controlRequest(operation) {
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'X-UnderTree-Editor': ownerId };
   return editorResult(await fetch('/api/control', { method: 'POST', headers, body: JSON.stringify(operation) }));
 }
-export async function chooseImportFiles(project, parent) {
+export async function chooseImportFiles(project, parent, expectedRoot) {
   if (!native) throw { code: 'desktop_required', message: 'File import requires the UnderTree desktop app.' };
+  expectedRoot = sourceRoot({ expectedRoot });
   const ownerId = await editorOwnerId();
-  return invoke('choose_import_files', { ownerId, project, parent });
+  return invoke('choose_import_files', { ownerId, project, parent, expectedRoot });
 }
 export async function importRequest(operation) {
   if (!native) throw { code: 'desktop_required', message: 'File import requires the UnderTree desktop app.' };
   const ownerId = await editorOwnerId();
   return invoke('import_operation', { ownerId, operation });
 }
-export async function prepareProjectExport(project) {
+export async function prepareProjectExport(project, expectedRoot) {
   if (!native) throw { code: 'desktop_required', message: 'Project download requires the UnderTree desktop app.' };
+  expectedRoot = sourceRoot({ expectedRoot });
   const ownerId = await editorOwnerId();
-  return invoke('prepare_project_export', { ownerId, project });
+  return invoke('prepare_project_export', { ownerId, project, expectedRoot });
 }
 export async function chooseProjectExportDestination(exportId, requestId) {
   if (!native) throw { code: 'desktop_required', message: 'Project download requires the UnderTree desktop app.' };

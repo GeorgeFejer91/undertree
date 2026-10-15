@@ -8,16 +8,31 @@ use undertree_review::service::app_control::ControlOperation;
 use undertree_review::service::editor::EditorOperation;
 use undertree_review::service::file_import::ImportOperation;
 use undertree_review::service::project_export::ExportOperation;
-use undertree_review::service::Service;
+use undertree_review::service::{HistoryQuery, HistoryReply, Service};
 use undertree_review::word_count_native::{WordCountReply, WordCountRequest, WordCountWorker};
-use undertree_review::{Error, Operation};
+use undertree_review::{Error, Operation, RootObservation, SourceRequest};
 
 #[tauri::command]
 async fn review_action(
+    window: tauri::WebviewWindow,
+    owner_id: String,
     state: tauri::State<'_, Arc<Service>>,
-    operation: Operation,
+    operation: SourceRequest,
+    compile_diagnostics_version: Option<u8>,
 ) -> std::result::Result<serde_json::Value, Error> {
-    state.inner().dispatch(operation).await
+    if let Some(version) = compile_diagnostics_version {
+        if version != 1 {
+            return Err(Error::new("format", "Use compiler diagnostics version 1."));
+        }
+        return state
+            .inner()
+            .compile_typst_native_report(window.label(), &owner_id, operation)
+            .await;
+    }
+    state
+        .inner()
+        .dispatch_native_source(window.label(), &owner_id, operation)
+        .await
 }
 
 #[tauri::command]
@@ -28,6 +43,19 @@ async fn word_count_typst_text(
     request: WordCountRequest,
 ) -> std::result::Result<WordCountReply, Error> {
     worker.analyze(state.inner(), window.label(), request).await
+}
+
+#[tauri::command]
+async fn history_query(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, Arc<Service>>,
+    owner_id: String,
+    query: HistoryQuery,
+) -> std::result::Result<HistoryReply, Error> {
+    state
+        .inner()
+        .history_query_native(window.label(), &owner_id, query)
+        .await
 }
 
 #[tauri::command]
@@ -57,10 +85,10 @@ async fn editor_operation(
             "Editor coordination requires the local UnderTree window.",
         ));
     }
-    let owner = state
+    state
         .inner()
-        .native_editor_owner(window.label(), &owner_id)?;
-    state.inner().editor(&owner, operation).await
+        .editor_native(window.label(), &owner_id, operation)
+        .await
 }
 
 #[tauri::command]
@@ -145,6 +173,7 @@ async fn choose_import_files(
     owner_id: String,
     project: String,
     parent: String,
+    expected_root: RootObservation,
 ) -> std::result::Result<serde_json::Value, Error> {
     if window.label() != "main" {
         return Err(Error::new(
@@ -156,9 +185,15 @@ async fn choose_import_files(
         .inner()
         .native_editor_owner(window.label(), &owner_id)?;
     let service = state.inner().clone();
-    let import_owner = owner.clone();
+    let window_label = window.label().to_owned();
     let selection = tauri::async_runtime::spawn_blocking(move || {
-        service.begin_native_import(&import_owner, &project, &parent)
+        service.begin_native_import_rooted(
+            &window_label,
+            &owner_id,
+            &project,
+            &parent,
+            expected_root,
+        )
     })
     .await
     .map_err(|_| Error::new("import", "The import destination check stopped."))??;
@@ -221,6 +256,7 @@ async fn prepare_project_export(
     state: tauri::State<'_, Arc<Service>>,
     owner_id: String,
     project: String,
+    expected_root: RootObservation,
 ) -> std::result::Result<serde_json::Value, Error> {
     if window.label() != "main" {
         return Err(Error::new(
@@ -228,12 +264,9 @@ async fn prepare_project_export(
             "Project export requires the local UnderTree window.",
         ));
     }
-    let owner = state
-        .inner()
-        .native_editor_owner(window.label(), &owner_id)?;
     state
         .inner()
-        .prepare_native_project_export(&owner, &project)
+        .prepare_native_project_export_rooted(window.label(), &owner_id, &project, expected_root)
         .await
 }
 
@@ -365,6 +398,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             review_action,
             word_count_typst_text,
+            history_query,
             editor_connect,
             editor_operation,
             control_operation,

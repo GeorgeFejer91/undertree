@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { ReviewSession } from '../modules/frontend/review-session.js';
+import { ReviewSession, sourceEpoch, sourceRootsEqual, captureSourceBinding, assertSourceBinding, localNoSaveClose } from '../modules/frontend/review-session.js';
 import { EditorSessionBridge } from '../modules/frontend/editor-session-bridge.js';
 import { captureControlState, assertControlState } from '../modules/frontend/manuscript-control-state.js';
 import { publicationPreviewCurrent } from '../modules/frontend/manuscript-workspace.js';
@@ -128,7 +128,7 @@ test('editor bridge advertises the policy block and cannot commit a clean regist
 
 test('policy changes invalidate held App captures and keep publication stale without changing source', () => {
   const session = new ReviewSession(snapshot('saved'), 'project', async () => {});
-  const context = { sessions: [session], active: session, navigation: 1, requestsVersion: 0, pending: 0, composing: false, closing: false };
+  const context = { sourceEpoch, sourceRootsEqual, captureSourceBinding, assertSourceBinding, localNoSaveClose, sessions: [session], active: session, navigation: 1, requestsVersion: 0, pending: 0, composing: false, closing: false };
   const captured = captureControlState(context); session.recordReviewProblem(problem());
   assert.throws(() => assertControlState(captured, context), error => error.code === 'stale');
   assert.throws(() => assertControlState(captureControlState(context), context, { clean: true }), error => error.code === 'busy');
@@ -153,7 +153,7 @@ test('actual explicit retry also keeps a late busy-journal error off a different
   const callback = manuscript.match(/\$\('review-refresh'\)\.onclick = task\((async \(\) => \{[\s\S]*?\n\})\);/)?.[1]; assert.ok(callback);
   for (const switched of [false, true]) {
     const gate = deferred(), session = { reviewProblem: problem('recovery_conflict'), refresh: async () => { await gate.promise; throw { code: 'busy', message: 'A pending native journal remains.' }; } };
-    const context = { active: session };
+    const context = { sourceEpoch, sourceRootsEqual, captureSourceBinding, assertSourceBinding, localNoSaveClose, active: session };
     const checking = runInNewContext(`(${callback})`, context)();
     if (switched) context.active = {};
     gate.resolve();
@@ -166,7 +166,7 @@ test('actual Share-off callback sends only restrictive native Share and preserve
   for (const result of ['confirmed', 'failed']) {
     const operations = [], session = new ReviewSession(snapshot('saved'), 'project', async () => { throw Error('No Save'); });
     session.edit('draft'); session.recordReviewProblem(problem()); const blocked = session.reviewProblem;
-    const context = { active: session, sharingSession: null, $: () => ({ checked: false }), sessions: new Map([['project:main.html', session]]), keyFor: (project, path) => `${project}:${path}`,
+    const context = { sourceEpoch, sourceRootsEqual, captureSourceBinding, assertSourceBinding, localNoSaveClose, active: session, sharingSession: null, $: () => ({ checked: false }), sessions: new Map([['project:main.html', session]]), keyFor: (project, path) => `${project}:${path}`,
       saveSession: () => { throw Error('Revoke must not save'); }, request: async operation => { operations.push(operation); if (result === 'failed') throw { code: 'busy' }; return { documentId: 'doc', shared: false }; }, connections: { refresh: async () => {} }, renderReview() {} };
     const submit = runInNewContext(`(${callback})`, context);
     if (result === 'failed') await assert.rejects(submit()); else await submit();
@@ -180,7 +180,7 @@ test('actual native-confirmed revoke invalidates a held successful policy retry'
   const gate = deferred(), session = new ReviewSession(snapshot('saved'), 'project', async () => { await gate.promise; return snapshot('saved'); });
   session.recordReviewProblem(problem()); const blocked = session.reviewProblem;
   const checking = session.refresh({ retryProblem: true });
-  const context = { active: session, sharingSession: null, $: () => ({ checked: false }), sessions: new Map([['project:main.html', session]]), keyFor: (project, path) => `${project}:${path}`,
+  const context = { sourceEpoch, sourceRootsEqual, captureSourceBinding, assertSourceBinding, localNoSaveClose, active: session, sharingSession: null, $: () => ({ checked: false }), sessions: new Map([['project:main.html', session]]), keyFor: (project, path) => `${project}:${path}`,
     saveSession() { throw Error('Revoke must not save'); }, request: async () => ({ documentId: 'doc', shared: false }), connections: { refresh: async () => {} }, renderReview() {} };
   await runInNewContext(`(${callback})`, context)();
   gate.resolve(); assert.equal(await checking, false);
@@ -191,7 +191,7 @@ test('actual local Close skips a clean policy-blocked source but refuses dirty o
   const configuration = manuscript.match(/windowChrome = await setupWindowChrome\((\{[\s\S]*?\n\})\);/)?.[1]; assert.ok(configuration);
   const session = new ReviewSession(snapshot('saved'), 'project', async () => { throw Error('No native write'); }); session.recordReviewProblem(problem());
   let pending = 0, saves = 0;
-  const context = { sessions: new Map([['file', session]]), status() {}, setWindowClosing() {}, controlContext: () => ({ pending }), saveSession: value => { saves += 1; return value.flush(); } };
+  const context = { sourceEpoch, sourceRootsEqual, captureSourceBinding, assertSourceBinding, localNoSaveClose, sessions: new Map([['file', session]]), status() {}, setWindowClosing() {}, controlContext: () => ({ pending }), saveSession: value => { saves += 1; return value.flush(); } };
   const chrome = runInNewContext(`(${configuration})`, context);
   assert.equal(chrome.canClose(), true); await chrome.beforeClose(); assert.equal(saves, 0);
   session.edit('draft'); assert.equal(chrome.canClose(), false); await assert.rejects(chrome.beforeClose(), error => error.code === 'policy_missing');
