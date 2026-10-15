@@ -83,6 +83,25 @@ test('fit width reports normalized zoom and reciprocal steps keep the same fitte
   assert.equal(pages.querySelectorAll('canvas')[0].style.width, '800px');
 });
 
+test('fractional and nonfinite page jumps retain integer navigation state and painted target pages', async t => {
+  const { viewer, pages, changes, scroller } = viewerFixture(t);
+  await viewer.setDocument(pdfFixture(10));
+  for (const [input, expected] of [[2.5, 2], ['3.75', 3], [9.9, 9], [Infinity, 1], [-Infinity, 1], [NaN, 1], ['invalid', 1], [-2.5, 1], [999.9, 10]]) {
+    viewer.go(input);
+    assert.equal(viewer.page, expected);
+    assert.equal(viewer.targetPage, expected, 'the pending render target is an actual document page');
+    await viewer.render();
+    assert.equal(changes.at(-1).page, expected, 'toolbar updates receive an integer page');
+    const target = pages.children.find(node => node.dataset.page === String(expected));
+    assert.ok(target?.querySelectorAll('canvas').some(canvas => canvas.width > 0 && canvas.height > 0), 'the normalized target is painted');
+    assert.ok(Number.isFinite(scroller.scrollTop));
+  }
+  viewer.go(2.9);
+  viewer.go(viewer.page + 1);
+  await viewer.render();
+  assert.equal(changes.at(-1).page, 3, 'Next after a fractional page request advances from its normalized integer');
+});
+
 test('high zoom and long PDF navigation retain a small window within nine million pixels', async t => {
   const { viewer, pages, changes, scroller } = viewerFixture(t);
   await viewer.setDocument(pdfFixture(5000));

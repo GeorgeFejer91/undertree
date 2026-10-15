@@ -3,13 +3,12 @@
   "version": "0.2.2",
   "private": true,
   "type": "module",
-  "description": "UnderTree, an offline Overleaf-style desktop workspace for local TeX projects",
+  "description": "UnderTree, an offline Rust/Tauri manuscript workspace with HTML/CSS and Typst",
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/GeorgeFejer91/undertree_texstudio.git"
   },
-  "main": "native/windows/main.cjs",
   "bin": {
     "undertree": "cli.mjs"
   },
@@ -18,11 +17,12 @@
   },
   "scripts": {
     "build": "vite build",
-    "build:windows": "npm run build && electron-builder --win nsis",
     "layout:example": "node layout/compiler.mjs examples/adaptive-boxes.layout.xml",
     "start": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
     "verify:architecture": "node modules/maintenance/validate-architecture.mjs",
+    "generate:notices": "node modules/maintenance/generate-notices.mjs",
+    "verify:notices": "node modules/maintenance/generate-notices.mjs --check",
     "test:ui": "node tests/ui-smoke.mjs",
     "test:pdf-controls": "node tests/pdf-controls-smoke.mjs",
     "render:pdf-preview": "npm run build && node scripts/render-pdf-preview.mjs",
@@ -31,13 +31,30 @@
     "desktop": "npm run build && cargo run -p undertree-desktop --features custom-protocol",
     "test:review": "node --test tests/review-session.test.mjs tests/review-position.test.mjs tests/source-format.test.mjs && cargo test -p undertree-review",
     "test:review-ui": "node tests/review-ui-smoke.mjs",
+    "test:review-selection": "node tests/review-selection-smoke.mjs",
+    "test:review-policy": "node tests/review-policy-smoke.mjs",
+    "test:html-editor": "node tests/html-editor-smoke.mjs",
     "test:review-buffers": "node tests/review-buffer-limit-smoke.mjs",
     "test:typst-authoring": "node tests/typst-authoring-smoke.mjs",
+    "test:typst-publishing": "node tests/typst-publishing-smoke.mjs",
     "test:connections-ui": "node tests/connections-ui-smoke.mjs",
     "test:native-ui": "node tests/native-ui-smoke.mjs",
+    "test:native-publishing": "node tests/native-publishing-smoke.mjs",
+    "test:native-import": "node tests/native-import-smoke.mjs",
+    "test:native-project-export": "node tests/native-project-export-smoke.mjs",
+    "test:native-project-export-epoch": "node tests/native-project-export-epoch-smoke.mjs",
     "test:live-github": "node tests/live-github-sync.mjs",
     "test:review-text-layout": "node tests/review-text-layout-smoke.mjs",
-    "build:native": "npm run build && cargo build -p undertree-desktop --release --features custom-protocol"
+    "build:native": "npm run build && cargo build -p undertree-desktop --release --features custom-protocol",
+    "build:installer:linux": "bash scripts/build-native-release.sh",
+    "test:installer:linux": "node modules/maintenance/verify-native-package.mjs",
+    "test:editor-save": "node tests/editor-save-smoke.mjs",
+    "test:workspace-layout": "node tests/workspace-layout-smoke.mjs",
+    "test:editor-settings": "node tests/editor-settings-smoke.mjs",
+    "test:project-tree": "node tests/project-tree-smoke.mjs",
+    "test:pdf-export-consent": "node tests/pdf-export-consent-smoke.mjs",
+    "test:pdf-export": "node tests/pdf-export-smoke.mjs",
+    "test:mcp-app-controls": "node tests/mcp-app-controls-smoke.mjs"
   },
   "dependencies": {
     "@chenglou/pretext": "0.0.8",
@@ -46,69 +63,15 @@
     "@codemirror/language": "^6.11.3",
     "@codemirror/legacy-modes": "^6.5.3",
     "@openai/codex-sdk": "0.147.0",
-    "@tauri-apps/api": "2.10.1",
-    "@tiptap/core": "^3.30.0",
-    "@tiptap/extension-color": "^3.30.0",
-    "@tiptap/extension-link": "^3.30.0",
-    "@tiptap/extension-text-align": "^3.30.0",
-    "@tiptap/extension-text-style": "^3.30.0",
-    "@tiptap/extension-underline": "^3.30.0",
-    "@tiptap/starter-kit": "^3.30.0",
+    "@tauri-apps/api": "2.12.4",
     "codemirror": "^6.0.2",
     "fast-xml-parser": "^5.10.1",
     "parse5": "^8.0.1",
     "pdfjs-dist": "6.2.108"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "2.10.0",
-    "electron": "^37.2.6",
-    "electron-builder": "^26.0.12",
+    "@tauri-apps/cli": "2.12.3",
     "playwright-core": "^1.62.1",
     "vite": "^8.2.1"
-  },
-  "build": {
-    "appId": "io.github.georgefejer91.UnderTree",
-    "productName": "UnderTree",
-    "artifactName": "UnderTree-${version}-Windows-${arch}.${ext}",
-    "directories": {
-      "output": "release/windows"
-    },
-    "files": [
-      "dist/**/*",
-      "layout/**/*",
-      "src/**/*.js",
-      "src/**/*.mjs",
-      "native/windows/**/*",
-      "native/html_print_renderer.py",
-      "server.mjs",
-      "modules/compiler/**/*.mjs",
-      "cli.mjs",
-      "package.json",
-      "node_modules/**/*",
-      "!node_modules/@codemirror/**/*",
-      "!node_modules/@napi-rs/**/*",
-      "!node_modules/@openai/**/*",
-      "!node_modules/@tiptap/**/*",
-      "!node_modules/codemirror/**/*",
-      "!node_modules/pdfjs-dist/**/*"
-    ],
-    "extraFiles": [
-      {
-        "from": "native/windows/undertree.cmd",
-        "to": "undertree.cmd"
-      }
-    ],
-    "win": {
-      "target": [
-        "nsis"
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "include": "native/windows/installer.nsh"
-    }
   }
 }

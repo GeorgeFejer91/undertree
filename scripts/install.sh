@@ -13,12 +13,12 @@ bin_dir="${XDG_BIN_HOME:-$HOME/.local/bin}"
 legacy_desktop="$applications_dir/texstudio-overleaf.desktop"
 
 if [[ -z "$node_executable" ]]; then
-  echo "UnderTree requires Node.js 20 or newer." >&2
+  echo "UnderTree requires Node.js 22.13 or newer." >&2
   exit 1
 fi
-node_major="$($node_executable -p 'Number(process.versions.node.split(".")[0])')"
-if (( node_major < 20 )); then
-  echo "UnderTree requires Node.js 20 or newer; found $($node_executable --version)." >&2
+node_supported="$("$node_executable" -p 'const [major, minor] = process.versions.node.split(".").map(Number); major > 22 || (major === 22 && minor >= 13)')"
+if [[ "$node_supported" != true ]]; then
+  echo "UnderTree requires Node.js 22.13 or newer; found $("$node_executable" --version)." >&2
   exit 1
 fi
 if [[ ! -f "$app_root/dist/index.html" ]]; then

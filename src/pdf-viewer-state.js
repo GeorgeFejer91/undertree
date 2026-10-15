@@ -3,9 +3,11 @@ export const PDF_MAX_SCALE = 9.99;
 export const PDF_MAX_RENDER_PIXELS = 10_000_000;
 
 export function clampPdfPage(currentPage, delta, totalPages) {
-  const total = Math.max(1, Number(totalPages) || 1);
-  const current = Math.max(1, Math.min(total, Number(currentPage) || 1));
-  return Math.max(1, Math.min(total, current + Number(delta || 0)));
+  const parsedTotal = Number(totalPages), parsedPage = Number(currentPage), parsedDelta = Number(delta);
+  const total = Number.isFinite(parsedTotal) ? Math.max(1, Math.trunc(parsedTotal)) : 1;
+  const current = Math.max(1, Math.min(total, Number.isFinite(parsedPage) ? Math.trunc(parsedPage) : 1));
+  const step = Number.isFinite(parsedDelta) ? Math.trunc(parsedDelta) : 0;
+  return Math.max(1, Math.min(total, current + step));
 }
 
 export function nextPdfScale(explicitScale, currentScale, factor) {

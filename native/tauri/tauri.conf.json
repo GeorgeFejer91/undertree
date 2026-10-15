@@ -16,5 +16,5 @@
       "capabilities": ["main"]
     }
   },
-  "bundle": {"active":true,"targets":["deb","appimage","nsis"],"icon":["icons/icon.png"]}
+  "bundle": {"active":true,"targets":["deb","appimage","nsis"],"icon":["icons/icon.png","icons/icon.ico","icons/icon.icns"]}
 }

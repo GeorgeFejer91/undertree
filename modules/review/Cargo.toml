@@ -1,4 +1,5 @@
 [package]
+publish = false
 name = "undertree-review"
 version.workspace = true
 edition.workspace = true
@@ -17,3 +18,7 @@ tower-http = { version = "0.6", features = ["fs", "limit"] }
 subtle = "2"
 typst-syntax = "=0.15.1"
 base64 = "0.22"
+cap-std = "=4.0.3"
+cap-fs-ext = "=4.0.3"
+futures-core = "0.3"
+zip = { version = "=9.0.3", default-features = false }

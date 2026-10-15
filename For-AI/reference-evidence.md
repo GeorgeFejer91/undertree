@@ -2,17 +2,159 @@
 
 Evidence ledger for the 2026-10-14 Rust/Tauri/Typst migration. This is authored orchestration context, not a runtime input. Source inspection establishes source behavior; only an exercised path establishes integration behavior.
 
+## Native tree and acknowledged App controls, 2026-10-15
+
+The next immutable snapshot, `artifacts/qa-final-tree-v3/`, contains 205 source
+files and 13 frontend assets. Its inventory receipt SHA-256 is
+`cf1d2cbd07baccc880fd0ac2ebf2c0594e130c991da29b2b21bd89948b56a641`.
+Desktop SHA-256 is
+`808436aa2667b2d68753448a6c9c7beacdc0ef3eeb5d9fcc758f8f915b9f5085`;
+service/CLI SHA-256 is
+`26fe7e9539f6cd5a0fb1b8b1b92c641f374d19e64cf4e37524c9c4d7ff1c7cd4`.
+The matching backend passed 113 Rust tests with real Typst and strict Clippy;
+the copy passed architecture validation and 148 focused frontend tests.
+
+Actual native checks passed: 13 editor/CLI/window checks, the five-case App
+baseline and a controlled pending read across Restore. The latter held a real
+Review response across final native checks and acknowledgement, with an applied
+receipt, X11 Normal state and unchanged source/policy bytes. Local Review is now
+genuinely read-only and refuses pending journals; explicit local Open retains
+recovery. Harmless reads no longer veto presentation effects, while pending
+Open/writes and editor revision/generation/navigation/queue/IME guards remain.
+
+Two additional real native Close cases passed. Holding the actual successful
+completion reply kept the window alive without saving; releasing it closed the
+window, revoked the local authority and removed discovery. Revoking the App
+grant before releasing completion produced an actual native `scope` error,
+kept the editor usable and preserved its normal OS-close save guard. Receipts
+are under the copied snapshot's `artifacts/native-{ui,app-controls,safe-read,close-clean-v2,close-revoke-typed}`
+locations; `native-ui-evidence.json` is directly under `artifacts/`.
+
+The tree browser gate passed six real-service scenarios: nested sources, empty
+folders, binary assets, bounded/non-Unicode inventory notices, dirty-buffer
+creation/refresh with undo preserved and no save, IME/missing-parent refusal,
+stale inventories, canceled late creation/project switching, reload and actual
+Pretext at 1100×480 and 320×900 with 200% text. Passing artifact runner SHA-256
+is `f17afb1a6e4093cfb67c1f101665743bd9473ad8f061529c405ef9b0191d83df`;
+`artifacts/project-tree-smoke.json` has SHA-256
+`9dbc681aa71bf54d726e9177d9bc1629fa3124d2297ed16a3dfdc0676261d5a7`.
+Its cleanup used visible File → Save after the original uppercase shortcut
+failed. A separate actual-key probe proved `Control+S` emitted `key:"S"` and
+no save, while `Control+s` saved. The subsequent case-normalization fix and its
+regressions are outside this runtime and need a fresh build.
+
+The stronger App browser gate also passed actual private-to-shared Open,
+non-BMP UTF-16 selection, font/wrap/panes, painted three-page PDF navigation,
+zoom/fit, unshared-main PDF redaction, old-job/capability revocation and an
+inactive dirty private buffer blocking Open/Compile/Close with zero source
+Save or editor-commit attempts. Source and policy bytes stayed unchanged.
+Runner SHA-256 is
+`1b89d2f4688f86daf0541b0cd0b9fce3acde2533189941f32a59d2015f520ece`;
+structured receipt `artifacts/coordination/mcp-v3-browser-evidence.json` has
+SHA-256 `6fe5ac203993b3b21c8b443a9d1f01266fbbb8113051beb19bd5410e81af2425`.
+Earlier computed-wrapping and post-regrant busy failures remain recorded; the
+successful run used local settling without replaying uncertain commands.
+
+An unsigned Linux installer checkpoint is being rebuilt from a separate copy
+of these inputs, with the shortcut limitation recorded. New PDF-export
+permission/download work, general file import, rename/deletion, project export, live
+ChatGPT/zrok, other platforms and full rendered Overleaf parity are not proved
+by this snapshot. All remote transport tests here simulate the zrok child.
+
+## Combined native editor/App snapshot, 2026-10-15
+
+The immutable `artifacts/qa-final-app-v2/` capture contains 201 authored source
+files, 13 built frontend assets and both root-built Rust debug executables. Its
+inventory receipt SHA-256 is
+`3e6e881a7bd3e1b6e5877f0b7dfc40ade53ab5454fa035f1ae17c8df34e08f76`.
+Desktop SHA-256 is
+`ae8d56ea1f31cfc8ed0f51e317880746e036a072d77bc103298ca031d51eba13`;
+service/CLI SHA-256 is
+`2ecdc6eca213d15a07c7aa3379562f0f333cfcf7ec990d59ed8ab62a1827a928`.
+The source guard refused the first capture after concurrent documentation/test
+changes. A refreshed fingerprint, successful warm build and unchanged-input
+guard preceded this private copy. Shared installed dependencies remained frozen.
+
+Architecture validation and 145 focused frontend tests passed on that copy.
+Its actual Linux Tauri gate passed 13 checks, including the named CLI saving a
+dirty registered native editor after a real denied autosave, durable replay,
+retired-page/raw-save/anonymous denial and shutdown revocation. Receipt:
+`artifacts/qa-final-app-v2/artifacts/native-ui/native-ui-evidence.json`, SHA-256
+`3851597c0f30e8e72c4417111d4afaacfb9500ce0b80e4b10bdf415ef1860977`.
+
+The real local MCP App browser gate and existing Connections gate passed
+against the copied service/assets. App checks cover a separate explicit grant,
+the unchanged three-tool Review catalogue, acknowledged presentation/selection
+actions, saved Typst compilation, source/policy byte preservation, private-ID
+filtering, dirty-buffer no-autosave denial and independent revocation. The App
+artifact runner SHA-256 is
+`668cbd82ebf2f2df5f6e56e7dbc523b22ad25eb1e2a3982e175b2a8f20941a44`;
+logs are `artifacts/coordination/mcp-app-controls-v2-diagnostic.log` and
+`connections-ui-v2.log`. Earlier attempts remain recorded: the original fixture
+incorrectly assumed read-only Open created a policy sidecar; a policy-seeded
+attempt encountered an explicit busy rejection. The successful runner seeded
+policy through local setup and used bounded, gentler receipt polling. It did
+not replay uncertain commands. The corrected checked-in baseline runner has
+SHA-256 `f7fd410d6f42958c4557b516a971687de118bd6e3fc153ed9ada508833d9fae2`;
+later stronger assertions need their own execution evidence.
+
+Native App qualification remains incomplete: native view/minimize/restore/focus
+were exercised, but a native action can be rejected after affecting the window
+when background reading overlaps its acknowledgement. A focused native probe
+recorded `busy` after X11 already showed the window minimized; it did not reach
+its intended Restore overlap case. A later native attempt also exposed a fixture
+race with the ordinary delayed automatic build's own save retry after permission
+restoration. These are separately diagnosed; neither is hidden by the browser
+pass. The pending read-only Review/guard fix and new native file-tree work are
+outside this captured runtime. Inactive dirty-buffer, retained unshared-main PDF,
+actual rendered effects and clean/lost-ack native Close coverage are being
+strengthened. zrok is simulated in these gates; live ChatGPT/public routing,
+installer refresh, other platforms and complete rendered Overleaf parity remain
+unqualified.
+
+## Delivery orchestration reference
+
+On 2026-10-15 the user requested a final-product delivery goal and continuous
+specialist delegation using ChatDev 2.0. The official
+[OpenBMB/ChatDev tree at `4fb2db0`](https://github.com/OpenBMB/ChatDev/tree/4fb2db0ea90375ce1059f44fe03ffbd191a7a169)
+was downloaded to ignored `artifacts/chatdev/upstream/`. The unchanged
+`yaml_instance/ChatDev_v1.yaml` has SHA-256
+`fad693b89f06e0f4e075c98b14d81988c19a547593e1a93ae95b758ac58f13c1`;
+the inspected `docs/user_guide/en/workflow_authoring.md` has SHA-256
+`ece91774b1cfbaacb0f21ecb4dd32c6dbd57568a58737c96800a292527a4c9a5`.
+The software graph contains planning, implementation, review, testing and
+documentation loops. [The delivery workflow](workflows.md#chatdev-20-delivery-orchestration)
+adapts those responsibilities to the live Codex orchestrator and specialists;
+the separate DevAll server/model runtime was not executed or installed into
+UnderTree.
+
+The user's Respy 2.0 reference was resolved to the public
+[Respyra 2.0 tree at `78505d1`](https://github.com/GeorgeFejer91/respyra-2.0/tree/78505d11acd174c2310ea8b0e069c6df03536026).
+No ChatDev workflow or mention was found in that downloaded tree. Its
+`for-ai/WORKFLOW.md` was inspected, but the exact earlier ChatDev configuration
+is unverified; do not claim an identical saved workflow was reused.
+
 ## Public-source references
 
 Overleaf's public tree was retrieved at commit `e039ad26c5bf5422eb57b89fc7e57c75055e631d` (the tree inventory reported `truncated: false`). Initial inspection read the focused source files below and the license; the later rendered reference used the complete pinned source tree without claiming a complete audit. The retrieved license is GNU AGPL v3. UnderTree independently implements the observed concepts and copies no Overleaf source or assets into its product.
 
-| Observation | Source at the inspected commit | UnderTree mapping and boundary |
+The commit and complete tree inventory were independently rechecked during the user's requested one-to-one color/layout comparison. The focused styles and layout sources below were read and cached outside the repository; this extends the earlier review inspection without establishing upstream runtime/pixel equivalence.
+
+### One-to-one color and layout source comparison
+
+| Surface | Immutable upstream source observation | UnderTree mapping |
 | --- | --- | --- |
-| Review cards show additions/deletions or paired replacements and offer permission-dependent accept/reject actions. | [review-panel-change.tsx](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/review-panel/components/review-panel-change.tsx) | Original proposal cards beside the editor; Rust alone applies a locally accepted replacement. Overleaf's operational-transform model is not adopted. |
-| Review UI selects current-file or overview subviews. | [review-panel.tsx](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/review-panel/components/review-panel.tsx) | A focused current-manuscript sidebar. A project-wide review overview is not qualified. |
-| Selected-source ranges determine which tracked changes are accepted/rejected. | [use-tracked-changes-actions.ts](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/review-panel/hooks/use-tracked-changes-actions.ts) | UTF-16 source selections, quoted anchors and explicit card decisions. UnderTree validates the revision and policy at each acceptance. |
-| Review entries are sorted by source position and positioned around the focused entry while avoiding card collisions. | [position-items.ts](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/review-panel/utils/position-items.ts) | Source-linked review cards are the target; exact Overleaf card geometry and collision behavior have not been reproduced or qualified. |
-| Editing/review/view mode availability follows permissions and track-change capabilities. | [review-mode-options.tsx](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/ide-react/components/toolbar/review-mode-options.tsx) | Local author and remote reviewer have separate authorities. Remote agents always submit suggestions; there is no remote direct-edit mode. |
+| Palette | [Foundation colors](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/stylesheets/foundations/colors.scss#L12): chrome `#1b222c`, toolbar `#2f3a4c`, divider `#495365`, muted `#677283`, secondary `#afb5c0`, light `#f4f5f6`; green action/hover/selected `#098842` / `#1e6b41` / `#195936`. | The previous `src/styles.css` foundation matches these values exactly. Use these tokens in the active manuscript shell. |
+| Project bar | [Toolbar geometry](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/stylesheets/pages/editor/toolbar-redesign.scss#L25): 40 px bar, 32 px home control, 24 px mark, 28 px menus; project title between menus and right actions. | The legacy topbar is already 40 px; restore its compact dark hierarchy within the custom native frame. |
+| Rail | [Rail styles](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/stylesheets/pages/editor/rail.scss#L61): 40 px rail, 32 px buttons and 4 px gaps. | Preserve rail geometry and independently drawn SVGs with separate centered slots. |
+| Workspace proportions | [Main layout](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/ide-react/components/layout/main-layout.tsx#L47) and [rail panel](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/ide-react/components/rail/rail-panel.tsx#L37): rail/sidebar followed by editor/PDF group, initially 50:50; sidebar starts at 15% and supports collapse. | Use the familiar file/editor/preview arrangement. Legacy 292 px sidebar/47% source are approximations; stored pane sizes/configuration affect the comparison. |
+| Review default | [Rail defaults](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/ide-react/context/rail-context.tsx#L60) and [review rail gate](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/ide-react/components/rail/rail.tsx#L125): Files initially selected; Review availability follows a feature flag and replaces Files when selected. | No permanent extra review column in the default workspace. Exact Files/Review alternation and deployment feature availability need explicit qualification. |
+| Splitters | [Resize styles](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/stylesheets/pages/editor/ide.scss#L233): 7 px side-by-side resize handles, 6 px vertically stacked handles. | The legacy horizontal-layout handle is 6 px; record or correct that difference rather than calling it exact. Preserve keyboard resizing. |
+| Tree and tabs | [File tree](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/stylesheets/pages/editor/file-tree.scss#L1) and [tabs](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/stylesheets/pages/editor/tabs.scss#L1): dark hierarchical tree, green selection; 36 px tab row, selected primary-background tab and upper corner treatment. | Use dark navigation/tab chrome; leave source content white under the selected comparable editor theme. |
+| Preview chrome | [PDF styles](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/stylesheets/pages/editor/pdf.scss#L1): `#2f3a4c` surroundings, 32 px toolbar, green compile action and page/zoom controls. | Recompile belongs in preview chrome. Legacy `#3a4557` PDF surroundings are close but differ from this pinned source. |
+| Typography | [Foundation typography](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/stylesheets/foundations/typography.scss#L3) and [toolbar sizes](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/stylesheets/abstracts/variables.scss#L1): Noto Sans interface, common 14 px/20 px text; 40 px primary and 32 px small chrome. | Reuse the legacy interface font stack, retaining separate user-owned editor typography and readable reflow outside reference dimensions. |
+
+These are static source observations. Themes, fonts, stored pane state and enabled features still need matching in paired runtime captures. The earlier complete-source inventory does not mean every repository file was analyzed.
 
 ### Rendered upstream component reference, 2026-10-15
 
@@ -24,9 +166,41 @@ The refreshed component comparison reverified the pinned source and reproduced t
 
 The upstream three-page Cypress PDF is a separate prebuilt fixture, not a compilation of the short comparison source. Persistence, compilation, a live Community Edition backend and upstream review cards were not qualified. Full visual/interaction parity is not established. The local receipt/captures are under ignored `artifacts/reverse-engineering/overleaf-e039ad26-component-reference/`; the receipt SHA-256 is `16681e8a9b751d8e2d59b59349b909ab29c472a8e2b01467e85125d322c74765`. Reproduction uses task-specific Yarn cache/global folders; the original dependency preparation also created user caches, recorded in the receipt. Generated evidence is not included in a fresh clone.
 
+| Observation | Source at the inspected commit | UnderTree mapping and boundary |
+| --- | --- | --- |
+| Review cards show additions/deletions or paired replacements and offer permission-dependent accept/reject actions. | [review-panel-change.tsx](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/review-panel/components/review-panel-change.tsx) | Original proposal cards beside the editor; Rust alone applies a locally accepted replacement. Overleaf's operational-transform model is not adopted. |
+| Review UI selects current-file or overview subviews. | [review-panel.tsx](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/review-panel/components/review-panel.tsx) | A focused current-manuscript sidebar. A project-wide review overview is not qualified. |
+| Selected-source ranges determine which tracked changes are accepted/rejected. | [use-tracked-changes-actions.ts](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/review-panel/hooks/use-tracked-changes-actions.ts) | UTF-16 source selections, quoted anchors and explicit card decisions. UnderTree validates the revision and policy at each acceptance. |
+| Review entries are sorted by source position and positioned around the focused entry while avoiding card collisions. | [position-items.ts](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/review-panel/utils/position-items.ts) | Source-linked review cards are the target; exact Overleaf card geometry and collision behavior have not been reproduced or qualified. |
+| Editing/review/view mode availability follows permissions and track-change capabilities. | [review-mode-options.tsx](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/ide-react/components/toolbar/review-mode-options.tsx) | Local author and remote reviewer have separate authorities. Remote agents always submit suggestions; there is no remote direct-edit mode. |
+
 Secret Tunnel's public [native process supervisor](https://github.com/GeorgeFejer91/SecretTunnel/blob/main/app/src-tauri/src/process.rs), [commands](https://github.com/GeorgeFejer91/SecretTunnel/blob/main/app/src-tauri/src/commands.rs), and [settings](https://github.com/GeorgeFejer91/SecretTunnel/blob/main/app/src-tauri/src/settings.rs) were inspected for its zrok2 child lifecycle, reserved public share invocation and local configuration. These references were fetched from main without a retained immutable commit identity. UnderTree's independent adapter uses those process concepts with a substantially narrower review-only tool catalogue; it does not depend on another checkout at runtime.
 
-The installed [REA skill](https://github.com/morluto/rea/blob/fffb0741936067530d1ce9777461cd53e87398c2/.agents/skills/reverse-engineer-anything/SKILL.md) explicitly routes ordinary complete-source analysis through normal repository tools. No REA registration or binary/runtime investigation is inferred from installing that skill.
+The repository-local [REA skill](skills/reverse-engineer-anything/SKILL.md), pinned with [its provenance](skills.md), explicitly routes ordinary complete-source analysis through normal repository tools. Apply it through [the UnderTree reverse-engineering protocol](PROTOCOLS/reverse-engineering.md). The nested For-AI and REA instruction snapshots document the investigation workflow; their presence establishes no MCP connection, provider availability, runtime observation or behavioral parity. Record those outcomes only after the corresponding investigation and acceptance gates.
+
+## Typst document outcomes and editor-action audit, 2026-10-15
+
+The user requested an active goal to deliver Overleaf's expected UI actions and equivalent Typst document outcomes, with additional UnderTree abilities. [The product acceptance scope](product-goal.md#publishing-and-ui-acceptance-scope) is the requirement owner. This is a bounded implementation/qualification milestone; complete Overleaf parity and the delivery goal remain open.
+
+Source observations use pinned Overleaf `e039ad26c5bf5422eb57b89fc7e57c75055e631d`: [latexmk/compiler behavior](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/clsi/app/js/LatexRunner.js#L164), [source/PDF navigation](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/clsi/app/js/CompileManager.js#L500), [menu actions](https://github.com/overleaf/overleaf/blob/e039ad26c5bf5422eb57b89fc7e57c75055e631d/services/web/frontend/js/features/ide-react/components/toolbar/menu-bar.tsx#L88), main-document settings and clickable diagnostic hooks. Five selected files matched fetched upstream bytes. The source-only checklist is `artifacts/reverse-engineering/typst-overleaf-engine-parity/source-checklist.json`, SHA-256 `990639056a6ac280fc959a13af4c769e0d7080bb4d98050c8ee56ff376d5a38a`. It records the boundary before this implementation, not a live Overleaf/backend observation.
+
+The [official Typst migration guide](https://typst.app/docs/guides/for-latex-users/) and [bibliography](https://typst.app/docs/reference/model/bibliography/), [PDF](https://typst.app/docs/reference/pdf/) and [HTML](https://typst.app/docs/reference/html/) documentation establish the language's distinct syntax/ecosystem and supported outcomes. Literal LaTeX package/class compatibility is not implemented; HTML/bundle export is not qualified by UnderTree's PDF path. The REA protocol correctly routed complete-source work through repository tools, then used direct compiler/service/browser/native probes. No REA MCP provider, decompilation or authenticated Overleaf session was used or installed.
+
+VERIFIED: `UNDERTREE_TYPST=/home/Zuri/.local/bin/typst UNDERTREE_TEST_FONT=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf npm run test:typst-publishing` passed 20 checks, zero skipped, through the real Rust API and Typst 0.15.1, with `UNDERTREE_REVIEW_BINARY` selecting the copied service below. The invocation's workstation paths are local qualification inputs, not product configuration. The authored `examples/typst-parity/` fixture produced three A4 pages; PDF.js checked imported/included prose, footnote, Greek glyph, raised exponent and stacked fraction, outline/internal destinations, resolved labels/citations, bibliography text, SVG color/paths, table cells/captions and external link. A rendered page was separately inspected, without an Overleaf visual-equivalence claim.
+
+The gate also verified byte-identical last-good retention for syntax/missing-asset/root-escape/cold-package failures; changed chapter/bibliography/SVG stale/rebuild/exact reversion; persisted successful warnings; real copied DejaVu font identity and freshness; linked fonts unavailable to the compiler; cached local package output with `externalDependencyCount >= 2` and `current: false`; ordinary and timestamp-preserving dependency changes after staging retaining the copied bytes with a stale receipt; static file/directory symlink read/include attempts disclosing no outside marker in diagnostics; live main/dependency replacements with outside symlinks leaving the safe copied PDF available and stale; and a sparse unused input above the whole-project 128 MiB limit failing before compilation while retaining the last-good PDF. The final cleanup check found no owned input-stage residue in private service state after the successful and failed builds. TeX import kept originals and reported unsupported math, citations/references, figures/tables and custom macros; its readable raw output is not equivalent typesetting. The archived receipt is `artifacts/qualification/typst-publishing/b070ef51cfdaee9cc8a2c2ebc8e1999b980cdd21199dd9b65fd422245643bb9f/evidence.json`, SHA-256 `b070ef51cfdaee9cc8a2c2ebc8e1999b980cdd21199dd9b65fd422245643bb9f`, service binary SHA-256 `8f9af47f53d32b7af678532da6a9a72e41dcb7e7302b00b28bdd56ae55b89352`. Compiler-only dependency/warning/package probes are retained separately in `artifacts/reverse-engineering/typst-publishing-audit/compiler-dependency-probe.json`, SHA-256 `f4fe333187582a24b5039d94ce8a2de2183f580e048fe3d7e9e1e35153c1c408`.
+
+Implementation owners remain `modules/review/` for native main settings, confined bibliography/data editing and publication; `modules/frontend/` for revision/save coordination; and `src/manuscript.js`/`manuscript.html` for the existing menus, main-target preview/export and warnings. The Review catalogue remains exactly list/read/suggest. A refresh that observes an in-flight local acceptance may clear its obsolete conflict only when the eventual response's exact content/revision matches and no typing occurred. Focused regressions preserve different external conflicts and newer typing. Formatting transactions now isolate history from adjacent typing; real CodeMirror cases cover Typst/HTML inline/block undo/redo, CRLF and Unicode. The PDF viewer publishes new scale geometry before assigning scroll, preserving explicit page intent through resize without clamping to the old document height; browser-style unit fixtures cover page 10, deferred newer jumps and genuine scrolling. Shared page normalization truncates decimal page requests and rejects nonfinite state, so page/toolbar/canvas navigation remains on integer pages; focused viewer/state tests passed 23 cases. The page-number field is not overwritten while focused during resize. A separate real-service diagnosis confirmed editor preferences preserve Undo; the prior fixture read disk before asynchronous Save completed. Its corrected check waits for the authoritative saved receipt.
+
+The latest scoped checks passed 102 Rust tests with real Typst and 81 focused frontend tests, strict review Clippy, architecture validation and a Tauri custom-protocol compilation check. The frontend was built into an owned output directory and the service copied before qualification; binary/assets and source changes during the build are recorded in `artifacts/qualification/typst-parity-build/staged-3ibnrh67/build-evidence.json`. This binds the tested runtime without claiming an exact repository-commit build: concurrent App control/transport source changes are listed. Workspace formatting and diff checks passed after the concurrent edits were formatted. Earlier Tauri/native receipts remain historical until a matching native gate passes. A dedicated CI job now installs pinned Typst and an explicit font fixture, runs Rust/publication checks and uploads evidence; hosted CI execution is NOT RUN in this milestone. Generated PDFs, captures and receipts remain ignored local artifacts, unavailable from a fresh clone until the gates are rerun.
+
+VERIFIED: the final `npm run test:review-ui` gate passed against the same copied service `8f9af47f53d32b7af678532da6a9a72e41dcb7e7302b00b28bdd56ae55b89352` and owned frontend (`manuscript-LmQWsa5h.js`, SHA-256 `b4ff1c6574c89488ee03f5bd66a4792c6252682579ee13a192e077fcf3b1f0bf`). Result `artifacts/reverse-engineering/typst-overleaf-engine-parity/review-ui-snapshot-undertree-review-ui-4tMwcm-result.json` has SHA-256 `9f844d58325ebf02c8a0b1b1601978a3a122b0304f32e472be9414985e836d9b`; its immutable runtime/runner snapshot has SHA-256 `9329e55922cba6b758d9f5be82e771a9f0afaaf4d78ae2e221a3daf664dd3738`. It exercises main/bibliography/F5/reload, successful/cached warnings and PDF names/downloads, dirty/new dependencies, delayed chapter acceptance followed by a new main compile, external conflicts, failed-build last-good retention, adjacent-typing formatting/math Undo, page-number draft preservation during resize, fractional page input/Next/Previous, exact CRLF save receipts, preferences, synthetic composition/authority/revocation and reflow cases. Fixture checks now await authoritative save/acceptance/new-compile outcomes rather than reading old status labels; the selected binary/assets/runner stayed fixed. Real Rust/Typst were used; zrok and final autosync were simulated. This is browser integration evidence, not native-shell, live public ChatGPT/GitHub or full paired Overleaf qualification.
+
+Before staging was added, a real-service confinement audit exposed a gap: Typst 0.15.1 follows project file/directory symlinks outside `--root`; failed `panic(read(...))` can disclose outside bytes in diagnostics before the existing post-build dependency rejection. The harmless-marker receipt is `artifacts/reverse-engineering/typst-publishing-audit/symlink-boundary-probe.json`, SHA-256 `c5b7f9249ab33d9daab87a3d9b741ff9aefeb1ca372dee6badaf87076bdad012`. The archived 20-case service fixes that project-input disclosure with a private staging root. Pinned `cap-std`/`cap-fs-ext` 4.0.3 supply rooted no-follow handles for copy and freshness reads; copied-byte hashes bind compiler dependencies. Reserved and noncanonical main paths fail before reads. The blocking preparation owns the compile guard through cancellation. Normal/error/cancel cleanup is implemented. The 128 MiB staging budget covers copied input bytes; 16 MiB PDF and 256 KiB dependency limits are post-compiler admission limits, not hard temporary-write quotas. Abrupt-crash residue, atomic multi-file snapshots, external package/embedded/system-font provenance and OS-wide compiler sandboxing remain separate requirements.
+
+A preceding scoped Linux native run passed 12 checks with real Rust IPC, Typst and bundled WebKitGTK, including private CLI discovery/read-only denial, UTF-16/CRLF, source save, typing during compilation, PDF revision/canvases, automatic follow-up, 320 px/200%/short-height reflow, Minimize/restore, failed-save OS Close and successful protected Close. That invocation recorded receipt SHA-256 `6c3af789685ab7fdacb06f695902e215c7a34ff1024ec2681924aa78c1d64c9b`, desktop binary `1c4da09a9535fcdfcc2182234fb89a708a9df91da4ffbe980ef238b88d40e430` and CLI `77dd724b4dc54a3cbafb40d4fcb06a7c97340ac55dd013720068b1a9d38e0ae6`. Its mutable receipt path was subsequently overwritten by a failed run; the historical pass does not qualify the newer binary. The new custom-protocol build (`a6decb3027ca568e0566f3f7532a712ea34d09c649c324065613a989785dcef8`) stops at the prior read-only CLI capability assertion after another active chat introduced editor-save coordination. The failed receipt is `artifacts/qualification/typst-parity-native/0332131e14a3953ab7e9cefb43b03bd0455d1615f754b6b0938c192c054078a2/native-ui-evidence.json`, SHA-256 `0332131e14a3953ab7e9cefb43b03bd0455d1615f754b6b0938c192c054078a2`. The new CLI/editor contract and newest native frontend require coordinated qualification; no assertion was weakened to claim success. Other platforms/installers remain separate gates.
+
+Still PARTIAL: complete paired-state Overleaf appearance/interactions; complete Insert/Format and source syntax/visual editing coverage; file/folder rename/move/duplicate/recoverable deletion and binary asset upload; source ZIP/history/word count/settings coverage; clickable diagnostics and full source/PDF navigation; additional export formats/PDF standards; publisher templates and broad importer fidelity; non-content App control prerequisites/live ChatGPT and remaining platform/package gates. A fixture pass is not proof of all document/UI combinations. Project output now binds copied bytes, including timestamp-preserving edits in the fixture; this is not an atomic project filesystem transaction. System/embedded fonts, external packages, temporary compiler-write quotas and crash-residue bounds still need qualification. The active goal must remain open for those requirements.
 
 ## Observations, inferences and open qualification
 
@@ -39,17 +213,20 @@ Secret Tunnel comparison used the local `SecretTunnel-v2` source snapshot's `app
 | Scope | Evidence type and current conclusion | Still requires direct qualification |
 | --- | --- | --- |
 | Overleaf visual/interaction parity | PARTIAL pinned component reference and paired initial/File/search captures at 1600×1000 and 1100×800; six upstream and six UnderTree handlers passed. Fresh measurements confirm source toolbar/gutters, proportional sidebar, preview edge and outline placement within 0.5 px. | Full Community Edition/backend/review qualification, complete supported state comparisons and resolution of remaining control/icon/source/visual/status differences. Complete parity is not established. |
-| Outside-in accordion stretch | Required standard under [ui-layout.md](ui-layout.md). Secret Tunnel source supports selected layout/measurement patterns; existing UnderTree width/reflow tests do not qualify the complete standard. | Independent width/height extremes, anchored group spacing, readable type/regrowth, no overflow in bounded control panels, text-spacing overrides and target WebViews. |
+| Restored palette and default workspace | Source and rendered UnderTree observed: the active stylesheet uses the pinned foundation colors and Noto Sans stack; a real Rust/Typst default capture in `artifacts/overleaf-palette-default.png` has charcoal bars/tree/rail, white source and paper on `#2f3a4c`, green Recompile, Review closed, 40 px topbar/rail, 36 px tabs, 32 px source/preview toolbars and 7 px splitters. Editor/PDF widths were 662/663 px within their remaining region. | This verifies UnderTree's source-matched tokens/geometry, not a paired upstream pixel comparison. Review sidebar alternation, icon geometry and complete interaction/state parity still require comparison against a matching rendered Overleaf configuration. |
+| Outside-in accordion stretch | Required standard under [ui-layout.md](ui-layout.md). Expanded browser qualification covers width×height, 200% text and text-spacing chrome. The final Linux WebKitGTK snapshot passes bounded controls at 320×900 and 1100×480 with 14/28 px root text; source height remains positive. Secret Tunnel source supplies selected layout/measurement patterns. | Broader locale/font/regrowth cases, complete panel/state matrix and other target WebViews. These observed cases do not qualify every possible string, panel or platform. |
 | Rust review authority | VERIFIED 39 Rust tests and the current real-service browser gate: revision/UTF-16/prose/quote/protection checks, proposal-only MCP, local acceptance and metadata-only reanchor preserving IDs/rules/prompts. Native CRLF/emoji selection matched the persisted UTF-16 quote without changing source bytes. | Broader manuscript cases and all other native review interactions remain separate qualification. |
 | Typst source authoring | VERIFIED 17 language tests, nine insertion tests and eight real Rust/Chrome/Typst 0.15.1 authoring checks. Common markup/code/math/raw/comment syntax receives presentation-only styling; seven Insert actions preserve surrounding CRLF/Unicode source, select editable placeholders and isolate undo/redo. Actual typed math, bibliography, reference, hyperlink, SVG and table content appears in the compiled PDF. HTML disables Typst-only commands; 320 px menus at 100%/200% text use actual Pretext measurement. | Insert actions target markup, not arbitrary code/raw contexts. Highlighting is approximate with a 64-context fallback; completion, folding, native/OS IME and full source/visual parity are not established. |
-| Typst publication | Source observed: `publishing.rs` supervises external `typst compile --root`, bounds output/time and retains the previous good PDF on failure; `typst-syntax` checks prose scope. Browser and real Linux Tauri/WebKitGTK runs compiled with Typst v0.15.1 and rendered PDF.js canvases; source hashes matched native PDF metadata. Browser checks preserve the last good PDF on failure and reach all ten fixture pages within the viewport and backing-pixel bounds. | Platform package qualification remains open. An embedded full Typst engine is not implemented. |
+| Typst publication | Source observed: `publishing.rs` supervises external `typst compile --root`, bounds output/time and retains the previous good PDF on failure; `typst-syntax` checks prose scope. Browser and real Linux Tauri/WebKitGTK runs compiled with Typst v0.15.1 and rendered PDF.js canvases; source hashes matched native PDF metadata. Browser checks preserve the last good PDF on failure and reach all ten fixture pages within the backing-pixel budget. | Platform package qualification remains open. An embedded full Typst engine is not implemented. |
 | TeX import | Source observed: `tex_import.rs` converts a bounded subset and emits warnings. Runtime observed: the review UI smoke exercised import into a new Typst source and verified the TeX original is preserved. | Representative manuscript fidelity and broader math/macro/package support. Exact formatting equivalence is not claimed. |
 | zrok MCP | Source observed: three remote tools, session-only shared manuscripts, capability URL, supervised `zrok2`, no browser-Origin requests or local action proxy. Runtime observed: the UI smoke exchanged real MCP requests with the Rust listener using a simulated zrok2 process and exercised the scoped tool paths. | An actual enabled zrok2 reservation, public endpoint reachability, ChatGPT web tool discovery/use and revocation from that live client. The simulated tunnel proves local protocol behavior only. |
-| Full UnderTree control from ChatGPT | Requested target on 2026-10-14, planned in [the Full control roadmap](PLANNER/CHATGPT-FULL-CONTROL.md). Source inventory maps all 20 documented legacy CLI commands and 21 Rust `Operation` variants including local `Reanchor`, plus UI-only feature groups. Planning checks passed: architecture validation, local Markdown links, inventory references and `git diff --check`. | Not implemented. Requires shared native actions/document sessions, one-instance CLI transport, owner authentication and Full control grants, named tools, UI acknowledgement, and real ChatGPT qualification of every feature. Current review permissions remain unchanged. |
+| Non-content App controls from ChatGPT | The 2026-10-15 user correction prohibits full file editing, superseding the prior direct-edit target. [The App control plan](PLANNER/CHATGPT-FULL-CONTROL.md) excludes remote source/tree/policy mutation, saves and implicit autosave. Review stays exactly three suggestion-only tools; App controls require a separate explicit session capability and no-save UI hooks. | Integration and real ChatGPT qualification remain incomplete. Local CLI/editor save coordination does not grant MCP save authority. A queued action, mock tunnel or catalogue entry does not prove actual UI/native application. |
 | GitHub project sync | VERIFIED against authenticated GitHub with `tests/live-github-sync.mjs`: native checkpoint push, rendered browser autosave/autosync, clean incoming fast-forward, and remote-conflict preservation with autosync paused. Exact committed source/sidecar trees and remote heads matched the receipts; the disposable branch was conditionally removed and its absence verified. | Broader repository/credential/platform cases remain unqualified. The receipt identifies the observed service/frontend build; later UI changes need their own checks. |
 | Repository visibility | Observed integration: GitHub CLI installed and authenticated as `GeorgeFejer91` via Chrome device flow; `gh api` set `private=false`, `gh repo view` confirmed `PUBLIC`, and an unauthenticated GitHub API lookup independently confirmed public visibility for [GeorgeFejer91/undertree_texstudio](https://github.com/GeorgeFejer91/undertree_texstudio). | Publishing the implementation branch/PR is a separate Git operation; public visibility alone does not prove source synchronization. |
+| Desktop/CLI shared authority | VERIFIED with real Linux Tauri and the built Rust CLI: autodiscovery returns the same instance identity as native IPC, reads the desktop-approved inventory, denies anonymous/mutating calls and revokes the old endpoint on exit. Focused Rust integration tests cover duplicate hosts, stale/replaced descriptors, process-death lock recovery, session binding and private-file/symlink checks. The 12-case native receipt is `artifacts/qa-native-2026-10-15/native-ui-evidence.json`, desktop SHA-256 `07bae1f3958b07368efefbf7804b4ebd56887a69eef9aac6b6fd0a1e07e083d3`. | This is an explicitly read-only local CLI boundary. Editor synchronization, the local CLI save barrier/non-content App controls, other OS discovery/permissions and installer qualification remain separate gates. Later frontend or native rebuilds need matching evidence. |
+| New-file and import integrity | VERIFIED focused Rust tests preserve existing sources, corrupt/future orphan sidecars, pending metadata, import reports and linked/dangling artifacts; reported publication/registry failures preserve existing bytes and roll back unchanged owned outputs. The local CLI ignores user curl configuration before applying its validated endpoint, with a synthetic two-server regression confirming the session header reaches only the intended listener. | New outputs are individually atomic; abrupt termination between publications can leave a new file without its companion metadata/report. There is no creation-specific crash-recovery journal. Inspect incomplete new outputs before retrying. Existing source-save journals remain in force. |
 | Native shell | VERIFIED ten Linux checks with `tests/native-ui-smoke.mjs`: isolated X11, bundled Wry/WebKitGTK assets, exact CRLF/emoji highlight offsets with source bytes preserved, Rust IPC editing/save, real Typst PDF revision/canvases, automatic compilation, responsive typing, Minimize/restore and failed-save OS Close followed by successful custom Close. Native 320×900 and 1100×480 layouts passed at 14/28 px root text with usable source space and centered icons; no frontend errors. | Folder selection, physical display/GPU behavior, OS IME input and Windows/macOS/Linux installers remain separate gates. The current ignored receipt binds observations to binary SHA-256 `db8d2a2b41f45d5aedd95fd54c260fa8b19756f2f993512446fe7451dfc2f990`; rebuilds require refreshed qualification. |
-| Original UnderTree window frame | Source observed: undecorated main Tauri window, custom visible boundary and centered SVG Close/Minimize controls, native dragging/maximize and a save/conflict-aware close guard. Runtime observed: frontend build, architecture check, native Cargo check/build and four focused close-guard tests passed; browser review smoke verifies native controls/frame are hidden in browser mode. A separate isolated Linux window was opened and its frame screenshot reviewed. | Native interaction results are being recorded separately; Windows/macOS and installer behavior remain unqualified. Focused/mock tests alone do not prove OS event delivery. |
+| Original UnderTree window frame | Source observed: undecorated main Tauri window, custom boundary and centered SVG Close/Minimize controls, narrow native window permissions, save-aware close with temporary inert/CodeMirror read-only protection and IME veto. Runtime observed: build/architecture/native Cargo checks and seven focused guard tests passed; browser mode hides native chrome. A separate Linux instance passed drag, double-click maximize/restore, minimize/taskbar restore and actual pointer-edge resizing. Real OS Close preserved a dirty buffer when saving was denied; restoring write permission then using custom X saved that buffer and exited cleanly. Final restored-color native rendering and drag/minimize/restore also passed in an owned private display. | Windows/macOS and installer behavior remain unqualified; full rendered upstream parity remains separate. |
 | HTML layout | Browser review gate passed 320–1600 CSS px, independent 480–1000 px height cases, 200% text, user text-spacing, nested navigation, pane controls, search and complete PDF navigation. Actual-module Pretext gate verifies icon-slot budgets, DOM agreement, whitespace/font/locale invalidation, no-fit recovery and preferred-size regrowth. Real CodeMirror typing causes zero root rescans or unrelated chrome measurements. | Full product accordion geometry, other WebViews, fonts/locales and full accessibility remain distinct gates. Synthetic measurement fixtures do not establish whole-workspace or Overleaf parity. |
 
 Update these rows with exact command/results or integration receipts as qualification is performed. Do not replace remaining unknowns with general completion language.
@@ -60,7 +237,7 @@ The current integrated checks passed 39 Rust tests with real Typst 0.15.1, works
 
 Both rendered browser gates passed against the real Rust service: review highlights/acceptance/custom rules, file-switch undo preservation, queued explicit compilations, real Typst PDF output, TeX import, failed-build preview retention, and the Connections popup's initialization/activity/revocation/failure states. Width/reflow cases include 320 CSS px and 200% text. The zrok child was simulated; these checks establish no live ChatGPT/public-tunnel connection. Local bare-Git fixtures verified exact checkpoints, external-edit/staging rejection and divergence protection; the separate opt-in live GitHub gate additionally verified native/browser checkpoint publication, clean incoming updates and preservation on remote conflict.
 
-CodeMirror states now remain attached to their file sessions across tab switches, with at most 20 open buffers. Close and save failures preserve unresolved buffers. This resolves the earlier source-observed state-recreation gap; it does not establish full Overleaf appearance or interaction parity. That broader acceptance target and the separately documented Full control roadmap remain open.
+CodeMirror states now remain attached to their file sessions across tab switches, with at most 20 open buffers. Close and save failures preserve unresolved buffers. This resolves the earlier source-observed state-recreation gap; it does not establish full Overleaf appearance or interaction parity. That broader acceptance target and the separately documented App control roadmap remain open.
 
 The current native receipt `artifacts/qualification/review-2026-10-15/70313cfb21aac108d59bcb8932a50ae978114654290628c6d0c648efd9662ea9/native-ui-evidence.json` has SHA-256 `70313cfb21aac108d59bcb8932a50ae978114654290628c6d0c648efd9662ea9` and identifies the tested binary above. Real GitHub requalification passed all four paths on a synthetic disposable branch, verified exact source/sidecar trees and heads, then conditionally deleted only its own branch. Its receipt is `artifacts/live-github-sync-73b485f46683dff0.json`, SHA-256 `39225bcbb71809499a2a1e5d49e1b5befcf9a41b35306b5f8f3cbab369b1f6c2`. The current browser gate additionally holds real PDF worker shutdown/Open responses to prove latest-file and separate undo ownership, tests failed project-switch save preservation, and exercises delayed Mark/Palette responses across approved projects with sync intercepted before remote access. The latter proves routing, not a second live push. A fresh isolated indexed build also passed the delayed-compile/autosaved-newer-source regression and `tests/review-buffer-limit-smoke.mjs`: Open/Create/Import stop at 20 buffers before backend work or new files; closing one tab permits each retry while draft/caret/undo and the TeX original survive. OS IME remains unqualified; composition veto checks dispatch synthetic browser events.
 
@@ -72,12 +249,184 @@ The eight-check authoring receipt is `artifacts/reverse-engineering/typst-author
 
 These are browser and generated-project checks. The review gate uses a simulated zrok child and intercepted final autosync response; retained native/GitHub receipts predate this authoring bundle. Native authoring, physical OS IME, current App controls, live ChatGPT/zrok and complete Overleaf parity require their own matched qualification.
 
-## UI requirement and frame checks, 2026-10-14
+## UI requirement and frame checks, 2026-10-14 through 2026-10-15
 
 - `npm run build`, `npm run verify:architecture`, `cargo check -p undertree-desktop --features custom-protocol`, and `cargo build -p undertree-desktop --features custom-protocol`: passed on Linux for the custom frame implementation.
-- `node --test tests/window-chrome.test.mjs`: passed, four close-guard cases covering pending saves, blocked conflict/write failures, asynchronous listener removal/newer edits, and duplicate native requests.
+- `node --test tests/window-chrome.test.mjs`: passed, seven close-guard cases covering pending saves, blocked conflict/write failures, asynchronous listener removal/newer edits, duplicate native requests, delayed-close freezing, restoration and IME veto.
 - `npm run test:review`: passed, three frontend session tests and 30 Rust tests in this run.
 - `npm run test:review-ui`: passed against the real Rust service and real Typst CLI, including explicit browser-mode window-control absence, protection/acceptance, queued compilation, import, last-good preview and narrow/200% reflow. The zrok child is simulated; this does not qualify a public tunnel.
 - Local Markdown-link validation and `git diff --check`: passed. These documentation checks do not qualify appearance or native behavior.
+- Separate owned Linux native instance: drag, double-click maximize/restore, minimize/taskbar restore and bottom-right pointer resizing passed. The autonomous native-close fixture denied writes, verified real OS Close kept the window/dirty buffer and unchanged disk, restored permission, then verified custom X saved and exited with code 0. A separate browser fixture with mocked window IPC and real Rust service checked 1600/760/320 CSS px, 320×480, 200% text, keyboard controls, errors and blocked typing throughout delayed closing. The user's already-running window and folder dialog were preserved. Frame captures in `artifacts/window-frame-native*.png` show the frame before color/layout restoration.
+- Palette pass: current `src/manuscript.css` was changed in small context patches, preserving concurrently added navigation, outline, splitter, editor-state, PDF and review functionality. Build/architecture/diff checks and the expanded `test:review-ui` passed. That gate now exercises nested files, resize/collapse/search/menu actions, preserved undo, width×height/200%/text-spacing chrome, all ten PDF pages with bounded canvases/zoom/logs, explicit builds, import and last-good preview against the real Rust/Typst path. The clean default capture above was inspected and its computed source-matched colors/geometry checked.
+- `npm run test:connections-ui`: passed after updating the fixture to explicitly open the now-optional Review panel before sharing a manuscript. The gate retains connection setup/failure, MCP activity, per-document revoke, capability rotation, crash revocation, keyboard/focus, real Pretext and 320 px/200% reflow checks. Its zrok child remains simulated; no public ChatGPT route is inferred.
+- Final native palette/reflow repair: the first real WebKitGTK check found low-contrast footer errors, invisible selected native values and a zero-height source region at narrow/200% text. CSS fixes preserve native selection, use explicit dark control surfaces and a separate chevron, raise footer error contrast from 2.40:1 to 9.56:1, and route duplicate narrow controls through the existing Menu/Highlight dialog while retaining the collapse action. Browser assertions were retained unchanged. The repaired real Linux WebKitGTK 2.54.0/Wry 0.57 snapshot passes seven native checks, including 1440×900 with the copied `examples/manuscript.typ` and real Typst PDF, 320×900 and 1100×480 at both 14/28 px root text, no page/panel/control overflow and centered frame icons. Source height is 270.52 px at 320/28 and 55.30 px at 1100×480/28; native project/rule values are visible. Drag/minimize/restore pass and the user's existing instance remains running.
+- Final native captures/receipt: `artifacts/palette-native-final/native-charcoal-workspace.png`, `native-charcoal-320-200.png`, and `native-charcoal-evidence.json`. Source fingerprints stayed identical before/after qualification. The tested stylesheet SHA-256 is `d87767f7e63729134e0fbb894a8344a1ee76954f3d257236451cacd4f23cda01`; the receipt identifies the other sources and owned native binary. Generated captures/receipts remain outside `For-AI/` and are evidence for this exact snapshot, not for future concurrent edits.
 
 The session used existing temporary Node/Typst toolchains for verification. No compiler, generated capture or executable was placed in `For-AI/`, and no new package dependency was needed for the frame. Full Overleaf comparisons and the complete two-axis accordion stretch matrix remain outstanding.
+
+## Integrated PDF export and native checkpoint, 2026-10-15
+
+VERIFIED on immutable `artifacts/qa-final-pdf-v4`: 214 captured source files,
+13 built frontend assets, desktop SHA-256
+`5199d1c620c4651aea27f2672903cadb4c47adecfb1565d738124506baada82e`
+and service/CLI SHA-256
+`124e219448faa6f2e0b28ace8d9ca5215f1f85fb023618920461cdb2a171980c`.
+The strict source/build/copy guard passed. Review and desktop all-target Clippy,
+native/frontend builds, architecture validation, 119 Rust tests with real Typst
+and 156 focused JavaScript tests passed. These counts describe this checkpoint,
+not subsequently changed sources.
+
+Browser qualification passed five consent, five real-PDF download and seven
+tree/keyboard checks. The PDF fixture builds a shared main document containing
+an unshared input. App access alone does not grant PDF export; explicit native
+permission covers the selected project root. Exact saved revision/artifact/raw
+hash and GET/HEAD bytes match. Wrong identities, new unselected roots and
+revoked export/App/share grants deny access. Source/policy bytes stay unchanged
+with zero Save/editor-commit calls. Consent remains usable at 320 CSS px with
+28 px root text, real Pretext measurement and wrapped full folder paths.
+Actual uppercase and lowercase Ctrl+S both save exact source bytes; the earlier
+v3 uppercase shortcut defect is fixed in this v4 checkpoint.
+
+Actual Linux Tauri/WebKitGTK qualification passed 13 native editor/CLI/window
+checks, six App checks including a held harmless Review response across Restore,
+three clean Close acknowledgement checks and three revoked Close checks.
+A further six native publishing checks exercised uppercase Ctrl+Shift+S,
+byte-exact source and real PDF downloads through WebKit, separate PDF permission
+and MCP download/revocation, narrow consent geometry and exporting a dirty
+buffer without an implicit save. Downloads used a verified private XDG directory;
+existing desktop windows and user downloads were preserved. One initial native
+publishing fixture attempt missed menu readiness; its failure was preserved and
+the distinct successful runner waits for visible painted controls and complete
+native typing.
+
+The aggregate receipt is `artifacts/qualification/v4-integrated-checkpoint.json`,
+SHA-256 `a7e8d3d59e70208975d6a72ed1ce737a0568437e0bb3ed8ceabdae36cdb1fb6e`;
+it names and hashes every scoped browser/native receipt. The unsigned Debian
+installer subsequently passed its separate extracted-package checks: contents,
+offline CLI, native 13, App six, publishing six and both three-check Close cases.
+Archive SHA-256 is
+`19ebbe40fc98283477d8e9dcfdf5e418e97c217dc9bacf36b240c3c0fdc8d7e6`;
+`artifacts/qualification/v4-packaged-checkpoint.json` has SHA-256
+`ed41beb01d9fadf2586b2cf3cfcb2babf6353963ef14c6d2998630057549c6fb`.
+An initial terminal `busy` Restore rejection remains in its original failed
+receipt. The separate successful diagnostic runner added passive IPC error
+observation only, with no effect retry; exact attribution of the earlier
+rejection remains uncertain. Native file import is later implementation work
+and is excluded here.
+All tunnel fixtures used a simulated zrok child: public ChatGPT connectivity,
+automatic file attachment, other platforms, signing, installation and complete
+Overleaf parity remain unqualified. Generated evidence stays ignored and does
+not travel with a fresh clone.
+
+## Native file-import checkpoint, 2026-10-15
+
+VERIFIED on immutable `artifacts/qa-final-import-v5`: 219 captured source files,
+13 frontend assets, desktop SHA-256
+`5fca7d14ed932e68fd533394fcf28d66fb59610d3963f5982deeee60e980e895`
+and service/CLI SHA-256
+`419f93d52780ef6c1ef3d658f60c67587c23672409224ebe6f837135de951366`.
+The strict capture, combined native all-target Clippy/build, architecture and
+stack checks passed. Backend checks passed 131 real-Typst Rust cases, including
+12 import boundary cases; the combined focused frontend suite passed 170 cases.
+
+Actual Linux Tauri qualification passed 13 native editor/window checks and seven
+new native import checks. Real OS picker cancellation and source/PNG selection
+reach Rust-owned staging. Exact source/binary bytes, source sidecar and pending
+Git ownership match without opening/saving/compiling or changing the main
+document. A real committed response was held, then routed to the renderer's
+error callback by changing only the acknowledgement routing header. The app
+retained the same request across dialog reopen, blocked overlapping App effects,
+and confirmed its committed receipt through Check with exactly one import
+dispatch. Collisions, a replaced destination folder and dirty-buffer native
+Undo/Redo preserve the intended source and metadata.
+
+Successful runner SHA-256 is
+`b7792f5e9e813d338cb85962b67ccfc74542a3188bd59b431fa7aab59015bfba`.
+Receipt `artifacts/qa-final-import-v5/artifacts/native-import-realized-entry/native-app-evidence.json`
+has SHA-256 `5c65c3a07d9333857930bceabd298b9d6de3e621778f07eda802309be0445f21`.
+Earlier fixture failures are preserved: native folder-entry realization/Recent
+selection and ordinary delayed autosave after Undo/Redo required OS automation
+and quiescence corrections. No product assertion was bypassed. The saved-project
+ZIP implementation is later live source work and is excluded from v5. Physical
+OS IME, native narrow long-name import layouts, public ChatGPT/zrok, other
+platforms and a v5 installer remain separate gates. Import receipts are bounded
+and process-local; abrupt termination can leave partial new files, requiring
+inspection rather than automatic replay.
+
+## Independent core failures and control checkpoint, 2026-10-15
+
+The read-only v6 core review found seven concrete failures despite earlier finite
+passes: queued highlighting can protect a shifted passage; slash-delimited HTML
+raw tags admit proposals and local acceptance; journal recovery can overwrite
+unexpected corrupt metadata; Git filters/CRLF can change published source bytes;
+chained URL rewrites can change the executed destination; ignored owned outputs
+can clear without publication; and deleting known protected metadata can reset
+active-share policy. The exact report is
+`artifacts/qualification/acceptance-v6-independent/REPORT.md`, SHA-256
+`e544ebed5a6b19207d696faaa26a69465aae5929868ce8f5986c582b7aa39828`.
+Its exit-zero probes record reproduced failures, not product success. Relevant
+current functions matched the frozen v6 sections. These findings supersede any
+inference that the earlier finite Git/policy tests establish complete acceptance.
+Known policy loss must fail closed until explicit local resolution or revocation;
+external deletion is not the local Unmark action.
+
+Later v7 is immutable at `artifacts/qa-final-controls-settings-v7`, with 228 source
+files, 13 built assets, desktop SHA-256
+`bb23148d11fa8365d567aa4a87c2f0de7c7df090b50cd618d57eb5c3ea47967b`
+and service/CLI SHA-256
+`5fb5d7b62196897515f1aa5adb9266113ad8d74b2c0d7e34b1f0421be26d1d6e`.
+Combined architecture, stack-injection, format, 195 focused frontend tests,
+frontend build, strict native Clippy and both native builds pass; the backend
+handoff has 148 real-Typst Rust tests. CLI reads no longer perform recovery.
+Native control checks wait at most two seconds, retain uncertainty without
+effect replay, keep Close error handling scoped to its job and prevent
+overlapping or heartbeat-blocking acknowledgement retries.
+
+Actual v7 native Focus/load (three requests), held-Close-ACK/poll-load (four
+checks), baseline native 13, App/read six, import seven and ZIP core/retired-page
+gates pass. These receipts remain separately scoped under the copied target's
+`artifacts/`. V7 is not release-ready: native WebKit found a short/enlarged Review
+pane overflow despite the Chromium settings pass. Publishing subsequently passed
+six checks after private-display and ordinary-autosave/current-PDF quiescence
+fixture corrections; the original unsampled PDF mismatch remains unexplained.
+The native aggregate is `artifacts/qa-final-controls-settings-v7/artifacts/v7-native-status.json`,
+SHA-256 `d6c55c908d4a70f968005abbfcc48a0029aa2a661aa45a6568cdf08c5d6978b9`.
+The independent core failures above require their own repairs and a fresh
+combined candidate. Installer review also confirmed
+missing third-party notice payloads and a conditional custom-target CLI path
+mismatch. No v7 installer, public upload, live ChatGPT/zrok, signing or other
+platform qualification is claimed.
+
+The later live Git correction has 68 passing service-module library tests,
+including ignored-file refusal, staged/raw-byte checks, one-pass configured
+remote routing and clearing the actual checkpoint capture. This is a narrow
+source/library result, not immutable native or live GitHub qualification.
+An additional working-source Git follow-up has 20 focused tests passing after
+reproducing external executable-mode publication and ignored-source overwrite
+during incoming fast-forward. It verifies exact staged mode/blob/path and
+preserves ignored files and pending ownership. Receipt:
+`artifacts/coordination/v8-git-mode-incoming-fix.json`. This remains a local-bare
+library result rather than a new live GitHub or native claim.
+
+Compiler cancellation/reaping supervision is individually qualified on a private
+v7-plus-owned-overlay candidate: 18 publishing tests, 152 full review tests and
+20 real-Typst publishing checks pass. Owned work and exclusion survive a dropped
+caller; persistent reap failure can retain busy indefinitely. Handoff:
+`artifacts/qualification/publisher-supervision-r7-j8ezghnm/handoff.json`.
+The frozen HTML classifier fix separately passes 16 focused tests and actual
+private MCP/local checks covering 21 proposals and six denied raw-context
+acceptances. Its expanded receipt is
+`artifacts/qualification/html-context-priority-followup-cmhrydrn/runtime-evidence.json`.
+
+Policy continuity has 170 Rust tests passing and a scoped private CLI; the
+matching final frontend passes 84 focused tests and six actual Chromium/service
+checks, including missing/corrupt metadata, preserved dirty buffers, no-save
+revocation, pure retry, late responses and enlarged/narrow layouts. Frozen
+receipts are `artifacts/backend-policy-evidence/freeze.json` and
+`artifacts/coordination/policy-continuity-frontend-freeze.json`. Import's later
+post-publication preservation and retired-owner fixes have 14 focused tests
+passing; see `artifacts/qa-delivery-2026-10-15/import-race-repair-receipt.json`.
+These are separate source/candidate results. Ordinary-journal ownership and
+Create recovery follow-ups still require a final combined capture and native
+qualification; they are not included in the scoped policy CLI. Source lifecycle
+epochs and Rename/Move remain planning-only.

@@ -4,6 +4,26 @@ description = "Named local manuscript and review operations; Rust validates proj
 commands.allow = ["review_action"]
 
 [[permission]]
+identifier = "allow-editor-operation"
+description = "Coordinate registered editor sessions in the local main window; never exposed through CLI or MCP."
+commands.allow = ["editor_connect", "editor_operation"]
+
+[[permission]]
+identifier = "allow-control-operation"
+description = "Local current-page coordination of explicitly enabled non-content App controls."
+commands.allow = ["control_operation"]
+
+[[permission]]
 identifier = "allow-choose-project"
 description = "Approve a local project using the native folder picker."
 commands.allow = ["choose_project"]
+
+[[permission]]
+identifier = "allow-file-import"
+description = "Stage native-picked files and commit only their owner-bound import selection."
+commands.allow = ["choose_import_files", "import_operation"]
+
+[[permission]]
+identifier = "allow-project-export"
+description = "Export an immutable saved project ZIP only to its owner-bound native-picked destination."
+commands.allow = ["prepare_project_export", "choose_project_export_destination", "project_export_operation"]

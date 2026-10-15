@@ -1,15 +1,35 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, chmod, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, chmod, rm, cp, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve, join } from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { resolve, join, dirname, basename } from 'node:path';
+import { randomBytes, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright-core';
 
 const root = await mkdtemp(join(tmpdir(), 'undertree-review-ui-'));
+const selectedAssets = resolve(process.env.UNDERTREE_REVIEW_ASSETS || 'dist');
+const frontendAssets = join(root, 'assets'); await cp(selectedAssets, frontendAssets, {recursive:true});
+const selectedBinary = resolve(process.env.UNDERTREE_REVIEW_BINARY || 'target/debug/undertree-review');
+const reviewBinary = join(root, 'undertree-review'); await cp(selectedBinary, reviewBinary); await chmod(reviewBinary, 0o700);
+async function snapshotHashes(directory, prefix = '') {
+  const hashes = {};
+  for (const entry of await readdir(directory, {withFileTypes:true})) {
+    const path = join(directory, entry.name), key = join(prefix, entry.name);
+    if (entry.isDirectory()) Object.assign(hashes, await snapshotHashes(path, key));
+    else if (entry.isFile()) hashes[key] = createHash('sha256').update(await readFile(path)).digest('hex');
+  }
+  return hashes;
+}
+const snapshotReceipt = resolve(`artifacts/reverse-engineering/typst-overleaf-engine-parity/review-ui-snapshot-${basename(root)}.json`);
+const snapshot = JSON.stringify({createdAt:new Date().toISOString(),selectedBinary,selectedAssets,runnerSha256:createHash('sha256').update(await readFile(new URL(import.meta.url))).digest('hex'),binarySha256:createHash('sha256').update(await readFile(reviewBinary)).digest('hex'),frontend:await snapshotHashes(frontendAssets)},null,2)+'\n';
+await mkdir(dirname(snapshotReceipt), {recursive:true}); await writeFile(snapshotReceipt, snapshot);
+const snapshotSha256 = createHash('sha256').update(snapshot).digest('hex');
+console.log(`Review UI snapshot: ${snapshotReceipt} (${snapshotSha256})`);
 const projectRoot = join(root, 'project'); await mkdir(projectRoot);
 const original = '<p>Hello world. This sentence has a clear meaning.</p>\n';
 const crlfSource = '<p>First paragraph.\r\nSecond passage.</p>\r\n';
+const chapterSource = '= Part\n\nA nested manuscript.\n';
+const bibliographySource = '@book{undertree, title={An Offline Manuscript}, author={Example, Alice}, year={2026}}\n';
 await writeFile(join(projectRoot, 'main.html'), original);
 await writeFile(join(projectRoot, 'crlf.html'), crlfSource);
 await writeFile(join(projectRoot, 'delayed.html'), '<p>A delayed file response must not replace the chosen manuscript.</p>\n');
@@ -17,16 +37,18 @@ await writeFile(join(projectRoot, 'autosave-a.html'), '<p>Autosave A.</p>\n');
 await writeFile(join(projectRoot, 'autosave-b.html'), '<p>Autosave B.</p>\n');
 await writeFile(join(projectRoot, 'composition.html'), '<p>A composed manuscript.</p>\n');
 await writeFile(join(projectRoot, 'main.typ'), '#set page(paper: "a4")\n\n= Manuscript\n\nHello world. This is Typst, without TeX.\n' + Array.from({length:9}, (_, index) => `\n#pagebreak()\n= Page ${index + 2}\n\nA full-document preview reaches this page.\n`).join(''));
-await mkdir(join(projectRoot, 'chapters')); await writeFile(join(projectRoot, 'chapters', 'part.typ'), '= Part\n\nA nested manuscript.\n');
+await mkdir(join(projectRoot, 'chapters')); await writeFile(join(projectRoot, 'chapters', 'part.typ'), chapterSource);
+await writeFile(join(projectRoot, 'book.typ'), '#set text(font: ("UndertreeMissingParityFont", "Libertinus Serif"))\n= Whole project\n#include "chapters/part.typ"\nA reference @undertree.\n#bibliography("references.bib")\n');
+await writeFile(join(projectRoot, 'references.bib'), bibliographySource);
 await writeFile(join(projectRoot, 'import.tex'), '\\documentclass{article}\n\\begin{document}\n\\section{Results}An \\textbf{important} result.\\custom{kept}\n\\end{document}');
 const zrok = join(root,'zrok2'); const targetFile = join(root,'zrok-target');
-await writeFile(zrok, `#!/bin/sh\nprintf '%s' "$3" > '${targetFile}'\nexec sleep 120\n`); await chmod(zrok,0o700);
+await writeFile(zrok, `#!/bin/sh\nprintf '%s' "$3" > '${targetFile}'\nexec sleep 300\n`); await chmod(zrok,0o700);
 const token = randomBytes(32).toString('hex');
 const compilerCalls = join(root,'compiler-calls');
 const compiler = join(root,'typst');
 const shellQuote = value => `'${value.replaceAll("'", "'\\''")}'`;
 await writeFile(compiler,`#!/bin/sh\nprintf '1\\n' >> ${shellQuote(compilerCalls)}\nsleep 0.3\nexec ${shellQuote(process.env.UNDERTREE_TYPST || 'typst')} "$@"\n`);await chmod(compiler,0o700);
-const child = spawn(resolve('target/debug/undertree-review'), [], { env: { ...process.env, UNDERTREE_REVIEW_PORT:'0', UNDERTREE_REVIEW_STATE:join(root,'state'), UNDERTREE_REVIEW_TOKEN:token, UNDERTREE_ZROK:zrok, UNDERTREE_TYPST:compiler }, stdio:['ignore','pipe','pipe'] });
+const child = spawn(reviewBinary, [], { env: { ...process.env, UNDERTREE_REVIEW_PORT:'0', UNDERTREE_REVIEW_STATE:join(root,'state'), UNDERTREE_REVIEW_ASSETS:frontendAssets, UNDERTREE_REVIEW_TOKEN:token, UNDERTREE_ZROK:zrok, UNDERTREE_TYPST:compiler }, stdio:['ignore','pipe','pipe'] });
 let serverLog=''; let port;
 child.stdout.on('data', b=>{serverLog+=b;port=Number(serverLog.match(/127\.0\.0\.1:(\d+)/)?.[1]);});
 child.stderr.on('data', b=>{serverLog+=b;});
@@ -62,6 +84,27 @@ async function call(operation, expectError=false) {
   const value=await response.json();
   if(expectError) {assert.equal(value.ok,false);return value.error;}
   assert.equal(value.ok,true,value.error?.message);return value.result;
+}
+async function saveExactSource(page, project, path, expected) {
+  const responses=[];
+  const observe=response=>{
+    if(!response.url().endsWith('/api/review')||response.request().method()!=='POST') return;
+    const operation=response.request().postDataJSON();
+    if(operation.action==='save'&&operation.project===project&&operation.path===path&&operation.content===expected) responses.push(response);
+  };
+  page.on('response',observe);
+  try {
+    await menuAction(page,'file','Save');
+    await page.waitForFunction(path=>document.getElementById('save-label').textContent==='Saved locally'&&document.querySelector('#manuscript-tabs [role="tab"][aria-selected="true"]')?.textContent===path,path);
+    const saved=await call({action:'open',project,path});
+    assert.equal(saved.content,expected,`native saved source for ${path} preserves the exact expected bytes`);
+    for(const response of responses) {
+      const receipt=await response.json();assert.equal(receipt.ok,true,receipt.error?.message);
+      assert.equal(receipt.result.content,expected,`save receipt contains the exact expected ${path} source`);
+      assert.equal(receipt.result.review.revision,saved.review.revision,`save receipt and authoritative ${path} source share a revision`);
+    }
+    return saved;
+  } finally { page.off('response',observe); }
 }
 let browser;
 try {
@@ -103,7 +146,16 @@ try {
   await menuAction(page,'view','Show file outline');assert.equal(await page.locator('#manuscript-outline').isVisible(),true,'View menu reopens the outline');
   await page.locator('.cm-content').click();await page.keyboard.press('Control+Home');await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');await page.keyboard.press('Home');await page.keyboard.press('Shift+End');
   await page.locator('#source-bold').click();assert.ok((await page.locator('.cm-content').textContent()).includes('*A nested manuscript.*'),'Typst Bold operates on the selected source');
+  await page.keyboard.insertText('A revised nested manuscript.');
+  assert.ok((await page.locator('.cm-content').textContent()).includes('*A revised nested manuscript.*'),'typing replaces the selected bold text');
+  await page.locator('#source-undo').click();assert.ok((await page.locator('.cm-content').textContent()).includes('*A nested manuscript.*'),'first Undo restores the bold selection before replacement typing');
   await page.locator('#source-undo').click();assert.ok(!(await page.locator('.cm-content').textContent()).includes('*A nested manuscript.*'),'toolbar formatting stays undoable');
+  const beforeMathInsertion=await page.locator('.cm-content').textContent();
+  await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await menuAction(page,'insert','Inline math');
+  await page.keyboard.insertText('z^2');assert.ok((await page.locator('.cm-content').textContent()).includes('$z^2$'),'Inline math selects an editable expression placeholder');
+  await page.locator('#source-undo').click();assert.ok((await page.locator('.cm-content').textContent()).includes('$x^2$'),'Undo restores the math placeholder independently of typing');
+  await page.locator('#source-undo').click();assert.equal(await page.locator('.cm-content').textContent(),beforeMathInsertion,'a second Undo removes only the inline math insertion');
+  await page.locator('.cm-content').click();await page.keyboard.press('Control+Home');await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');await page.keyboard.press('Home');await page.keyboard.press('Shift+End');
   await menuAction(page,'insert','Section heading');assert.ok((await page.locator('.cm-content').textContent()).includes('= A nested manuscript.'),'Insert heading applies to the current source line');
   await page.locator('#manuscript-outline').getByRole('button',{name:'A nested manuscript.',exact:true}).waitFor({timeout:10000});
   await page.locator('#manuscript-outline').getByRole('button',{name:'A nested manuscript.',exact:true}).click();
@@ -111,7 +163,7 @@ try {
   await page.locator('#source-undo').click();
   await page.locator('#source-bullets').click();assert.ok((await page.locator('.cm-content').textContent()).includes('- A nested manuscript.'),'source list controls apply a Typst bullet');
   await page.locator('#source-undo').click();await menuAction(page,'insert','Numbered list');assert.ok((await page.locator('.cm-content').textContent()).includes('+ A nested manuscript.'),'Insert menu applies a Typst numbered list');
-  await page.locator('#source-undo').click();await menuAction(page,'file','Save');
+  await page.locator('#source-undo').click();await saveExactSource(page,project.id,'chapters/part.typ',chapterSource);
   await page.locator('#menu-file-toggle').focus();await page.keyboard.press('ArrowRight');assert.equal(await page.locator('#menu-edit-toggle').evaluate(node=>node===document.activeElement),true,'keyboard follows the menu hierarchy');
   await page.keyboard.press('ArrowDown');assert.equal(await page.locator('#menu-edit').getAttribute('open'),'','ArrowDown opens real Edit actions');await page.keyboard.press('Escape');assert.equal(await page.locator('#menu-edit').getAttribute('open'),null);
   await menuAction(page,'help','UnderTree help');assert.equal(await page.locator('#help-dialog').isVisible(),true);await page.locator('#help-dialog [data-close]').click();
@@ -145,8 +197,8 @@ try {
   assert.equal(crlfMarked.review.markers[0].anchor.quote,'Second passage.');assert.equal(crlfMarked.content,crlfSource,'clean metadata operations preserve CRLF source bytes');
   await page.getByRole('button',{name:'Remove highlight',exact:true}).click();
   await page.locator('#source-italic').click();assert.ok((await page.locator('.cm-content').textContent()).includes('<em>Second passage.</em>'),'HTML source formatting uses HTML wrappers');
-  await page.locator('#source-undo').click();await menuAction(page,'file','Save');assert.equal(await readFile(join(projectRoot,'crlf.html'),'utf8'),crlfSource,'formatting undo roundtrips literal CRLF');
-  await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.press('Enter');await page.locator('#source-undo').click();await menuAction(page,'file','Save');
+  await page.locator('#source-undo').click();await saveExactSource(page,project.id,'crlf.html',crlfSource);assert.equal(await readFile(join(projectRoot,'crlf.html'),'utf8'),crlfSource,'formatting undo roundtrips literal CRLF');
+  await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.press('Enter');await page.locator('#source-undo').click();await saveExactSource(page,project.id,'crlf.html',crlfSource);
   assert.equal(await readFile(join(projectRoot,'crlf.html'),'utf8'),crlfSource,'native newline input and undo preserve untouched CRLF');
   await page.getByRole('button',{name:'main.html',exact:true}).click();
   await waitForSource(page,'main.html');
@@ -177,7 +229,7 @@ try {
   await page.locator('.cm-content').click(); await page.keyboard.press('Control+Home');
   for(let index=0;index<3;index++) await page.keyboard.press('ArrowRight');
   for(let index=0;index<5;index++) await page.keyboard.press('Shift+ArrowRight');
-  await page.keyboard.insertText('Hi'); await menuAction(page,'file','Save');
+  await page.keyboard.insertText('Hi'); await saveExactSource(page,project.id,'main.html',original.replace('Hello','Hi'));
   await page.getByRole('button',{name:'Reanchor from selection',exact:true}).waitFor();
   await page.locator('.cm-content').click(); await page.keyboard.press('Control+Home');
   for(let index=0;index<3;index++) await page.keyboard.press('ArrowRight');
@@ -197,7 +249,7 @@ try {
   assert.equal((await mcp('reanchor',{})).isError,true,'remote agents cannot move protection');
   const protectedAgain=await mcp('suggest_text',{documentId:shared.documentId,proposal:{...proposal,requestId:'reanchored-protection',revision:anchored.review.revision,to:5,quote:'Hi'}});
   assert.equal(protectedAgain.isError,true,'reanchored protection is enforced');
-  await page.locator('.cm-content').click(); await page.keyboard.press('Control+a'); await page.keyboard.insertText(original); await menuAction(page,'file','Save');
+  await page.locator('.cm-content').click(); await page.keyboard.press('Control+a'); await page.keyboard.insertText(original); await saveExactSource(page,project.id,'main.html',original);
 
   await page.getByRole('button',{name:'Remove highlight',exact:true}).click();
   await page.locator('.review-card h3').getByText('Keep unchanged',{exact:true}).waitFor({state:'hidden'});
@@ -237,8 +289,15 @@ try {
   await page.evaluate(()=>{document.documentElement.style.fontSize='';});await page.setViewportSize({width:1600,height:1000});
   assert.equal(await readFile(join(projectRoot,'main.html'),'utf8'),original);
   await page.locator('.suggestion-card').first().waitFor({timeout:10000});
+  const htmlAcceptance=page.waitForResponse(response=>{
+    if(!response.url().endsWith('/api/review')||response.request().method()!=='POST') return false;
+    const operation=response.request().postDataJSON();return operation.action==='decide'&&operation.path==='main.html'&&operation.decision==='accepted';
+  });
   await page.locator('.suggestion-card').first().getByRole('button',{name:'Accept',exact:true}).click();
+  const htmlAccepted=await (await htmlAcceptance).json();assert.equal(htmlAccepted.ok,true,htmlAccepted.error?.message);
+  assert.equal(htmlAccepted.result.content,original.replace('Hello','Greetings'),'native HTML acceptance stores the exact expected source');
   for(let index=0;index<100&&await page.locator('.suggestion-card').count()!==3;index++) await page.waitForTimeout(50);
+  assert.equal(await page.locator('.suggestion-card').count(),3,'the accepted HTML suggestion leaves the pending list');
   await page.locator('.cm-content').evaluate(editor=>editor.focus());
   const acceptedText=await page.locator('.cm-content').textContent();await menuAction(page,'edit','Undo');
   assert.ok((await page.locator('.cm-content').textContent()).includes('Hello world'),'accepted wording is undoable');
@@ -282,12 +341,12 @@ try {
   const custom=page.locator('.palette-row').last();await custom.getByLabel('Rule name').fill('Keep meaning; make the introduction clearer and more concise');await custom.getByLabel('Fixed reviewer prompt').fill('Preserve every scientific claim; improve readability.');
   await page.getByRole('button',{name:'Save rules',exact:true}).click();
   await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.type('Editor history remains attached to this file.');
-  await menuAction(page,'file','Save');
+  await saveExactSource(page,project.id,'main.html',original.replace('Hello','Greetings')+'Editor history remains attached to this file.');
   await page.getByRole('button',{name:'main.typ',exact:true}).click();
   await waitForSource(page,'main.typ');
   await page.getByRole('tab',{name:'main.html',exact:true}).click();await waitForSource(page,'main.html');await page.locator('.cm-content').click();await page.keyboard.press('Control+z');
   assert.ok(!await page.locator('.cm-content').textContent().then(text=>text.includes('Editor history remains attached to this file.')),'undo survives file switches');
-  await menuAction(page,'file','Save');
+  await saveExactSource(page,project.id,'main.html',original.replace('Hello','Greetings'));
   for(const width of [320,760,1100,1600]) {
     await page.setViewportSize({width,height:900});await page.waitForTimeout(100);
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`page reflow at ${width}`);
@@ -342,11 +401,14 @@ try {
   };
   await page.route('**/api/review',holdCompileResponse);
   await page.locator('#typst-compile').click();await waitForFirstCompile;
-  await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.insertText('\n// Newer source saved while the compiled PDF response is pending.\n');
+  const mainBeforeHeldEdit=await call({action:'open',project:project.id,path:'main.typ'});
+  const heldMainEdit='// Newer source saved while the compiled PDF response is pending.';
+  await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.insertText(heldMainEdit);
   await page.waitForFunction(()=>document.getElementById('save-label').textContent==='Saved locally');
+  assert.equal((await call({action:'open',project:project.id,path:'main.typ'})).content,mainBeforeHeldEdit.content+heldMainEdit,'the newer main input is authoritatively saved before the old PDF response is released');
   releaseFirstCompile();await waitForFollowupCompile;
   assert.equal(await page.locator('#typst-preview-status').getAttribute('data-state'),'stale','an older PDF response stays stale after newer source has already autosaved');
-  assert.ok((await page.locator('#review-status').textContent()).includes('newer source still needs compilation'),'the compilation receipt uses the same revision-aware current status');
+  assert.ok((await page.locator('#review-status').textContent()).includes('recompile or verify project inputs'),'the compilation receipt uses the same revision-aware current status');
   releaseFollowupCompile();await page.waitForFunction(()=>document.getElementById('typst-preview-status').dataset.state==='current',{},{timeout:10000});
   await page.unroute('**/api/review',holdCompileResponse);
   await page.locator('#typst-pages canvas').first().waitFor({timeout:20000});
@@ -374,10 +436,32 @@ try {
   await page.screenshot({path:resolve('artifacts/preview-toolbar-enlarged.png'),fullPage:true});
   await page.evaluate(()=>{document.documentElement.style.fontSize='';}); await page.setViewportSize({width:1600,height:1000});
   await page.locator('#review-toggle').click();
-  await page.locator('#pdf-page-number').fill('10'); await page.locator('#pdf-page-number').press('Enter');
+  await page.waitForFunction(()=>{const page=document.querySelector('.pdf-page');return page&&Math.abs(page.getBoundingClientRect().width-(document.getElementById('typst-preview').clientWidth-32))<1;});
+  const zoomBeforePageEdit=Number.parseInt(await page.locator('#pdf-zoom-label').textContent());
+  await page.locator('#pdf-page-number').fill('10');
+  await page.setViewportSize({width:1500,height:1000});
+  await page.waitForFunction(previous=>Number.parseInt(document.getElementById('pdf-zoom-label').textContent)!==previous,zoomBeforePageEdit);
+  assert.equal(await page.locator('#pdf-page-number').inputValue(),'10','a real asynchronous resize render preserves a focused page-number edit');
+  await page.setViewportSize({width:1600,height:1000});
+  await page.waitForFunction(previous=>Number.parseInt(document.getElementById('pdf-zoom-label').textContent)===previous,zoomBeforePageEdit);
+  assert.equal(await page.locator('#pdf-page-number').inputValue(),'10','a second render also preserves the uncommitted page selection');
+  await page.locator('#pdf-page-number').press('Enter');
   await page.locator('#pdf-page-number').blur();
-  await page.locator('.pdf-page[data-page="10"] canvas').waitFor({timeout:10000});
+  await page.locator('.pdf-page[data-page="10"] canvas').waitFor({timeout:10000}).catch(async error=>{
+    throw new Error(`${error.message}\n${JSON.stringify(await page.evaluate(()=>({page:document.getElementById('pdf-page-number').value,total:document.getElementById('pdf-page-count').textContent,preview:document.getElementById('typst-preview-status').textContent,status:document.getElementById('review-status').textContent,canvases:[...document.querySelectorAll('.pdf-page canvas')].map(canvas=>canvas.parentElement.dataset.page),scrollTop:document.getElementById('typst-preview').scrollTop,previewHeight:document.getElementById('typst-preview').clientHeight})))}`);
+  });
   assert.ok(await page.locator('#typst-pages canvas').count()<=128,'PDF page navigation keeps a bounded visible canvas window');
+  await page.locator('#pdf-page-number').fill('2.5'); await page.locator('#pdf-page-number').press('Enter'); await page.locator('#pdf-page-number').blur();
+  assert.equal(await page.locator('#pdf-page-number').inputValue(),'2','committed fractional page input normalizes to an integer');
+  await page.locator('.pdf-page[data-page="2"] canvas').waitFor({timeout:10000});
+  await page.locator('#pdf-next').click();
+  await page.waitForFunction(()=>document.getElementById('pdf-page-number').value==='3',{},{timeout:10000});
+  assert.equal(await page.locator('#pdf-page-number').inputValue(),'3','Next advances from the normalized integer page');
+  await page.locator('.pdf-page[data-page="3"] canvas').waitFor({timeout:10000});
+  await page.locator('#pdf-previous').click();
+  await page.waitForFunction(()=>document.getElementById('pdf-page-number').value==='2',{},{timeout:10000});
+  assert.equal(await page.locator('#pdf-page-number').inputValue(),'2','Previous returns to the normalized integer page');
+  await page.locator('.pdf-page[data-page="2"] canvas').waitFor({timeout:10000});
   await page.locator('#pdf-page-number').fill('1'); await page.locator('#pdf-page-number').press('Enter'); await page.locator('#pdf-page-number').blur();
   for (let step=0; step<30 && Number.parseInt(await page.locator('#pdf-zoom-label').textContent())>10; step++) {
     await page.locator('#pdf-zoom-out').click(); await page.waitForTimeout(100);
@@ -425,11 +509,24 @@ try {
   const typstBefore=await call({action:'open',project:project.id,path:'main.typ'});const typstFrom=typstBefore.content.indexOf('Hello');
   const typstSuggestion=await mcp('suggest_text',{documentId:typstShare.documentId,proposal:{requestId:'typst-auto-build',revision:typstBefore.review.revision,from:typstFrom,to:typstFrom+5,quote:'Hello',replacement:'Greetings',rationale:'A clearer opening.'}});
   assert.equal(typstSuggestion.isError,false);await page.locator('.suggestion-card').waitFor({timeout:10000});
+  const acceptanceCompileCount=(await readFile(compilerCalls,'utf8')).trim().split('\n').length;
+  const typstAcceptance=page.waitForResponse(response=>{
+    if(!response.url().endsWith('/api/review')||response.request().method()!=='POST') return false;
+    const operation=response.request().postDataJSON();
+    return operation.action==='decide'&&operation.path==='main.typ'&&operation.decision==='accepted';
+  });
   await page.locator('.suggestion-card').getByRole('button',{name:'Accept',exact:true}).click();
+  const acceptedTypst=(await (await typstAcceptance).json());assert.equal(acceptedTypst.ok,true,acceptedTypst.error?.message);
+  assert.equal(acceptedTypst.result.content,typstBefore.content.replace('Hello','Greetings'),'native acceptance receipt contains the exact accepted source');
+  assert.notEqual(acceptedTypst.result.review.revision,typstBefore.review.revision,'native acceptance advances the source revision');
+  await page.locator('.suggestion-card').waitFor({state:'hidden',timeout:10000});
   assert.ok(await page.locator('#typst-pages canvas').count()>0,'accepted Typst wording retains the last good preview');
-  for(let index=0;index<120;index++) {const count=(await readFile(compilerCalls,'utf8')).trim().split('\n').length;if(count>=priorCompileCount+3&&await page.locator('#typst-preview-status').textContent().then(text=>text.startsWith('Current PDF'))) break;await page.waitForTimeout(100);}
-  assert.ok((await readFile(compilerCalls,'utf8')).trim().split('\n').length>=priorCompileCount+3,'accepted Typst suggestions trigger automatic compilation');
-  assert.ok((await page.locator('#typst-preview-status').textContent()).startsWith('Current PDF'),'automatic compile catches up to the accepted source');
+  for(let index=0;index<120;index++) {const count=(await readFile(compilerCalls,'utf8')).trim().split('\n').length;if(count>acceptanceCompileCount&&await page.locator('#typst-preview-status').textContent().then(text=>text.startsWith('Current PDF'))) break;await page.waitForTimeout(100);}
+  assert.ok((await readFile(compilerCalls,'utf8')).trim().split('\n').length>acceptanceCompileCount,'accepted Typst suggestions trigger a new automatic compilation');
+  assert.ok((await page.locator('#typst-preview-status').textContent()).startsWith('Current PDF'),`automatic compile catches up to the accepted source: ${JSON.stringify(await page.evaluate(()=>({preview:document.getElementById('typst-preview-status').textContent,receipt:document.getElementById('review-status').textContent,log:document.getElementById('compile-log').textContent,conflict:!document.getElementById('review-conflict').hidden})))}`);
+  const acceptedPdf=await call({action:'pdf',project:project.id,path:'main.typ'});
+  assert.equal(acceptedPdf.current,true,'the accepted PDF has a current native publication receipt');
+  assert.equal(acceptedPdf.revision,acceptedTypst.result.review.revision,'the PDF receipt matches the authoritative accepted source revision');
   assert.ok((await readFile(join(projectRoot,'main.typ'),'utf8')).includes('Greetings world'));
 
   await page.evaluate(() => {
@@ -459,11 +556,13 @@ try {
   await page.locator('#source-undo').click();
   assert.ok(!(await page.locator('.cm-content').textContent()).includes('PDF cleanup draft.'),'undo remains attached to the detached PDF file');
   assert.ok((await page.locator('.cm-content').textContent()).includes('Greetings world'),'undo does not remove the previous authoritative acceptance');
-  await menuAction(page,'file','Save');
+  await saveExactSource(page,project.id,'main.typ',acceptedTypst.result.content);
   await page.getByRole('tab',{name:'crlf.html',exact:true}).click();
   await waitForSource(page,'crlf.html');
   assert.ok((await page.locator('.cm-content').textContent()).includes('CRLF isolated draft.'),'the newer file retains its independent edit history');
-  await page.locator('#source-undo').click(); await menuAction(page,'file','Save');
+  await page.locator('#source-undo').click();
+  assert.ok(!(await page.locator('.cm-content').textContent()).includes('CRLF isolated draft.'),'Undo removes the newer file’s independent draft in its live editor');
+  await saveExactSource(page,project.id,'crlf.html',crlfSource);
   assert.equal(await readFile(join(projectRoot,'crlf.html'),'utf8'),crlfSource,'undo after delayed PDF cleanup preserves the other file’s exact bytes');
   let releaseOpen; let openHeld;
   const waitForOpen = new Promise(resolve => { openHeld = resolve; });
@@ -500,9 +599,11 @@ try {
   });
   releaseSave();await waitForSource(page,'autosave-b.html');
   await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.insertText(' New B draft.');
-  await savedLateDraft;
+  const lateDraftReceipt=await (await savedLateDraft).json();assert.equal(lateDraftReceipt.ok,true,lateDraftReceipt.error?.message);
+  assert.equal(lateDraftReceipt.result.content,'<p>Autosave A.</p>\n First A draft. Late A draft.','the native autosave receipt includes both versions of the first file’s draft');
+  assert.equal((await call({action:'open',project:project.id,path:'autosave-a.html'})).review.revision,lateDraftReceipt.result.review.revision,'the autosave receipt matches the saved first-file revision');
   assert.ok((await readFile(join(projectRoot,'autosave-a.html'),'utf8')).includes('Late A draft.'),'newer typing during a navigation save still autosaves after switching and editing another file');
-  await menuAction(page,'file','Save');
+  await saveExactSource(page,project.id,'autosave-b.html','<p>Autosave B.</p>\n New B draft.');
   assert.ok((await readFile(join(projectRoot,'autosave-b.html'),'utf8')).includes('New B draft.'),'each file keeps its own autosave timer');
   await page.unroute('**/api/review',holdNavigationSave);
   await page.getByRole('tab',{name:'main.html',exact:true}).click();await waitForSource(page,'main.html');
@@ -523,6 +624,115 @@ try {
   await page.getByRole('tab',{name:'import.typ',exact:true}).waitFor();
   assert.ok((await readFile(join(projectRoot,'import.typ'),'utf8')).includes('#strong[important]'));
   assert.ok((await readFile(join(projectRoot,'import.tex'),'utf8')).includes('\\custom{kept}'));
+  await page.getByRole('button',{name:'book.typ',exact:true}).click();await waitForSource(page,'book.typ');
+  await menuAction(page,'file','Set as main document');
+  await page.waitForFunction(()=>document.getElementById('review-status').textContent==='Main document: book.typ');
+  assert.equal((await call({action:'projects'})).find(item=>item.id===project.id).mainDocument,'book.typ','main document is stored by the native authority');
+  await page.setViewportSize({width:320,height:900});await page.evaluate(()=>{document.documentElement.style.fontSize='28px';});
+  await page.locator('#workspace-menu summary').click();
+  await page.waitForFunction(()=>[...document.querySelectorAll('#workspace-menu [data-command$="main-document"]')].every(button=>['fit','reflow'].includes(button.dataset.textFit)));
+  assert.equal(await page.locator('#workspace-menu [data-command="clear-main-document"]').evaluate(button=>button.scrollWidth<=button.clientWidth+1&&button.scrollHeight<=button.clientHeight+2),true,'main document controls remain measured and readable at 320px with enlarged text');
+  await page.keyboard.press('Escape');await page.evaluate(()=>{document.documentElement.style.fontSize='';});await page.setViewportSize({width:1600,height:1000});
+  await page.reload();
+  await page.getByRole('button',{name:'references.bib',exact:true}).click();await waitForSource(page,'references.bib');
+  assert.equal(await page.locator('#typst-compile').isVisible(),true,'a configured main remains compilable while a bibliography is selected');
+  assert.equal(await page.locator('#typst-compile').getAttribute('title'),'Compile book.typ');
+  await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.insertText('\n% An edited bibliography remains selected.\n');
+  const bibliographyBuffer=await page.locator('.cm-content').textContent();
+  await page.keyboard.press('F5');
+  await page.waitForFunction(()=>document.getElementById('typst-preview-status').dataset.state==='current',{},{timeout:15000});
+  await page.waitForFunction(()=>document.getElementById('typst-compile').textContent==='Recompile'&&document.getElementById('compile-log').textContent.includes('unknown font family'),{},{timeout:15000});
+  assert.equal(await page.locator('#manuscript-tabs [role="tab"][aria-selected="true"]').textContent(),'references.bib','compiling the main preserves the selected dependency');
+  assert.equal(await page.locator('.cm-content').textContent(),bibliographyBuffer,'compilation preserves bibliography editor content');
+  assert.ok((await readFile(join(projectRoot,'references.bib'),'utf8')).includes('An edited bibliography'),'F5 saves the dependency before compiling');
+  assert.ok((await page.locator('#compile-log').textContent()).includes('book.typ'),'build log identifies the actual compiled main');
+  assert.ok((await page.locator('#compile-log').textContent()).includes('unknown font family'),'successful compiler warnings remain available');
+  assert.ok((await call({action:'pdf',project:project.id,path:'book.typ'})).diagnostics.includes('unknown font family'),'warnings persist with the last successful PDF');
+  const mainDownload=page.waitForEvent('download');await page.locator('#export-pdf').click();
+  assert.equal((await mainDownload).suggestedFilename(),'book.pdf','export uses the main document filename while a bibliography is selected');
+  await page.locator('#source-undo').click();
+  assert.ok(!(await page.locator('.cm-content').textContent()).includes('An edited bibliography'),'compiling leaves the dependency undo history intact');
+  await saveExactSource(page,project.id,'references.bib',bibliographySource);
+  let firstBookCompile=true,bookCompileHeld,releaseBookCompile,bookFollowupHeld,releaseBookFollowup;
+  const bookHeld=new Promise(resolve=>{bookCompileHeld=resolve;}),bookPending=new Promise(resolve=>{releaseBookCompile=resolve;});
+  const bookFollowup=new Promise(resolve=>{bookFollowupHeld=resolve;}),bookNextPending=new Promise(resolve=>{releaseBookFollowup=resolve;});
+  const holdBookCompile=async route=>{
+    const operation=route.request().postDataJSON();
+    if(operation.action!=='compile'||operation.path!=='book.typ') return route.continue();
+    if(firstBookCompile) {firstBookCompile=false;const response=await route.fetch();bookCompileHeld();await bookPending;return route.fulfill({response});}
+    bookFollowupHeld();await bookNextPending;return route.continue();
+  };
+  await page.route('**/api/review',holdBookCompile);await page.locator('#typst-compile').click();await bookHeld;
+  await page.getByRole('button',{name:'part.typ',exact:true}).click();await waitForSource(page,'chapters/part.typ');
+  const includedChapterEdit='An included chapter edit.';
+  await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.insertText(includedChapterEdit);
+  const chapterBuffer=await page.locator('.cm-content').textContent();
+  await page.waitForFunction(()=>document.getElementById('save-label').textContent==='Saved locally');
+  assert.equal((await call({action:'open',project:project.id,path:'chapters/part.typ'})).content,chapterSource+includedChapterEdit,'the included dependency is authoritatively saved before the old main PDF response is released');
+  releaseBookCompile();await bookFollowup;
+  assert.equal(await page.locator('#typst-preview-status').getAttribute('data-state'),'stale','a newly opened dependency edited and autosaved after build start invalidates the pending main response');
+  releaseBookFollowup();await page.waitForFunction(()=>document.getElementById('typst-preview-status').dataset.state==='current',{},{timeout:15000});
+  await page.unroute('**/api/review',holdBookCompile);
+  assert.equal(await page.locator('.cm-content').textContent(),chapterBuffer,'building the main keeps the chapter buffer and caret owner');
+  assert.ok((await readFile(join(projectRoot,'chapters','part.typ'),'utf8')).includes('An included chapter edit.'));
+  const chapterSnapshot=await call({action:'open',project:project.id,path:'chapters/part.typ'});
+  const chapterShare=await call({action:'share',project:project.id,path:'chapters/part.typ',enabled:true});
+  const chapterQuote='A nested manuscript.',chapterFrom=chapterSnapshot.content.indexOf(chapterQuote);
+  assert.equal((await mcp('suggest_text',{documentId:chapterShare.documentId,proposal:{requestId:'chapter-after-switch',revision:chapterSnapshot.review.revision,from:chapterFrom,to:chapterFrom+chapterQuote.length,quote:chapterQuote,replacement:'An improved chapter manuscript.',rationale:'Qualify a delayed included-file acceptance.'}})).isError,false);
+  await menuAction(page,'view','Show manuscript review');
+  await page.locator('.suggestion-card').getByRole('button',{name:'Accept',exact:true}).waitFor({timeout:10000});
+  let chapterDecisionHeld,releaseChapterDecision,chapterDecisionReply;
+  const chapterDecision=new Promise(resolve=>{chapterDecisionHeld=resolve;}),chapterDecisionPending=new Promise(resolve=>{releaseChapterDecision=resolve;});
+  const holdChapterDecision=async route=>{
+    const operation=route.request().postDataJSON();
+    if(operation.action!=='decide'||operation.path!=='chapters/part.typ') return route.continue();
+    const response=await route.fetch();chapterDecisionReply=await response.json();chapterDecisionHeld();await chapterDecisionPending;return route.fulfill({response});
+  };
+  await page.route('**/api/review',holdChapterDecision);await page.locator('.suggestion-card').getByRole('button',{name:'Accept',exact:true}).click();await chapterDecision;
+  if(!chapterDecisionReply.ok) releaseChapterDecision();
+  assert.equal(chapterDecisionReply.ok,true,`the native chapter acceptance must commit before the response is held: ${JSON.stringify(chapterDecisionReply.error)}`);
+  assert.equal(chapterDecisionReply.result.content,chapterSnapshot.content.replace(chapterQuote,'An improved chapter manuscript\\.'),'native acceptance returns the exact source with safely escaped Typst punctuation');
+  await page.getByRole('button',{name:'references.bib',exact:true}).click();await waitForSource(page,'references.bib');
+  const bibliographyDuringDecision=await page.locator('.cm-content').textContent();
+  const chapterRebuild=page.waitForRequest(request=>{
+    if(!request.url().endsWith('/api/review')||request.method()!=='POST') return false;
+    const operation=request.postDataJSON();return operation.action==='compile'&&operation.project===project.id&&operation.path==='book.typ';
+  });
+  releaseChapterDecision();
+  const chapterRebuildResponse=await (await chapterRebuild).response();assert.ok(chapterRebuildResponse,'chapter acceptance produces a native main-document compile response');
+  const chapterRebuildReceipt=await chapterRebuildResponse.json();assert.equal(chapterRebuildReceipt.ok,true,chapterRebuildReceipt.error?.message);
+  assert.equal(chapterRebuildReceipt.result.current,true,'the follow-up main build validates the accepted chapter inputs');
+  await page.waitForFunction(()=>document.getElementById('typst-preview-status').dataset.state==='current',{},{timeout:15000});
+  assert.equal((await call({action:'pdf',project:project.id,path:'book.typ'})).current,true,'the cached main PDF verifies the accepted chapter dependency');
+  assert.equal((await call({action:'open',project:project.id,path:'chapters/part.typ'})).review.revision,chapterDecisionReply.result.review.revision,'the accepted chapter revision remains authoritative after the follow-up main build');
+  assert.equal(await page.locator('.cm-content').textContent(),bibliographyDuringDecision,'a delayed chapter acceptance keeps the newly selected bibliography buffer');
+  assert.equal(await readFile(join(projectRoot,'chapters','part.typ'),'utf8'),chapterSnapshot.content.replace(chapterQuote,'An improved chapter manuscript\\.'),'acceptance stores escaped Typst prose in the included source');
+  await page.unroute('**/api/review',holdChapterDecision);
+  const bibliographyOnDisk=await readFile(join(projectRoot,'references.bib'),'utf8');
+  await writeFile(join(projectRoot,'references.bib'),bibliographyOnDisk+'\n% External bibliography edit.\n');
+  await page.locator('#review-conflict').waitFor({state:'visible',timeout:10000});
+  assert.equal(await page.locator('#typst-preview-status').getAttribute('data-state'),'stale','an observed external dependency conflict invalidates the visible main PDF');
+  assert.equal(await page.locator('.cm-content').textContent(),bibliographyDuringDecision,'refresh conflict retains the existing dependency editor');
+  await page.locator('#reload-buffer').click();
+  await page.waitForFunction(()=>document.querySelector('.cm-content').textContent.includes('External bibliography edit.'));
+  await page.locator('#typst-compile').click();await page.waitForFunction(()=>document.getElementById('typst-preview-status').dataset.state==='current',{},{timeout:15000});
+  await page.getByRole('button',{name:'part.typ',exact:true}).click();await waitForSource(page,'chapters/part.typ');
+  const goodMain=await call({action:'pdf',project:project.id,path:'book.typ'});assert.equal(goodMain.current,true);
+  await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.insertText('\n#unknown-chapter-function()\n');
+  const failedChapter=await page.locator('.cm-content').textContent();
+  await page.locator('#typst-compile').click();await page.waitForFunction(()=>document.getElementById('typst-preview-status').dataset.state==='error',{},{timeout:15000});
+  assert.equal(await page.locator('.cm-content').textContent(),failedChapter,'a main build failure preserves the included chapter editor');
+  assert.ok(await page.locator('#typst-pages canvas').count()>0,'a failed included chapter keeps the main last-good preview');
+  const failedMain=await call({action:'pdf',project:project.id,path:'book.typ'});assert.equal(failedMain.base64,goodMain.base64);assert.equal(failedMain.current,false,'an unchanged main is stale after an included file changes');
+  await page.locator('#source-undo').click();
+  assert.ok(!(await page.locator('.cm-content').textContent()).includes('#unknown-chapter-function()'),'Undo removes the invalid included source from its live editor');
+  await saveExactSource(page,project.id,'chapters/part.typ',chapterDecisionReply.result.content);
+  await menuAction(page,'file','Clear main document');
+  await page.waitForFunction(()=>document.getElementById('typst-compile').title==='Compile chapters/part.typ');
+  assert.equal((await call({action:'projects'})).find(item=>item.id===project.id).mainDocument,'','clearing main restores selected-source compilation');
+  await page.getByRole('button',{name:'references.bib',exact:true}).click();await waitForSource(page,'references.bib');
+  assert.equal(await page.locator('#typst-compile').isVisible(),false,'a bibliography has no compile action without a configured main');
+  await page.getByRole('button',{name:'main.typ',exact:true}).click();await waitForSource(page,'main.typ');
   const checkpoint=await call({action:'open',project:project.id,path:'main.typ'});
   await call({action:'save',project:project.id,path:'main.typ',revision:checkpoint.review.revision,content:'#unknown-function()'});
   const invalid=await call({action:'open',project:project.id,path:'main.typ'});
@@ -618,10 +828,59 @@ try {
   await page.waitForFunction(()=>document.getElementById('review-conflict').hidden);
   assert.equal((await page.locator('.cm-content').textContent()).trim(),'<p>An external author changed the disk source.</p>','an unchanged explicit retry loads the selected disk version');
   assert.equal(await readFile(join(projectRoot,'main.html'),'utf8'),'<p>An external author changed the disk source.</p>\n','recovery never overwrites the external source');
+  const preferenceRoot=join(root,'preferences-project');await mkdir(preferenceRoot);
+  const preferenceSource='<p>'+ 'An editable sentence. '.repeat(25)+'</p>\n';await writeFile(join(preferenceRoot,'settings.html'),preferenceSource);
+  const preferenceProject=await call({action:'add_project',root:preferenceRoot});
+  const preferenceContext=await browser.newContext({viewport:{width:1600,height:1000}});const preferencePage=await preferenceContext.newPage();
+  preferencePage.on('pageerror',error=>errors.push(error.message));
+  await preferencePage.goto(base+`/manuscript.html#session=${token}`);
+  await preferencePage.locator('#project-select').selectOption(preferenceProject.id);await preferencePage.getByRole('button',{name:'settings.html',exact:true}).click();await waitForSource(preferencePage,'settings.html');
+  await preferencePage.locator('.cm-content').click();await preferencePage.keyboard.press('Control+End');await preferencePage.keyboard.insertText(' Preserve editor history.');
+  await menuAction(preferencePage,'view','Larger editor text');await menuAction(preferencePage,'view','Larger editor text');await menuAction(preferencePage,'view','Word wrap');
+  await menuAction(preferencePage,'edit','Undo');
+  assert.ok(!(await preferencePage.locator('.cm-content').textContent()).includes('Preserve editor history.'),'changing editor presentation preserves the undoable source edit');
+  await saveExactSource(preferencePage,preferenceProject.id,'settings.html',preferenceSource);
+  assert.equal(await readFile(join(preferenceRoot,'settings.html'),'utf8'),preferenceSource,'changing text size and wrap preserves editor undo history');
+  await preferencePage.locator('#files-splitter').focus();for(let index=0;index<20;index++) await preferencePage.keyboard.press('ArrowRight');
+  await preferencePage.locator('#preview-splitter').focus();await preferencePage.keyboard.press('ArrowRight');await preferencePage.keyboard.press('ArrowRight');
+  await preferencePage.locator('#outline-toggle').click();await preferencePage.locator('#review-toggle').click();
+  await preferencePage.locator('#files-collapse').click();await preferencePage.locator('#preview-collapse').click();
+  const preferred=await preferencePage.evaluate(()=>JSON.parse(localStorage.getItem('undertree.workspace-preferences')));
+  assert.equal(preferred.editorFontSize,14);assert.equal(preferred.wordWrap,false);assert.equal(preferred.filesCollapsed,true);assert.equal(preferred.previewCollapsed,true);assert.equal(preferred.reviewOpen,true);assert.equal(preferred.outlineCollapsed,true);assert.ok(Math.abs(preferred.editorFraction-.6)<1e-9);
+  await preferencePage.reload();await preferencePage.locator('#project-select').selectOption(preferenceProject.id);
+  assert.deepEqual(await preferencePage.locator('.review-workspace').evaluate(node=>[node.dataset.filesCollapsed,node.dataset.previewCollapsed,node.dataset.reviewOpen]),['true','true','true'],'explicit pane visibility restores after reloading the application');
+  assert.equal(await preferencePage.locator('#outline-toggle').getAttribute('aria-expanded'),'false');
+  assert.equal(await preferencePage.locator('#preview-splitter').getAttribute('aria-valuenow'),'60');
+  await menuAction(preferencePage,'view','Show file panel');await preferencePage.getByRole('button',{name:'settings.html',exact:true}).click();await waitForSource(preferencePage,'settings.html');
+  assert.equal(await preferencePage.locator('.cm-content').evaluate(node=>getComputedStyle(node).fontSize),'14px','explicit source text size restores without altering the default type token');
+  assert.equal(await preferencePage.locator('.cm-content').evaluate(node=>node.classList.contains('cm-lineWrapping')),false,'wrap stays disabled after reopening a source');
+  await preferencePage.setViewportSize({width:1000,height:800});await preferencePage.waitForTimeout(100);
+  assert.ok((await preferencePage.locator('.manuscript-files').boundingBox()).width<preferred.filesWidth,'a narrow desktop clamps the visible file panel');
+  await preferencePage.setViewportSize({width:1600,height:1000});await preferencePage.waitForTimeout(100);
+  assert.ok(Math.abs((await preferencePage.locator('.manuscript-files').boundingBox()).width-preferred.filesWidth)<=1,'file panel regrows to the user preference after expansion');
+  await preferencePage.setViewportSize({width:320,height:900});await preferencePage.evaluate(()=>{document.documentElement.style.fontSize='28px';});
+  await preferencePage.getByRole('button',{name:'Editor',exact:true}).click();await assertChrome(preferencePage,'restored workspace at 320px and 200% text');
+  assert.equal(await preferencePage.locator('.cm-content').evaluate(node=>getComputedStyle(node).fontSize),'28px','a restored editor preference respects user text enlargement');
+  await menuAction(preferencePage,'view','Reset workspace');await assertChrome(preferencePage,'reset workspace at 320px and 200% text');
+  await preferencePage.evaluate(()=>{document.documentElement.style.fontSize='';});await preferencePage.setViewportSize({width:1600,height:1000});
+  assert.equal(await preferencePage.locator('.cm-content').evaluate(node=>getComputedStyle(node).fontSize),'12px','Reset workspace restores the pinned default source typography');
+  assert.equal(await preferencePage.locator('.cm-content').evaluate(node=>node.classList.contains('cm-lineWrapping')),true);
+  assert.ok(Math.abs((await preferencePage.locator('.manuscript-files').boundingBox()).width-232.95)<=1,'Reset workspace restores the proportional reference sidebar');
+  await preferenceContext.close();
+  const blockedStorageContext=await browser.newContext({viewport:{width:1600,height:1000}});
+  await blockedStorageContext.addInitScript(()=>Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Storage unavailable','SecurityError');}}));
+  const blockedStoragePage=await blockedStorageContext.newPage();blockedStoragePage.on('pageerror',error=>errors.push(error.message));
+  await blockedStoragePage.goto(base+`/manuscript.html#session=${token}`);await blockedStoragePage.locator('#project-select').selectOption(preferenceProject.id);await blockedStoragePage.getByRole('button',{name:'settings.html',exact:true}).click();await waitForSource(blockedStoragePage,'settings.html');
+  await menuAction(blockedStoragePage,'view','Larger editor text');
+  assert.equal(await blockedStoragePage.locator('.cm-content').evaluate(node=>getComputedStyle(node).fontSize),'13px','settings remain usable when browser storage is unavailable');
+  await blockedStorageContext.close();
   assert.deepEqual(errors,[]);
-  console.log('Real Rust review/MCP, local reanchor/protection, pending/new cues, source-linked card collision/navigation/scroll, accepted Typst automatic PDF, six menus/centered title/source formatting/undo/outline, exact CRLF source markers and byte roundtrip, width×height/200%/text-spacing chrome, one 32px desktop preview toolbar/enlarged reflow/actual source+PDF downloads, all 10 PDF pages with bounded canvases, explicit builds, delayed real PDF Worker termination/open responses with independent file undo, delayed palette/highlight project ownership and recorded autosync targets, TeX import and visible failure/last-good PDF checks passed. zrok process and final autosync response simulated; public tunnel, live GitHub push and full rendered Overleaf parity not tested.');
+  console.log('Real Rust review/MCP, local reanchor/protection, pending/new cues, source-linked card collision/navigation/scroll, accepted Typst automatic PDF, six menus/centered title/source formatting/undo/outline, exact CRLF source markers and byte roundtrip, width×height/200%/text-spacing chrome, one 32px desktop preview toolbar/enlarged reflow/actual source+PDF downloads, all 10 PDF pages with bounded canvases, explicit builds, delayed real PDF Worker termination/open responses with independent file undo, delayed palette/highlight project ownership and recorded autosync targets, TeX import, delayed save/reload/IME acceptance safety, revision-aware delayed PDF status, persisted pane/text settings with undo, reload, clamp/regrowth, 320px/200% and denied storage, and visible failure/last-good PDF checks passed. zrok process and final autosync response simulated; public tunnel, live GitHub push and full rendered Overleaf parity not tested.');
 } finally {
   await browser?.close();child.kill('SIGINT');
   await new Promise(r=>{if(child.exitCode!==null) r();else {child.once('exit',r);setTimeout(r,3000).unref();}});
   await rm(root,{recursive:true,force:true});
 }
+const resultReceipt = snapshotReceipt.replace(/\.json$/, '-result.json');
+await writeFile(resultReceipt, JSON.stringify({completedAt:new Date().toISOString(),command:'npm run test:review-ui',exitCode:0,status:'VERIFIED',snapshotReceipt,snapshotSha256,scope:'Real Rust authority and Typst CLI with immutable copied frontend and executable; zrok and final autosync simulated. Full Overleaf parity, live ChatGPT/public tunnel, live GitHub push and native shell are not qualified by this gate.'},null,2)+'\n');
+console.log(`Review UI result: ${resultReceipt}`);

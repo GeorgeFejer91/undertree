@@ -10,7 +10,10 @@ code.
 
 ## Rust/Tauri manuscript authority
 
-The new workspace has one framework-independent Rust authority in
+The fixed product stack is Rust, Tauri v2, HTML/CSS and Typst on every native
+platform. Electron is excluded from active dependencies, builds and releases.
+
+The workspace has one framework-independent Rust authority in
 `modules/review/`. The Tauri v2 shell serves bundled `manuscript.html`, chooses
 local project folders, and forwards typed `Operation` requests. The HTML/CSS
 frontend presents sources, previews, highlights and review cards; it cannot
@@ -81,22 +84,20 @@ separate loopback token and shares this Rust authority; it is not the agent
 endpoint. Linux debug execution, browser qualification, live ChatGPT/zrok and
 packaged platform execution have distinct evidence requirements.
 
-## Retained compatibility process model
+## Historical Linux compatibility process model
 
-UnderTree uses the same authenticated localhost boundary on both platforms, but
-the native shell differs. Linux uses GTK/WebKitGTK. Windows uses Electron and
-keeps the service in a dedicated utility process so compiler and filesystem
-work never shares the native window process event loop.
+The legacy Linux TeX/HTML modules use an authenticated localhost boundary and
+GTK/WebKitGTK. They provide migration references and compatibility checks; the
+final native product uses the Rust/Tauri authority above on every platform.
 
 ```text
 Native UnderTree window
-        (GTK/WebKitGTK on Linux; Electron renderer on Windows)
+        (legacy GTK/WebKitGTK on Linux)
         (bundled HTML/CSS/CodeMirror/PDF.js)
                     │ localhost HTTP + authenticated JSON
                     ▼
 Node service on 127.0.0.1:37371
-        (independent service process on Linux;
-         Electron utility process on Windows)
+        (independent legacy service process)
         ├── canonical project inventory and icons
         ├── atomic, project-root-confined text saves
         ├── tex-sync / latexmk builds
@@ -127,9 +128,9 @@ Node service on 127.0.0.1:37371
   policy; `scripts/`, `packaging/`, and `.github/` remain platform-facing
   maintenance adapters.
 
-The retained frontend and compiler communicate only through the authenticated local HTTP
-contract. Electron's main process owns window lifecycle and native dialogs, not
-project scanning, parsing, search, ZIP creation, or TeX orchestration.
+The legacy frontend and compiler communicate only through their authenticated
+local HTTP contract. Their format functionality must be migrated behind the
+Rust authority before it counts as complete native product coverage.
 
 ## Responsive compilation model
 

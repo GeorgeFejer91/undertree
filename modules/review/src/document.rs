@@ -707,28 +707,32 @@ pub fn is_html_text(text: &str, from: usize, to: usize) -> Result<bool> {
             if cursor == bytes.len() {
                 return Ok(false);
             }
-            let tag = text[tag_start + 1..cursor].trim().to_ascii_lowercase();
+            // HTML delimiters are exact; trimming can turn raw text into a closing tag.
+            let tag = text[tag_start + 1..cursor].to_ascii_lowercase();
+            let closing = tag.starts_with('/');
             let name = tag
-                .split_whitespace()
+                .strip_prefix('/')
+                .unwrap_or(tag.as_str())
+                .split(['/', ' ', '\t', '\n', '\r', '\u{c}'])
                 .next()
-                .unwrap_or("")
-                .trim_end_matches('/');
+                .unwrap_or("");
             if let Some(open) = &raw {
-                if name.strip_prefix('/') == Some(open.as_str()) {
+                if closing && open != "plaintext" && name == open.as_str() {
                     raw = None;
                 }
-            } else if [
-                "script",
-                "style",
-                "textarea",
-                "title",
-                "xmp",
-                "iframe",
-                "noembed",
-                "noframes",
-                "plaintext",
-            ]
-            .contains(&name)
+            } else if !closing
+                && [
+                    "script",
+                    "style",
+                    "textarea",
+                    "title",
+                    "xmp",
+                    "iframe",
+                    "noembed",
+                    "noframes",
+                    "plaintext",
+                ]
+                .contains(&name)
             {
                 raw = Some(name.to_owned());
             }
@@ -819,6 +823,85 @@ mod tests {
         assert!(!is_html_text("<p>&amp;</p>", 4, 6).unwrap());
         assert!(is_html_text("<p>😀 &amp;</p>", 3, 11).unwrap());
     }
+    #[test]
+    fn html_raw_tag_delimiters_deny_proposals_and_legacy_acceptance() {
+        for tag in ["script", "style", "textarea"] {
+            let text = format!("<{tag}/x>Hello</{tag}>");
+            let from = text.find("Hello").unwrap();
+            let mut review = Review::new(&text);
+            assert_eq!(
+                review
+                    .propose(&text, proposal(&text, from, from + 5))
+                    .unwrap_err()
+                    .code,
+                "scope",
+                "{text}"
+            );
+            assert!(review.suggestions.is_empty());
+
+            // Old sidecars may already contain a proposal admitted by the former classifier.
+            let ordinary = "<p>Hello</p>";
+            let mut legacy = Review::new(ordinary)
+                .propose(ordinary, proposal(ordinary, 3, 8))
+                .unwrap();
+            legacy.anchor = Anchor::new(&text, from, from + 5).unwrap();
+            let id = legacy.id.clone();
+            review.suggestions.push(legacy);
+            review.validate_for_text(&text).unwrap();
+            assert_eq!(
+                review
+                    .decide(&text, &digest(&text), &id, Decision::Accepted)
+                    .unwrap_err()
+                    .code,
+                "scope",
+                "{text}"
+            );
+            assert_eq!(review.suggestions[0].status, Status::Pending);
+            assert_eq!(
+                review
+                    .decide(&text, &digest(&text), &id, Decision::Rejected)
+                    .unwrap(),
+                text
+            );
+        }
+    }
+
+    #[test]
+    fn html_raw_context_cannot_end_at_invalid_or_plaintext_closers() {
+        for text in [
+            "<script>before< /script>Hello</script>",
+            "<script>before</script\u{a0}>Hello</script>",
+            "<script>before</script\u{b}>Hello</script>",
+            "<style>before</style\u{a0}>Hello</style>",
+            "<textarea>before</textarea\u{a0}>Hello</textarea>",
+            "<plaintext>before</plaintext>Hello",
+        ] {
+            let byte = text.find("Hello").unwrap();
+            let from = text[..byte].encode_utf16().count();
+            assert!(!is_html_text(text, from, from + 5).unwrap(), "{text}");
+        }
+    }
+
+    #[test]
+    fn html_prose_after_proper_raw_closure_remains_editable() {
+        for text in [
+            "<script/x>secret</script><p>Hello</p>",
+            "<style/x>secret</style><p>Hello</p>",
+            "<textarea/x>secret</textarea><p>Hello</p>",
+            "<ScRiPt/X>secret</sCrIpT/><p>Hello</p>",
+            "<script>secret</script\t><p>Hello</p>",
+            "<script>secret</script\n><p>Hello</p>",
+            "<script>secret</script\r><p>Hello</p>",
+            "<script>secret</script\u{c}><p>Hello</p>",
+        ] {
+            let from = text.find("Hello").unwrap();
+            assert!(is_html_text(text, from, from + 5).unwrap(), "{text}");
+            Review::new(text)
+                .propose(text, proposal(text, from, from + 5))
+                .unwrap();
+        }
+    }
+
     #[test]
     fn stale_revision_replay_and_reject() {
         let text = "<p>Hello</p>";

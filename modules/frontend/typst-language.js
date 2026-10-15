@@ -8,7 +8,7 @@ const bodies = new Set(['if', 'for', 'while']);
 const identifier = /^(?:_|\p{XID_Start})(?:[\p{XID_Continue}_-])*/u;
 const mathIdentifier = /^\p{XID_Start}(?:(?!_)\p{XID_Continue})*/u;
 const number = /^(?:0x[\da-fA-F]+|0b[01]+|0o[0-7]+|(?:\d+(?:\.(?!\.|[_\p{XID_Start}])\d*)?|\.\d+)(?:[eE][+-]?\d+)?)(?:pt|mm|cm|in|deg|rad|em|fr|%)?/u;
-const frame = (mode, close = '') => ({ mode, close, embedded: false, fresh: true, first: true, done: false, statement: '', conditional: false, body: false, strong: false, emphasis: false, heading: false });
+const frame = (mode, close = '') => ({ mode, close, embedded: false, fresh: true, first: true, done: false, closed: false, statement: '', conditional: false, body: false, strong: false, emphasis: false, heading: false });
 const top = state => state.frames.at(-1);
 
 function push(state, next) {
@@ -23,6 +23,7 @@ function close(state) {
   if (previous.literal) { parent.strong = previous.strong; parent.emphasis = previous.emphasis; }
   if (previous.body && parent.embedded) { parent.done = true; parent.statement = ''; }
   else complete(state);
+  if (parent.embedded) parent.closed = true;
 }
 function lineEnd(state) {
   if (state.comment || state.raw || state.string || state.overflow) return;
@@ -63,6 +64,10 @@ function readToken(stream, state) {
   if (state.string) return stringToken(stream, state);
   let current = top(state);
   if (!state.overflow && current.embedded && current.fresh && (stream.match(/^\s/, false) || stream.match('//', false) || stream.match('/*', false))) { state.frames.pop(); current = top(state); }
+  if (!state.overflow && current.embedded && current.statement === 'let' && current.closed && current.done) {
+    const continuation = stream.match(/^[ \t]*(?:[;([{.+\-*/%=<>!&|]|(?:and|or|not|in|else)\b)/u, false);
+    if (!continuation) current.statement = '';
+  }
   if (!state.overflow && current.embedded && current.done && !current.statement) {
     const suffix = stream.match(/^(?:\(|\[|\.(?=[_\p{XID_Start}]))/u, false);
     const alternate = current.conditional && stream.match(/^[ \t]*else\b/, false);
@@ -125,11 +130,12 @@ function readToken(stream, state) {
     const word = name[0]; const field = stream.string[stream.start - 1] === '.';
     if (current.mode === 'math') return 'variableName';
     if (current.first && !field) {
-      if (statements.has(word)) current.statement = 'line';
+      if (statements.has(word)) current.statement = word;
       if (bodies.has(word)) { current.statement = 'body'; current.conditional = word === 'if'; }
     }
     if (word === 'else' && current.conditional) { current.statement = 'body'; current.done = false; }
     else current.done = word !== 'context';
+    if (!field && current.statement === 'let' && ['and', 'or', 'not', 'in', 'else'].includes(word)) { current.closed = false; current.done = false; }
     if (word !== 'context') current.first = false;
     if (!field && ['none', 'auto'].includes(word)) return 'atom';
     if (!field && ['true', 'false'].includes(word)) return 'bool';
@@ -149,6 +155,7 @@ function readToken(stream, state) {
   }
   if (current.embedded && character === ';') { state.frames.pop(); return 'punctuation'; }
   if (character === '.' && !current.first) current.done = false;
+  else if (current.closed && /[+\-*/%=<>!&|]/u.test(character)) { current.closed = false; current.done = false; }
   else if (current.embedded && current.first) current.done = true;
   return /[+\-−*/=<>^_&|:!]/u.test(character) ? 'operator' : 'punctuation';
 }

@@ -1,6 +1,6 @@
 # UnderTree
 
-UnderTree is an offline manuscript workspace moving to Rust, Tauri and Typst,
+UnderTree is an offline manuscript workspace built around Rust, Tauri and Typst,
 with an HTML/CSS interface required to look and feel near identical to the
 open-source Overleaf editor and review workflow. Visual and interaction parity
 are an acceptance requirement; the current workspace has not yet been qualified
@@ -9,9 +9,11 @@ Manuscripts remain ordinary text files in your own project: `.typ` or `.html`,
 with small adjacent JSON files for highlights and suggestions. Its name is a
 tongue-in-cheek inverse of Overleaf: the workspace stays under your own tree.
 
+The product stack is fixed: **Rust authority, Tauri v2 native shell, HTML/CSS interface and Typst publishing**. Native delivery on every platform uses Tauri. Electron is excluded from the active dependencies, build and release configuration.
+
 Bounded control panels are required to use the [outside-in accordion stretch and overflow
 prevention standard](For-AI/ui-layout.md) from Uncodixfy Pretext. The native
-window requires an original UnderTree boundary with custom Close and Minimize
+window uses an original UnderTree boundary with custom Close and Minimize
 controls; the workspace within it retains the Overleaf parity target.
 
 The new Tauri workspace can edit Typst, compile a PDF through the local Typst
@@ -31,16 +33,54 @@ npm run desktop
 
 `npm run desktop` builds the HTML interface and starts `undertree-desktop`.
 `npm run build:native` builds a release executable; creating and qualifying
-installers is a separate step. Install Typst separately to compile `.typ`
+installers is a separate step. Install Typst 0.15.1 separately to compile `.typ`
 documents, or set `UNDERTREE_TYPST` to its executable. The Rust backend uses
 Typst's syntax library for review validation and supervises the compiler; the
 full renderer is not embedded in the desktop binary yet.
+
+Linux installer builds verify the checked-in dependency notices. After changing
+frontend or dependency inputs, regenerate them with the pinned maintenance tool:
+
+```bash
+cargo install cargo-about --version 0.9.2 --locked --root artifacts/tools
+npm run generate:notices
+npm run verify:notices
+```
+
+This tool is used during development and is not part of the application.
 
 Typst source has syntax highlighting and **Insert** actions for inline/display
 math, citations, cross-references, links, figures and tables. Replace selected
 placeholders with your bibliography keys, labels, URLs or image paths. Each
 insertion is one undo step; use it in Typst markup rather than inside code,
 comments or raw text. Highlighting is a bounded approximation of Typst syntax.
+
+Use **View → Editor settings** to choose font size, word wrapping and Compact,
+Normal or Wide line spacing. Apply saves these presentation preferences locally;
+Cancel leaves them unchanged. Reset defaults fills the dialog for review before
+Apply. Settings preserve source text, undo history and pane choices. If local
+storage is unavailable, the app reports that preferences apply for this session.
+
+Use **File → Set as main document** on a `.typ` file to keep building the
+complete manuscript while editing chapters, BibTeX/Hayagriva bibliographies,
+or data files. Recompile saves the project's open buffers before building;
+conflicts retain the buffers for resolution. **Clear main document** restores
+compilation of the selected Typst file. Successful compiler warnings remain in
+the compilation log, and changed project inputs make the previous PDF stale.
+Locally prepared packages work offline; UnderTree does not download missing
+packages. Project fonts are loaded from regular local font files. External
+packages/system fonts need separate freshness qualification.
+
+Each build uses a private copy of regular project inputs, limited to 128 MiB
+for the whole project. Linked files/directories, `.git`, `node_modules`,
+`For-AI` and compiler snapshots are excluded. This prevents project symlinks
+from exposing outside files through compiler output or errors.
+
+After `cargo build -p undertree-review`, run `npm run test:typst-publishing`
+for the mandatory real-Typst publishing gate. It checks representative PDF
+content, math, bibliography, references, figures/tables/links, import limits,
+failure retention and dependency freshness; a missing compiler fails the gate.
+This finite suite does not establish every LaTeX package or publisher template.
 
 Choose a project folder, open or create a manuscript, and select a passage to
 apply a color rule. Rules can protect text, reject agent changes, or attach a
@@ -50,6 +90,12 @@ pending count and a cue for new proposals. Only your local Accept action changes
 the manuscript. Protection and rejection rules override prompts. To repair a
 stale highlight, select its current passage and use **Reanchor from selection**;
 the confirmation preserves its color rule and custom prompt.
+
+If review data disappears or conflicts with a pending save, UnderTree keeps your
+draft and last known protections and blocks further saves and review changes.
+You can export the buffer and revoke sharing without saving. Restore or resolve
+the adjacent review files locally, then use **Check review data**; that check
+does not save or reload your draft.
 
 ChatGPT access is opt-in. Install and enable `zrok2` separately, provide an
 existing reserved public name and its HTTPS origin under **Connections → zrok**,
@@ -66,12 +112,55 @@ session-only. Use `npm run test:connections-ui` after `npm run build` and
 `cargo build -p undertree-review` to check the popup with an isolated native
 service and simulated zrok child.
 
+The separate **App** tab enables session-only controls for safe navigation,
+selection, presentation settings, saved-source compilation and native window
+actions. It has its own private URL. It cannot edit or save files, change review
+rules, accept suggestions or trigger autosave. Dirty or conflicted buffers block
+navigation, compilation and remote Close.
+
+**PDF export** has a further local permission inside that tab, initially off.
+Choose project folders explicitly: exported PDFs may contain current or future
+saved text, images, fonts and data from those folders, including unshared files.
+Unsaved editor text is excluded, and new project folders need separate permission.
+ChatGPT can request an exact existing saved PDF, with a private download URL
+that expires after five minutes; disabling exports or App access revokes it.
+Downloads are limited to 16 MiB. PDFs using external package-cache inputs are
+outside this project-folder permission. Local browser and Linux native download
+checks pass; live ChatGPT/zrok remains unverified.
+
+The local file tree includes empty folders and read-only asset entries.
+Use **File → New folder** or **Refresh files** without flushing an open buffer.
+Folder creation requires an existing parent and never overwrites an entry.
+
+In the desktop app, **File → Import files…** copies selected source files and
+assets into an existing project folder. Review the staged names before importing.
+Original files are kept, existing destinations are preserved, and import does
+not save or open your editor buffer. Limits are 32 files, 2 MiB per UTF-8 source,
+16 MiB per asset and 32 MiB for the batch including review metadata. If a response
+is lost, use **Check import** to inspect the same request before trying again.
+If import fails after publishing files, it keeps those files and reports an
+uncertain outcome. Inspect the destination before retrying; it does not delete
+partially imported files to undo the operation.
+
+**File → Download saved project (.zip)** exports saved sources, assets, empty
+folders and adjacent review/import metadata. Unsaved editor changes are excluded.
+Choose a new destination outside the source project; existing files are preserved.
+Git, build, dependency and app-state directories are excluded. The saved inputs
+are limited to 128 MiB. If confirmation is lost, use **Check project download**
+before downloading again.
+
 Connect a project to a GitHub `owner/repository` using your existing Git
 credentials, then choose explicit or optional automatic checkpoints.
-Synchronization includes UnderTree's pending manuscript/review files and stops
+Synchronization includes UnderTree's pending manuscript/review files and imported
+assets, verifies their exact saved bytes, and stops
 on unrelated changes, staged work or divergence. A clean project can receive a
 fast-forward update; the app never force-pushes or silently changes an existing
-origin. A disposable live GitHub branch verified native checkpoints, browser
+origin. Incoming updates stop while owned work is pending and preserve ignored
+local files. Ignored pending files, changed executable modes or Git transformations
+that change saved bytes stop the checkpoint and retain pending ownership for
+resolution. New files use Git's non-executable mode; existing tracked files keep
+their committed mode. A disposable
+live GitHub branch verified native checkpoints, browser
 autosave/autosync, clean incoming updates and conflict preservation. The opt-in
 `UNDERTREE_LIVE_GITHUB_TEST=1 npm run test:live-github` gate requires existing
 GitHub CLI authentication and publishes only synthetic test files before
@@ -103,33 +192,32 @@ do not establish native window behavior or installer support on other platforms.
 
 ## Existing TeX and HTML workflows
 
-The retained Linux/Windows workspace uses existing Git repositories, a native
-web view, `latexmk`, and TeX engines. On Windows it discovers `latexmk` from
-your PATH or common MiKTeX/TeX Live locations and remembers the verified path.
+The legacy Linux compatibility workspace uses existing Git repositories, a native
+web view, `latexmk`, and TeX engines.
 Its editing, fitting and rendering remain offline.
 
 The repository is organized into discrete frontend, review, compiler, and maintenance
 modules. Codex-only project constraints and orchestration live in the
 Markdown-only `For-AI/` folder; no application asset is loaded from or packaged
-with that folder. On Windows the compiler service runs in a separate Electron
-utility process, while the frontend remains editable during slow TeX builds and
+with that folder. The compatibility frontend remains editable during slow TeX builds and
 coalesces rapid edits into the newest required follow-up build.
 
 ### Automation CLI
 
-The Windows installation registers `undertree` as a per-user terminal command. It starts the desktop
-service when necessary and prints JSON to stdout, with structured errors and non-zero exit codes.
+The legacy `node cli.mjs` adapter starts its compatibility service when necessary
+and prints JSON to stdout, with structured errors and non-zero exit codes. The
+current Rust/Tauri CLI is documented in [the review module](modules/review/README.md).
 For example:
 
-```powershell
-undertree projects --pretty
-undertree build-all alius-internal-documents --pretty
-undertree build alius-internal-documents templates/letter.tex --pretty
+```bash
+node cli.mjs projects --pretty
+node cli.mjs build-all alius-internal-documents --pretty
+node cli.mjs build alius-internal-documents templates/letter.tex --pretty
 ```
 
-Run `undertree help --pretty` for named project, file, search, build, PDF, and synchronization
-commands. `undertree api METHOD /api/path --data JSON` is the complete low-level hook for all
-local API capabilities, including future endpoints.
+Run `node cli.mjs help --pretty` for the compatibility project, file, search,
+build, PDF and synchronization commands. These are legacy adapter commands,
+separate from the native Rust service and its scoped MCP catalogue.
 
 It is the primary local editing application for the canonical Overleaf project
 library. It edits the library's existing Git worktrees directly, so it does not
@@ -184,37 +272,21 @@ checkpoint.
 
 ## Install a release
 
-### Windows
+### Native Rust/Tauri packages
 
-Run `UnderTree-<version>-Windows-x64.exe`. The installer includes the desktop
-runtime and creates Start-menu and optional desktop shortcuts. Install MiKTeX
-(including `latexmk`) or TeX Live separately to compile LaTeX projects; UnderTree
-finds standard MiKTeX installations itself, even if the application was launched
-without an updated `PATH`. Set `UNDERTREE_LATEXMK` to an exact executable path
-for a non-standard TeX installation. Projects
-default to `%USERPROFILE%\\Documents\\Overleaf-projects`; application state is
-stored below `%APPDATA%\\undertree`.
-
-The editor, project browser, Git synchronization, and LaTeX compilation are
-supported on Windows. The fixed-page HTML-to-PDF renderer currently remains a
-Linux-only feature because it depends on the WebKitGTK print pipeline.
-
-Build the Windows installer with Node.js 22.13 or newer:
-
-```powershell
-npm ci
-npm run verify:architecture
-npm run build:windows
-```
+On Linux, `npm run build:installer:linux` builds the unsigned Debian package;
+`npm run test:installer:linux` extracts and qualifies it without installation.
+Install Typst separately. Windows and macOS use the same Rust/Tauri architecture;
+their native installers still require platform qualification. Historical Electron
+installers and commands are outside the current delivery target.
 
 ### Linux
 
-The legacy GitHub release contains a self-contained application archive with
-the compiled interface and a pinned official Codex SDK/runtime for compatible
-automatic recovery. It does not bundle the much larger TeX distribution or
+The legacy compatibility archive contains the compiled interface and local
+service. Automatic Codex recovery is disabled in this distribution. It does not bundle the much larger TeX distribution or
 operating-system web view.
 
-Required release-runtime components are Node.js 20 or newer, Python GTK/WebKitGTK
+Required compatibility-runtime components are Node.js 22.13 or newer, Python GTK/WebKitGTK
 bindings, Git, `latexmk`, and a TeX distribution. Install the equivalent packages from your
 Linux distribution, extract the archive into a permanent location, and run:
 

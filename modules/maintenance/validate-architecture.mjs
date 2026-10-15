@@ -37,25 +37,28 @@ export async function architectureErrors(root = repositoryRoot) {
   }
 
   const packageJson = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
-  const packagedFiles = packageJson.build?.files || [];
-  for (const pattern of packagedFiles) {
-    if (!pattern.startsWith("!") && (/For-AI/i.test(pattern) || ["*", "**", "**/*", "."].includes(pattern))) {
-      errors.push(`Runtime packaging must exclude the orchestration layer: ${pattern}`);
-    }
+  const packageLock = JSON.parse(await readFile(join(root, "package-lock.json"), "utf8"));
+  const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies, ...packageJson.optionalDependencies };
+  if (Object.keys(dependencies).some(name => /^(?:electron(?:-|$)|@electron\/)/.test(name))
+    || Object.keys(packageLock.packages || {}).some(path => /(?:^|\/)node_modules\/(?:electron(?:-|$)|@electron\/)/.test(path))
+    || packageJson.main?.startsWith("native/windows/")
+    || Object.values(packageJson.scripts || {}).some(command => /\belectron(?:-builder)?\b/.test(command))
+    || packageJson.build?.appId) {
+    errors.push("The product stack is Rust/Tauri/HTML/CSS/Typst; Electron dependencies, entrypoints and packaging are forbidden");
   }
   const runtimePolicy = JSON.parse(await readFile(join(root, "modules/maintenance/runtime-package-policy.json"), "utf8"));
+  const portableRuntime = JSON.parse(await readFile(join(root, "packaging/runtime/package.json"), "utf8"));
+  if (portableRuntime.version !== packageJson.version || portableRuntime.engines?.node !== packageJson.engines?.node) {
+    errors.push("The portable legacy runtime version and Node requirement must match package.json");
+  }
+  if (Object.keys(portableRuntime.dependencies || {}).sort().join() !== [...runtimePolicy.runtimeNodePackages].sort().join()) {
+    errors.push("The portable release dependencies must match the runtime package policy");
+  }
   for (const runtimeRoot of runtimePolicy.runtimeRoots) {
     if (relative(join(root, "For-AI"), resolve(root, runtimeRoot)).split(/[\\/]/)[0] !== "..") {
       errors.push(`For-AI cannot be a runtime root: ${runtimeRoot}`);
     }
   }
-  if (!packagedFiles.includes("modules/compiler/**/*.mjs")) errors.push("The packaged compiler service module is missing from build.files");
-  for (const excluded of ["@openai", "@napi-rs", "@codemirror", "@tiptap", "codemirror", "pdfjs-dist"]) {
-    if (!packagedFiles.includes(`!node_modules/${excluded}/**/*`)) errors.push(`Runtime package exclusion is missing for ${excluded}`);
-  }
-
-  const mainProcess = await readFile(join(root, "native/windows/main.cjs"), "utf8");
-  if (!mainProcess.includes("utilityProcess.fork")) errors.push("Windows must host the compiler service in an Electron utility process");
   const frontend = await readFile(join(root, "src/main.js"), "utf8");
   if (!frontend.includes("LatestCompileScheduler")) errors.push("The frontend adapter must use the latest-state compile scheduler");
 
@@ -74,7 +77,7 @@ export async function architectureErrors(root = repositoryRoot) {
   }
   const capability = JSON.parse(await readFile(join(root, "native/tauri/capabilities/main.json"), "utf8"));
   if (capability.remote || capability.windows?.join() !== "main") errors.push("Review capabilities must apply only to the local main window");
-  const allowedPermissions = ["core:default", "core:window:allow-close", "core:window:allow-minimize", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize", "allow-review-action", "allow-choose-project"];
+  const allowedPermissions = ["core:default", "core:window:allow-close", "core:window:allow-minimize", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize", "allow-review-action", "allow-editor-operation", "allow-control-operation", "allow-choose-project", "allow-file-import", "allow-project-export", "core:window:allow-maximize", "core:window:allow-unmaximize", "core:window:allow-unminimize", "core:window:allow-set-focus"];
   if (capability.permissions?.some(permission => !allowedPermissions.includes(permission))) {
     errors.push("Tauri must not add generic shell, filesystem or remote review capabilities");
   }

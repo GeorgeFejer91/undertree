@@ -665,6 +665,8 @@ function updateHtmlModeUi() {
 function dispatchProfilePatch(patch) {
   if (!state.editor || !patch) return;
   const changes = patch.changes || { from: patch.from, to: patch.to, insert: patch.insert };
+  const entries = Array.isArray(changes) ? changes : [changes];
+  if (entries.every(change => state.editor.state.doc.sliceString(change.from, change.to ?? change.from) === change.insert)) return;
   state.editor.dispatch({ changes, userEvent: "input.visual" });
 }
 

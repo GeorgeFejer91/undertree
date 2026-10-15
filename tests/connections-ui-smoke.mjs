@@ -18,7 +18,7 @@ const argsFile = join(root, 'args');
 await writeFile(zrok, `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsFile}'\nprintf '%s' "$3" > '${targetFile}'\ncase "$5" in\npublic:startup-failure) exit 3;;\npublic:late-failure) sleep 4; exit 7;;\n*) exec sleep 120;;\nesac\n`);
 await chmod(zrok, 0o700);
 const token = randomBytes(32).toString('hex');
-const child = spawn(resolve('target/debug/undertree-review'), [], {
+const child = spawn(resolve(process.env.UNDERTREE_REVIEW_BINARY || 'target/debug/undertree-review'), [], {
   env: { ...process.env, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: join(root, 'state'), UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: zrok },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -56,7 +56,7 @@ try {
   await page.keyboard.press('ArrowRight');
   assert.equal(await page.locator('#connection-tab-mcp').getAttribute('aria-selected'), 'true');
   await page.keyboard.press('End');
-  assert.equal(await page.locator('#connection-tab-shared').getAttribute('aria-selected'), 'true');
+  assert.equal(await page.locator('#connection-tab-app').getAttribute('aria-selected'), 'true');
   await page.keyboard.press('Home');
   await page.locator('#zrok-name').fill('startup-failure');
   await page.locator('#zrok-origin').fill('https://review.example.org');
@@ -111,7 +111,7 @@ try {
   for (const [width, textSize] of [[1600, 14], [760, 14], [320, 14], [320, 28]]) {
     await page.setViewportSize({ width, height: 900 });
     await page.evaluate(size => { document.documentElement.style.fontSize = `${size}px`; }, textSize);
-    for (const tab of ['zrok', 'mcp', 'shared']) {
+    for (const tab of ['zrok', 'mcp', 'shared', 'app']) {
       await page.locator(`#connection-tab-${tab}`).click();
       await delay(120);
       const geometry = await dialog.evaluate(dialog => {

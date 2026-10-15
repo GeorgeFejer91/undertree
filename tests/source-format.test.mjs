@@ -166,6 +166,42 @@ test('formatting is one normal CodeMirror history transaction with one-step undo
   assert.equal(state.doc.toString(), formatted);
 });
 
+for (const format of ['typ', 'html']) {
+  for (const command of ['bold', 'heading']) {
+    test(`${format} ${command} remains separate from adjacent typing through undo and redo`, context => {
+      context.mock.method(Date, 'now', () => 1_700_000_000_000);
+      const original = 'Before\r\nWord 😀\r\nAfter';
+      const from = original.indexOf('Word');
+      let state = EditorState.create({ doc: original, selection: { anchor: from, head: from + 'Word 😀'.length }, extensions: [history(), EditorState.lineSeparator.of('\n')] });
+      const target = { get state() { return state; }, dispatch(transaction) { state = transaction.state; } };
+      const snapshot = () => ({ text: state.doc.toString(), selection: { anchor: state.selection.main.anchor, head: state.selection.main.head } });
+      const initial = snapshot();
+      state = state.update({ changes: { from, to: state.selection.main.to, insert: 'Typed 😀' }, selection: { anchor: from, head: from + 'Typed 😀'.length }, userEvent: 'input.type' }).state;
+      const typedBefore = snapshot();
+      const spec = sourceFormat(state.doc.toString(), state.selection.main, command, format);
+      state = state.update({ ...spec, userEvent: 'input.format' }).state;
+      const formatted = snapshot();
+      assert.notEqual(formatted.text, typedBefore.text);
+      const nextFrom = state.selection.main.from;
+      state = state.update({ changes: { from: nextFrom, to: state.selection.main.to, insert: 'Next 😀' }, selection: { anchor: nextFrom + 'Next 😀'.length }, userEvent: 'input.type' }).state;
+      const typedAfter = snapshot();
+      for (const expected of [formatted, typedBefore, initial]) {
+        assert.equal(undo(target), true);
+        assert.deepEqual(snapshot(), expected, 'one undo reverses only its own typing or formatting action');
+      }
+      assert.equal(undo(target), false);
+      for (const expected of [typedBefore, formatted, typedAfter]) {
+        assert.equal(redo(target), true);
+        assert.equal(state.doc.toString(), expected.text, 'redo restores each typing or formatting action independently');
+        assert.equal(state.doc.toString().split('\r\n').length, 3);
+        assert.ok(!state.doc.toString().replaceAll('\r\n', '').match(/[\r\n]/), 'literal CRLF bytes remain intact');
+      }
+      assert.equal(state.sliceDoc(state.selection.main.from, state.selection.main.to), 'Next 😀', 'ordinary CodeMirror redo reselects the restored wording without splitting Unicode');
+      assert.equal(redo(target), false);
+    });
+  }
+}
+
 test('literal-CR CodeMirror selections format and undo without splitting or normalizing CRLF', () => {
   const text = 'Before\r\nTitle 😀\r\nAfter';
   const end = text.indexOf('\nAfter');

@@ -1,3 +1,4 @@
+use crate::capabilities::{CallerContext, CONTRACT_VERSION};
 use crate::document::{digest, Anchor, Marker, Proposal, Review, MAX_ITEMS, MAX_TEXT};
 use crate::{Error, Operation, Result};
 use serde::{Deserialize, Serialize};
@@ -10,6 +11,15 @@ use std::sync::{Arc, Mutex};
 use tokio::process::{Child, Command};
 use uuid::Uuid;
 
+pub mod app_control;
+pub mod editor;
+pub mod file_import;
+mod journal_ownership;
+pub(crate) mod pdf_exports;
+mod policy_continuity;
+pub mod project_export;
+mod project_tree;
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Project {
@@ -21,25 +31,42 @@ pub struct Project {
     #[serde(default)]
     pub auto_sync: bool,
     #[serde(default)]
+    pub main_document: String,
+    #[serde(default)]
     pub pending: BTreeSet<String>,
     #[serde(default)]
     pub pending_revisions: BTreeMap<String, String>,
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 struct Registry {
     projects: Vec<Project>,
 }
 
 pub struct Service {
+    instance_id: String,
     state: PathBuf,
     registry: Mutex<Registry>,
     documents: tokio::sync::Mutex<()>,
     pub shared: Mutex<BTreeMap<String, (String, String)>>,
     pub tunnel: tokio::sync::Mutex<Option<Tunnel>>,
     pub sync_lock: tokio::sync::Mutex<()>,
-    pub compile_lock: tokio::sync::Mutex<()>,
+    pub compile_lock: Arc<tokio::sync::Mutex<()>>,
     connection_settings: Mutex<crate::transport::ConnectionSettings>,
+    editor: Mutex<editor::EditorState>,
+    file_import: Mutex<file_import::ImportState>,
+    import_capture: Mutex<()>,
+    project_export: Mutex<project_export::ExportState>,
+    export_capture: Mutex<()>,
+    #[cfg(test)]
+    import_before_publish: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+    #[cfg(test)]
+    fail_after_journal: Mutex<bool>,
+    #[cfg(test)]
+    create_after_publish: Mutex<Option<PublicationHook>>,
+    app_control: Mutex<app_control::AppControlState>,
+    pdf_exports: Mutex<pdf_exports::PdfExportState>,
+    policy_continuity: Mutex<policy_continuity::PolicyContinuity>,
 }
 
 pub struct Tunnel {
@@ -53,11 +80,21 @@ pub struct Tunnel {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Journal {
     old_revision: String,
     content: String,
     review: Review,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    editor_receipt: Option<editor::SaveReceipt>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    prior_review: Option<policy_continuity::ReviewObservation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ownership: Option<journal_ownership::JournalOwnership>,
 }
+
+#[cfg(test)]
+type PublicationHook = Box<dyn FnOnce() -> Result<()> + Send>;
 
 pub fn atomic_write(path: &Path, content: &[u8]) -> Result<()> {
     if path
@@ -114,6 +151,30 @@ fn journal_path(path: &Path) -> PathBuf {
     PathBuf::from(format!("{}.undertree-pending.json", path.to_string_lossy()))
 }
 
+fn editable_source(path: &Path) -> bool {
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("");
+    ![
+        ".undertree-review.json",
+        ".undertree-pending.json",
+        ".import-report.json",
+    ]
+    .iter()
+    .any(|suffix| name.ends_with(suffix))
+        && [
+            "html", "htm", "typ", "css", "md", "txt", "tex", "bib", "yaml", "yml", "json", "csv",
+            "tsv", "xml", "svg",
+        ]
+        .contains(
+            &path
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .unwrap_or(""),
+        )
+}
+
 impl Service {
     pub fn new(state: PathBuf) -> Result<Arc<Self>> {
         fs::create_dir_all(&state)?;
@@ -130,14 +191,29 @@ impl Service {
             crate::transport::ConnectionSettings::default()
         };
         Ok(Arc::new(Self {
+            instance_id: Uuid::new_v4().to_string(),
             state,
             registry: Mutex::new(registry),
             documents: tokio::sync::Mutex::new(()),
             shared: Mutex::new(BTreeMap::new()),
             tunnel: tokio::sync::Mutex::new(None),
             sync_lock: tokio::sync::Mutex::new(()),
-            compile_lock: tokio::sync::Mutex::new(()),
+            compile_lock: Arc::new(tokio::sync::Mutex::new(())),
             connection_settings: Mutex::new(settings),
+            editor: Mutex::new(editor::EditorState::default()),
+            file_import: Mutex::new(file_import::ImportState::default()),
+            import_capture: Mutex::new(()),
+            project_export: Mutex::new(project_export::ExportState::default()),
+            export_capture: Mutex::new(()),
+            #[cfg(test)]
+            import_before_publish: Mutex::new(None),
+            #[cfg(test)]
+            fail_after_journal: Mutex::new(false),
+            #[cfg(test)]
+            create_after_publish: Mutex::new(None),
+            app_control: Mutex::new(app_control::AppControlState::default()),
+            pdf_exports: Mutex::new(pdf_exports::PdfExportState::default()),
+            policy_continuity: Mutex::new(policy_continuity::PolicyContinuity::default()),
         }))
     }
 
@@ -174,18 +250,18 @@ impl Service {
     }
 
     pub fn project(&self, id: &str) -> Result<Project> {
-        lock(&self.registry)?
+        let project = lock(&self.registry)?
             .projects
             .iter()
             .find(|p| p.id == id)
             .cloned()
-            .ok_or_else(|| Error::new("project", "Choose an approved project."))
+            .ok_or_else(|| Error::new("project", "Choose an approved project."))?;
+        self.checked_root(&project)?;
+        Ok(project)
     }
 
     pub fn path(&self, project: &Project, relative: &str, create: bool) -> Result<PathBuf> {
-        if project.root.canonicalize()? != project.root {
-            return Err(Error::new("path", "The approved project folder moved or became a link. Approve its current location again."));
-        }
+        self.checked_root(project)?;
         let relative = Path::new(relative);
         if relative.as_os_str().is_empty()
             || relative
@@ -194,12 +270,11 @@ impl Service {
             || relative
                 .components()
                 .any(|c| c.as_os_str().to_string_lossy().starts_with('.'))
-            || !["html", "htm", "typ", "css", "md", "txt", "tex"]
-                .contains(&relative.extension().and_then(|x| x.to_str()).unwrap_or(""))
+            || !editable_source(relative)
         {
             return Err(Error::new(
                 "path",
-                "Choose a Typst, HTML, TeX, CSS, Markdown, or text source inside this project.",
+                "Choose an editable source, bibliography, or data file inside this project.",
             ));
         }
         let path = project.root.join(relative);
@@ -231,38 +306,81 @@ impl Service {
         Ok(path)
     }
 
-    fn read_document(&self, path: &Path) -> Result<(String, Review)> {
+    fn read_document(
+        &self,
+        project: &Project,
+        relative: &str,
+        path: &Path,
+    ) -> Result<(String, Review)> {
         let pending = journal_path(path);
         if pending.exists() {
-            let journal: Journal = serde_json::from_str(&read_text(&pending, MAX_TEXT * 9)?)?;
-            journal.review.validate_for_text(&journal.content)?;
+            let journal_raw =
+                read_text(&pending, MAX_TEXT * 9).map_err(|_| policy_continuity::conflict())?;
+            let journal: Journal =
+                serde_json::from_str(&journal_raw).map_err(|_| policy_continuity::conflict())?;
+            journal
+                .review
+                .validate_for_text(&journal.content)
+                .map_err(|_| policy_continuity::conflict())?;
             if journal.content.len() > MAX_TEXT
                 || journal.review.revision != digest(&journal.content)
                 || journal.old_revision.len() != 64
                 || !journal.old_revision.bytes().all(|b| b.is_ascii_hexdigit())
             {
-                return Err(Error::new(
-                    "format",
-                    "The interrupted save is invalid. Its files have been preserved.",
-                ));
+                return Err(policy_continuity::conflict());
             }
+            let ownership = self.journal_ownership(project, relative, path, &journal)?;
             let current = read_text(path, MAX_TEXT)?;
-            if digest(&current) == journal.old_revision {
-                atomic_write(path, journal.content.as_bytes())?;
-            } else if current != journal.content {
+            if digest(&current) != journal.old_revision && current != journal.content {
                 return Err(Error::new("conflict", "A pending save conflicts with external edits. Both versions have been retained; resolve the pending JSON file first."));
             }
-            atomic_write(&sidecar(path), &serde_json::to_vec_pretty(&journal.review)?)?;
+            let metadata_raw = self.raw_review(path)?;
+            let final_review = serde_json::to_string_pretty(&journal.review)?;
+            self.recovery_policy(
+                path,
+                &current,
+                metadata_raw.as_deref(),
+                journal.prior_review.as_ref(),
+                &final_review,
+            )?;
+            self.unchanged_policy(path, metadata_raw.as_deref())?;
+            if read_text(path, MAX_TEXT)? != current
+                || fs::read(&pending)? != journal_raw.as_bytes()
+            {
+                return Err(policy_continuity::conflict());
+            }
+            if current != journal.content {
+                atomic_write(path, journal.content.as_bytes())?;
+            }
+            self.unchanged_policy(path, metadata_raw.as_deref())?;
+            atomic_write(&sidecar(path), final_review.as_bytes())?;
+            self.observe_policy(path, Some(&final_review))?;
+            self.finish_journal_ownership(&ownership, path, &journal.content, &final_review)?;
+            if let Some(receipt) = journal.editor_receipt {
+                self.write_committed_receipt(&receipt)?;
+            }
+            if fs::read(&pending)? != journal_raw.as_bytes() {
+                return Err(policy_continuity::conflict());
+            }
             fs::remove_file(pending)?;
         }
+        self.read_document_without_recovery(path)
+    }
+
+    fn read_document_without_recovery(&self, path: &Path) -> Result<(String, Review)> {
+        match fs::symlink_metadata(journal_path(path)) {
+            Ok(_) => {
+                return Err(Error::new(
+                    "busy",
+                    "Resolve the pending local save before inspecting this document.",
+                ))
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+            Err(error) => return Err(error.into()),
+        }
         let content = read_text(path, MAX_TEXT)?;
-        let metadata = sidecar(path);
-        let mut review = if metadata.exists() {
-            serde_json::from_str::<Review>(&read_text(&metadata, MAX_TEXT * 8)?)?
-        } else {
-            Review::new(&content)
-        };
-        review.validate_for_text(&content)?;
+        let raw = self.raw_review(path)?;
+        let mut review = self.validated_review(path, &content, raw.as_deref())?;
         review.invalidate_external(&content);
         Ok((content, review))
     }
@@ -276,9 +394,29 @@ impl Service {
         content: &str,
         review: &Review,
     ) -> Result<()> {
+        self.persist_with_receipt(project, relative, path, previous, content, review, None)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn persist_with_receipt(
+        &self,
+        project: &str,
+        relative: &str,
+        path: &Path,
+        previous: Option<&str>,
+        content: &str,
+        review: &Review,
+        receipt: Option<&editor::SaveReceipt>,
+    ) -> Result<()> {
         // None is reserved for a source just written with create_new by Create or Import.
         let owns_source = previous.is_none_or(|old| old != content);
         let old = previous.unwrap_or(content);
+        let ownership = journal_ownership::JournalOwnership {
+            project: project.into(),
+            path: relative.into(),
+            owns_source,
+        };
+        self.validate_save_ownership(&ownership, path)?;
         review.validate_for_text(content)?;
         if review.revision != digest(content) {
             return Err(Error::new(
@@ -296,41 +434,178 @@ impl Service {
                 "The review metadata exceeds its 16 MB limit.",
             ));
         }
-        if content != old {
+        let mut written_journal = None;
+        if journal_path(path).symlink_metadata().is_ok() {
+            return Err(Error::new(
+                "busy",
+                "A pending save appeared before persistence. Its bytes have been preserved.",
+            ));
+        }
+        let prior_raw = self.raw_review(path)?;
+        let prior_review = self.captured_policy(path, prior_raw.as_deref())?;
+        self.policy_capacity(&[path.to_path_buf()])?;
+        if content != old || receipt.is_some() {
             let journal = Journal {
                 old_revision: digest(old),
                 content: content.to_owned(),
                 review: review.clone(),
+                editor_receipt: receipt.cloned(),
+                prior_review: Some(prior_review),
+                ownership: Some(ownership.clone()),
             };
-            atomic_write(&journal_path(path), &serde_json::to_vec_pretty(&journal)?)?;
-            atomic_write(path, content.as_bytes())?;
+            self.journal_ownership(&self.project(project)?, relative, path, &journal)?;
+            let bytes = serde_json::to_vec_pretty(&journal)?;
+            atomic_write(&journal_path(path), &bytes)?;
+            written_journal = Some(bytes);
+            #[cfg(test)]
+            if std::mem::take(&mut *lock(&self.fail_after_journal)?) {
+                return Err(Error::new(
+                    "io",
+                    "Injected interruption after the save intent.",
+                ));
+            }
+            if content != old {
+                self.unchanged_policy(path, prior_raw.as_deref())?;
+                atomic_write(path, content.as_bytes())?;
+            }
         }
+        self.unchanged_policy(path, prior_raw.as_deref())?;
         atomic_write(&sidecar(path), review_json.as_bytes())?;
-        if journal_path(path).exists() {
+        self.observe_policy(path, Some(&review_json))?;
+        self.finish_journal_ownership(&ownership, path, content, &review_json)?;
+        if let Some(receipt) = receipt {
+            self.write_committed_receipt(receipt)?;
+        }
+        if let Some(bytes) = written_journal {
+            if fs::read(journal_path(path))? != bytes {
+                return Err(Error::new(
+                    "conflict",
+                    "A different pending save appeared. It has been preserved.",
+                ));
+            }
             fs::remove_file(journal_path(path))?;
         }
+        Ok(())
+    }
+
+    fn create_document(
+        &self,
+        project: &Project,
+        relative: &str,
+        path: &Path,
+        content: &str,
+        report: Option<&str>,
+    ) -> Result<Value> {
+        self.check_policy_continuity(path, self.raw_review(path)?.as_deref())?;
+        self.policy_capacity(&[path.to_path_buf()])?;
+        let report_path = PathBuf::from(format!("{}.import-report.json", path.to_string_lossy()));
+        for artifact in [
+            path.to_path_buf(),
+            sidecar(path),
+            journal_path(path),
+            report_path.clone(),
+        ] {
+            match fs::symlink_metadata(artifact) {
+                Ok(_) => return Err(Error::new("conflict", "The destination or its adjacent metadata already exists. Choose a new filename or preserve and resolve those files first.")),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+                Err(error) => return Err(error.into()),
+            }
+        }
+        if content.len() > MAX_TEXT || report.is_some_and(|report| report.len() > MAX_TEXT * 8) {
+            return Err(Error::new(
+                "limit",
+                "The new source or import report exceeds its supported size limit.",
+            ));
+        }
+        let review = Review::new(content);
+        review.validate_for_text(content)?;
+        let mut outputs = vec![
+            (relative.to_owned(), path.to_path_buf(), content.to_owned()),
+            (
+                format!("{relative}.undertree-review.json"),
+                sidecar(path),
+                serde_json::to_string_pretty(&review)?,
+            ),
+        ];
+        if let Some(report) = report {
+            outputs.push((
+                format!("{relative}.import-report.json"),
+                report_path,
+                report.to_owned(),
+            ));
+        }
+        let parent = path
+            .parent()
+            .ok_or_else(|| Error::new("path", "The new source has no project directory."))?;
+        let mut staged = Vec::new();
+        for (relative, destination, content) in &outputs {
+            let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+            temporary.write_all(content.as_bytes())?;
+            temporary.as_file().sync_all()?;
+            staged.push((relative, destination, content, temporary));
+        }
         let mut registry = lock(&self.registry)?;
-        let p = registry
+        let mut next = registry.clone();
+        let registered = next
             .projects
             .iter_mut()
-            .find(|p| p.id == project)
+            .find(|entry| entry.id == project.id)
             .ok_or_else(|| Error::new("project", "Project unavailable."))?;
-        if owns_source {
-            p.pending.insert(relative.to_owned());
-            p.pending_revisions
-                .insert(relative.to_owned(), digest(content));
+        for (relative, _, content) in &outputs {
+            registered.pending.insert(relative.clone());
+            registered
+                .pending_revisions
+                .insert(relative.clone(), digest(content));
         }
-        p.pending
-            .insert(format!("{relative}.undertree-review.json"));
-        p.pending_revisions.insert(
-            format!("{relative}.undertree-review.json"),
-            digest(&review_json),
-        );
-        self.save_registry(&registry)
+        let registry_json = serde_json::to_string_pretty(&next)?;
+        if registry_json.len() > MAX_TEXT {
+            return Err(Error::new(
+                "limit",
+                "The project registry exceeds its supported size limit.",
+            ));
+        }
+        let mut created = Vec::new();
+        let mut registry_attempted = false;
+        let result = (|| -> Result<()> {
+            for (_, destination, content, temporary) in staged {
+                temporary.persist_noclobber(destination).map_err(|error| {
+                    if error.error.kind() == std::io::ErrorKind::AlreadyExists {
+                        Error::new("conflict", "A destination appeared while creating the document. Existing files have been preserved.")
+                    } else { Error::from(error.error) }
+                })?;
+                created.push((destination.as_path(), content.as_str()));
+                #[cfg(test)]
+                if let Some(hook) = lock(&self.create_after_publish)?.take() {
+                    hook()?;
+                }
+            }
+            #[cfg(unix)]
+            fs::File::open(parent)?.sync_all()?;
+            registry_attempted = true;
+            self.save_registry(&next)
+        })();
+        if let Err(error) = result {
+            // A registry rename may succeed before its directory sync fails; retain a consistent result.
+            if registry_attempted
+                && read_text(&self.state.join("projects.json"), MAX_TEXT)
+                    .is_ok_and(|current| current == registry_json)
+            {
+                *registry = next;
+                return Err(Error::new("outcome_unknown", "The new document exists, but durable creation could not be confirmed. Inspect it before retrying."));
+            }
+            return Err(if !created.is_empty() {
+                Error::new("outcome_unknown", "Creation stopped after publishing files. Published and externally changed files were preserved; inspect the destination before retrying.")
+            } else {
+                error
+            });
+        }
+        *registry = next;
+        drop(registry);
+        self.snapshot(project, relative, path)
     }
 
     fn snapshot(&self, project: &Project, relative: &str, path: &Path) -> Result<Value> {
-        let (content, review) = self.read_document(path)?;
+        let (content, review) = self.read_document(project, relative, path)?;
         let id = digest(&format!("{}:{relative}", project.id));
         let shared = lock(&self.shared)?.contains_key(&id);
         Ok(
@@ -346,6 +621,11 @@ impl Service {
             )
         })?;
         match operation {
+            Operation::Capabilities => self.capabilities(CallerContext::Local),
+            Operation::SaveEditor { .. } | Operation::SaveReceipt { .. } => Err(Error::new(
+                "scope",
+                "Use the asynchronous editor-session action dispatcher.",
+            )),
             Operation::Projects => Ok(json!(lock(&self.registry)?.projects)),
             Operation::AddProject { root } => {
                 let root = PathBuf::from(root).canonicalize()?;
@@ -372,12 +652,38 @@ impl Service {
                     root,
                     repository: String::new(),
                     auto_sync: false,
+                    main_document: String::new(),
                     pending: BTreeSet::new(),
                     pending_revisions: BTreeMap::new(),
                 };
                 registry.projects.push(project.clone());
                 self.save_registry(&registry)?;
                 Ok(json!(project))
+            }
+            Operation::SetMainDocument { project, path } => {
+                let approved = self.project(&project)?;
+                if !path.is_empty() {
+                    let file = self.path(&approved, &path, false)?;
+                    if file.extension().and_then(|extension| extension.to_str()) != Some("typ") {
+                        return Err(Error::new(
+                            "source",
+                            "Choose an existing Typst main document.",
+                        ));
+                    }
+                    read_text(&file, MAX_TEXT)?;
+                }
+                let mut registry = lock(&self.registry)?;
+                let mut next = registry.clone();
+                let updated = next
+                    .projects
+                    .iter_mut()
+                    .find(|entry| entry.id == project)
+                    .ok_or_else(|| Error::new("project", "Choose an approved project."))?;
+                updated.main_document = path;
+                let result = json!(updated);
+                self.save_registry(&next)?;
+                *registry = next;
+                Ok(result)
             }
             Operation::Files { project } => {
                 let project = self.project(&project)?;
@@ -409,9 +715,7 @@ impl Service {
                         }
                         if kind.is_dir() {
                             walk(root, &path, depth + 1, files)?;
-                        } else if ["html", "htm", "typ", "css", "md", "txt", "tex"]
-                            .contains(&path.extension().and_then(|x| x.to_str()).unwrap_or(""))
-                        {
+                        } else if kind.is_file() && editable_source(&path) {
                             if let Ok(relative) = path.strip_prefix(root) {
                                 files.push(relative.to_string_lossy().replace('\\', "/"));
                             }
@@ -422,27 +726,33 @@ impl Service {
                 walk(&project.root, &project.root, 0, &mut files)?;
                 Ok(json!(files))
             }
-            Operation::Open { project, path } | Operation::Review { project, path } => {
+            Operation::ProjectTree { project } => self.project_tree(&project),
+            Operation::CreateDirectory { project, path } => self.create_directory(&project, &path),
+            Operation::Open { project, path } => {
                 let project = self.project(&project)?;
                 self.snapshot(&project, &path, &self.path(&project, &path, false)?)
+            }
+            Operation::Review { project, path } => {
+                let project = self.project(&project)?;
+                let file = self.path(&project, &path, false)?;
+                let (content, review) = self.read_document_without_recovery(&file)?;
+                let id = digest(&format!("{}:{path}", project.id));
+                let shared = lock(&self.shared)?.contains_key(&id);
+                Ok(
+                    json!({"documentId":id,"path":path,"content":content,"review":review,"shared":shared}),
+                )
             }
             Operation::Create { project, path } => {
                 let p = self.project(&project)?;
                 let file = self.path(&p, &path, true)?;
                 let content = if path.ends_with(".typ") {
                     "#set page(paper: \"a4\")\n#set text(size: 11pt)\n\n= Manuscript\n\nStart writing here.\n"
-                } else {
+                } else if path.ends_with(".html") || path.ends_with(".htm") {
                     "<!doctype html>\n<html lang=\"en\">\n<head><meta charset=\"UTF-8\"><title>Manuscript</title></head>\n<body>\n<h1>Manuscript</h1>\n<p>Start writing here.</p>\n</body>\n</html>\n"
+                } else {
+                    ""
                 };
-                let mut new = fs::OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&file)?;
-                new.write_all(content.as_bytes())?;
-                new.sync_all()?;
-                let review = Review::new(content);
-                self.persist(&project, &path, &file, None, content, &review)?;
-                self.snapshot(&p, &path, &file)
+                self.create_document(&p, &path, &file, content, None)
             }
             Operation::ImportTex {
                 project,
@@ -460,36 +770,16 @@ impl Service {
                 let destination = self.path(&p, &target, true)?;
                 let original = read_text(&source, MAX_TEXT)?;
                 let converted = crate::tex_import::convert(&original)?;
-                let report = PathBuf::from(format!(
-                    "{}.import-report.json",
-                    destination.to_string_lossy()
-                ));
-                let mut new = fs::OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&destination)?;
-                new.write_all(converted.content.as_bytes())?;
-                new.sync_all()?;
                 let report_json = serde_json::to_string_pretty(&converted)?;
-                atomic_write(&report, report_json.as_bytes())?;
-                let review = Review::new(&converted.content);
-                self.persist(
-                    &project,
+                let snapshot = self.create_document(
+                    &p,
                     &target,
                     &destination,
-                    None,
                     &converted.content,
-                    &review,
+                    Some(&report_json),
                 )?;
-                let mut registry = lock(&self.registry)?;
-                if let Some(p) = registry.projects.iter_mut().find(|p| p.id == project) {
-                    let relative = format!("{target}.import-report.json");
-                    p.pending.insert(relative.clone());
-                    p.pending_revisions.insert(relative, digest(&report_json));
-                }
-                self.save_registry(&registry)?;
                 Ok(
-                    json!({"snapshot":self.snapshot(&p,&target,&destination)?,"warnings":converted.warnings,"exactFormatting":false}),
+                    json!({"snapshot":snapshot,"warnings":converted.warnings,"exactFormatting":false}),
                 )
             }
             Operation::Save {
@@ -503,7 +793,7 @@ impl Service {
                 }
                 let p = self.project(&project)?;
                 let file = self.path(&p, &path, false)?;
-                let (old, mut review) = self.read_document(&file)?;
+                let (old, mut review) = self.read_document(&p, &path, &file)?;
                 review.check_revision(&revision, &old)?;
                 review.reconcile(&old, &content);
                 self.persist(&project, &path, &file, Some(&old), &content, &review)?;
@@ -517,7 +807,7 @@ impl Service {
             } => {
                 let p = self.project(&project)?;
                 let file = self.path(&p, &path, false)?;
-                let (text, mut review) = self.read_document(&file)?;
+                let (text, mut review) = self.read_document(&p, &path, &file)?;
                 review.check_revision(&revision, &text)?;
                 review.rules = rules;
                 self.persist(&project, &path, &file, Some(&text), &text, &review)?;
@@ -540,7 +830,7 @@ impl Service {
                 }
                 let p = self.project(&project)?;
                 let file = self.path(&p, &path, false)?;
-                let (text, mut review) = self.read_document(&file)?;
+                let (text, mut review) = self.read_document(&p, &path, &file)?;
                 review.check_revision(&revision, &text)?;
                 review.rule(&rule)?;
                 if review.markers.len() >= MAX_ITEMS {
@@ -566,7 +856,7 @@ impl Service {
             } => {
                 let p = self.project(&project)?;
                 let file = self.path(&p, &path, false)?;
-                let (text, mut review) = self.read_document(&file)?;
+                let (text, mut review) = self.read_document(&p, &path, &file)?;
                 review.reanchor(&text, &revision, &id, from..to, &quote)?;
                 self.persist(&project, &path, &file, Some(&text), &text, &review)?;
                 self.snapshot(&p, &path, &file)
@@ -579,7 +869,7 @@ impl Service {
             } => {
                 let p = self.project(&project)?;
                 let file = self.path(&p, &path, false)?;
-                let (text, mut review) = self.read_document(&file)?;
+                let (text, mut review) = self.read_document(&p, &path, &file)?;
                 review.check_revision(&revision, &text)?;
                 review.markers.retain(|m| m.id != id);
                 self.persist(&project, &path, &file, Some(&text), &text, &review)?;
@@ -594,7 +884,7 @@ impl Service {
             } => {
                 let p = self.project(&project)?;
                 let file = self.path(&p, &path, false)?;
-                let (text, mut review) = self.read_document(&file)?;
+                let (text, mut review) = self.read_document(&p, &path, &file)?;
                 let changed = review.decide_format(
                     &text,
                     &revision,
@@ -610,6 +900,12 @@ impl Service {
                 path,
                 enabled,
             } => {
+                let id = digest(&format!("{project}:{path}"));
+                if !enabled {
+                    lock(&self.shared)?.remove(&id);
+                    self.revoke_app_controls()?;
+                    return Ok(json!({"documentId":id,"shared":false}));
+                }
                 let p = self.project(&project)?;
                 let file = self.path(&p, &path, false)?;
                 if !["html", "htm", "typ"]
@@ -620,19 +916,17 @@ impl Service {
                         "Only HTML and Typst manuscripts can be shared with agents.",
                     ));
                 }
-                let id = digest(&format!("{project}:{path}"));
+                // Enrollment cannot interpret lost or corrupt existing policy as an empty review.
+                self.read_document_without_recovery(&file)?;
                 let mut shared = lock(&self.shared)?;
-                if enabled {
-                    if shared.len() >= 20 {
-                        return Err(Error::new(
-                            "limit",
-                            "At most 20 manuscripts can be shared in one session.",
-                        ));
-                    }
-                    shared.insert(id.clone(), (project, path));
-                } else {
-                    shared.remove(&id);
+                if shared.len() >= 20 {
+                    return Err(Error::new(
+                        "limit",
+                        "At most 20 manuscripts can be shared in one session.",
+                    ));
                 }
+                shared.insert(id.clone(), (project, path));
+                drop(shared);
                 Ok(json!({"documentId":id,"shared":enabled}))
             }
             _ => Err(Error::new(
@@ -688,13 +982,16 @@ impl Service {
                 let p = self.project(&project)?;
                 let file = self.path(&p, &path, false)?;
                 if let Some(proposal) = proposal {
-                    let (text, mut review) = self.read_document(&file)?;
+                    let (text, mut review) = self.read_document_without_recovery(&file)?;
                     let suggestion =
                         review.propose_format(&text, proposal, path.ends_with(".typ"))?;
                     self.persist(&project, &path, &file, Some(&text), &text, &review)?;
                     Ok(json!({"suggestion":suggestion,"manuscriptChanged":false}))
                 } else {
-                    self.snapshot(&p, &path, &file)
+                    let (content, review) = self.read_document_without_recovery(&file)?;
+                    Ok(
+                        json!({"documentId":id,"path":path,"content":content,"review":review,"shared":true}),
+                    )
                 }
             }
             _ => Err(Error::new(
@@ -704,14 +1001,116 @@ impl Service {
         }
     }
 
+    pub(crate) fn instance_id(&self) -> &str {
+        &self.instance_id
+    }
+
+    pub fn capabilities(&self, caller: CallerContext) -> Result<Value> {
+        if caller == CallerContext::Review {
+            return Err(Error::new("scope", "Use the three granted Review tools."));
+        }
+        let review_tools: Vec<_> = crate::transport::tool_catalogue()
+            .as_array()
+            .ok_or_else(|| Error::new("state", "The review catalogue is unavailable."))?
+            .iter()
+            .filter_map(|tool| tool["name"].as_str().map(str::to_owned))
+            .collect();
+        let operations: Vec<_> = crate::LOCAL_OPERATIONS
+            .iter()
+            .filter(|operation| {
+                caller != CallerContext::LocalCli
+                    || (!matches!(operation.action, "project_tree" | "create_directory")
+                        && (!operation.mutates || operation.action == "save_editor"))
+            })
+            .collect();
+        Ok(json!({
+            "contractVersion": CONTRACT_VERSION,
+            "instanceId": self.instance_id,
+            "caller": caller,
+            "localOperations": operations,
+            "access": {"readOnly":false,"editorSaveRequires":["live_registered_ui","document_session_barrier"],"otherCliMutations":false},
+            "review": {
+                "available": true,
+                "requires": ["active_connection", "private_review_capability", "explicit_manuscript_share"],
+                "tools": review_tools
+            },
+            "fullControl": {
+                "available": false,
+                "reason": "unsupported_file_editing",
+                "sourceEditing": false
+            },
+            "appControls": {
+                "supported":true,"grantRequired":true,"reviewSeparate":true,"sourceEditing":false,
+                "tools":app_control::tool_catalogue().as_array().map(|tools|tools.iter().filter_map(|tool|tool["name"].as_str()).collect::<Vec<_>>())
+            }
+        }))
+    }
+
     pub async fn dispatch(self: &Arc<Self>, operation: Operation) -> Result<Value> {
+        self.dispatch_as(CallerContext::Local, operation).await
+    }
+
+    pub async fn dispatch_as(
+        self: &Arc<Self>,
+        caller: CallerContext,
+        operation: Operation,
+    ) -> Result<Value> {
+        if caller == CallerContext::Review {
+            return Err(Error::new(
+                "scope",
+                "Review authority cannot invoke local product operations.",
+            ));
+        }
+        if caller != CallerContext::Local
+            && matches!(
+                operation,
+                Operation::ProjectTree { .. } | Operation::CreateDirectory { .. }
+            )
+        {
+            return Err(Error::new(
+                "scope",
+                "Project tree and folder creation require the authenticated local UI.",
+            ));
+        }
+        if caller == CallerContext::LocalCli
+            && operation.mutates()
+            && !matches!(operation, Operation::SaveEditor { .. })
+        {
+            return Err(Error::new("unsupported_capability", "The local CLI can only save a registered editor buffer; other mutations are unavailable."));
+        }
         match operation {
+            Operation::Capabilities => self.capabilities(caller),
+            Operation::ProjectTree { project } => {
+                let service = self.clone();
+                tokio::task::spawn_blocking(move || service.project_tree(&project))
+                    .await
+                    .map_err(|_| {
+                        Error::new("state", "The project inventory stopped unexpectedly.")
+                    })?
+            }
+            Operation::SaveEditor {
+                project,
+                path,
+                request_id,
+            } => self.request_editor_save(&project, &path, &request_id).await,
+            Operation::SaveReceipt { request_id } => self.editor_save_receipt(&request_id),
             Operation::Tunnel {
                 enabled,
                 reservation,
                 public_url,
             } => crate::transport::tunnel(self, enabled, reservation, public_url).await,
-            Operation::Connection => crate::transport::connection(self).await,
+            Operation::Connection => {
+                let mut value = crate::transport::connection(self).await?;
+                if caller == CallerContext::LocalCli {
+                    if let Some(control) =
+                        value.get_mut("appControls").and_then(Value::as_object_mut)
+                    {
+                        control.remove("endpoint");
+                        control.remove("pdfExport");
+                    }
+                }
+                Ok(value)
+            }
             Operation::GitStatus { project } => self.git_status(&project).await,
             Operation::BindGithub {
                 project,
@@ -724,7 +1123,25 @@ impl Service {
                 path,
                 revision,
             } => self.compile_typst(&project, &path, &revision).await,
-            Operation::Pdf { project, path } => self.preview_pdf(&project, &path),
+            Operation::Pdf { project, path } => {
+                let service = self.clone();
+                tokio::task::spawn_blocking(move || service.preview_pdf(&project, &path))
+                    .await
+                    .map_err(|_| Error::new("state", "PDF verification stopped unexpectedly."))?
+            }
+            Operation::Open { project, path } if caller == CallerContext::LocalCli => {
+                let service = self.clone();
+                tokio::task::spawn_blocking(move || {
+                    service.local(Operation::Review { project, path })
+                })
+                .await
+                .map_err(|_| {
+                    Error::new(
+                        "state",
+                        "The read-only CLI inspection stopped unexpectedly.",
+                    )
+                })?
+            }
             operation => {
                 let service = self.clone();
                 tokio::task::spawn_blocking(move || service.local(operation))
@@ -916,10 +1333,14 @@ impl Drop for IndexLock {
 
 impl Service {
     fn checked_root(&self, project: &Project) -> Result<()> {
-        if project.root.canonicalize()? != project.root || !project.root.is_dir() {
+        if !project
+            .root
+            .canonicalize()
+            .is_ok_and(|root| root == project.root && root.is_dir())
+        {
             return Err(Error::new(
                 "path",
-                "The approved project folder moved or became a link.",
+                "The approved project folder moved or became a link. Approve its current location again.",
             ));
         }
         Ok(())
@@ -979,9 +1400,10 @@ impl Service {
         let p = self.project(project)?;
         self.checked_root(&p)?;
         let expected_url = github_repository(&p.repository)?;
-        let remote = git(&p.root, &["remote", "get-url", "origin"]).await?;
-        if remote.trim() != expected_url
-            && remote.trim() != format!("git@github.com:{}.git", p.repository)
+        let remote = git(&p.root, &["remote", "get-url", "--all", "origin"]).await?;
+        if remote.lines().count() != 1
+            || (remote.trim() != expected_url
+                && remote.trim() != format!("git@github.com:{}.git", p.repository))
         {
             return Err(Error::new(
                 "github",
@@ -1000,7 +1422,8 @@ impl Service {
                 "The push destination differs from the connected GitHub repository.",
             ));
         }
-        self.sync_remote(&p, remote.trim(), pushes.trim()).await
+        // Execute the configured remote so Git applies URL rewrites once, as get-url did.
+        self.sync_remote(&p, "origin", "origin").await
     }
 
     async fn sync_remote(&self, p: &Project, fetch_url: &str, push_url: &str) -> Result<Value> {
@@ -1057,19 +1480,22 @@ impl Service {
                             })?;
                     if common.trim() == local {
                         let _documents = self.documents.lock().await;
-                        if git_changes(
-                            &git(
-                                &p.root,
-                                &["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+                        if !self.project(&p.id)?.pending.is_empty()
+                            || git_changes(
+                                &git(
+                                    &p.root,
+                                    &["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+                                )
+                                .await?,
                             )
-                            .await?,
-                        )
-                        .next()
-                        .is_some()
+                            .next()
+                            .is_some()
                         {
                             return Err(Error::new("conflict", "GitHub is newer. Save your changes separately and resolve them before synchronizing."));
                         }
-                        git(&p.root, &["merge", "--ff-only", remote]).await?;
+                        git(&p.root, &["merge", "--ff-only", "--no-overwrite-ignore", remote])
+                            .await
+                            .map_err(|_| Error::new("conflict", "The incoming update could not be applied safely. Inspect local files, including ignored files, before synchronizing."))?;
                         head = Some(remote.to_owned());
                     } else if common.trim() != remote {
                         return Err(Error::new("conflict", "GitHub and this project diverged. Resolve the histories before synchronizing."));
@@ -1079,7 +1505,7 @@ impl Service {
                 return Err(Error::new("conflict", "Clone the existing GitHub project before synchronizing this new local repository."));
             }
         }
-        let checkpoint = {
+        let (checkpoint, published_revisions) = {
             let _documents = self.documents.lock().await;
             self.checkpoint(p, branch, head.as_deref()).await?
         };
@@ -1115,7 +1541,7 @@ impl Service {
             .iter_mut()
             .find(|project| project.id == p.id)
         {
-            for (relative, revision) in &p.pending_revisions {
+            for (relative, revision) in &published_revisions {
                 if project.pending_revisions.get(relative) == Some(revision) {
                     project.pending.remove(relative);
                     project.pending_revisions.remove(relative);
@@ -1131,7 +1557,7 @@ impl Service {
         project: &Project,
         branch: &str,
         old_head: Option<&str>,
-    ) -> Result<Option<String>> {
+    ) -> Result<(Option<String>, BTreeMap<String, String>)> {
         self.checked_root(project)?;
         let index = git(
             &project.root,
@@ -1176,29 +1602,36 @@ impl Service {
             if !current.pending.contains(relative) {
                 return Err(Error::new("conflict", "The project has changes from another editor. Review and commit them before syncing."));
             }
-            let source_relative = relative
-                .strip_suffix(".undertree-review.json")
-                .or_else(|| relative.strip_suffix(".import-report.json"))
-                .unwrap_or(relative);
-            let source = self.path(&current, source_relative, false)?;
-            let file = if relative == source_relative {
-                source
-            } else {
-                current.root.join(relative)
-            };
-            if file.symlink_metadata()?.file_type().is_symlink() || !file.is_file() {
-                return Err(Error::new(
-                    "path",
-                    "Only regular manuscript and review files can be synchronized.",
-                ));
-            }
-            let text = read_text(&file, MAX_TEXT * 8)?;
-            let revision = digest(&text);
+        }
+        // Status omits ignored/clean files; every owned pending entry needs publication proof.
+        for relative in &current.pending {
+            let (bytes, permissions) = self.owned_checkpoint_input(&current, relative)?;
+            let revision = format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(&bytes));
             if current.pending_revisions.get(relative) != Some(&revision) {
                 return Err(Error::new("conflict", "A manuscript or its review metadata changed outside UnderTree. Review and save it before synchronizing."));
             }
+            let (ignored, _) = git_output(
+                &project.root,
+                // check-ignore already takes literal names and rejects pathspec magic.
+                &[
+                    "--no-literal-pathspecs",
+                    "check-ignore",
+                    "--quiet",
+                    "--",
+                    relative,
+                ],
+                None,
+                None,
+            )
+            .await?;
+            if ignored.success() {
+                return Err(Error::new("conflict", "An UnderTree-owned pending file is ignored by Git. Review the ignore rules before synchronizing; pending work has been kept."));
+            }
+            if ignored.code() != Some(1) {
+                return Err(Error::new("git", "Could not check Git ignore rules."));
+            }
             total = total
-                .checked_add(text.len())
+                .checked_add(bytes.len())
                 .ok_or_else(|| Error::new("limit", "This checkpoint is too large."))?;
             if total > MAX_TEXT * 16 || revisions.len() >= 1000 {
                 return Err(Error::new(
@@ -1212,12 +1645,12 @@ impl Service {
                     .parent()
                     .ok_or_else(|| Error::new("path", "Invalid checkpoint path."))?,
             )?;
-            fs::write(&destination, text)?;
-            fs::set_permissions(&destination, fs::metadata(&file)?.permissions())?;
+            fs::write(&destination, bytes)?;
+            fs::set_permissions(&destination, permissions)?;
             revisions.insert(relative.to_owned(), revision);
         }
         if revisions.is_empty() {
-            return Ok(None);
+            return Ok((None, revisions));
         }
         let alternate = tempfile::NamedTempFile::new_in(
             index
@@ -1233,6 +1666,29 @@ impl Service {
             None,
         )
         .await?;
+        let mut modes = BTreeMap::new();
+        for relative in revisions.keys() {
+            let original = git_index(
+                &project.root,
+                &["ls-files", "--stage", "-z", "--", relative],
+                Some(alternate.path()),
+                None,
+            )
+            .await?;
+            let mode = if original.is_empty() {
+                "100644"
+            } else {
+                let mode = original.split(' ').next().unwrap_or_default();
+                if !matches!(mode, "100644" | "100755")
+                    || original.matches('\0').count() != 1
+                    || !original.ends_with(&format!(" 0\t{relative}\0"))
+                {
+                    return Err(Error::new("conflict", "A pending file has an unsupported Git mode. Resolve it locally before synchronizing."));
+                }
+                mode
+            };
+            modes.insert(relative, mode.to_owned());
+        }
         let mut add = vec!["add", "--"];
         add.extend(revisions.keys().map(String::as_str));
         git_index(
@@ -1242,6 +1698,31 @@ impl Service {
             Some(snapshot.path()),
         )
         .await?;
+        for relative in revisions.keys() {
+            let raw = git(
+                &project.root,
+                &[
+                    "hash-object",
+                    "--no-filters",
+                    "--",
+                    snapshot.path().join(relative).to_str().ok_or_else(|| {
+                        Error::new("path", "The checkpoint path is not valid Unicode.")
+                    })?,
+                ],
+            )
+            .await?;
+            let staged = git_index(
+                &project.root,
+                &["ls-files", "--stage", "-z", "--", relative],
+                Some(alternate.path()),
+                None,
+            )
+            .await?;
+            let expected = format!("{} {} 0\t{}\0", modes[relative], raw.trim(), relative);
+            if staged != expected {
+                return Err(Error::new("conflict", "Git transformed a pending file, changed its executable mode or omitted it from the checkpoint. Review mode, line-ending and filter settings before synchronizing; saved bytes and pending work have been kept."));
+            }
+        }
         let tree = git_index(&project.root, &["write-tree"], Some(alternate.path()), None).await?;
         let mut create = vec!["commit-tree", tree.trim()];
         if let Some(head) = old_head {
@@ -1288,7 +1769,7 @@ impl Service {
             )
         })?;
         atomic_write(&index, &index_bytes)?;
-        Ok(Some(commit.trim().to_owned()))
+        Ok((Some(commit.trim().to_owned()), revisions))
     }
 }
 
@@ -1380,13 +1861,44 @@ mod tests {
         let file = temporary.path().join("main.html");
         fs::write(&file, "<p>Hello</p>").unwrap();
         let service = Service::new(temporary.path().join("state")).unwrap();
-        let journal = Journal {
+        let project: Project = serde_json::from_value(
+            service
+                .local(Operation::AddProject {
+                    root: temporary.path().to_str().unwrap().into(),
+                })
+                .unwrap(),
+        )
+        .unwrap();
+        let mut journal = Journal {
             old_revision: digest("<p>Hello</p>"),
             content: "<p>Hi</p>".into(),
             review: Review::new("<p>Hi</p>"),
+            editor_receipt: None,
+            prior_review: None,
+            ownership: None,
         };
         fs::write(journal_path(&file), serde_json::to_vec(&journal).unwrap()).unwrap();
-        assert_eq!(service.read_document(&file).unwrap().0, "<p>Hi</p>");
+        assert_eq!(
+            service
+                .read_document(&project, "main.html", &file)
+                .unwrap_err()
+                .code,
+            "recovery_conflict"
+        );
+        assert_eq!(fs::read_to_string(&file).unwrap(), "<p>Hello</p>");
+        journal.ownership = Some(journal_ownership::JournalOwnership {
+            project: project.id.clone(),
+            path: "main.html".into(),
+            owns_source: true,
+        });
+        fs::write(journal_path(&file), serde_json::to_vec(&journal).unwrap()).unwrap();
+        assert_eq!(
+            service
+                .read_document(&project, "main.html", &file)
+                .unwrap()
+                .0,
+            "<p>Hi</p>"
+        );
         assert!(!journal_path(&file).exists());
     }
     async fn git_fixture() -> (tempfile::TempDir, Arc<Service>, Project, PathBuf) {
@@ -1542,6 +2054,464 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn checkpoint_refuses_line_ending_and_clean_filter_transforms_without_losing_ownership() {
+        for transform in ["crlf", "filter"] {
+            let (_temporary, service, project, remote) = git_fixture().await;
+            let content = if transform == "crlf" {
+                git(&project.root, &["config", "core.autocrlf", "true"])
+                    .await
+                    .unwrap();
+                "= Manuscript\r\n\r\nSaved CRLF text.\r\n"
+            } else {
+                fs::write(
+                    project.root.join(".gitattributes"),
+                    "main.typ filter=undertree\n",
+                )
+                .unwrap();
+                git(&project.root, &["add", "--", ".gitattributes"])
+                    .await
+                    .unwrap();
+                git(&project.root, &["commit", "-m", "Configure clean filter"])
+                    .await
+                    .unwrap();
+                git(&project.root, &["push", "origin", "main"])
+                    .await
+                    .unwrap();
+                git(
+                    &project.root,
+                    &["config", "filter.undertree.clean", "git stripspace"],
+                )
+                .await
+                .unwrap();
+                "= Manuscript\n\nSaved text with trailing spaces.   \n\n\n"
+            };
+            let project = save_fixture(&service, &project, content);
+            let head = git_head(&project.root).await.unwrap();
+            let remote_head = git(&remote, &["rev-parse", "refs/heads/main"])
+                .await
+                .unwrap();
+            let index = fs::read(project.root.join(".git/index")).unwrap();
+            let metadata = fs::read(sidecar(&project.root.join("main.typ"))).unwrap();
+            let error = sync_fixture(&service, &project).await.unwrap_err();
+            assert_eq!(error.code, "conflict", "{transform}");
+            assert!(
+                error.message.contains("transformed"),
+                "{transform}: {}",
+                error.message
+            );
+            assert_eq!(git_head(&project.root).await.unwrap(), head);
+            assert_eq!(
+                git(&remote, &["rev-parse", "refs/heads/main"])
+                    .await
+                    .unwrap(),
+                remote_head
+            );
+            assert_eq!(fs::read(project.root.join(".git/index")).unwrap(), index);
+            assert_eq!(
+                fs::read(project.root.join("main.typ")).unwrap(),
+                content.as_bytes()
+            );
+            assert_eq!(
+                fs::read(sidecar(&project.root.join("main.typ"))).unwrap(),
+                metadata
+            );
+            assert_eq!(
+                service.project(&project.id).unwrap().pending_revisions,
+                project.pending_revisions
+            );
+            assert!(!project.root.join(".git/index.lock").exists());
+        }
+    }
+
+    #[tokio::test]
+    async fn checkpoint_refuses_ignored_owned_entries_and_preserves_pending_and_index() {
+        let (_temporary, service, project, remote) = git_fixture().await;
+        fs::write(project.root.join(".gitignore"), "ignored.typ*\n").unwrap();
+        git(&project.root, &["add", "--", ".gitignore"])
+            .await
+            .unwrap();
+        git(&project.root, &["commit", "-m", "Ignore selected outputs"])
+            .await
+            .unwrap();
+        git(&project.root, &["push", "origin", "main"])
+            .await
+            .unwrap();
+        service
+            .local(Operation::Create {
+                project: project.id.clone(),
+                path: "ignored.typ".into(),
+            })
+            .unwrap();
+        let current = service.project(&project.id).unwrap();
+        let head = git_head(&project.root).await.unwrap();
+        let remote_head = git(&remote, &["rev-parse", "refs/heads/main"])
+            .await
+            .unwrap();
+        let index = fs::read(project.root.join(".git/index")).unwrap();
+        assert!(git(&project.root, &["status", "--porcelain=v1"])
+            .await
+            .unwrap()
+            .is_empty());
+        let error = sync_fixture(&service, &current).await.unwrap_err();
+        assert_eq!(error.code, "conflict");
+        assert!(error.message.contains("ignored"));
+        assert_eq!(
+            service.project(&project.id).unwrap().pending_revisions,
+            current.pending_revisions
+        );
+        assert_eq!(git_head(&project.root).await.unwrap(), head);
+        assert_eq!(
+            git(&remote, &["rev-parse", "refs/heads/main"])
+                .await
+                .unwrap(),
+            remote_head
+        );
+        assert_eq!(fs::read(project.root.join(".git/index")).unwrap(), index);
+        assert!(!project.root.join(".git/index.lock").exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn checkpoint_refuses_external_executable_mode_changes() {
+        use std::os::unix::fs::PermissionsExt;
+        for kind in ["tracked", "new", "tracked_executable"] {
+            let (_temporary, service, project, remote) = git_fixture().await;
+            git(&project.root, &["config", "core.fileMode", "true"])
+                .await
+                .unwrap();
+            if kind == "tracked_executable" {
+                fs::set_permissions(
+                    project.root.join("main.typ"),
+                    fs::Permissions::from_mode(0o755),
+                )
+                .unwrap();
+                git(&project.root, &["add", "--", "main.typ"])
+                    .await
+                    .unwrap();
+                git(
+                    &project.root,
+                    &["commit", "-m", "Existing executable source"],
+                )
+                .await
+                .unwrap();
+                git(&project.root, &["push", "origin", "main"])
+                    .await
+                    .unwrap();
+            }
+            let path = if kind == "new" { "new.typ" } else { "main.typ" };
+            let current = if kind == "new" {
+                service
+                    .local(Operation::Create {
+                        project: project.id.clone(),
+                        path: path.into(),
+                    })
+                    .unwrap();
+                service.project(&project.id).unwrap()
+            } else {
+                save_fixture(&service, &project, "= Saved manuscript\n\nOwned bytes.\n")
+            };
+            let original_mode = if kind == "tracked_executable" {
+                0o755
+            } else {
+                0o644
+            };
+            let changed_mode = if kind == "tracked_executable" {
+                0o644
+            } else {
+                0o755
+            };
+            let file = project.root.join(path);
+            let source = fs::read(&file).unwrap();
+            let metadata = fs::read(sidecar(&file)).unwrap();
+            let head = git_head(&project.root).await.unwrap();
+            let index = fs::read(project.root.join(".git/index")).unwrap();
+            fs::set_permissions(&file, fs::Permissions::from_mode(changed_mode)).unwrap();
+            let error = sync_fixture(&service, &current).await.unwrap_err();
+            assert_eq!(error.code, "conflict", "{kind}");
+            assert!(error.message.contains("mode"), "{kind}: {}", error.message);
+            assert_eq!(fs::read(&file).unwrap(), source);
+            assert_eq!(fs::read(sidecar(&file)).unwrap(), metadata);
+            assert_eq!(
+                fs::metadata(&file).unwrap().permissions().mode() & 0o777,
+                changed_mode
+            );
+            assert_eq!(git_head(&project.root).await.unwrap(), head);
+            assert_eq!(
+                git(&remote, &["rev-parse", "refs/heads/main"])
+                    .await
+                    .unwrap()
+                    .trim(),
+                head.as_deref().unwrap()
+            );
+            assert_eq!(fs::read(project.root.join(".git/index")).unwrap(), index);
+            assert_eq!(
+                service.project(&project.id).unwrap().pending_revisions,
+                current.pending_revisions
+            );
+            assert!(!project.root.join(".git/index.lock").exists());
+            fs::set_permissions(&file, fs::Permissions::from_mode(original_mode)).unwrap();
+            sync_fixture(&service, &current).await.unwrap();
+            let tree = git(&remote, &["ls-tree", "refs/heads/main", "--", path])
+                .await
+                .unwrap();
+            assert!(tree.starts_with(if kind == "tracked_executable" {
+                "100755 "
+            } else {
+                "100644 "
+            }));
+            assert!(service.project(&project.id).unwrap().pending.is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn incoming_fast_forward_preserves_ignored_files_and_owned_pending_work() {
+        for kind in ["owned", "external", "clean"] {
+            let (temporary, service, project, remote) = git_fixture().await;
+            fs::write(project.root.join(".gitignore"), "ignored.typ*\n").unwrap();
+            git(&project.root, &["add", "--", ".gitignore"])
+                .await
+                .unwrap();
+            git(&project.root, &["commit", "-m", "Ignore local source"])
+                .await
+                .unwrap();
+            git(&project.root, &["push", "origin", "main"])
+                .await
+                .unwrap();
+            let other = temporary.path().join("other");
+            git(
+                temporary.path(),
+                &[
+                    "clone",
+                    "-b",
+                    "main",
+                    remote.to_str().unwrap(),
+                    other.to_str().unwrap(),
+                ],
+            )
+            .await
+            .unwrap();
+            git(&other, &["config", "user.name", "Other Editor"])
+                .await
+                .unwrap();
+            git(&other, &["config", "user.email", "other@example.invalid"])
+                .await
+                .unwrap();
+            fs::write(other.join("ignored.typ"), "Incoming source\n").unwrap();
+            git(&other, &["add", "-f", "--", "ignored.typ"])
+                .await
+                .unwrap();
+            git(&other, &["commit", "-m", "New remote source"])
+                .await
+                .unwrap();
+            git(&other, &["push", "origin", "main"]).await.unwrap();
+            let file = project.root.join("ignored.typ");
+            if kind == "owned" {
+                service
+                    .local(Operation::Create {
+                        project: project.id.clone(),
+                        path: "ignored.typ".into(),
+                    })
+                    .unwrap();
+            } else if kind == "external" {
+                fs::write(&file, "External ignored source\n").unwrap();
+            }
+            let current = service.project(&project.id).unwrap();
+            let head = git_head(&project.root).await.unwrap();
+            let index = fs::read(project.root.join(".git/index")).unwrap();
+            let source = fs::read(&file).ok();
+            let metadata = fs::read(sidecar(&file)).ok();
+            assert!(git(&project.root, &["status", "--porcelain=v1"])
+                .await
+                .unwrap()
+                .is_empty());
+            let result = sync_fixture(&service, &current).await;
+            if kind == "clean" {
+                result.unwrap();
+                assert_eq!(fs::read_to_string(&file).unwrap(), "Incoming source\n");
+                assert_eq!(
+                    git_head(&project.root).await.unwrap().unwrap(),
+                    git(&remote, &["rev-parse", "refs/heads/main"])
+                        .await
+                        .unwrap()
+                        .trim()
+                );
+            } else {
+                assert!(result.is_err(), "{kind}");
+                assert_eq!(fs::read(&file).ok(), source, "{kind}");
+                assert_eq!(fs::read(sidecar(&file)).ok(), metadata, "{kind}");
+                assert_eq!(git_head(&project.root).await.unwrap(), head, "{kind}");
+                assert_eq!(
+                    fs::read(project.root.join(".git/index")).unwrap(),
+                    index,
+                    "{kind}"
+                );
+                assert_eq!(
+                    service.project(&project.id).unwrap().pending_revisions,
+                    current.pending_revisions
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn checkpoint_clears_only_the_actual_captured_publication_not_an_older_project_snapshot()
+    {
+        let (_temporary, service, stale, remote) = git_fixture().await;
+        let saved = save_fixture(&service, &stale, "= Manuscript\n\nNewest captured input.\n");
+        let result = sync_fixture(&service, &stale).await.unwrap();
+        assert!(service.project(&stale.id).unwrap().pending.is_empty());
+        assert_eq!(
+            git(
+                &remote,
+                &[
+                    "show",
+                    &format!("{}:main.typ", result["head"].as_str().unwrap())
+                ]
+            )
+            .await
+            .unwrap(),
+            "= Manuscript\n\nNewest captured input.\n"
+        );
+        assert!(!saved.pending_revisions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn sync_does_not_expand_validated_urls_again_into_an_unintended_destination() {
+        let (_temporary, service, project, remote) = git_fixture().await;
+        let project = save_fixture(
+            &service,
+            &project,
+            "= Manuscript\n\nPrivate pending work.\n",
+        );
+        let canonical = "https://github.com/fixture/repository.git";
+        let alias = "undertree-fixture:repository";
+        git(&project.root, &["remote", "set-url", "origin", alias])
+            .await
+            .unwrap();
+        git(
+            &project.root,
+            &["config", &format!("url.{canonical}.insteadOf"), alias],
+        )
+        .await
+        .unwrap();
+        git(
+            &project.root,
+            &[
+                "config",
+                &format!("url.{}.insteadOf", remote.to_str().unwrap()),
+                canonical,
+            ],
+        )
+        .await
+        .unwrap();
+        git(&project.root, &["config", "protocol.https.allow", "never"])
+            .await
+            .unwrap();
+        service
+            .bind_github(&project.id, "fixture/repository", false)
+            .await
+            .unwrap();
+        let head = git_head(&project.root).await.unwrap();
+        let remote_head = git(&remote, &["rev-parse", "refs/heads/main"])
+            .await
+            .unwrap();
+        assert_eq!(
+            git(&project.root, &["remote", "get-url", "origin"])
+                .await
+                .unwrap()
+                .trim(),
+            canonical
+        );
+        assert_eq!(service.sync(&project.id).await.unwrap_err().code, "git");
+        assert_eq!(git_head(&project.root).await.unwrap(), head);
+        assert_eq!(
+            git(&remote, &["rev-parse", "refs/heads/main"])
+                .await
+                .unwrap(),
+            remote_head
+        );
+        assert_eq!(
+            service.project(&project.id).unwrap().pending_revisions,
+            project.pending_revisions
+        );
+        assert_eq!(
+            git(&project.root, &["config", "remote.origin.url"])
+                .await
+                .unwrap()
+                .trim(),
+            alias
+        );
+    }
+
+    #[tokio::test]
+    async fn configured_remote_push_expands_pushinsteadof_only_once() {
+        let (_temporary, service, project, remote) = git_fixture().await;
+        let project = save_fixture(&service, &project, "= Manuscript\n\nPending push.\n");
+        let canonical = "https://github.com/fixture/repository.git";
+        let alias = "undertree-fixture:repository";
+        git(&project.root, &["remote", "set-url", "origin", alias])
+            .await
+            .unwrap();
+        git(
+            &project.root,
+            &[
+                "config",
+                &format!("url.{}.insteadOf", remote.to_str().unwrap()),
+                alias,
+            ],
+        )
+        .await
+        .unwrap();
+        git(
+            &project.root,
+            &["config", &format!("url.{canonical}.pushInsteadOf"), alias],
+        )
+        .await
+        .unwrap();
+        git(
+            &project.root,
+            &[
+                "config",
+                &format!("url.{}.pushInsteadOf", remote.to_str().unwrap()),
+                canonical,
+            ],
+        )
+        .await
+        .unwrap();
+        git(&project.root, &["config", "protocol.https.allow", "never"])
+            .await
+            .unwrap();
+        assert_eq!(
+            git(&project.root, &["remote", "get-url", "--push", "origin"])
+                .await
+                .unwrap()
+                .trim(),
+            canonical
+        );
+        let remote_head = git(&remote, &["rev-parse", "refs/heads/main"])
+            .await
+            .unwrap();
+        assert_eq!(
+            service
+                .sync_remote(&project, "origin", "origin")
+                .await
+                .unwrap_err()
+                .code,
+            "git"
+        );
+        assert_eq!(
+            git(&remote, &["rev-parse", "refs/heads/main"])
+                .await
+                .unwrap(),
+            remote_head
+        );
+        assert_eq!(
+            service.project(&project.id).unwrap().pending_revisions,
+            project.pending_revisions
+        );
+    }
+
+    #[tokio::test]
     async fn sync_rejects_divergence_without_rewriting_local_history() {
         let (temporary, service, project, remote) = git_fixture().await;
         let other = temporary.path().join("other");
@@ -1596,15 +2566,26 @@ mod tests {
         let file = temporary.path().join("main.typ");
         fs::write(&file, "Original manuscript").unwrap();
         let service = Service::new(temporary.path().join("state")).unwrap();
+        let project: Project = serde_json::from_value(
+            service
+                .local(Operation::AddProject {
+                    root: temporary.path().to_str().unwrap().into(),
+                })
+                .unwrap(),
+        )
+        .unwrap();
         let mut review = Review::new("Replacement");
         review.version = 99;
         let journal = Journal {
             old_revision: digest("Original manuscript"),
             content: "Replacement".into(),
             review,
+            editor_receipt: None,
+            prior_review: None,
+            ownership: None,
         };
         fs::write(journal_path(&file), serde_json::to_vec(&journal).unwrap()).unwrap();
-        assert!(service.read_document(&file).is_err());
+        assert!(service.read_document(&project, "main.typ", &file).is_err());
         assert_eq!(fs::read_to_string(&file).unwrap(), "Original manuscript");
         assert!(journal_path(&file).exists());
         assert!(!sidecar(&file).exists());

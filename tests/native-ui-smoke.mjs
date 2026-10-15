@@ -4,14 +4,16 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, chmod, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { createHash } from 'node:crypto';
 
 assert.equal(process.platform, 'linux', 'This qualification uses Linux WebKitGTK and X11.');
 assert.notEqual(process.getuid(), 0, 'Run the native save-denial check as a regular user.');
 const binary = resolve(process.env.UNDERTREE_DESKTOP || 'target/debug/undertree-desktop');
+const cli = resolve(process.env.UNDERTREE_REVIEW_CLI || 'target/debug/undertree-review');
 await stat(binary);
+await stat(cli);
 const fixture = await mkdtemp(join(tmpdir(), 'undertree-native-ui-'));
 const project = join(fixture, 'project');
 const artifacts = resolve(process.env.UNDERTREE_NATIVE_ARTIFACTS || 'artifacts');
@@ -20,6 +22,7 @@ const checks = [];
 let session;
 let driverUrl;
 let nativeWindow;
+let localDescriptor;
 let log = '';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -27,6 +30,7 @@ const quote = value => `'${value.replaceAll("'", "'\\''")}'`;
 const evidence = {
   application: binary,
   binarySha256: hash(await readFile(binary)),
+  cliSha256: hash(await readFile(cli)),
   verifiedAt: new Date().toISOString(),
   architecture: process.arch,
   platform: process.platform,
@@ -157,6 +161,11 @@ try {
   await writeFile(crlfSource, crlfOriginal);
   const data = join(fixture, 'data');
   const state = join(data, 'io.github.georgefejer91.UnderTree', 'review');
+  const descriptor = join(state, 'cli', 'instance.json');
+  const cliEnvironment = { ...process.env, UNDERTREE_REVIEW_STATE: state };
+  delete cliEnvironment.UNDERTREE_REVIEW_ENDPOINT;
+  delete cliEnvironment.UNDERTREE_REVIEW_TOKEN;
+  const runCli = args => spawnSync(cli, args, { env: cliEnvironment, encoding: 'utf8', timeout: 35_000, maxBuffer: 1_000_000 });
   await mkdir(state, { recursive: true });
   await writeFile(join(state, 'projects.json'), JSON.stringify({ projects: [{ id: 'native-smoke', name: 'Native smoke', root: project, repository: '', autoSync: false, pending: [], pendingRevisions: {} }] }));
   const compiler = join(fixture, 'typst');
@@ -193,6 +202,33 @@ try {
     console.error = (...args) => { args.forEach(record); originalError.apply(console, args); };
   `);
   checks.push('Bundled custom-protocol HTML runs inside the real Tauri WebView with native controls visible.');
+  await waitFor(async () => { localDescriptor = JSON.parse(await readFile(descriptor, 'utf8')); return true; }, 'The native authority did not publish its private CLI descriptor.');
+  assert.equal((await stat(descriptor)).mode & 0o077, 0, 'The local CLI descriptor is private to its owner.');
+  const nativeCapabilities = await execute('return window.__TAURI_INTERNALS__.invoke("review_action", {operation:{action:"capabilities"}});');
+  const discovered = runCli(['capabilities']);
+  assert.equal(discovered.status, 0, 'The named CLI discovers the running desktop without a supplied token or endpoint.');
+  assert.equal(discovered.stdout.includes(localDescriptor.token), false, 'CLI output does not disclose the local session credential.');
+  const capabilities = JSON.parse(discovered.stdout);
+  assert.equal(capabilities.ok, true);
+  assert.equal(capabilities.result.instanceId, nativeCapabilities.instanceId, 'Native IPC and the CLI reach one Rust authority.');
+  assert.equal(capabilities.result.instanceId, localDescriptor.instanceId);
+  assert.equal(capabilities.result.caller, 'local_cli');
+  assert.equal(capabilities.result.access.readOnly, false);
+  assert.ok(capabilities.result.localOperations.length > 0);
+  assert.deepEqual(capabilities.result.localOperations.filter(operation => operation.mutates).map(operation => operation.action), ['save_editor'], 'The local CLI can only mutate through the registered editor save barrier.');
+  const cliProjects = runCli(['call', JSON.stringify({action:'projects'})]);
+  assert.equal(cliProjects.status, 0);
+  assert.equal(JSON.parse(cliProjects.stdout).result.some(project => project.id === 'native-smoke'), true, 'CLI reads the desktop-approved inventory.');
+  const denied = runCli(['call', JSON.stringify({action:'save',project:'native-smoke',path:'main.typ',revision:hash(original),content:'Unauthorized CLI replacement.'})]);
+  assert.notEqual(denied.status, 0, 'The discovery listener refuses raw replacement text even when registered-editor saves are available.');
+  assert.equal(JSON.parse(denied.stdout).error.code, 'unsupported_capability');
+  assert.equal(await readFile(source, 'utf8'), original);
+  const unauthenticated = await fetch(localDescriptor.endpoint, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'capabilities'}),signal:AbortSignal.timeout(2000)});
+  assert.equal(unauthenticated.status, 401);
+  const retiredOwner = await execute('return window.__TAURI_INTERNALS__.invoke("editor_operation", {ownerId:"retired-native-smoke-owner",operation:{action:"editor_poll"}}).then(() => ({accepted:true}), error => ({accepted:false,code:error.code}));');
+  assert.deepEqual(retiredOwner, { accepted:false, code:'stale_session' }, 'A retired renderer cannot invoke registered-editor operations.');
+  evidence.localCli = { sameNativeInstance: true, readOnly: false, allowedMutation:'save_editor', descriptorPrivate: true, rawMutationDenied: true, anonymousDenied: true, stalePageDenied:true };
+  checks.push('The named CLI privately discovers the real desktop authority, reports the native IPC instance, exposes only registered-editor save mutation, and denies raw replacement text, anonymous access and retired-renderer callbacks.');
   nativeWindow = native('xdotool', ['search', '--onlyvisible', '--name', '^UnderTree$']).split('\n')[0];
   evidence.nativePid = Number(native('xdotool', ['getwindowpid', nativeWindow]));
   await click('.file-button[data-path="main.typ"]');
@@ -251,6 +287,46 @@ try {
   assert.equal(await execute('return document.getElementById("review-status").classList.contains("error")'), false);
   assert.deepEqual(await execute('return window.__undertreeNativeErrors'), [], 'Native automatic scheduling uses valid Window timer receivers.');
   checks.push('A new native edit autosaves and automatically compiles its latest revision, without clicking Save or Recompile or reporting a Window timer error.');
+  await execute(`
+    window.__cliProbe={saved:0,committed:0,last:performance.now(),fallback:false,errors:[]};
+    const originalFetch=window.fetch,originalWarn=console.warn;
+    window.fetch=(input,init,...rest)=>{
+      try{const url=new URL(typeof input==='string'?input:input.url);if(url.protocol==='ipc:'||url.hostname==='ipc.localhost'){const name=decodeURIComponent(url.pathname.slice(1));const body=typeof init?.body==='string'?init.body:new TextDecoder().decode(init?.body);const operation=JSON.parse(body).operation;if(name==='review_action'&&operation?.action==='save'){window.__cliProbe.saved++;window.__cliProbe.last=performance.now();}if(name==='editor_operation'&&operation?.action==='editor_commit'){window.__cliProbe.committed++;window.__cliProbe.last=performance.now();}}}catch{window.__cliProbe.errors.push('Unsupported IPC body.');}
+      return Reflect.apply(originalFetch,window,[input,init,...rest]);
+    };
+    console.warn=(...args)=>{if(args.some(v=>String(v).includes('IPC custom protocol failed')))window.__cliProbe.fallback=true;return Reflect.apply(originalWarn,console,args);};
+  `);
+  const beforeCliSave = await readFile(source, 'utf8');
+  await chmod(project, 0o555);
+  await append('\nSaved explicitly through the native CLI barrier.\n');
+  await waitFor(() => execute('return document.getElementById("review-status").classList.contains("error") && document.getElementById("save-label").textContent === "Unsaved changes"'), 'The deliberately denied autosave did not leave a dirty native buffer.');
+  assert.equal(await readFile(source, 'utf8'), beforeCliSave, 'A failed autosave cannot satisfy the explicit CLI save assertion.');
+  await waitFor(() => execute('return window.__cliProbe.saved>0&&performance.now()-window.__cliProbe.last>1100&&document.getElementById("save-label").textContent==="Unsaved changes"&&document.getElementById("typst-compile").textContent==="Recompile"'), 'Ordinary autosave and automatic compile must settle under denied writes before explicit CLI save.');
+  const beforeExplicit=await execute('return {...window.__cliProbe}');
+  await chmod(project, 0o755);
+  const editorSaved = runCli(['save', 'native-smoke', 'main.typ']);
+  assert.equal(editorSaved.status, 0, 'The named CLI save reaches the registered native editor through editor_connect and editor_operation.');
+  const committed = JSON.parse(editorSaved.stdout);
+  assert.equal(committed.result.status, 'committed');
+  assert.ok(committed.result.requestId);
+  let saveReceipt;
+  await waitFor(() => {
+    const result = runCli(['save-receipt', committed.result.requestId]);
+    if (result.status !== 0) return false;
+    saveReceipt = JSON.parse(result.stdout).result;
+    return saveReceipt.status === 'committed' && saveReceipt.bufferStatus === 'saved';
+  }, 'The native editor did not confirm its durable CLI save receipt.');
+  assert.ok((await readFile(source, 'utf8')).includes('Saved explicitly through the native CLI barrier.'));
+  assert.equal(await execute('return document.getElementById("save-label").textContent'), 'Saved locally');
+  const afterExplicit=await execute('return {...window.__cliProbe}');
+  assert.equal(afterExplicit.saved,beforeExplicit.saved,'No ordinary timer supplied the explicit CLI save.');
+  assert.equal(afterExplicit.committed-beforeExplicit.committed,1,'Exactly one registered editor commit supplies the named CLI save.');
+  assert.deepEqual(afterExplicit.errors,[]);assert.equal(afterExplicit.fallback,false);
+  const replay = runCli(['save-receipt', committed.result.requestId]);
+  assert.equal(replay.status, 0);
+  assert.deepEqual(JSON.parse(replay.stdout).result, saveReceipt, 'A durable native save receipt replays exactly.');
+  evidence.localCli.registeredEditorSave = { committed:true, dirtyBufferSaved:true, receiptReplayed:true, nativeCommands:['review_action','editor_connect','editor_operation'] };
+  checks.push('After a real denied autosave, explicit named CLI save commits the dirty native buffer through its registered renderer, clears its dirty state, and returns a durable replayable receipt.');
   await qualifyChrome();
   assert.deepEqual(await execute('return window.__undertreeNativeErrors'), [], 'Native resize and text enlargement have no uncaught errors.');
   checks.push('Native 320 px reflow, 200% text, short-height finite controls and visible frame SVG ink centers pass without page scrolling.');
@@ -278,6 +354,19 @@ try {
   await waitFor(async () => (await readFile(source, 'utf8')).includes('Close preserves this dirty buffer.'), 'Custom Close did not flush the preserved buffer.');
   await waitFor(() => { try { native('xdotool', ['getwindowname', nativeWindow]); return false; } catch { return true; } }, 'Custom Close did not remove the native window.');
   checks.push('Custom Close retries the protected save, flushes the dirty manuscript, then closes the real native window.');
+  await waitFor(async () => { try { await stat(descriptor); return false; } catch (error) { return error.code === 'ENOENT'; } }, 'Native exit did not remove its private CLI descriptor.');
+  await waitFor(async () => {
+    try {
+      const response = await fetch(localDescriptor.endpoint, {method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${localDescriptor.token}`,'X-UnderTree-Instance':localDescriptor.instanceId},body:JSON.stringify({action:'capabilities'}),signal:AbortSignal.timeout(1000)});
+      return response.status === 401;
+    } catch (error) { return ['ECONNREFUSED', 'ECONNRESET'].includes(error.cause?.code); }
+  }, 'The exited native authority still accepts its old CLI session.');
+  const stopped = runCli(['capabilities']);
+  assert.notEqual(stopped.status, 0);
+  assert.equal(stopped.stdout, '');
+  assert.ok(stopped.stderr.includes('instance_unavailable'), 'CLI returns an explicit unavailable error after desktop shutdown.');
+  evidence.localCli.revokedAfterNativeExit = true;
+  checks.push('Native shutdown removes CLI discovery, revokes its former authenticated endpoint, and makes the named CLI report instance_unavailable.');
   evidence.result = 'passed';
   await rm(join(artifacts, 'native-ui-failure.png'), { force: true });
   console.log(`Native Linux Tauri qualification passed: ${checks.length} checks; screenshots and binary-linked evidence in ${artifacts}.`);
@@ -297,7 +386,7 @@ try {
   for (const processChild of processes) {
     if (processChild.exitCode === null && processChild.pid) { try { process.kill(-processChild.pid, 'SIGKILL'); } catch {} }
   }
-  evidence.log = log;
+  evidence.log = localDescriptor ? log.replaceAll(localDescriptor.token, '[redacted]') : log;
   await mkdir(artifacts, { recursive: true });
   await writeFile(join(artifacts, 'native-ui-evidence.json'), JSON.stringify(evidence, null, 2));
   await rm(fixture, { recursive: true, force: true });

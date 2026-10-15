@@ -1,3 +1,5 @@
+import { isolateHistory } from '@codemirror/commands';
+
 const inline = { typ: { bold: ['*', '*'], italic: ['_', '_'] }, html: { bold: ['<strong>', '</strong>'], italic: ['<em>', '</em>'] } };
 const blocks = new Set(['heading', 'bullet-list', 'numbered-list']);
 const tags = /<!--[\s\S]*?-->|<\/?([a-z][\w:-]*)(?:"[^"]*"|'[^']*'|[^'"<>])*>/gi;
@@ -75,7 +77,7 @@ export function sourceFormat(text, range, command, format) {
       htmlPhrasing(text.slice(from, to));
     }
     const [prefix, suffix] = delimiters;
-    return { changes: { from, to, insert: prefix + text.slice(from, to) + suffix }, selection: { anchor: from + prefix.length, head: to + prefix.length } };
+    return { changes: { from, to, insert: prefix + text.slice(from, to) + suffix }, selection: { anchor: from + prefix.length, head: to + prefix.length }, annotations: isolateHistory.of('full') };
   }
   if (!blocks.has(command)) throw new Error('Choose bold, italic, heading, bullet-list or numbered-list formatting.');
   const start = from === 0 ? 0 : text.lastIndexOf('\n', from - 1) + 1;
@@ -104,5 +106,5 @@ export function sourceFormat(text, range, command, format) {
     const line = positions.find(line => position <= line.oldStart + line.length) || positions.at(-1);
     return line.newStart + clamp(position - line.bodyStart, line.bodyLength);
   };
-  return { changes: { from: start, to: end, insert }, selection: { anchor: map(from), head: map(to) } };
+  return { changes: { from: start, to: end, insert }, selection: { anchor: map(from), head: map(to) }, annotations: isolateHistory.of('full') };
 }

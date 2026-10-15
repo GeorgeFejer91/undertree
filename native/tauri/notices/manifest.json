@@ -1,0 +1,2893 @@
+{
+  "schema": 1,
+  "cargoAbout": "0.9.2",
+  "cargoAboutBinarySha256": "67e8e0134a88ab25194f2d3b3ab157d5a6467fc091df3af93e63f355a111828f",
+  "target": "x86_64-unknown-linux-gnu",
+  "inputs": {
+    "Cargo.lock": "0f7d79fb18bbd4e16e22fdca2f569a724dfcc50cec5649aae654c79b5b0008c7",
+    "Cargo.toml": "7d7664114335d2407ce20baa755c38b841ffce6467cb2c305fd56c51c2c2b3b3",
+    "index.html": "5b51c9843f12350952806eb6baac1db2ebb753168716a65b5cdf31f50ccbdeef",
+    "layout/compiler.mjs": "f3c8d7238be5041c1f8d1b5177e469eb15d05a2286050288a53f302055978e15",
+    "manuscript.html": "4e9f8b63f7e48445f8a95a37084596fd4c73e66c589385048b8f5f1e07ffd59c",
+    "modules/frontend/editor-session-bridge.js": "bb66e9d373fa4484085337d3b31bac8f60621fd6f851967eeca6209c43f5047c",
+    "modules/frontend/file-import.js": "47ad15c512c7f73b4aa881754a35ff1d3a085797f49ef69ef92d6de5dbdc8587",
+    "modules/frontend/latest-compile-scheduler.js": "9eb3e5b270f841c7458d6e873f5a2c2850f2f0d7ea98f05c154de03a99dc6007",
+    "modules/frontend/manuscript-control-state.js": "3bf78bc2e7bcffac10d4da267c6603bd62ab50c2d3ae02e710f5222a3387299b",
+    "modules/frontend/manuscript-pdf-viewer.js": "50301c554269e0563a61284799ae623bdacbf9099a11aa5b596d5be4a737861d",
+    "modules/frontend/manuscript-workspace.js": "899181b9f639a7af3e3fb039d92348d8c58af214c059db6b12249d1a5e2ae3d7",
+    "modules/frontend/pretext-runtime.js": "0eae01496c1d8eff597b62940e6797e13aca3d7dd282cc225d9910871bc3cf75",
+    "modules/frontend/project-export.js": "2c4d97a05729975630290bb5bbe8788a4d55aa95802bc5606f0d9f6b19c69045",
+    "modules/frontend/review-api.js": "522b4ae4c8760844005fd8b318f57b432517a844c8cad06dc06f4360cb63c978",
+    "modules/frontend/review-position.js": "d35bd5db4ac7e012a66b6f2491168145083cfd65075cf6cf5d97298bc3225c92",
+    "modules/frontend/review-session.js": "901e2a1f78e003afad92a91f783f865081b9ad7b2b69dec64e643d792b16c38b",
+    "modules/frontend/review-text-layout.js": "b3318d1e6b2e6157658908adc5f9307d5905d437a2a57b681b4167cd5bbdddde",
+    "modules/frontend/sidebar-splitter.js": "c97680567a948ceffe3e1a8276a4645adcd9379a08b1a93b3c2db175a92595cc",
+    "modules/frontend/source-format.js": "9aa3db53b6f049ded67457fe19335309ca88931291cf2a6ec1cdcc86926c8016",
+    "modules/frontend/text-details.js": "c50053477b2bfee948a26323b1394d69a4acba099cfc12fe838d2677ec444ae4",
+    "modules/frontend/typst-insertion.js": "e8f10553edbeb16c3d15699f0ba7f26b47f1553934e5c4eadb8cf27ec52fd21a",
+    "modules/frontend/typst-language.js": "5ff4529c70eb2c9d130b64f1d9326e7cbacd3f4c23914f6d1e5d63d7ffcf405f",
+    "modules/frontend/window-chrome.js": "793d29ebe00e08f4488562bc89a1bebb432ff58b70701aff9e99b0fdf1ca4f7c",
+    "modules/maintenance/generate-notices.mjs": "2dabccc83efa977d944bf6b4e147362e464eb607e87563de85a86ce3cd42e3a5",
+    "modules/review/Cargo.toml": "67900a2a90b2c8d0664ab5ee6ec7edb907966eceab7f76d4592dad7ef06c8861",
+    "native/tauri/Cargo.toml": "d934f1392b37a85004f825435dbd60665ed3062fd4aa5609223119bda4baa601",
+    "package-lock.json": "fc8d2e5c5197ac4c0339e935fbdb756b8a55025226a8452a26512c8ee29de16a",
+    "package.json": "e6a2367c43daf2ae24f98a2b8728fd0615296ab927e009b9c719e8edbb698c2c",
+    "packaging/licenses/about.toml": "eca34091195b076af1474dfe05ae477b8362ea6e2361dfe0a730804f87440f9d",
+    "packaging/licenses/upstream/alloc-stdlib-LICENSE": "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae",
+    "packaging/licenses/upstream/dlopen2-LICENSE": "39fa265207450e77c62e90c5594a06c085b655d8374c7ced4bf7894b6bd95dd2",
+    "packaging/licenses/upstream/provenance.json": "19ea04d71f25fa59aa97941552941d73770aa9432c31827ac38cf08807d48fdf",
+    "packaging/licenses/upstream/tauri-plugin-LICENSE-MIT": "9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d",
+    "packaging/licenses/upstream/typst-LICENSE": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+    "src/connection-manager.js": "3ab30fd94f1bedcf736a4495624ed4d88c94e41b4902ca393207882eebf73f1c",
+    "src/file-tree-actions.js": "dba091734fcb8c7d126bb14ffc8648ddeecbc63ff2ace3907dec7358646211f9",
+    "src/file-tree-filter.js": "507494144dc981327aa5f497099dd2f6ebaa308c0a3de144860619da1323a43e",
+    "src/html-print-profile.js": "a429ffd527825a7996a33bfe3ad5015d260d485a8e8ebef9e0e085f6a8c6dd3f",
+    "src/html-render-bootstrap.js": "26a584e7355bd95a09c2b2bb3348cfe26c80a468a2b8ada0dafb66d77d4e5637",
+    "src/html-renderer.mjs": "5fe0eb793cef262ded037746fc7254747e82819032c8548eab01f90976f06387",
+    "src/html-tex-export.js": "02b2eb758298eb5b3095bf6648cbd02d48d5848bbafb9cf219c098f6bfc5b948",
+    "src/html-visual-layout.js": "840c05e0f9306da1722e08ecf0a9fd42222d510ead4bc216480563961070f99d",
+    "src/main.js": "b19ea1f927250305cdbb2da63b9cb29b14648f533ff9837739baa6513cf17775",
+    "src/manuscript.css": "1cd4e8f355af8690bbc0f8963b0fb55c1ebd8796e02a8fa6590138d766ab6668",
+    "src/manuscript.js": "bad3e436140d66166050c92310cb02cceb0d107e10f80701cbfd6c4c621a68d1",
+    "src/mcp-control.js": "0d905cce833e08f256577ce74ae536f9c73f3cbfa739f9413113674a1223432e",
+    "src/outline.js": "6fd74b48248bfb03ae785456f5db7f8d496ca716fc70cb642b70c1f963d6d073",
+    "src/pdf-export-consent.js": "de83eda507f42e62c4b03425a5100074163b078f887cd4fb285ffa19028e5f23",
+    "src/pdf-preview-cache.js": "ab9c1a1af982b3f8d1822f75675a62921b70ed3593638b53bb24fe3f1ce698aa",
+    "src/pdf-viewer-state.js": "506d69363a618be214092b2a65f07bfafb4e7f4e44ca4cb20dc727c36c7f6390",
+    "src/pretext-fit-core.js": "60f0beab4a226d35642bb26b6d5265da67bab491de65e0265287e2aa07c2da14",
+    "src/project-sorting.js": "9fb23adcea36d6e3b5336710b00216ab7217a3fe9db294d9241d9e34ce34f996",
+    "src/save-coordinator.js": "42920d1fa1274bb2fa06fcf4f8b5500c95c4480f683550297a4809f3c8af0f2f",
+    "src/styles.css": "dece3fde8ec869d564db4ee0d669b681666279a853a49e1ff9df2704d8e6992f",
+    "src/tex-engine.js": "1e703ea1937d757dc27bba3279e58b540ec1abdd4829daa100490b4b465dca87",
+    "src/tex-monitor.js": "2d03989829926e2e3c5e869b1acd3b13d6c5effd021d68a90777b51b4a9f8cec",
+    "src/tex-recovery.js": "a65e339fd893fd6cbac8774601a8f149f081909aa4e91265e0875f34c868355a",
+    "vite.config.js": "0ed5260235a9c79fb9534163d1e67c0ee749082156fa5fd04dd78496d3674f61"
+  },
+  "outputs": {
+    "THIRD-PARTY-RUST.md": "e6236e945c68945f880b2911c60b4b7f8ab8e2a43d3e92239a260874154ea2b9",
+    "THIRD-PARTY-JAVASCRIPT.md": "d87b37d0ef9f018a2f4d62f08eb93177b64c8f464f33dab1a778a648cf671316"
+  },
+  "rustComponents": [
+    [
+      "adler2",
+      "2.0.1"
+    ],
+    [
+      "aho-corasick",
+      "1.1.5"
+    ],
+    [
+      "alloc-no-stdlib",
+      "3.0.0"
+    ],
+    [
+      "alloc-stdlib",
+      "0.3.0"
+    ],
+    [
+      "ambient-authority",
+      "0.0.2"
+    ],
+    [
+      "anyhow",
+      "1.0.104"
+    ],
+    [
+      "atk",
+      "0.18.2"
+    ],
+    [
+      "atk-sys",
+      "0.18.2"
+    ],
+    [
+      "atomic-waker",
+      "1.1.2"
+    ],
+    [
+      "autocfg",
+      "1.5.1"
+    ],
+    [
+      "axum",
+      "0.8.9"
+    ],
+    [
+      "axum-core",
+      "0.5.6"
+    ],
+    [
+      "base64",
+      "0.22.1"
+    ],
+    [
+      "base64",
+      "0.23.1"
+    ],
+    [
+      "bit-set",
+      "0.8.0"
+    ],
+    [
+      "bit-vec",
+      "0.8.0"
+    ],
+    [
+      "bitflags",
+      "1.3.2"
+    ],
+    [
+      "bitflags",
+      "2.13.2"
+    ],
+    [
+      "block-buffer",
+      "0.10.4"
+    ],
+    [
+      "brotli",
+      "9.0.0"
+    ],
+    [
+      "brotli-decompressor",
+      "6.0.1"
+    ],
+    [
+      "byteorder",
+      "1.5.0"
+    ],
+    [
+      "bytes",
+      "1.12.1"
+    ],
+    [
+      "cairo-rs",
+      "0.18.5"
+    ],
+    [
+      "cairo-sys-rs",
+      "0.18.2"
+    ],
+    [
+      "camino",
+      "1.2.6"
+    ],
+    [
+      "cap-fs-ext",
+      "4.0.3"
+    ],
+    [
+      "cap-primitives",
+      "4.0.3"
+    ],
+    [
+      "cap-std",
+      "4.0.3"
+    ],
+    [
+      "cargo_metadata",
+      "0.19.2"
+    ],
+    [
+      "cargo_toml",
+      "1.0.1"
+    ],
+    [
+      "cargo-platform",
+      "0.1.9"
+    ],
+    [
+      "cc",
+      "1.8.0"
+    ],
+    [
+      "cfb",
+      "0.14.0"
+    ],
+    [
+      "cfg-expr",
+      "0.15.8"
+    ],
+    [
+      "cfg-if",
+      "1.0.5"
+    ],
+    [
+      "cookie",
+      "0.18.2"
+    ],
+    [
+      "cpufeatures",
+      "0.2.17"
+    ],
+    [
+      "crc32fast",
+      "1.5.2"
+    ],
+    [
+      "crossbeam-channel",
+      "0.5.17"
+    ],
+    [
+      "crossbeam-deque",
+      "0.8.8"
+    ],
+    [
+      "crossbeam-epoch",
+      "0.9.21"
+    ],
+    [
+      "crossbeam-utils",
+      "0.8.23"
+    ],
+    [
+      "crypto-common",
+      "0.1.7"
+    ],
+    [
+      "cssparser",
+      "0.37.0"
+    ],
+    [
+      "cssparser-macros",
+      "0.7.1"
+    ],
+    [
+      "ctor",
+      "1.0.13"
+    ],
+    [
+      "darling",
+      "0.24.1"
+    ],
+    [
+      "darling_core",
+      "0.24.1"
+    ],
+    [
+      "darling_macro",
+      "0.24.1"
+    ],
+    [
+      "dbus",
+      "0.9.12"
+    ],
+    [
+      "deranged",
+      "0.5.9"
+    ],
+    [
+      "derive_more",
+      "2.1.1"
+    ],
+    [
+      "derive_more-impl",
+      "2.1.1"
+    ],
+    [
+      "digest",
+      "0.10.7"
+    ],
+    [
+      "dirs",
+      "7.0.0"
+    ],
+    [
+      "dirs-sys",
+      "0.5.0"
+    ],
+    [
+      "displaydoc",
+      "0.2.7"
+    ],
+    [
+      "dlopen2",
+      "0.8.2"
+    ],
+    [
+      "dlopen2_derive",
+      "0.4.3"
+    ],
+    [
+      "dom_query",
+      "0.28.0"
+    ],
+    [
+      "dpi",
+      "0.1.2"
+    ],
+    [
+      "dtoa",
+      "1.0.11"
+    ],
+    [
+      "dtoa-short",
+      "0.3.5"
+    ],
+    [
+      "dunce",
+      "1.0.5"
+    ],
+    [
+      "dyn-clone",
+      "1.0.20"
+    ],
+    [
+      "ecow",
+      "0.2.6"
+    ],
+    [
+      "either",
+      "1.19.0"
+    ],
+    [
+      "embed-resource",
+      "3.0.12"
+    ],
+    [
+      "equivalent",
+      "1.0.3"
+    ],
+    [
+      "erased-serde",
+      "0.4.10"
+    ],
+    [
+      "errno",
+      "0.3.14"
+    ],
+    [
+      "fastrand",
+      "2.5.0"
+    ],
+    [
+      "fdeflate",
+      "0.3.7"
+    ],
+    [
+      "field-offset",
+      "0.3.6"
+    ],
+    [
+      "find-msvc-tools",
+      "0.1.14"
+    ],
+    [
+      "flate2",
+      "1.1.10"
+    ],
+    [
+      "fnv",
+      "1.0.7"
+    ],
+    [
+      "foldhash",
+      "0.2.0"
+    ],
+    [
+      "form_urlencoded",
+      "1.2.2"
+    ],
+    [
+      "fs-set-times",
+      "0.20.3"
+    ],
+    [
+      "futures-channel",
+      "0.3.34"
+    ],
+    [
+      "futures-core",
+      "0.3.34"
+    ],
+    [
+      "futures-executor",
+      "0.3.34"
+    ],
+    [
+      "futures-io",
+      "0.3.34"
+    ],
+    [
+      "futures-macro",
+      "0.3.34"
+    ],
+    [
+      "futures-sink",
+      "0.3.34"
+    ],
+    [
+      "futures-task",
+      "0.3.34"
+    ],
+    [
+      "futures-util",
+      "0.3.34"
+    ],
+    [
+      "gdk",
+      "0.18.2"
+    ],
+    [
+      "gdk-pixbuf",
+      "0.18.5"
+    ],
+    [
+      "gdk-pixbuf-sys",
+      "0.18.0"
+    ],
+    [
+      "gdk-sys",
+      "0.18.2"
+    ],
+    [
+      "gdkwayland-sys",
+      "0.18.2"
+    ],
+    [
+      "gdkx11",
+      "0.18.2"
+    ],
+    [
+      "gdkx11-sys",
+      "0.18.2"
+    ],
+    [
+      "generic-array",
+      "0.14.7"
+    ],
+    [
+      "getrandom",
+      "0.3.4"
+    ],
+    [
+      "getrandom",
+      "0.4.3"
+    ],
+    [
+      "gio",
+      "0.18.4"
+    ],
+    [
+      "gio-sys",
+      "0.18.1"
+    ],
+    [
+      "glib",
+      "0.18.5"
+    ],
+    [
+      "glib-macros",
+      "0.18.5"
+    ],
+    [
+      "glib-sys",
+      "0.18.1"
+    ],
+    [
+      "glob",
+      "0.3.4"
+    ],
+    [
+      "gobject-sys",
+      "0.18.0"
+    ],
+    [
+      "gtk",
+      "0.18.2"
+    ],
+    [
+      "gtk-sys",
+      "0.18.2"
+    ],
+    [
+      "gtk3-macros",
+      "0.18.2"
+    ],
+    [
+      "hashbrown",
+      "0.12.3"
+    ],
+    [
+      "hashbrown",
+      "0.17.1"
+    ],
+    [
+      "heck",
+      "0.4.1"
+    ],
+    [
+      "heck",
+      "0.5.0"
+    ],
+    [
+      "html5ever",
+      "0.39.0"
+    ],
+    [
+      "http",
+      "1.5.0"
+    ],
+    [
+      "http-body",
+      "1.1.0"
+    ],
+    [
+      "http-body-util",
+      "0.1.5"
+    ],
+    [
+      "http-range-header",
+      "0.4.2"
+    ],
+    [
+      "httparse",
+      "1.10.1"
+    ],
+    [
+      "httpdate",
+      "1.0.3"
+    ],
+    [
+      "hyper",
+      "1.12.0"
+    ],
+    [
+      "hyper-util",
+      "0.1.21"
+    ],
+    [
+      "ico",
+      "0.5.0"
+    ],
+    [
+      "icu_collections",
+      "2.3.0"
+    ],
+    [
+      "icu_locale_core",
+      "2.3.0"
+    ],
+    [
+      "icu_normalizer",
+      "2.3.0"
+    ],
+    [
+      "icu_normalizer_data",
+      "2.3.0"
+    ],
+    [
+      "icu_properties",
+      "2.3.0"
+    ],
+    [
+      "icu_properties_data",
+      "2.3.0"
+    ],
+    [
+      "icu_provider",
+      "2.3.1"
+    ],
+    [
+      "ident_case",
+      "1.0.1"
+    ],
+    [
+      "idna",
+      "1.1.0"
+    ],
+    [
+      "idna_adapter",
+      "1.2.2"
+    ],
+    [
+      "indexmap",
+      "1.9.3"
+    ],
+    [
+      "indexmap",
+      "2.14.2"
+    ],
+    [
+      "infer",
+      "0.22.0"
+    ],
+    [
+      "io-extras",
+      "0.19.0"
+    ],
+    [
+      "io-lifetimes",
+      "2.0.4"
+    ],
+    [
+      "io-lifetimes",
+      "3.0.1"
+    ],
+    [
+      "ipnet",
+      "2.12.2"
+    ],
+    [
+      "itoa",
+      "1.0.18"
+    ],
+    [
+      "javascriptcore-rs",
+      "1.1.2"
+    ],
+    [
+      "javascriptcore-rs-sys",
+      "1.1.1"
+    ],
+    [
+      "json-patch",
+      "4.2.0"
+    ],
+    [
+      "jsonptr",
+      "0.7.1"
+    ],
+    [
+      "keyboard-types",
+      "0.8.3"
+    ],
+    [
+      "libc",
+      "0.2.190"
+    ],
+    [
+      "libdbus-sys",
+      "0.2.7"
+    ],
+    [
+      "libm",
+      "0.2.16"
+    ],
+    [
+      "linux-raw-sys",
+      "0.12.1"
+    ],
+    [
+      "litemap",
+      "0.8.3"
+    ],
+    [
+      "lock_api",
+      "0.4.14"
+    ],
+    [
+      "log",
+      "0.4.34"
+    ],
+    [
+      "markup5ever",
+      "0.39.0"
+    ],
+    [
+      "matchit",
+      "0.8.4"
+    ],
+    [
+      "maybe-owned",
+      "0.3.4"
+    ],
+    [
+      "memchr",
+      "2.8.3"
+    ],
+    [
+      "memoffset",
+      "0.9.1"
+    ],
+    [
+      "mime",
+      "0.3.17"
+    ],
+    [
+      "mime_guess",
+      "2.0.5"
+    ],
+    [
+      "miniz_oxide",
+      "0.8.9"
+    ],
+    [
+      "miniz_oxide",
+      "0.9.1"
+    ],
+    [
+      "mio",
+      "1.2.4"
+    ],
+    [
+      "muda",
+      "0.20.0"
+    ],
+    [
+      "new_debug_unreachable",
+      "1.0.6"
+    ],
+    [
+      "num-conv",
+      "0.2.2"
+    ],
+    [
+      "once_cell",
+      "1.21.4"
+    ],
+    [
+      "option-ext",
+      "0.2.0"
+    ],
+    [
+      "pango",
+      "0.18.3"
+    ],
+    [
+      "pango-sys",
+      "0.18.0"
+    ],
+    [
+      "parking_lot",
+      "0.12.5"
+    ],
+    [
+      "parking_lot_core",
+      "0.9.12"
+    ],
+    [
+      "percent-encoding",
+      "2.3.2"
+    ],
+    [
+      "phf",
+      "0.13.1"
+    ],
+    [
+      "phf_codegen",
+      "0.13.1"
+    ],
+    [
+      "phf_generator",
+      "0.13.1"
+    ],
+    [
+      "phf_macros",
+      "0.13.1"
+    ],
+    [
+      "phf_shared",
+      "0.13.1"
+    ],
+    [
+      "pin-project-lite",
+      "0.2.17"
+    ],
+    [
+      "pkg-config",
+      "0.3.34"
+    ],
+    [
+      "plist",
+      "1.10.1"
+    ],
+    [
+      "png",
+      "0.17.16"
+    ],
+    [
+      "png",
+      "0.18.1"
+    ],
+    [
+      "portable-atomic",
+      "1.15.0"
+    ],
+    [
+      "potential_utf",
+      "0.1.6"
+    ],
+    [
+      "powerfmt",
+      "0.2.1"
+    ],
+    [
+      "precomputed-hash",
+      "0.1.1"
+    ],
+    [
+      "proc-macro-crate",
+      "1.3.1"
+    ],
+    [
+      "proc-macro-crate",
+      "2.0.2"
+    ],
+    [
+      "proc-macro-error",
+      "1.0.4"
+    ],
+    [
+      "proc-macro-error-attr",
+      "1.0.4"
+    ],
+    [
+      "proc-macro2",
+      "1.0.107"
+    ],
+    [
+      "quick-xml",
+      "0.42.0"
+    ],
+    [
+      "quote",
+      "1.0.47"
+    ],
+    [
+      "raw-window-handle",
+      "0.6.2"
+    ],
+    [
+      "rayon",
+      "1.12.0"
+    ],
+    [
+      "rayon-core",
+      "1.13.0"
+    ],
+    [
+      "regex",
+      "1.13.1"
+    ],
+    [
+      "regex-automata",
+      "0.4.18"
+    ],
+    [
+      "regex-syntax",
+      "0.8.11"
+    ],
+    [
+      "rfd",
+      "0.16.0"
+    ],
+    [
+      "rustc_version",
+      "0.4.1"
+    ],
+    [
+      "rustc-hash",
+      "2.1.3"
+    ],
+    [
+      "rustix",
+      "1.1.5"
+    ],
+    [
+      "rustix-linux-procfs",
+      "0.1.1"
+    ],
+    [
+      "ryu",
+      "1.0.23"
+    ],
+    [
+      "same-file",
+      "1.0.6"
+    ],
+    [
+      "schemars",
+      "0.8.22"
+    ],
+    [
+      "schemars_derive",
+      "0.8.22"
+    ],
+    [
+      "scopeguard",
+      "1.2.0"
+    ],
+    [
+      "selectors",
+      "0.38.0"
+    ],
+    [
+      "semver",
+      "1.0.28"
+    ],
+    [
+      "serde",
+      "1.0.229"
+    ],
+    [
+      "serde_core",
+      "1.0.229"
+    ],
+    [
+      "serde_derive",
+      "1.0.229"
+    ],
+    [
+      "serde_derive_internals",
+      "0.29.1"
+    ],
+    [
+      "serde_json",
+      "1.0.154"
+    ],
+    [
+      "serde_path_to_error",
+      "0.1.20"
+    ],
+    [
+      "serde_repr",
+      "0.1.21"
+    ],
+    [
+      "serde_spanned",
+      "0.6.9"
+    ],
+    [
+      "serde_spanned",
+      "1.1.2"
+    ],
+    [
+      "serde_urlencoded",
+      "0.7.1"
+    ],
+    [
+      "serde_with",
+      "3.24.0"
+    ],
+    [
+      "serde_with_macros",
+      "3.24.0"
+    ],
+    [
+      "serde-untagged",
+      "0.1.9"
+    ],
+    [
+      "serialize-to-javascript",
+      "0.1.2"
+    ],
+    [
+      "serialize-to-javascript-impl",
+      "0.1.2"
+    ],
+    [
+      "servo_arc",
+      "0.4.3"
+    ],
+    [
+      "sha2",
+      "0.10.9"
+    ],
+    [
+      "shlex",
+      "2.0.1"
+    ],
+    [
+      "signal-hook-registry",
+      "1.4.8"
+    ],
+    [
+      "simd-adler32",
+      "0.3.10"
+    ],
+    [
+      "siphasher",
+      "1.0.4"
+    ],
+    [
+      "slab",
+      "0.4.12"
+    ],
+    [
+      "smallvec",
+      "1.16.3"
+    ],
+    [
+      "socket2",
+      "0.6.5"
+    ],
+    [
+      "soup3",
+      "0.5.0"
+    ],
+    [
+      "soup3-sys",
+      "0.5.0"
+    ],
+    [
+      "stable_deref_trait",
+      "1.2.1"
+    ],
+    [
+      "static_vcruntime",
+      "3.0.0"
+    ],
+    [
+      "string_cache",
+      "0.9.0"
+    ],
+    [
+      "string_cache_codegen",
+      "0.6.1"
+    ],
+    [
+      "strsim",
+      "0.11.1"
+    ],
+    [
+      "subtle",
+      "2.6.1"
+    ],
+    [
+      "syn",
+      "1.0.109"
+    ],
+    [
+      "syn",
+      "2.0.119"
+    ],
+    [
+      "syn",
+      "3.0.9"
+    ],
+    [
+      "sync_wrapper",
+      "1.0.2"
+    ],
+    [
+      "synstructure",
+      "0.14.0"
+    ],
+    [
+      "system-deps",
+      "6.2.2"
+    ],
+    [
+      "tao",
+      "0.37.1"
+    ],
+    [
+      "target-lexicon",
+      "0.12.16"
+    ],
+    [
+      "tauri",
+      "2.12.4"
+    ],
+    [
+      "tauri-build",
+      "2.7.3"
+    ],
+    [
+      "tauri-codegen",
+      "2.7.3"
+    ],
+    [
+      "tauri-macros",
+      "2.7.3"
+    ],
+    [
+      "tauri-plugin",
+      "2.7.2"
+    ],
+    [
+      "tauri-plugin-dialog",
+      "2.8.3"
+    ],
+    [
+      "tauri-plugin-fs",
+      "2.7.1"
+    ],
+    [
+      "tauri-runtime",
+      "2.12.2"
+    ],
+    [
+      "tauri-runtime-wry",
+      "2.12.2"
+    ],
+    [
+      "tauri-utils",
+      "2.10.2"
+    ],
+    [
+      "tauri-winres",
+      "0.3.6"
+    ],
+    [
+      "tempfile",
+      "3.27.0"
+    ],
+    [
+      "tendril",
+      "0.5.1"
+    ],
+    [
+      "thin-vec",
+      "0.2.21"
+    ],
+    [
+      "thiserror",
+      "1.0.69"
+    ],
+    [
+      "thiserror",
+      "2.0.21"
+    ],
+    [
+      "thiserror-impl",
+      "1.0.69"
+    ],
+    [
+      "thiserror-impl",
+      "2.0.21"
+    ],
+    [
+      "time",
+      "0.3.55"
+    ],
+    [
+      "time-core",
+      "0.1.9"
+    ],
+    [
+      "time-macros",
+      "0.2.32"
+    ],
+    [
+      "tinystr",
+      "0.8.4"
+    ],
+    [
+      "tokio",
+      "1.53.3"
+    ],
+    [
+      "tokio-macros",
+      "2.7.2"
+    ],
+    [
+      "tokio-util",
+      "0.7.20"
+    ],
+    [
+      "toml",
+      "0.8.2"
+    ],
+    [
+      "toml",
+      "1.1.8+spec-1.1.0"
+    ],
+    [
+      "toml_datetime",
+      "0.6.3"
+    ],
+    [
+      "toml_datetime",
+      "1.1.2+spec-1.1.0"
+    ],
+    [
+      "toml_edit",
+      "0.19.15"
+    ],
+    [
+      "toml_edit",
+      "0.20.2"
+    ],
+    [
+      "toml_parser",
+      "1.1.5+spec-1.1.0"
+    ],
+    [
+      "toml_writer",
+      "1.1.3+spec-1.1.0"
+    ],
+    [
+      "tower",
+      "0.5.3"
+    ],
+    [
+      "tower-http",
+      "0.6.11"
+    ],
+    [
+      "tower-layer",
+      "0.3.3"
+    ],
+    [
+      "tower-service",
+      "0.3.3"
+    ],
+    [
+      "tracing",
+      "0.1.44"
+    ],
+    [
+      "tracing-core",
+      "0.1.36"
+    ],
+    [
+      "typed-path",
+      "0.12.3"
+    ],
+    [
+      "typeid",
+      "1.0.3"
+    ],
+    [
+      "typenum",
+      "1.20.1"
+    ],
+    [
+      "typst-syntax",
+      "0.15.1"
+    ],
+    [
+      "typst-timing",
+      "0.15.1"
+    ],
+    [
+      "typst-utils",
+      "0.15.1"
+    ],
+    [
+      "unicase",
+      "2.10.0"
+    ],
+    [
+      "unicode-ident",
+      "1.0.27"
+    ],
+    [
+      "unicode-math-class",
+      "0.1.0"
+    ],
+    [
+      "unicode-script",
+      "0.5.8"
+    ],
+    [
+      "unicode-segmentation",
+      "1.13.3"
+    ],
+    [
+      "unscanny",
+      "0.1.0"
+    ],
+    [
+      "url",
+      "2.5.8"
+    ],
+    [
+      "urlpattern",
+      "0.6.0"
+    ],
+    [
+      "utf8_iter",
+      "1.0.4"
+    ],
+    [
+      "uuid",
+      "1.28.0"
+    ],
+    [
+      "version_check",
+      "0.9.5"
+    ],
+    [
+      "version-compare",
+      "0.2.1"
+    ],
+    [
+      "walkdir",
+      "2.5.0"
+    ],
+    [
+      "web_atoms",
+      "0.2.6"
+    ],
+    [
+      "web-time",
+      "1.1.0"
+    ],
+    [
+      "webkit2gtk",
+      "2.0.2"
+    ],
+    [
+      "webkit2gtk-sys",
+      "2.0.2"
+    ],
+    [
+      "winnow",
+      "0.5.40"
+    ],
+    [
+      "winnow",
+      "1.0.4"
+    ],
+    [
+      "writeable",
+      "0.6.4"
+    ],
+    [
+      "wry",
+      "0.57.0"
+    ],
+    [
+      "x11",
+      "2.21.0"
+    ],
+    [
+      "x11-dl",
+      "2.21.0"
+    ],
+    [
+      "yoke",
+      "0.8.3"
+    ],
+    [
+      "yoke-derive",
+      "0.8.4"
+    ],
+    [
+      "zerofrom",
+      "0.1.8"
+    ],
+    [
+      "zerofrom-derive",
+      "0.1.8"
+    ],
+    [
+      "zerotrie",
+      "0.2.5"
+    ],
+    [
+      "zerovec",
+      "0.11.8"
+    ],
+    [
+      "zerovec-derive",
+      "0.11.6"
+    ],
+    [
+      "zip",
+      "9.0.3"
+    ],
+    [
+      "zmij",
+      "1.0.23"
+    ]
+  ],
+  "javascriptComponents": [
+    {
+      "name": "@chenglou/pretext",
+      "version": "0.0.8",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@codemirror/autocomplete",
+      "version": "6.20.3",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@codemirror/commands",
+      "version": "6.10.4",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@codemirror/lang-css",
+      "version": "6.3.1",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@codemirror/lang-html",
+      "version": "6.4.12",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@codemirror/lang-javascript",
+      "version": "6.2.5",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@codemirror/language",
+      "version": "6.12.4",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@codemirror/legacy-modes",
+      "version": "6.5.3",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@codemirror/lint",
+      "version": "6.9.7",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@codemirror/search",
+      "version": "6.7.1",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@codemirror/state",
+      "version": "6.7.1",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@codemirror/view",
+      "version": "6.43.8",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@lezer/common",
+      "version": "1.5.2",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@lezer/css",
+      "version": "1.3.6",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@lezer/highlight",
+      "version": "1.2.3",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@lezer/html",
+      "version": "1.3.13",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@lezer/javascript",
+      "version": "1.5.4",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@lezer/lr",
+      "version": "1.4.10",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@marijn/find-cluster-break",
+      "version": "1.0.3",
+      "identifier": "MIT"
+    },
+    {
+      "name": "@tauri-apps/api",
+      "version": "2.12.4",
+      "identifier": "Apache-2.0 OR MIT"
+    },
+    {
+      "name": "codemirror",
+      "version": "6.0.2",
+      "identifier": "MIT"
+    },
+    {
+      "name": "crelt",
+      "version": "1.0.7",
+      "identifier": "MIT"
+    },
+    {
+      "name": "entities",
+      "version": "8.0.0",
+      "identifier": "BSD-2-Clause"
+    },
+    {
+      "name": "parse5",
+      "version": "8.0.1",
+      "identifier": "MIT"
+    },
+    {
+      "name": "pdfjs-dist",
+      "version": "6.2.108",
+      "identifier": "Apache-2.0"
+    },
+    {
+      "name": "style-mod",
+      "version": "4.1.3",
+      "identifier": "MIT"
+    },
+    {
+      "name": "w3c-keyname",
+      "version": "2.2.8",
+      "identifier": "MIT"
+    }
+  ],
+  "upstreamFiles": [
+    {
+      "path": "node_modules/@chenglou/pretext/LICENSE",
+      "sha256": "e9355cb16457e81acd97dac2e50f2f8bbf2a9a464025f9c46db3680cf9598846"
+    },
+    {
+      "path": "node_modules/@codemirror/autocomplete/LICENSE",
+      "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07"
+    },
+    {
+      "path": "node_modules/@codemirror/commands/LICENSE",
+      "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07"
+    },
+    {
+      "path": "node_modules/@codemirror/lang-css/LICENSE",
+      "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07"
+    },
+    {
+      "path": "node_modules/@codemirror/lang-html/LICENSE",
+      "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07"
+    },
+    {
+      "path": "node_modules/@codemirror/lang-javascript/LICENSE",
+      "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07"
+    },
+    {
+      "path": "node_modules/@codemirror/language/LICENSE",
+      "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07"
+    },
+    {
+      "path": "node_modules/@codemirror/legacy-modes/LICENSE",
+      "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07"
+    },
+    {
+      "path": "node_modules/@codemirror/lint/LICENSE",
+      "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07"
+    },
+    {
+      "path": "node_modules/@codemirror/search/LICENSE",
+      "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07"
+    },
+    {
+      "path": "node_modules/@codemirror/state/LICENSE",
+      "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07"
+    },
+    {
+      "path": "node_modules/@codemirror/view/LICENSE",
+      "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07"
+    },
+    {
+      "path": "node_modules/@lezer/common/LICENSE",
+      "sha256": "568902fb66eaf1f11750e966b33fd7b5d7c618e65af09f35ef843635bcf5f1ba"
+    },
+    {
+      "path": "node_modules/@lezer/css/LICENSE",
+      "sha256": "568902fb66eaf1f11750e966b33fd7b5d7c618e65af09f35ef843635bcf5f1ba"
+    },
+    {
+      "path": "node_modules/@lezer/highlight/LICENSE",
+      "sha256": "568902fb66eaf1f11750e966b33fd7b5d7c618e65af09f35ef843635bcf5f1ba"
+    },
+    {
+      "path": "node_modules/@lezer/html/LICENSE",
+      "sha256": "568902fb66eaf1f11750e966b33fd7b5d7c618e65af09f35ef843635bcf5f1ba"
+    },
+    {
+      "path": "node_modules/@lezer/javascript/LICENSE",
+      "sha256": "568902fb66eaf1f11750e966b33fd7b5d7c618e65af09f35ef843635bcf5f1ba"
+    },
+    {
+      "path": "node_modules/@lezer/lr/LICENSE",
+      "sha256": "568902fb66eaf1f11750e966b33fd7b5d7c618e65af09f35ef843635bcf5f1ba"
+    },
+    {
+      "path": "node_modules/@marijn/find-cluster-break/LICENSE",
+      "sha256": "9360b00fdd091f05c783b568bdd46c679c41b72415599252de98949462ea1acb"
+    },
+    {
+      "path": "node_modules/@tauri-apps/api/LICENSE-APACHE-2.0",
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+    },
+    {
+      "path": "node_modules/@tauri-apps/api/LICENSE-MIT",
+      "sha256": "9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d"
+    },
+    {
+      "path": "node_modules/@tauri-apps/api/LICENSE.spdx",
+      "sha256": "5e834fe9788c524210deda859c46a550ffa5aa0cba9ea0572f0d81120e97c008"
+    },
+    {
+      "path": "node_modules/codemirror/LICENSE",
+      "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07"
+    },
+    {
+      "path": "node_modules/crelt/LICENSE",
+      "sha256": "23852ebf6aef7fadffc92514b3c5df163a8651f2c3ed0dbb494cb49d93bd5de5"
+    },
+    {
+      "path": "node_modules/entities/LICENSE",
+      "sha256": "cb992345949ccd6e8394b2cd6c465f7b897c864f845937dbf64e8997f389e164"
+    },
+    {
+      "path": "node_modules/parse5/LICENSE",
+      "sha256": "8c535800331e1e4439835555b3f9edc7fe9dee2fab0d8bbbd5a982e8b8343d4d"
+    },
+    {
+      "path": "node_modules/pdfjs-dist/LICENSE",
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+    },
+    {
+      "path": "node_modules/style-mod/LICENSE",
+      "sha256": "cb4474e26547397169061d3586c00022cda5330a1b64fa13e872319f3b63aff1"
+    },
+    {
+      "path": "node_modules/w3c-keyname/LICENSE",
+      "sha256": "869c30f368eb08735e779027b9f4bc9fea2f39624351856aebe42741f0bc0884"
+    },
+    {
+      "path": "node_modules/pdfjs-dist/build/pdf.worker.min.mjs",
+      "sha256": "0613f41490dd6aaceed7a93fbbd38c85e6d6aa60474b6588c6e7709cfbe18cb3"
+    }
+  ],
+  "rustNotices": [],
+  "rustLicenseTexts": [
+    {
+      "id": "Apache-2.0",
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+      "components": [
+        "sync_wrapper@1.0.2"
+      ]
+    },
+    {
+      "id": "Apache-2.0",
+      "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5",
+      "components": [
+        "target-lexicon@0.12.16"
+      ]
+    },
+    {
+      "id": "Apache-2.0",
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "components": [
+        "ryu@1.0.23",
+        "typst-syntax@0.15.1",
+        "typst-timing@0.15.1",
+        "typst-utils@0.15.1"
+      ]
+    },
+    {
+      "id": "Apache-2.0",
+      "sha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a",
+      "components": [
+        "dpi@0.1.2",
+        "tao@0.37.1"
+      ]
+    },
+    {
+      "id": "BSD-3-Clause",
+      "sha256": "162ce11ad71338d0a0c6ebaf5c48af72c6ae237b468859d3656fe2d9ed3f3a85",
+      "components": [
+        "matchit@0.8.4"
+      ]
+    },
+    {
+      "id": "BSD-3-Clause",
+      "sha256": "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae",
+      "components": [
+        "alloc-no-stdlib@3.0.0",
+        "alloc-stdlib@0.3.0",
+        "brotli-decompressor@6.0.1",
+        "brotli@9.0.0"
+      ]
+    },
+    {
+      "id": "BSD-3-Clause",
+      "sha256": "d1fc1bc0d155df60b2e7705b6b2ae02a05c96f948e1cec6e2fb86360b09f346b",
+      "components": [
+        "subtle@2.6.1"
+      ]
+    },
+    {
+      "id": "CC0-1.0",
+      "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+      "components": [
+        "dunce@1.0.5"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "ea417315dc653b10a03911cbc3a724fafa75d3ed6381b358e3bed8ed2b50ffea",
+      "components": [
+        "schemars_derive@0.8.22"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "6226d0632e2e1a80c23597e964da9812ae193c535fe058154afb034e94167aa5",
+      "components": [
+        "atomic-waker@1.1.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "b4eb00df6e2a4d22518fcaa6a2b4646f249b3a3c9814509b22bd2091f1392ff1",
+      "components": [
+        "sha2@0.10.9"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94",
+      "components": [
+        "brotli@9.0.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "0621878e61f0d0fda054bcbe02df75192c28bde1ecc8289cbd86aeba2dd72720",
+      "components": [
+        "rayon-core@1.13.0",
+        "rayon@1.12.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "62065228e42caebca7e7d7db1204cbb867033de5982ca4009928915e4095f3a3",
+      "components": [
+        "string_cache@0.9.0",
+        "string_cache_codegen@0.6.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "20c7855c364d57ea4c97889a5e8d98470a9952dade37bd9248b9a54431670e5e",
+      "components": [
+        "form_urlencoded@1.2.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "b38f11f6096706e6de553dabe2a7ed142d59b6fa8c97e290c67496154745cdd5",
+      "components": [
+        "idna@1.1.0",
+        "percent-encoding@2.3.2",
+        "url@2.5.8"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397",
+      "components": [
+        "cc@1.8.0",
+        "cfg-if@1.0.5",
+        "find-msvc-tools@0.1.14",
+        "pkg-config@0.3.34",
+        "socket2@0.6.5",
+        "toml_datetime@0.6.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "07919255c7e04793d8ea760d6c2ce32d19f9ff02bdbdde3ce90b1e1880929a9b",
+      "components": [
+        "mio@1.2.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "8764a597675778ddfd4e25f81b08a05dbcf089ac05662df7613fe67f150e3aa2",
+      "components": [
+        "errno@0.3.14"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "df9cfd06d8a44d9a671eadd39ffd97f166481da015a30f45dfd27886209c5922",
+      "components": [
+        "mime@0.3.17"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb",
+      "components": [
+        "bitflags@1.3.2",
+        "bitflags@2.13.2",
+        "glob@0.3.4",
+        "log@0.4.34",
+        "regex-automata@0.4.18",
+        "regex-syntax@0.8.11",
+        "regex@1.13.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "436bc5a105d8e57dcd8778730f3754f7bf39c14d2f530e4cde4bd2d17a83ec3d",
+      "components": [
+        "uuid@1.28.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "86dd7f026f916daf7511e39951ad8ea8cf55a8db67ae64060dacf829761c18f3",
+      "components": [
+        "html5ever@0.39.0",
+        "markup5ever@0.39.0",
+        "web_atoms@0.2.6"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "de3911c2d98c8bd2d701ee721347053d9b55995a11f9a8c955e44d3ca1b376bf",
+      "components": [
+        "dbus@0.9.12",
+        "libdbus-sys@0.2.7"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "025436edff4cfcdde17a5811fdea78892d8482efd1abdec5a17872d07a4f2112",
+      "components": [
+        "flate2@1.1.10"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "2d01890414494742ba4a509fcec8efa40f6d8be22cbd72be7cff08d6fda4ec89",
+      "components": [
+        "hyper@1.12.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "4f6bd11a0f17fe5b085ace1daaedb7b002a08316850dd9577c246c6a68a68e8c",
+      "components": [
+        "unicase@2.10.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "7576269ea71f767b99297934c0b2367532690f8c4badc695edf8e04ab6a1e545",
+      "components": [
+        "either@1.19.0",
+        "serde_with@3.24.0",
+        "serde_with_macros@3.24.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "5b0ae40d1a35f7ae6591a28e44771240e6a88cb03a66c9189a45b9681639b466",
+      "components": [
+        "plist@1.10.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "f7715d38a3fa1b4ac97c5729740752505a39cb92ee83ab5b102aeb5eaa7cdea4",
+      "components": [
+        "new_debug_unreachable@1.0.6"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "60a7062291b01ba068f300612cdbdc20382ac1d4934f07bcdd7167c15299f309",
+      "components": [
+        "tendril@0.5.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "8b427f5bc501764575e52ba4f9d95673cf8f6d80a86d0d06599852e1a9a20a36",
+      "components": [
+        "tempfile@3.27.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0",
+      "components": [
+        "heck@0.4.1",
+        "heck@0.5.0",
+        "unicode-segmentation@1.13.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "eaf40297c75da471f7cda1f3458e8d91b4b2ec866e609527a13acfa93b638652",
+      "components": [
+        "png@0.17.16",
+        "png@0.18.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "391a5396cec6230bfabd4ef4eb2350eb895bc5efce377a2218f5702ed020d3e3",
+      "components": [
+        "httparse@1.10.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "6652c868f35dfe5e8ef636810a4e576b9d663f3a17fb0f5613ad73583e1b88fd",
+      "components": [
+        "futures-channel@0.3.34",
+        "futures-core@0.3.34",
+        "futures-executor@0.3.34",
+        "futures-io@0.3.34",
+        "futures-macro@0.3.34",
+        "futures-sink@0.3.34",
+        "futures-task@0.3.34",
+        "futures-util@0.3.34"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "ff8f68cb076caf8cefe7a6430d4ac086ce6af2ca8ce2c4e5a2004d4552ef52a2",
+      "components": [
+        "hashbrown@0.12.3",
+        "hashbrown@0.17.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "b9eb266294324f672cbe945fe8f2e32f85024f0d61a1a7d14382cdde0ac44769",
+      "components": [
+        "serde_urlencoded@0.7.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "281b72cb008466810da31680e72005b9899c7e9d7705b909c86098260e12aa7d",
+      "components": [
+        "webkit2gtk-sys@2.0.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "3f39c032be4639be635da96d77c4d0f4393c3595a164450ffd86f3d17701ec10",
+      "components": [
+        "webkit2gtk@2.0.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "ef2b3bbd7b718a7881253226313f103e89b379e1279681a3c1ebcb65a27d209d",
+      "components": [
+        "maybe-owned@0.3.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "934887691e05d69d7c86ad3f2c360980fa30c15b035e351f3c9865e99da4debc",
+      "components": [
+        "httpdate@1.0.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "c9a75f18b9ab2927829a208fc6aa2cf4e63b8420887ba29cdb265d6619ae82d5",
+      "components": [
+        "lock_api@0.4.14",
+        "parking_lot@0.12.5",
+        "parking_lot_core@0.9.12",
+        "rustc_version@0.4.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "ecc269ef87fd38a1d98e30bfac9ba964a9dbd9315c3770fed98d4d7cb5882055",
+      "components": [
+        "indexmap@1.9.3",
+        "indexmap@2.14.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "7365cc8878a1d7ce155a58c4ca09c3d7a6be413efa5334a80ea842912b669349",
+      "components": [
+        "equivalent@1.0.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "fb77f0a9c53e473abe5103c8632ef9f0f2874d4fb3f17cb2d8c661aab9cee9d7",
+      "components": [
+        "scopeguard@1.2.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "9e0dfd2dd4173a530e238cb6adb37aa78c34c6bc7444e0e10c1ab5d8881f63ba",
+      "components": [
+        "digest@0.10.7"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "65fdb6c76cd61612070c066eec9ecdb30ee74fb27859d0d9af58b9f499fd0c3e",
+      "components": [
+        "fnv@1.0.7"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "3234ac55816264ee7b6c7ee27efd61cf0a1fe775806870e3d9b4c41ea73c5cb1",
+      "components": [
+        "memoffset@0.9.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "31dbbab009f1b2e59a1622d5955dfafc38ebe834000215b49d954c6f85fe927c",
+      "components": [
+        "keyboard-types@0.8.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "5e05b024f653a5ce199e77cbbbd42fb5553562ec714b819421ed0c3e552a75d7",
+      "components": [
+        "stable_deref_trait@1.2.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "f28420c1906af38be726cd7842798f0194b27c41d6051c0d1e9ee348b8a4a0ea",
+      "components": [
+        "cookie@0.18.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "cedfcc7ace1639adb054bd4a19b6f8585ccb2429a60b4bf51bfeb0601058c22c",
+      "components": [
+        "version-compare@0.2.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "dc91f8200e4b2a1f9261035d4c18c33c246911a6c0f7b543d75347e61b249cff",
+      "components": [
+        "http@1.5.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "503558bfefe66ca15e4e3f7955b3cb0ec87fd52f29bf24b336af7bd00e946d5c",
+      "components": [
+        "signal-hook-registry@1.4.8"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "45f522cacecb1023856e46df79ca625dfc550c94910078bd8aec6e02880b3d42",
+      "components": [
+        "bytes@1.12.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "27995d58ad5c1145c1a8cd86244ce844886958a35eb2b78c6b772748669999ac",
+      "components": [
+        "autocfg@1.5.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "0b28172679e0009b655da42797c03fd163a3379d5cfa67ba1f1655e974a2a1a9",
+      "components": [
+        "smallvec@1.16.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "d5c22aa3118d240e877ad41c5d9fa232f9c77d757d4aac0c2f943afc0a95e0ef",
+      "components": [
+        "block-buffer@0.10.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "6a2e0ade09a7d5f816f11566fee2b151b32235a7fad52b41d49cce96f833c1a9",
+      "components": [
+        "dirs-sys@0.5.0",
+        "dirs@7.0.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "29e9fe5074bd27e0e5d5d110394fbbcd841baee2651a3c4b4560a632702cede4",
+      "components": [
+        "getrandom@0.3.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "523a42c25d245dde9c015f882cec7f4555aad883382a6cf19b4b7d9b2cd5419b",
+      "components": [
+        "getrandom@0.4.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "8ce0830173fdac609dfb4ea603fdc002c2f4af0dc9b1a005653f5da9cf534b18",
+      "components": [
+        "slab@0.4.12"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "090a294a492ab2f41388252312a65cf2f0e423330b721a68c6665ac64766753b",
+      "components": [
+        "cfg-expr@0.15.8"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "898b1ae9821e98daf8964c8d6c7f61641f5f5aa78ad500020771c0939ee0dea1",
+      "components": [
+        "tracing-core@0.1.36",
+        "tracing@0.1.44"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "4249c8e6c5ebb85f97c77e6457c6fafc1066406eb8f1ef61e796fbdc5ff18482",
+      "components": [
+        "tower-layer@0.3.3",
+        "tower-service@0.3.3",
+        "tower@0.5.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "6a13bc24a100a6812f053879ec51b126b103af7cda6dbf48c4188722da44da9f",
+      "components": [
+        "axum@0.8.9"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "5049cf464977eff4b4fcfa7988d84e74116956a3eb9d5f1d451b3f828f945233",
+      "components": [
+        "tower-http@0.6.11"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "248378d0a3383c173fb925f17141b88e71580b3ba17ddc6ac3d2a344683232ab",
+      "components": [
+        "http-body-util@0.1.5",
+        "http-body@1.1.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "ae9baa7beea910273c2f384c2a6b721fb7bd02bda3436074a1072e4ee689f985",
+      "components": [
+        "cpufeatures@0.2.17"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "3521672491a3479422d5fe1aca6645dd2984090f85da6e5205abfb18fb7a6897",
+      "components": [
+        "crypto-common@0.1.7"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "070dbc7dda03a29296f2d58bdb9b7331af90f2abc9f31df22875d1eabaf29852",
+      "components": [
+        "powerfmt@0.2.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "f51ac2c59a222f7476ce507ca879960e2b64ea64bb2786eefdbeb7b0b538d1b7",
+      "components": [
+        "bit-set@0.8.0",
+        "bit-vec@0.8.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "9e0a97848ea543aef745c98e84fde696a9a3e0735538f6daefdd3cb1942effc1",
+      "components": [
+        "hyper-util@0.1.21"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "231c837c45eb53f108fb48929e488965bc4fcc14e9ea21d35f50e6b99d98685b",
+      "components": [
+        "deranged@0.5.9"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
+      "components": [
+        "serde_spanned@0.6.9",
+        "serde_spanned@1.1.2",
+        "toml@0.8.2",
+        "toml@1.1.8+spec-1.1.0",
+        "toml_datetime@1.1.2+spec-1.1.0",
+        "toml_edit@0.19.15",
+        "toml_edit@0.20.2",
+        "toml_parser@1.1.5+spec-1.1.0",
+        "toml_writer@1.1.3+spec-1.1.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "e2e245f2b566d0bfafb0f6a04c16b82d710c4e6e7d799e39bb4ef6e541b85b98",
+      "components": [
+        "num-conv@0.2.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "2537228d9a1b44a5dc595241349cae7090b326c8de165aaf89bfddef4a00d0fc",
+      "components": [
+        "time-core@0.1.9",
+        "time-macros@0.2.32",
+        "time@0.3.55"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "123a331b5dbf04c30097fa43b8f858bc85df671fe776de498d01f3d6b7c1f69e",
+      "components": [
+        "libc@0.2.190"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "8b43ce8accd61e9d370b5ca9e9c4f953279b5c239926c62315b40e24df51b726",
+      "components": [
+        "idna_adapter@1.2.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "219920e865eee70b7dcfc948a86b099e7f4fe2de01bcca2ca9a20c0a033f2b59",
+      "components": [
+        "synstructure@0.14.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "47dc9ff29128ddfb4d6a0435383c9f89120bc374dbcc1dd00b933a0b28aa7865",
+      "components": [
+        "ipnet@2.12.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "3fa4ca83dcc9237839b1bdeb2e6d16bdfb5ec0c5ce42b24694d8bbf0dcbef72c",
+      "components": [
+        "utf8_iter@1.0.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "9dd44491b4cf95dcfa2963943b3ae91bff9a78d13049a9e0b53e0d0b0a9c8f4e",
+      "components": [
+        "field-offset@0.3.6"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "89ff9689dcf9dd53968785d05a26f7898bb169dbfcada8d032b3e68cf0d55607",
+      "components": [
+        "tauri-plugin-dialog@2.8.3",
+        "tauri-plugin-fs@2.7.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d",
+      "components": [
+        "tauri-build@2.7.3",
+        "tauri-codegen@2.7.3",
+        "tauri-macros@2.7.3",
+        "tauri-plugin@2.7.2",
+        "tauri-runtime-wry@2.12.2",
+        "tauri-runtime@2.12.2",
+        "tauri-utils@2.10.2",
+        "tauri@2.12.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "7ca6700600dfa9c9497bf5556365067daa802c871ea78239f129309c7a2048f7",
+      "components": [
+        "precomputed-hash@0.1.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "87f7527b1066337751f7f4d717089bf514ff8f7ee7d66c4c5b891b09e744ec11",
+      "components": [
+        "json-patch@4.2.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "ebaac853b53fec0ed475796f533ce676912a4df9ad9d8a621fa76d5060591e10",
+      "components": [
+        "cfb@0.14.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "39fa265207450e77c62e90c5594a06c085b655d8374c7ced4bf7894b6bd95dd2",
+      "components": [
+        "dlopen2@0.8.2",
+        "dlopen2_derive@0.4.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "8ea93490d74a5a1b1af3ff71d786271b3f1e5f0bea79ac16e02ec533cef040d6",
+      "components": [
+        "darling@0.24.1",
+        "darling_core@0.24.1",
+        "darling_macro@0.24.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "41ca90213441b294e7517d5858f0cc85bc12e19ec044001b45bc213de461d33b",
+      "components": [
+        "ico@0.5.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "61d383b05b87d78f94d2937e2580cce47226d17823c0430fbcad09596537efcf",
+      "components": [
+        "crc32fast@1.5.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "270b0d81891aa44c7e8726cf9432dade9556a01c848bacd2f3ef839c9c1a1859",
+      "components": [
+        "infer@0.22.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "1954992a2b32e8a2af24a4c11b726902e344c1934b947a77f04d404908f8db30",
+      "components": [
+        "schemars@0.8.22",
+        "schemars_derive@0.8.22"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "9c5a80639a57c1c945570e7ebbca0706305849ce3c098021325cca9db2f7acc4",
+      "components": [
+        "raw-window-handle@0.6.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "0b83dc40cba89b9922bb84b0a9c7d2768ce37c1d7e138b7424fd4549915778c9",
+      "components": [
+        "tokio-macros@2.7.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "544b3aed1fd723d0cadea567affdcfe0431e43e18d997a718f9d67256b814fde",
+      "components": [
+        "proc-macro-error-attr@1.0.4",
+        "proc-macro-error@1.0.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "008c87afcd2e626eaf564093250bed06dd7efb5732113264bba3dda8f1c556a1",
+      "components": [
+        "axum-core@0.5.6"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "ef88893533af22ffbb68ceef0724ba1389518df26165a34f3c99ad30b884df4f",
+      "components": [
+        "wry@0.57.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "e53a7165e8bc3ced5e5628404b3d2d28ecc14ad720f1c09ba28385d5151ecf93",
+      "components": [
+        "serialize-to-javascript-impl@0.1.2",
+        "serialize-to-javascript@0.1.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "748c208045a6f00734dbc85a1c0e401c9a25e1f83fc756e99916750dbd2469a7",
+      "components": [
+        "static_vcruntime@3.0.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "ed72515b08d7ce8a497e7cb8418a0c93f5b0a119349db4f3b8a0dcf6cb76951a",
+      "components": [
+        "http-range-header@0.4.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "5cf1c9dc617e4cad7fa03181ff893601ad5243aa3be527ef39034e1cd6377676",
+      "components": [
+        "urlpattern@0.6.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "65fc947f4bac882a2cd104ef73c246b1b037059df9f2b3a58b7f77f0b9e56071",
+      "components": [
+        "rfd@0.16.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "2bc107bdc18a74263d20bdefdb8073e17bc1a01b6b374dc5835683a33ee5ba7d",
+      "components": [
+        "jsonptr@0.7.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "de701d0618d694feb1af90f02181a1763d9b0bdeb70a3a592781e529077dba65",
+      "components": [
+        "matchit@0.8.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "2ab5537b8c0cb1d475e2145b6a7994b04e7c71e6e5bd836f7f9c47c221a5ad9a",
+      "components": [
+        "muda@0.20.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "7554701d1e74fc434f68c522b1dd743c8c16d816a4b761b5213f367b898884c8",
+      "components": [
+        "dom_query@0.28.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "f428305bbf2e70fbd807af0f3c7ac1b7acfb95311640f451e9d2e48db6d7e96b",
+      "components": [
+        "web-time@1.1.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "253cd04c6714889df2d32f3f64d669179a1c95c76ac43c40882c52eb06bc3552",
+      "components": [
+        "tokio-util@0.7.20",
+        "tokio@1.53.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "42a35170233e83e18856792e748de4c1ce4a63b2afce9a370c89ef3fe23f9f2d",
+      "components": [
+        "simd-adler32@0.3.10"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "4108245a1f2df9d4e94df8abed5b4ba0759bb2f9b40a6b939f1be141077ae50b",
+      "components": [
+        "miniz_oxide@0.8.9",
+        "miniz_oxide@0.9.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "799e9ca9d179295ef372f25d3769cdda7d25bb2668add6a6a1e22d1e4c678b8d",
+      "components": [
+        "miniz_oxide@0.8.9",
+        "miniz_oxide@0.9.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3",
+      "components": [
+        "fdeflate@0.3.7"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "508a77d2e7b51d98adeed32648ad124b7b30241a8e70b2e72c99f92d8e5874d1",
+      "components": [
+        "ecow@0.2.6",
+        "ident_case@1.0.1",
+        "unicode-math-class@0.1.0",
+        "unscanny@0.1.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "7ad3ea8ca3caf894db98c3f31d5d4949173ffa93c883ef19a9e529ad48960f8c",
+      "components": [
+        "unicode-script@0.5.8"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652",
+      "components": [
+        "rustc-hash@2.1.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "components": [
+        "adler2@2.0.1",
+        "ambient-authority@0.0.2",
+        "anyhow@1.0.104",
+        "atomic-waker@1.1.2",
+        "camino@1.2.6",
+        "cap-fs-ext@4.0.3",
+        "cap-primitives@4.0.3",
+        "cap-std@4.0.3",
+        "cargo-platform@0.1.9",
+        "cargo_metadata@0.19.2",
+        "displaydoc@0.2.7",
+        "dtoa@1.0.11",
+        "dyn-clone@1.0.20",
+        "erased-serde@0.4.10",
+        "fastrand@2.5.0",
+        "fs-set-times@0.20.3",
+        "io-extras@0.19.0",
+        "io-lifetimes@2.0.4",
+        "io-lifetimes@3.0.1",
+        "itoa@1.0.18",
+        "linux-raw-sys@0.12.1",
+        "once_cell@1.21.4",
+        "pin-project-lite@0.2.17",
+        "portable-atomic@1.15.0",
+        "proc-macro-crate@1.3.1",
+        "proc-macro-crate@2.0.2",
+        "proc-macro2@1.0.107",
+        "quote@1.0.47",
+        "rustix-linux-procfs@0.1.1",
+        "rustix@1.1.5",
+        "semver@1.0.28",
+        "serde-untagged@0.1.9",
+        "serde@1.0.229",
+        "serde_core@1.0.229",
+        "serde_derive@1.0.229",
+        "serde_derive_internals@0.29.1",
+        "serde_json@1.0.154",
+        "serde_path_to_error@0.1.20",
+        "serde_repr@0.1.21",
+        "servo_arc@0.4.3",
+        "syn@1.0.109",
+        "syn@2.0.119",
+        "syn@3.0.9",
+        "system-deps@6.2.2",
+        "thin-vec@0.2.21",
+        "thiserror-impl@1.0.69",
+        "thiserror-impl@2.0.21",
+        "thiserror@1.0.69",
+        "thiserror@2.0.21",
+        "typed-path@0.12.3",
+        "typeid@1.0.3",
+        "unicode-ident@1.0.27",
+        "x11-dl@2.21.0",
+        "x11@2.21.0",
+        "zmij@1.0.23"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "cb5aedb296c5246d1f22e9099f925a65146f9f0d6b4eebba97fd27a6cdbbab2d",
+      "components": [
+        "winnow@0.5.40",
+        "winnow@1.0.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "f9c4c77baa3828004ee54b8a4f2db2e88ed44a6237a493965bf551fac0fcb62d",
+      "components": [
+        "siphasher@1.0.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "8cf56d10131ce201cf69ab74b111d3ebac1acca3833d7efb39ae357224b70edb",
+      "components": [
+        "atk-sys@0.18.2",
+        "atk@0.18.2",
+        "cairo-rs@0.18.5",
+        "cairo-sys-rs@0.18.2",
+        "gdk-pixbuf-sys@0.18.0",
+        "gdk-pixbuf@0.18.5",
+        "gdk-sys@0.18.2",
+        "gdk@0.18.2",
+        "gdkwayland-sys@0.18.2",
+        "gdkx11-sys@0.18.2",
+        "gdkx11@0.18.2",
+        "gio-sys@0.18.1",
+        "gio@0.18.4",
+        "glib-macros@0.18.5",
+        "glib-sys@0.18.1",
+        "glib@0.18.5",
+        "gobject-sys@0.18.0",
+        "gtk-sys@0.18.2",
+        "gtk3-macros@0.18.2",
+        "gtk@0.18.2",
+        "pango-sys@0.18.0",
+        "pango@0.18.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "bccaa8b6c09f94e81f06696e179dbe058464bbdfbc823b6d49cada1d71e84ac3",
+      "components": [
+        "ctor@1.0.13"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "7ade43ec5e1a5e43000aa871d290dff4c0e9e2e16b7f6bea2ecf091e3d056d31",
+      "components": [
+        "javascriptcore-rs-sys@1.1.1",
+        "soup3-sys@0.5.0",
+        "soup3@0.5.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "5444779e62a6f136892955bab2727694509b2cc1c0cd0f394d5edc7ff9203cd1",
+      "components": [
+        "javascriptcore-rs@1.1.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "58545fed1565e42d687aecec6897d35c6d37ccb71479a137c0deb2203e125c79",
+      "components": [
+        "zip@9.0.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "a825bd853ab71619a4923d7b4311221427848070ff44d990da39b0b274c1683f",
+      "components": [
+        "typenum@1.20.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "0ab4d106b6faac07fb6a051815fd1b4d862d730895e2d7d7358c2f13565e7a38",
+      "components": [
+        "phf@0.13.1",
+        "phf_codegen@0.13.1",
+        "phf_generator@0.13.1",
+        "phf_macros@0.13.1",
+        "phf_shared@0.13.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "0dd882e53de11566d50f8e8e2d5a651bcf3fabee4987d70f306233cf39094ba7",
+      "components": [
+        "base64@0.22.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f",
+      "components": [
+        "aho-corasick@1.1.5",
+        "byteorder@1.5.0",
+        "memchr@2.8.3",
+        "walkdir@2.5.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "1e697ce8d21401fbf1bddd9b5c3fd4c4c79ae1e3bdf51f81761c85e11d5a89cd",
+      "components": [
+        "strsim@0.11.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "4455bf75a91154108304cb283e0fea9948c14f13e20d60887cf2552449dea3b1",
+      "components": [
+        "shlex@2.0.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "8a35369f3ca263b3c62fbb5032947e53b6bfebc6c8a4d1bb982de1c069f6fba5",
+      "components": [
+        "derive_more-impl@2.1.1",
+        "derive_more@2.1.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "f0cf9b1c62bbe3bd3a69f5f79c7158f513f612b4940a0a812d1db39d605318bc",
+      "components": [
+        "quick-xml@0.42.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "cb3c929a05e6cbc9de9ab06a4c57eeb60ca8c724bef6c138c87d3a577e27aa14",
+      "components": [
+        "same-file@1.0.6"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "1abdbbd4e3f95e56c79d4a8af190254c23ddb14db34aadadfafef9c3af041113",
+      "components": [
+        "embed-resource@3.0.12"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "5734ed989dfca1f625b40281ee9f4530f91b2411ec01cb748223e7eb87e201ab",
+      "components": [
+        "crossbeam-channel@0.5.17",
+        "crossbeam-deque@0.8.8",
+        "crossbeam-epoch@0.9.21",
+        "crossbeam-utils@0.8.23"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "d9fa6b0e6fed50d4961b9c931587af6bd127df13e9473418d3e324f427db4f06",
+      "components": [
+        "tauri-winres@0.3.6"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "ab499c75a0f0da8e0fe83bf9ba3a27e5c39705310f07107c6c66b69958d2401c",
+      "components": [
+        "base64@0.23.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "b7e650f3fce5c53249d1cdc608b54df156a97edd636cf9d23498d0cfe7aec63e",
+      "components": [
+        "version_check@0.9.5"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "816000f9c28f7005d931c77636eb79fa7020071eb0f6e6a995515dfccd3559cb",
+      "components": [
+        "mime_guess@2.0.5"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "c09aae9d3c77b531f56351a9947bc7446511d6b025b3255312d3e3442a9a7583",
+      "components": [
+        "generic-array@0.14.7"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "3823dda7cf046602f4b4e77ec8e227863dc4736037cc85bb33d9f19febe16bb7",
+      "components": [
+        "libm@0.2.16"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "9eff396a99bafd208e7126602420d6864f6066c08b84485a5b032320a9c01997",
+      "components": [
+        "dpi@0.1.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "ee874098519e956c23a3c5c7e20581f8e9b1d70aa05eb178f983be9775090a2f",
+      "components": [
+        "cargo_toml@1.0.1"
+      ]
+    },
+    {
+      "id": "MPL-2.0",
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5",
+      "components": [
+        "dtoa-short@0.3.5"
+      ]
+    },
+    {
+      "id": "MPL-2.0",
+      "sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85",
+      "components": [
+        "cssparser-macros@0.7.1",
+        "cssparser@0.37.0"
+      ]
+    },
+    {
+      "id": "MPL-2.0",
+      "sha256": "66a3107d5ad6a058aab753eaac2047ccb2ed0e39465dd0fe5844da3e300d5172",
+      "components": [
+        "option-ext@0.2.0",
+        "selectors@0.38.0"
+      ]
+    },
+    {
+      "id": "Unicode-3.0",
+      "sha256": "f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1",
+      "components": [
+        "unicode-ident@1.0.27"
+      ]
+    },
+    {
+      "id": "Unicode-3.0",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2",
+      "components": [
+        "icu_collections@2.3.0",
+        "icu_locale_core@2.3.0",
+        "icu_normalizer@2.3.0",
+        "icu_normalizer_data@2.3.0",
+        "icu_properties@2.3.0",
+        "icu_properties_data@2.3.0",
+        "icu_provider@2.3.1",
+        "litemap@0.8.3",
+        "potential_utf@0.1.6",
+        "tinystr@0.8.4",
+        "writeable@0.6.4",
+        "yoke-derive@0.8.4",
+        "yoke@0.8.3",
+        "zerofrom-derive@0.1.8",
+        "zerofrom@0.1.8",
+        "zerotrie@0.2.5",
+        "zerovec-derive@0.11.6",
+        "zerovec@0.11.8"
+      ]
+    },
+    {
+      "id": "Zlib",
+      "sha256": "b1181a40b2a7b25cf66fd01481713bc1005df082c53ef73e851e55071b102744",
+      "components": [
+        "foldhash@0.2.0"
+      ]
+    }
+  ]
+}

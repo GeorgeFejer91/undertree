@@ -1,5 +1,194 @@
 # Verification report
 
+## Immutable native controls and settings checkpoint — 2026-10-15
+
+`artifacts/qa-final-controls-settings-v7-sources.json` records 228 sources,
+13 assets, desktop SHA-256
+`bb23148d11fa8365d567aa4a87c2f0de7c7df090b50cd618d57eb5c3ea47967b`
+and CLI SHA-256
+`5fb5d7b62196897515f1aa5adb9266113ad8d74b2c0d7e34b1f0421be26d1d6e`.
+All copied sources, assets and binaries were rehashed unchanged after testing.
+The aggregate `artifacts/qa-final-controls-settings-v7/artifacts/v7-native-status.json`
+has SHA-256 `d6c55c908d4a70f968005abbfcc48a0029aa2a661aa45a6568cdf08c5d6978b9`.
+
+The 13 native editing/shared-authority checks, App controls with a held safe
+Review read, clean/revoked Close, seven OS-picker import checks, six publishing
+checks, seven OS Save/ZIP checks and retired-page ZIP protection passed.
+Three distinct Focus jobs each applied once during concurrent authority reads.
+A separate native Close check observed a real busy heartbeat while holding
+the actual successful completion reply: a later healthy heartbeat left exactly
+one completion in flight; releasing that reply closed the window and authority
+without saving. Read traffic was bounded; only the tunnel child was simulated.
+
+Native publishing now observes actual 450/700 ms timer completion and pending
+save responses before restoring write permission. Its successful runner,
+SHA-256 `117a19e575db0819ffc64d2c51c1c932f428ab88e88f64ad2fddc7ce74578580`,
+also waits for the current PDF build to finish and disables private Xvfb resets.
+Exact source/PDF bytes, root consent/revocation and dirty export assertions are
+retained. Earlier display, PDF-byte and timer-counter failures remain archived;
+their individual causes are not all established by the later successful run.
+
+Actual WebKit Settings Apply/Cancel/reset and dirty history preservation passed,
+but at 1100×480 with 200% text the expanded Review list exceeded its pane.
+That failure, diagnostic CSS probes and an explicitly invalid selector-array
+attempt are preserved separately. The subsequent geometry repair, attribution,
+Git/publication corrections and installer are outside this captured snapshot.
+No v7 installer was built. New release-receipt and attribution checks have
+passing focused maintenance tests; actual new-package qualification and hosted
+CI remain pending. Existing platform, physical OS IME and public-route gaps
+still apply. This checkpoint is not a final release.
+
+## Immutable native file-import checkpoint — 2026-10-15
+
+`artifacts/qa-final-import-v5-sources.json` records 219 sources, 13 assets,
+desktop SHA-256
+`5fca7d14ed932e68fd533394fcf28d66fb59610d3963f5982deeee60e980e895`
+and CLI SHA-256
+`419f93d52780ef6c1ef3d658f60c67587c23672409224ebe6f837135de951366`.
+The 13 native shared-authority checks, six App checks including a held safe
+read, clean/revoked Close cases (three each), and six publishing checks passed.
+The later saved-project ZIP implementation is excluded from this snapshot.
+
+Seven native import checks passed using the actual GTK file picker and Rust
+staging/publication. They cover OS cancellation; exact CRLF/UTF-8 source and
+binary asset bytes; source sidecar and owned pending Git entries; unchanged
+main document, active buffer and source policy; collision preservation; dirty
+buffer with real keyboard Undo/Redo; and rejection after replacing the staged
+destination folder. No source save or compile was invoked by the import.
+
+For acknowledgement loss, the fixture holds Rust's actual committed response,
+then changes only its renderer callback-routing header while retaining the
+body. This avoids Tauri's fetch-failure fallback and mutation re-dispatch.
+App effects remain rejected while the result is unresolved, including after
+closing/reopening the dialog. Check import confirms the same committed UUID
+with exactly one `import_files` dispatch. The successful runner SHA-256 is
+`b7792f5e9e813d338cb85962b67ccfc74542a3188bd59b431fa7aab59015bfba`.
+
+The successful publishing runner SHA-256 is
+`7c0943883d3e0a80d0c6c894469084d67459beb8ff66395b010b98fb70c814e7`.
+Its test-only changes wait for the exact rendered App endpoint and a new
+denied save after typing before declaring ordinary timers quiescent. Earlier
+OS-picker automation and stale-timer fixture failures remain recorded; they
+are not silently replaced by the successful receipts. All runners, attempts,
+private-display screenshots and receipts are under
+`artifacts/qa-final-import-v5/artifacts/`. The captured product inputs were
+unchanged. These exact successful runners are now maintained and wired into
+CI and extracted-package verification; that new combined wrapper has syntax
+checks and passing constituent native gates, not a newly observed hosted run.
+
+This is a Linux checkpoint without installation. Only the tunnel child is
+simulated. Physical OS IME, the import dialog with long filenames at narrow
+width/200% text, other platforms and the subsequent ZIP flow remain separate
+qualification tasks. The v4 installer evidence below does not include native
+file import. No final-release or public-route claim follows from this report.
+
+## Immutable native PDF publishing checkpoint — 2026-10-15
+
+`artifacts/qa-final-pdf-v4-sources.json` records 214 source files, 13 built
+assets and two native executables. The copied desktop SHA-256 is
+`5199d1c620c4651aea27f2672903cadb4c47adecfb1565d738124506baada82e`;
+the CLI SHA-256 is
+`124e219448faa6f2e0b28ace8d9ca5215f1f85fb023618920461cdb2a171980c`.
+The subsequent native file-import implementation is outside this checkpoint.
+
+On those exact debug binaries, all 13 native editing/shared-authority checks,
+six MCP App checks including a held harmless Review read across Restore, and
+both three-check clean/revoked Close cases passed. Six additional native
+publishing checks passed: actual uppercase Control+S saves once, local source
+and PDF Blob downloads retain exact bytes, root PDF consent is separately off
+by default, real MCP downloads match the saved PDF, revocation invalidates its
+ticket, and dirty-buffer source export performs no save. A 320 px/200% text
+observation preserves the complete root path without page overflow.
+
+Downloads used disposable XDG config/data/cache and working directories. Before
+any download click, a Rust resolver linked to the built `dirs` dependency
+confirmed the unique private download directory. `HOME` and existing user files
+were untouched. The maintained publishing runner also compiles this small
+test-only resolver automatically from the native build's dependency cache; its
+actual packaged run passed with the resolver and library hashes recorded.
+
+The unsigned package
+`artifacts/qa-v4-installer-evidence/UnderTree_0.3.0_amd64-v4-checkpoint.deb`
+has SHA-256
+`19ebbe40fc98283477d8e9dcfdf5e418e97c217dc9bacf36b240c3c0fdc8d7e6`.
+Its extracted desktop SHA-256 is
+`a415760b17e62f35a87868e413f588e4511ec98a8904f60aad1c1fa75fd91955`;
+the CLI SHA-256 is
+`c127dc77a12e8de03e7a978ca35a933dd0d62c59ed561e37dd8f8e4ed456b94b`.
+The packaged desktop differs from its release build only by Tauri's exact
+Debian bundle marker. Contents, metadata, offline CLI help and the same native
+13/App six/publishing six/Close three-plus-three checks passed after extraction,
+without installation. Raw receipts, source/build inventories, runner hashes and
+byte-identical exported source/PDF fixtures are retained under
+`artifacts/qa-v4-installer-evidence/`.
+
+The first packaged App attempt rejected Restore with terminal `busy` before a
+window effect. It remains recorded separately under `package/app-controls/`.
+A fresh diagnostic run and full package rerun passed; the passive observer
+recorded actual `control_poll` errors saying “The connection is processing
+another operation.” That demonstrates polling contention, but does not prove
+the earlier Restore cause. No automatic effect retry or product guard change
+was used. The publishing fixture also retains an earlier menu-interactability
+failure; its successful runner waits for the visible action after restoring
+the viewport and text size.
+
+These runs use actual Tauri/WebKitGTK, Rust MCP, Typst and private X11 windows;
+only the zrok child is simulated. They qualify Linux checkpoint binaries,
+not a final release, public ChatGPT routing, installation/upgrade/removal,
+signing, other distributions, Windows or macOS. Native-import acceptance awaits
+its next matching snapshot. CI now includes native publishing and all extracted
+package lifecycle checks; syntax and local equivalents are evidence, while a
+successful hosted run of the expanded workflow remains unobserved. The npm and
+Rust dependency audit qualifications and informational warnings below remain
+applicable.
+
+## Immutable native App and project-tree checkpoint — 2026-10-15
+
+`artifacts/qa-final-tree-v3-sources.json` records a strict capture of 205 source
+files, 13 built assets and both native executables. The copied desktop SHA-256 is
+`808436aa2667b2d68753448a6c9c7beacdc0ef3eeb5d9fcc758f8f915b9f5085`;
+the CLI SHA-256 is
+`26fe7e9539f6cd5a0fb1b8b1b92c641f374d19e64cf4e37524c9c4d7ff1c7cd4`.
+Subsequent live changes are excluded from this checkpoint.
+
+| Check on this immutable copy | Observed result |
+| --- | --- |
+| Architecture and focused JavaScript tests | Passed; 148 tests, zero failures or skips. |
+| Rendered project tree | Six real-service scenarios passed with a separately recorded test-only cleanup. |
+| Native shared authority and editing | 13 checks passed, including named CLI save with exactly one registered-editor commit after ordinary autosave/compile timers had settled under denied writes. |
+| Native MCP App controls | Six checks passed: separate UI opt-in, suggestion-only Review catalogue, safe view, native minimize/restore/focus, pending safe Review read, dirty Close rejection without saving, and App revocation. |
+| Clean native remote Close | Real Rust completion was recorded while its reply was held; the window stayed alive without saving. Releasing that exact reply closed the window and removed/revoked the local authority. |
+| Revoked native Close completion | Rust rejected the delayed completion with `scope`; the window and editor remained usable. A subsequent OS Close still reached the native guard and preserved the dirty buffer when its explicit local save was denied. |
+
+The native cases use private Xvfb displays and disposable project/app state;
+existing windows and installed applications are untouched. App tests use actual
+Tauri IPC, Rust MCP and X11 state; only the zrok child is simulated. Source and
+review-policy hashes remain unchanged during remote controls. The independently
+hashed test-only runners and receipts are under
+`artifacts/qa-final-tree-v3/artifacts/`; they do not alter the captured product.
+No public ChatGPT route, system installation, signing or other platform is
+qualified by these runs.
+
+This checkpoint has a confirmed keyboard limitation: Control+S emitting uppercase
+`S` does not save, while lowercase `s` does. The live correction and subsequent
+PDF-export work belong to a later snapshot. This is a checkpoint, not a final
+product release.
+
+The separately copied unsigned installer passed package contents, offline CLI
+help, all 13 extracted native checks and six extracted native App checks. Its
+archive is `artifacts/qa-v3-installer-evidence/UnderTree_0.3.0_amd64-v3-checkpoint.deb`,
+SHA-256 `6db8a7b333de2b38cf3f260d20d3b6e70692b7df849efe183422ec216b3f8109`.
+The packaged desktop SHA-256 is
+`f64911096f4f960d00f5faabf280429b3a80facea87712a2904c3b25dca3b2cf`;
+the CLI SHA-256 is
+`5699797a45a574a661c26329a3c5792adffeab16084ed9ee291bec405ddede77`.
+The desktop differs from its build output only by Tauri's exact Debian bundle
+marker. Package and runner identities, source inventory, raw receipts and known
+limitations are recorded under `artifacts/qa-v3-installer-evidence/`. The package
+was extracted for qualification without installation. The expanded Rust/Tauri CI
+workflow parses locally; a successful hosted run of that workflow remains
+unobserved.
+
 ## Isolated Typst authoring and viewport PDF — 2026-10-15
 
 The indexed `manuscript-C4pfNK5A.js` frontend passed its production build,
@@ -14,6 +203,96 @@ This used the unchanged previously qualified review authority and excludes newer
 working App-control/editor-service code. Native authoring and physical OS IME
 remain unqualified. Exact source/artifact identities, raw receipt hashes and PDF
 limits are recorded in [the reference evidence](For-AI/reference-evidence.md).
+
+## Earlier qualification checkpoints — 2026-10-15
+
+The Rust/Tauri/Typst product is still under active implementation. Final readiness,
+authenticated non-content APP control from ChatGPT, rendered Overleaf parity, and
+cross-platform installer qualification have not been established. The canonical current requirements and
+remaining evidence are in [For-AI/reference-evidence.md](For-AI/reference-evidence.md).
+The older report below describes the previous TeX/GTK product and is retained as
+historical evidence; its release contents and scope decisions are not current claims.
+
+| Check | Observed result | Scope |
+| --- | --- | --- |
+| Initial `npm test` baseline | 99/102 passed; three failures require absent `latexmk` | This baseline predates the subsequent CLI, editor and authority changes. |
+| `npm run build`, `npm run verify:architecture`, shell syntax and `git diff --check` | Passed | Build and boundary checks do not qualify runtime integration. |
+| `npm run test:review-text-layout` | Passed | Actual Pretext/CodeMirror measurements, zero chrome rescans while typing, icon budgets, font/locale invalidation and two-axis type regrowth. |
+| `npm run test:review-ui` | Passed for the `manuscript-DBuTP_wF.js` lifecycle snapshot | Real Rust/Typst, source/review/save races, IME protection during pending acceptance, stale-PDF handling, ten-page preview, import and width/height/text checks. Tunnel and final autosync response are simulated. |
+| `npm run test:connections-ui` | Passed | Real local Rust MCP authority, simulated zrok child, revocation, keyboard/focus and 320 px/200% text. |
+| `npm run test:native-ui` | Passed, 12 Linux checks | Real bundled Tauri/WebKitGTK 2.54.0, Typst, autosave/preview, responsive typing, CRLF/emoji anchors, native Close/Minimize and bounded layouts. |
+| Unsigned Rust/Tauri Debian installer checkpoint | Passed contents, offline CLI and 12 extracted native checks | Real packaged desktop and CLI; no system installation. Source inventory and unresolved captured failures are described below. |
+| Portable legacy archive build and extracted-package smoke | Passed after packaging correction | Actual extracted server identity, authentication, frontend and CLI; this is the legacy 0.2.2 distribution, not a Tauri installer. |
+
+The native run also verified that the named CLI privately discovers the same Rust
+instance as native IPC, reads the desktop-approved project inventory, advertises
+read-only access and rejects anonymous requests and unsynchronized mutations.
+Real native shutdown removes its descriptor, revokes the former endpoint and
+makes CLI discovery return `instance_unavailable`. This recorded binary predates
+the later local registered-editor save coordination. Authenticated remote APP
+control requires its own qualification; source editing and saving are outside
+the current MCP scope.
+
+The local receipt is `artifacts/qa-native-2026-10-15/native-ui-evidence.json`.
+It identifies desktop SHA-256
+`07bae1f3958b07368efefbf7804b4ebd56887a69eef9aac6b6fd0a1e07e083d3`
+and CLI SHA-256
+`2a28033aac386defe55ca1461a5836f395e5336fad5b8edadad20e7255e90095`.
+Credentials are excluded from the receipt. Generated evidence is ignored and is
+not included in a fresh clone or portable archive. Concurrent changes and later
+rebuilds require refreshed qualification; subsequent workspace preferences are
+outside this recorded snapshot.
+
+Live public ChatGPT/zrok use, complete rendered Overleaf comparisons, Windows and
+macOS native/installer behavior, and representative TeX-import fidelity remain
+separate gates. A local mock tunnel, package startup, or passing source test is
+not evidence that those gates passed.
+
+An isolated installer-infrastructure checkpoint is recorded in
+`artifacts/qa-delivery-2026-10-15/candidate-sources.json`. Its captured
+`manuscript-Bd2aDFkJ.js` bundle passes the real HTML Visual editing/save/clipboard
+checks, pane geometry checks, Pretext checks and local Connections checks with a
+simulated zrok child. The complete review browser gate fails PDF page navigation
+after resizing, and three captured Typst scanner unit cases fail. Later fixes in
+the live workspace are outside that checkpoint until explicitly captured and
+qualified. This checkpoint is not a final software release.
+
+The 0.3.0 amd64 checkpoint package is
+`artifacts/qa-delivery-2026-10-15/UnderTree_0.3.0_amd64-checkpoint.deb`, SHA-256
+`4afa8addf9377910e65151997f7869e8ee6b842141425a738340cf457ada9f92`.
+Its packaged desktop SHA-256 is
+`c4002c3ec069d6aec8764a8d9e810456544748332dc2b85f7ae7e9d1ef28f2ff`
+and its CLI SHA-256 is
+`5d15e2602e23a8351f08d3d6f4cb9ef1117e0f0ee52ec326c184698e3a335719`.
+The package contains two Rust executables, an icon, a desktop entry and README;
+it declares curl/GTK/WebKit dependencies, recommends Git and requires external
+Typst. It contains no Electron, orchestration layer or compiler binaries.
+The packaged desktop differs from the build output by exactly the three
+expected `UNK` → `DEB` bundle-marker bytes; every other byte is identical,
+matching [Tauri 2.12.3's bundler implementation](https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.12.3/crates/tauri-bundler/src/bundle.rs).
+
+The package and native receipts are in
+`artifacts/qa-delivery-2026-10-15/native-package/`. The successful run used the
+working desktop DBus session with private Xvfb and disposable app/project state.
+Two attempts using nested DBus sessions timed out before WebDriver session
+creation; those failures remain in the local evidence. The package predates the
+new local editor-save and APP-control work, dependency refresh and shipping README
+cleanup. Installation, upgrade/removal, signing and other platforms are untested.
+
+The refreshed active npm manifest and installed dependencies contain no Electron.
+After compatible dependency patches and a fresh `npm ci`, the actual installed
+npm audit reports zero known advisories; the local receipt is
+`artifacts/npm-audit-native-stack-installed.json`. An earlier audit reported
+18 development advisories before the Electron removal; it is historical evidence
+and the isolated installer checkpoint predates that dependency refresh. Electron
+is excluded from the Rust/Tauri installer. The read-only Cargo.lock audit with
+official cargo-audit 0.22.2 reports
+zero vulnerability entries and retains two warnings: `glib` 0.18.5 unsoundness
+([RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html)) and
+unmaintained `proc-macro-error` 1.0.4
+([RUSTSEC-2024-0370](https://rustsec.org/advisories/RUSTSEC-2024-0370.html)).
+This is not a clean whole-dependency audit. The local audit receipt is
+`artifacts/cargo-audit-2026-10-15.json`; no manifest was changed by that audit.
 
 ## Historical legacy verification — 2026-08-11
 

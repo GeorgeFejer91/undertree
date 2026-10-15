@@ -54,6 +54,12 @@ test('escaped markup, labels/references, links and smart quotes do not enter cod
   plain(state, 'name'); plain(state, 'literal'); plain(state, 'plain words');
 });
 
+test('a one-sided escaped star still permits the remaining star to start strong markup', () => {
+  const state = editorState('\\*literal* strong tail\n\nordinary paragraph');
+  styled(state, '\\*', 'escape'); plain(state, 'literal');
+  styled(state, 'strong tail', 'strong'); plain(state, 'ordinary paragraph');
+});
+
 test('atomic code, calls, field chains and content blocks return to following prose', () => {
   const state = editorState('#value ordinary1\n#calc.pi ordinary2\n#text(12pt)[Body #value inside] ordinary3\n#(1 + 2) ordinary4\n#{ 1 + 2 } ordinary5\n#"hello" ordinary6\n#none ordinary7');
   styled(state, 'value', 'variableName'); styled(state, 'calc', 'variableName'); styled(state, 'pi', 'variableName');
@@ -114,8 +120,34 @@ test('raw spans/fences ignore markup, code and comments and resume after matchin
 });
 
 test('malformed bare hashes and mismatched delimiters recover without coloring later prose as code', () => {
-  const state = editorState('# ordinary1\n#// comment\nordinary2\n#? ordinary3\n#text()[#f(1] ordinary4\n#\nordinary5');
-  for (let index = 1; index <= 5; index += 1) plain(state, `ordinary${index}`);
+  const state = editorState('# ordinary1\n#// comment\nordinary2\n#? ordinary3\n#let x = [#f(1] ordinary4\n#\nordinary5\n#text()[#f(1] ordinary6');
+  for (let index = 1; index <= 6; index += 1) plain(state, `ordinary${index}`);
+});
+
+test('completed let groups recover missing separators as markup and preserve valid code continuations', () => {
+  const state = editorState('#let x = [#f(1] true *tail1*\n#let y = [content] false *tail2*\n#let z = (1, 2) true *tail3*\n#let f(x) = [Body]; ordinary1\n#let joined = [one] + [two]; ordinary2\n#let first = (1, 2).at(0); ordinary3');
+  plain(state, 'true'); plain(state, 'false');
+  for (let index = 1; index <= 3; index += 1) { styled(state, `*tail${index}*`, 'strong'); plain(state, `ordinary${index}`); }
+  for (const value of ['f', 'x', 'joined', 'first', 'at']) styled(state, value, 'variableName');
+  styled(state, '+', 'operator'); styled(state, '0', 'number');
+  plain(state, 'Body'); plain(state, 'one'); plain(state, 'two');
+  const logical = editorState('#let both = (true) and false; ordinary');
+  styled(logical, 'true', 'bool'); styled(logical, 'and', 'keyword'); styled(logical, 'false', 'bool'); plain(logical, 'ordinary');
+  const conditional = editorState('#let choice = if true [Yes] else if false [No] else [Last]; ordinary');
+  styled(conditional, 'if', 'keyword'); styled(conditional, 'else', 'keyword'); styled(conditional, 'true', 'bool'); styled(conditional, 'false', 'bool');
+  for (const value of ['Yes', 'No', 'Last', 'ordinary']) plain(conditional, value);
+  const membership = editorState('#let absent = (1) not in (2, 3); ordinary');
+  styled(membership, 'not', 'keyword'); styled(membership, 'in', 'keyword'); styled(membership, '3', 'number'); plain(membership, 'ordinary');
+  const commentedMembership = editorState('#let absent = (1) not /* comment */ in (2, 3); ordinary');
+  styled(commentedMembership, 'not', 'keyword'); styled(commentedMembership, '/* comment */', 'comment');
+  styled(commentedMembership, 'in', 'keyword'); styled(commentedMembership, '3', 'number'); plain(commentedMembership, 'ordinary');
+  const braceConditional = editorState('#let choice = if (true) { 1 } else { 2 }; ordinary');
+  styled(braceConditional, 'true', 'bool'); styled(braceConditional, 'else', 'keyword');
+  styled(braceConditional, '1', 'number'); styled(braceConditional, '2', 'number'); plain(braceConditional, 'ordinary');
+  const braceFor = editorState('#let items = for x in (1, 2) { x }; ordinary');
+  styled(braceFor, 'for', 'keyword'); styled(braceFor, 'x', 'variableName', 1); plain(braceFor, 'ordinary');
+  const braceWhile = editorState('#let result = while (false) { break }; ordinary');
+  styled(braceWhile, 'while', 'keyword'); styled(braceWhile, 'false', 'bool'); styled(braceWhile, 'break', 'keyword'); plain(braceWhile, 'ordinary');
 });
 
 test('incomplete literal modes retain their state and incremental closures restore prose', () => {

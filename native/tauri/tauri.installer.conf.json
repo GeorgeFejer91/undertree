@@ -1,0 +1,22 @@
+{
+  "bundle": {
+    "publisher": "GeorgeFejer91",
+    "homepage": "https://github.com/GeorgeFejer91/undertree_texstudio",
+    "category": "Productivity",
+    "shortDescription": "Offline Typst manuscript and review workspace",
+    "longDescription": "UnderTree edits ordinary Typst and HTML manuscripts with local review policies and PDF preview. Typst compilation requires the separately installed Typst CLI. Optional Git synchronization uses your existing Git installation and credentials.",
+    "linux": {
+      "deb": {
+        "depends": ["curl"],
+        "recommends": ["git"],
+        "files": {
+          "/usr/bin/undertree-review": "../../target/release/undertree-review",
+          "/usr/share/doc/under-tree/README.md": "../../README.md",
+          "/usr/share/doc/under-tree/THIRD-PARTY-RUST.md": "notices/THIRD-PARTY-RUST.md",
+          "/usr/share/doc/under-tree/THIRD-PARTY-JAVASCRIPT.md": "notices/THIRD-PARTY-JAVASCRIPT.md",
+          "/usr/share/doc/under-tree/notices-manifest.json": "notices/manifest.json"
+        }
+      }
+    }
+  }
+}

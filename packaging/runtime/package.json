@@ -1,14 +1,15 @@
 {
   "name": "undertree-runtime",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "private": true,
   "type": "module",
   "description": "Minimal runtime dependencies for the UnderTree release bundle",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13.0"
   },
   "dependencies": {
-    "@openai/codex-sdk": "0.147.0",
-    "fast-xml-parser": "5.10.1"
+    "@chenglou/pretext": "0.0.8",
+    "fast-xml-parser": "5.10.1",
+    "parse5": "8.0.1"
   }
 }

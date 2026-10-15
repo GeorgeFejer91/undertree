@@ -11,18 +11,24 @@ export function createWindowCloseGuard(appWindow, { beforeClose, canClose, onErr
       return closeSafely();
     });
   };
-  const closeSafely = async () => {
-    if (closing) return;
+  const closeSafely = async (withoutSaveCheck = null) => {
+    if (closing) {
+      if (withoutSaveCheck) throw { code: 'busy', message: 'A local window close is already pending.' };
+      return;
+    }
     closing = true;
     let closed = false;
     try {
       onClosing(true);
-      await beforeClose();
+      if (withoutSaveCheck) withoutSaveCheck();
+      else await beforeClose();
       // The pinned API's unlisten returns a promise. Remove the guard before
       // normal close, avoiding the force-destroy permission used by its default.
-      await unlisten?.();
+      const removeListener = unlisten;
       unlisten = null;
+      await removeListener?.();
       if (!canClose()) throw new Error('Your manuscript changed while closing. Save or resolve it before closing the window.');
+      if (withoutSaveCheck) withoutSaveCheck();
       await appWindow.close();
       closed = true;
     } catch (failure) {
@@ -31,12 +37,19 @@ export function createWindowCloseGuard(appWindow, { beforeClose, canClose, onErr
         catch (restoreError) { failure = new Error(`${failure?.message || failure} Window protection could not be restored: ${restoreError?.message || restoreError}`); }
       }
       onError(failure);
+      if (withoutSaveCheck) throw failure;
     } finally {
       closing = false;
-      if (!closed) onClosing(false);
+      if (!closed && unlisten) onClosing(false);
     }
   };
-  return { listen: listenForClose, close: closeSafely };
+  return {
+    listen: listenForClose, close: () => closeSafely(),
+    closeWithoutSave: check => {
+      if (typeof check !== 'function') return Promise.reject(new Error('A current no-save close check is required.'));
+      return closeSafely(check);
+    },
+  };
 }
 
 export async function setupWindowChrome({ beforeClose, canClose, status, onClosing }) {
@@ -76,4 +89,5 @@ export async function setupWindowChrome({ beforeClose, canClose, status, onClosi
       void run(() => appWindow.toggleMaximize());
     }
   });
+  return { window: appWindow, closeWithoutSave: guard.closeWithoutSave };
 }

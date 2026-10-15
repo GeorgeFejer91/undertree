@@ -1,5 +1,5 @@
 {
-  "runtimeRoots": ["dist", "layout", "modules/compiler", "native/windows", "server.mjs", "cli.mjs"],
+  "runtimeRoots": ["dist", "layout", "modules/compiler", "server.mjs", "cli.mjs"],
   "runtimeNodePackages": ["@chenglou/pretext", "fast-xml-parser", "parse5"],
   "excludedRuntimePackages": ["@codemirror", "@napi-rs", "@openai", "@tiptap", "codemirror", "pdfjs-dist"],
   "reason": "Frontend packages are compiled into dist. Codex recovery is disabled in this distribution. Native canvas is a build-time PDF.js optional dependency."

@@ -60,6 +60,42 @@ test('typing during acceptance is preserved and cannot overwrite the accepted di
   assert.equal(session.content,'my typing'); assert.equal(session.conflict.content,'accepted');
   await assert.rejects(saving); assert.equal(session.dirty,true);
 });
+test('a refresh observing an in-flight acceptance does not retain an obsolete source conflict', async () => {
+  const gate = deferred();
+  let disk = 'old';
+  const session = new ReviewSession(snapshot(disk), 'project', async operation => {
+    if (operation.action === 'decide') { disk = 'accepted'; await gate.promise; return snapshot('accepted'); }
+    return snapshot(disk);
+  });
+  const accepting = session.mutate('decide', { id: 'suggestion', decision: 'accepted' });
+  await new Promise(resolve => setImmediate(resolve));
+  await session.refresh();
+  assert.equal(session.conflict.content, 'accepted');
+  gate.resolve(); await accepting;
+  assert.equal(session.content, 'accepted');
+  assert.equal(session.conflict, null);
+  assert.equal(session.dirty, false);
+  await session.flush();
+});
+test('an accepted response cannot clear a different external change or newer typing', async () => {
+  for (const typing of [false, true]) {
+    const gate = deferred();
+    let disk = 'old';
+    const session = new ReviewSession(snapshot(disk), 'project', async operation => {
+      if (operation.action === 'decide') { disk = 'accepted'; await gate.promise; return snapshot('accepted'); }
+      return snapshot(disk);
+    });
+    const accepting = session.mutate('decide', { id: 'suggestion', decision: 'accepted' });
+    await new Promise(resolve => setImmediate(resolve));
+    if (!typing) disk = 'different external source';
+    await session.refresh();
+    if (typing) session.edit('my newer typing');
+    gate.resolve(); await accepting;
+    assert.equal(session.content, typing ? 'my newer typing' : 'accepted');
+    assert.equal(session.conflict.content, typing ? 'accepted' : 'different external source');
+    await assert.rejects(session.flush());
+  }
+});
 test('a remote refresh cannot replace a dirty buffer', async () => {
   const gate = deferred(); const session = new ReviewSession(snapshot('old'),'project',async()=>{await gate.promise;return snapshot('external');});
   const refresh = session.refresh(); session.edit('mine'); gate.resolve(); assert.equal(await refresh,false);
@@ -87,4 +123,64 @@ test('a failed save exposes the external version and preserves the dirty buffer'
   session.edit('mine');await assert.rejects(session.flush());
   assert.equal(session.content,'mine');assert.equal(session.conflict.content,'external');assert.equal(session.dirty,true);
   await assert.rejects(session.flush());
+});
+
+const editorSave = (session, overrides = {}) => session.saveEditorSnapshot({
+  isCurrent: () => true, isBusy: () => false, publish: async () => {},
+  commit: async captured => ({ snapshot: snapshot(captured.content), receipt: { status: 'committed', savedGeneration: captured.generation, savedRevision: captured.content } }),
+  ...overrides,
+});
+test('a native editor save verifies even a clean buffer and waits behind acceptance', async () => {
+  const gate = deferred(); let commits = 0;
+  const session = new ReviewSession(snapshot('old'), 'project', async () => { await gate.promise; return snapshot('accepted'); });
+  const accepting = session.mutate('decide', { decision: 'accepted' });
+  const saving = editorSave(session, { commit: async captured => {
+    commits += 1; assert.equal(captured.content, 'accepted'); assert.equal(captured.generation, 1);
+    return { snapshot: snapshot(captured.content), receipt: { status: 'committed', savedGeneration: captured.generation, savedRevision: captured.content } };
+  } });
+  gate.resolve(); await accepting; assert.equal((await saving).current, true);
+  assert.equal(commits, 1); assert.equal(session.dirty, false);
+});
+test('typing, composition, conflict, or retirement during preparation never commits', async () => {
+  for (const change of ['typing', 'composition', 'conflict', 'retired']) {
+    const gate = deferred(); let current = true, busy = false, commits = 0;
+    const session = new ReviewSession(snapshot('old'), 'project', async () => snapshot('old'));
+    session.edit('my buffer');
+    const saving = editorSave(session, { publish: () => gate.promise, isCurrent: () => current, isBusy: () => busy, commit: async () => { commits += 1; } });
+    await new Promise(resolve => setImmediate(resolve));
+    if (change === 'typing') session.edit('new typing');
+    if (change === 'composition') busy = true;
+    if (change === 'conflict') session.conflict = snapshot('external');
+    if (change === 'retired') current = false;
+    gate.resolve();
+    await assert.rejects(saving, error => error.code === { typing: 'stale_buffer', composition: 'busy', conflict: 'conflict', retired: 'stale_session' }[change]);
+    assert.equal(commits, 0); assert.equal(session.dirty, true); assert.equal(session.snapshot.content, 'old');
+  }
+});
+test('new typing during native commit stays dirty and reports a divergent current buffer', async () => {
+  const gate = deferred(); let commits = 0;
+  const session = new ReviewSession(snapshot('old'), 'project', async operation => snapshot(operation.content));
+  session.edit('captured');
+  const saving = editorSave(session, { commit: async captured => { commits += 1; await gate.promise; return { snapshot: snapshot(captured.content), receipt: { status: 'committed', savedGeneration: captured.generation, savedRevision: captured.content } }; } });
+  await new Promise(resolve => setImmediate(resolve));
+  session.edit('newer typing'); gate.resolve();
+  assert.equal((await saving).current, false); assert.equal(commits, 1);
+  assert.equal(session.content, 'newer typing'); assert.equal(session.snapshot.content, 'captured'); assert.equal(session.dirty, true);
+  await session.flush(); assert.equal(session.dirty, false);
+});
+test('a native conflict or mismatched receipt cannot claim a buffer was saved', async () => {
+  const session = new ReviewSession(snapshot('old'), 'project', async () => snapshot('external'));
+  session.edit('my buffer');
+  await assert.rejects(editorSave(session, { commit: async () => { throw { code: 'stale' }; } }), error => error.code === 'stale');
+  assert.equal(session.conflict.content, 'external'); assert.equal(session.content, 'my buffer'); assert.equal(session.dirty, true);
+  session.conflict = null;
+  await assert.rejects(editorSave(session, { commit: async () => ({ snapshot: snapshot('wrong'), receipt: { savedGeneration: 1, savedRevision: 'wrong' } }) }), error => error.code === 'outcome_unknown');
+  assert.equal(session.snapshot.content, 'old'); assert.equal(session.content, 'my buffer'); assert.equal(session.dirty, true);
+});
+test('pending local operations are observable until both success and failure settle', async () => {
+  const gate = deferred(); let fail = true;
+  const session = new ReviewSession(snapshot('old'), 'project', async () => { await gate.promise; if (fail) throw { code: 'busy' }; return snapshot('old'); });
+  const first = session.mutate('mark'); const second = session.flush();
+  assert.equal(session.pending, 2); gate.resolve(); await assert.rejects(first); await second;
+  assert.equal(session.pending, 0); fail = false; await session.mutate('mark'); assert.equal(session.pending, 0);
 });

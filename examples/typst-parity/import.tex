@@ -1,0 +1,19 @@
+\documentclass{article}
+\usepackage{amsmath}
+\newcommand{\customphrase}{Custom macro sentinel}
+\begin{document}
+\section{Imported structure sentinel}
+Ordinary imported prose with \textbf{Strong sentinel} and \emph{Emphasis sentinel}.
+\begin{itemize}
+\item List first sentinel
+\item List second sentinel
+\end{itemize}
+\footnote{Imported footnote sentinel.}
+Unsupported math $x^2 + \alpha$, reference \ref{sec:result}, citation \cite{undertree2026},
+and image \includegraphics{assets/plot.svg} require manual translation.
+\begin{tabular}{cc}
+A & B \\
+1 & 2
+\end{tabular}
+\customphrase
+\end{document}

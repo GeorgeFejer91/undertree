@@ -134,3 +134,40 @@ test('an active text composition veto restores the Close control and keeps its g
   assert.equal(f.calls.at(-1), 'ready');
   assert.deepEqual(f.errors, ['Finish the text composition']);
 });
+test('a no-save close never enters local save callbacks and rechecks after listener removal', async () => {
+  let checks = 0;
+  const f = fixture({ beforeClose: async () => assert.fail('remote close must never flush source'), canClose: () => true });
+  await f.guard.listen(); await f.guard.closeWithoutSave(() => { checks += 1; });
+  assert.equal(checks, 2); assert.equal(f.calls.includes('close'), true); assert.deepEqual(f.errors, []);
+});
+test('new local work during a no-save close restores editing and the native guard', async () => {
+  const removal = deferred(); let pending = false;
+  const f = fixture({ beforeClose: async () => assert.fail('must not save'), canClose: () => true, unlisten: () => removal.promise });
+  await f.guard.listen();
+  const closing = f.guard.closeWithoutSave(() => { if (pending) throw { code: 'busy', message: 'A local action is pending.' }; });
+  await Promise.resolve(); pending = true; removal.resolve();
+  await assert.rejects(closing, error => error.code === 'busy');
+  assert.equal(f.calls.includes('close'), false); assert.equal(f.calls.filter(call => call === 'listen').length, 2); assert.equal(f.calls.at(-1), 'ready');
+});
+test('a lost listener-removal acknowledgement restores native protection before editing resumes', async () => {
+  for (const local of [true, false]) {
+    const f = fixture({ beforeClose: async () => {}, canClose: () => true, unlisten: async () => { throw new Error('Listener removal acknowledgement lost'); } });
+    await f.guard.listen();
+    if (local) await f.guard.close();
+    else await assert.rejects(f.guard.closeWithoutSave(() => {}), /acknowledgement lost/);
+    assert.equal(f.calls.includes('close'), false);
+    assert.equal(f.calls.filter(call => call === 'listen').length, 2, 'the JS callback was removed before its native reply was lost');
+    assert.equal(f.calls.at(-1), 'ready');
+    assert.ok(f.calls.lastIndexOf('listen') < f.calls.lastIndexOf('ready'));
+  }
+});
+test('editing stays frozen if native close protection cannot be restored', async () => {
+  let attempts = 0; const states = [], errors = [];
+  const guard = createWindowCloseGuard({
+    onCloseRequested: async () => { if (++attempts > 1) throw new Error('Cannot restore listener'); return async () => { throw new Error('Removal acknowledgement lost'); }; },
+    close: async () => assert.fail('must not close without protection'),
+  }, { beforeClose: async () => {}, canClose: () => true, onClosing: state => states.push(state), onError: error => errors.push(error.message) });
+  await guard.listen(); await guard.close();
+  assert.deepEqual(states, [true], 'never enable new editing with no native close guard');
+  assert.match(errors[0], /Window protection could not be restored/);
+});

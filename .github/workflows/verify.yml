@@ -8,11 +8,130 @@ permissions:
   contents: read
 
 jobs:
+  typst-publishing:
+    name: Rust/Tauri product installer and Typst qualification
+    runs-on: ubuntu-24.04
+    env:
+      CARGO_BUILD_JOBS: 2
+      UNDERTREE_TEST_FONT: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install Linux build and native verification dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            build-essential curl file pkg-config libssl-dev \
+            libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
+            fonts-dejavu-core fonts-liberation fonts-noto-core poppler-utils \
+            python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1 \
+            xvfb xauth dbus-x11 xfwm4 xdotool wmctrl webkit2gtk-driver
+      - name: Select the qualified Rust toolchain
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+          rustup default 1.99.0
+      - name: Install the qualified Typst compiler
+        run: |
+          # Digest supplied by the official typst/typst v0.15.1 release asset API.
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/typst.tar.xz" https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-unknown-linux-musl.tar.xz
+          printf '%s  %s\n' a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c "$RUNNER_TEMP/typst.tar.xz" | sha256sum --check --strict
+          tar -xJf "$RUNNER_TEMP/typst.tar.xz" -C "$RUNNER_TEMP"
+          echo "UNDERTREE_TYPST=$RUNNER_TEMP/typst-x86_64-unknown-linux-musl/typst" >> "$GITHUB_ENV"
+      - name: Install pinned native and browser drivers
+        run: |
+          cargo install tauri-driver --version 2.1.0 --locked
+          node node_modules/playwright-core/cli.js install chromium
+          echo "UNDERTREE_CHROME=$(node -p 'require("playwright-core").chromium.executablePath()')" >> "$GITHUB_ENV"
+      - run: npm run verify:architecture
+      - run: node --test tests/native-release-paths.test.mjs tests/native-release-receipt.test.mjs tests/notices.test.mjs
+      - run: cargo fmt --all -- --check
+      - run: cargo test --locked -p undertree-review
+      - run: cargo build --locked -p undertree-review
+      - run: npm run test:typst-publishing
+      - run: npm run build
+      - run: npm run test:editor-save
+      - run: npm run test:project-tree
+      - run: node tests/html-editor-smoke.mjs
+      - run: npm run test:review-ui
+      - run: npm run test:workspace-layout
+      - run: npm run test:editor-settings
+      - run: npm run test:review-selection
+      - run: npm run test:review-policy
+      - run: npm run test:connections-ui
+      - run: npm run test:mcp-app-controls
+      - run: node tests/connection-controls-ui-smoke.mjs
+      - run: npm run test:review-text-layout
+      - run: cargo clippy --locked -p undertree-review -p undertree-desktop --all-targets --features custom-protocol -- -D warnings
+      - run: cargo build --locked -p undertree-desktop --features custom-protocol
+      - run: dbus-run-session -- npm run test:native-ui
+      - name: Qualify native source and PDF downloads with private destination preflight
+        run: dbus-run-session -- npm run test:native-publishing
+      - name: Qualify actual native file selection and import acknowledgement recovery
+        run: dbus-run-session -- npm run test:native-import
+      - name: Qualify native saved-project ZIP and retired-page Save
+        run: |
+          dbus-run-session -- npm run test:native-project-export
+          dbus-run-session -- npm run test:native-project-export-epoch
+      - name: Qualify MCP App controls through real native IPC and window state
+        run: dbus-run-session -- env UNDERTREE_NATIVE_APP_READ_OVERLAP=1 node tests/native-app-controls-smoke.mjs
+      - name: Qualify native Close acknowledgement ordering and revoked completion
+        run: |
+          dbus-run-session -- env UNDERTREE_NATIVE_CLOSE_MODE=clean node tests/native-close-ack-smoke.mjs
+          dbus-run-session -- env UNDERTREE_NATIVE_CLOSE_MODE=revoke node tests/native-close-ack-smoke.mjs
+      - name: Build the unsigned Linux desktop installer
+        id: native-installer
+        run: |
+          bash scripts/build-native-release.sh
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          const receipt = JSON.parse(readFileSync('artifacts/native-release/latest.json', 'utf8'));
+          if (/[\r\n]/.test(receipt.bundleDirectory)) throw Error('Invalid artifact directory.');
+          appendFileSync(process.env.GITHUB_OUTPUT, `directory=${receipt.bundleDirectory}\n`);
+          NODE
+      - name: Qualify the extracted installer without installation
+        run: dbus-run-session -- node modules/maintenance/verify-native-package.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: undertree-rust-desktop-evidence
+          path: |
+            artifacts/reverse-engineering/typst-parity/
+            artifacts/native-ui-evidence.json
+            artifacts/native-*.png
+            artifacts/native-package/
+            artifacts/native-release/
+            artifacts/native-app-controls/
+            artifacts/native-publishing/
+            artifacts/native-import/
+            artifacts/native-project-export/
+            artifacts/native-project-export-epoch/
+            artifacts/native-close-clean/
+            artifacts/native-close-revoke/
+            artifacts/html-editor-smoke.json
+            artifacts/html-editor-smoke.png
+            artifacts/workspace-layout-smoke.json
+            artifacts/editor-settings-smoke.json
+            artifacts/review-selection-smoke.json
+            artifacts/review-selection-failure.png
+            artifacts/review-policy-smoke.json
+            artifacts/review-policy-failure.png
+          if-no-files-found: warn
+      - name: Upload the qualified unsigned Rust/Tauri product installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: undertree-linux-rust-tauri-installer
+          path: ${{ steps.native-installer.outputs.directory }}/*.deb
+          if-no-files-found: error
   test-and-package:
+    name: Historical TeX/HTML compatibility
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -43,10 +162,7 @@ jobs:
           echo "UNDERTREE_TYPST=$RUNNER_TEMP/typst-x86_64-unknown-linux-musl/typst" >> "$GITHUB_ENV"
       - run: npm ci
       - run: dbus-run-session -- npm test
-      - run: ./scripts/build-release.sh
-      - run: ./scripts/test-release.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          name: undertree-linux
-          path: release/undertree-*.tar.gz*
-          if-no-files-found: error
+      - name: Build the historical compatibility archive for extraction testing
+        run: ./scripts/build-release.sh
+      - name: Verify historical compatibility archive contents and startup
+        run: ./scripts/test-release.sh

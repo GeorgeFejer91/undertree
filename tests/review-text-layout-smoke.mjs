@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { createServer } from 'vite';
 import { chromium } from 'playwright-core';
 
@@ -8,7 +10,7 @@ const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>
 [hidden] { display: none !important; }
 html { font-size: 14px; }
 body { margin: 0; padding: 12px; font: 1rem/1.5 Arial, sans-serif; }
-#chrome { display: grid; gap: 12px; width: 800px; }
+#chrome { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; width: 800px; }
 button { font: inherit; display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid #666; min-width: 0; height: 44px; }
 [data-text-label] { display: block; flex: 1; min-width: 0; white-space: nowrap; }
 #icon-control { width: 260px; }
@@ -32,11 +34,14 @@ button { font: inherit; display: flex; align-items: center; gap: 10px; padding: 
 <details id="detail-route"><summary>Full label</summary><p tabindex="0">A label next to an icon</p></details>
 </section><section id="source" aria-label="Synthetic manuscript editor"></section></body></html>`;
 const virtualModule = '/__review_text_layout_fixture.js';
+const cacheDir = await mkdtemp(resolve(tmpdir(), 'undertree-text-layout-cache-'));
 const server = await createServer({
   configFile: false,
   root: resolve('.'),
+  cacheDir,
+  optimizeDeps: { noDiscovery: true, include: ['@chenglou/pretext', 'codemirror', '@codemirror/state'] },
   logLevel: 'error',
-  server: { host: '127.0.0.1', port: 0 },
+  server: { host: '127.0.0.1', port: 0, watch: null },
   plugins: [{
     name: 'review-text-layout-fixture',
     resolveId(id) { if (id === virtualModule) return '\0review-text-layout-fixture'; },
@@ -129,6 +134,22 @@ try {
   await page.locator('#typography-label').evaluate(label => { label.style.wordSpacing = ''; });
   await settle();
   assert.equal(await fit('typography'), 'fit');
+  const typographyOverride = await page.addStyleTag({ content: '#typography-label { letter-spacing: 8px; }' });
+  await settle();
+  assert.equal(await fit('typography'), 'no-fit', 'a newly applied stylesheet invalidates typography inside a fixed-size control');
+  await typographyOverride.evaluate(style => style.remove());
+  await settle();
+  assert.equal(await fit('typography'), 'fit', 'removing the override restores the original typography contract');
+  await page.evaluate(() => {
+    const slot = document.createElement('div'); slot.id = 'escaping-slot'; slot.style.width = '100px';
+    const control = document.createElement('button'); control.id = 'escaping-control'; control.style.width = '240px'; control.textContent = 'Short label';
+    slot.append(control); document.querySelector('#chrome').append(slot);
+  });
+  await settle();
+  assert.equal(await fit('escaping-control'), 'no-fit', 'text fitting its own control cannot hide a control escaping its parent slot');
+  await page.locator('#escaping-slot').evaluate(slot => { slot.style.width = '300px'; });
+  await settle();
+  assert.equal(await fit('escaping-control'), 'fit');
   const beforeLanguage = await page.evaluate(() => counters.fontMeasurements);
   await page.evaluate(() => { document.documentElement.lang = 'de'; });
   await settle();
@@ -185,4 +206,5 @@ try {
 } finally {
   await browser?.close();
   await server.close();
+  await rm(cacheDir, { recursive: true, force: true });
 }
