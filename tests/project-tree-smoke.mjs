@@ -122,6 +122,13 @@ try {
   checks.push('a held stale inventory cannot replace a newer creation refresh');
 
   blockSaves = false; await page.locator('#menu-file-toggle').click(); await page.locator('#manuscript-save').click();
+  await waitUntil(async () => (await page.locator('#review-status').textContent()) === 'Inspect the bounded project staging inventory before saving.', 'The over-deep fixture did not report the exact staging refusal.');
+  assert.equal(await readFile(join(projectRoot, 'chapters', 'part.html'), 'utf8'), original);
+  assert.equal((await source.innerText()).trimEnd(), dirty.trimEnd());
+  assert.equal(await page.locator('#save-label').textContent(), 'Unsaved changes');
+  // The depth-limit inventory fixture is complete; retry Save with an admissible project.
+  await rm(join(projectRoot, 'd0'), { recursive: true });
+  await page.locator('#menu-file-toggle').click(); await page.locator('#manuscript-save').click();
   await waitUntil(async () => (await readFile(join(projectRoot, 'chapters', 'part.html'), 'utf8')) === dirty, 'The explicit local save did not finish.');
   for (const [chord, content] of [['Control+S', '<p>Uppercase Save shortcut.</p>\n'], ['Control+s', dirty]]) {
     await source.focus(); await page.keyboard.press('Control+A'); await page.keyboard.insertText(content);
