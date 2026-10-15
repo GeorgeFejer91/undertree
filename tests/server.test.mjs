@@ -104,52 +104,13 @@ cp "$input" "$output"
 printf '\n%%%% LocalTeX preview normalized\n' >> "$output"
 `);
   await chmod(previewNormalizer, 0o755);
-  const codexPrompt = join(temporaryRoot, "codex-prompt.txt");
+  const codexInvocation = join(temporaryRoot, "codex-invocation.txt");
   const codexDesktopRequest = join(temporaryRoot, "codex-desktop-request.txt");
-  const codexFailureMarker = join(temporaryRoot, "codex-failure-marker");
   const fakeCodex = join(temporaryRoot, "codex");
   await writeFile(fakeCodex, String.raw`#!/usr/bin/env bash
 set -euo pipefail
-if [[ "$1" != 'exec' || "$2" != '--experimental-json' || " $* " != *' --model gpt-5.6-luna '* || " $* " != *' --config model_reasoning_effort="low" '* || " $* " != *' --config approval_policy="never" '* || " $* " != *' --config project_doc_max_bytes=0 '* ]]; then
-  printf '%s\n' 'Codex SDK did not apply the noninteractive approval policy' >&2
-  exit 2
-fi
-working_directory=""
-expect_working_directory=false
-for argument in "$@"; do
-  if [[ "$expect_working_directory" == true ]]; then working_directory="$argument"; break; fi
-  if [[ "$argument" == '--cd' ]]; then expect_working_directory=true; fi
-done
-if [[ -n "$working_directory" ]]; then cd "$working_directory"; fi
-prompt="$(cat)"
-printf '%s' "$prompt" > "$LOCALTEX_TEST_CODEX_PROMPT"
-if [[ "$prompt" == *'launcher-failure.tex'* && ! -e "$LOCALTEX_TEST_CODEX_FAILURE_MARKER" ]]; then
-  touch "$LOCALTEX_TEST_CODEX_FAILURE_MARKER"
-  printf '%s\n' 'simulated Codex launcher failure' >&2
-  exit 2
-fi
-printf '%s\n' '{"type":"thread.started","thread_id":"test-thread-123"}'
-if [[ "$prompt" == *'working-tree-replacement.tex'* ]]; then
-  if [[ " $* " == *' resume test-thread-123 '* ]]; then
-    current_text="$(cat working-tree-replacement.tex)"
-    printf '\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n' "$current_text" > working-tree-replacement.tex
-  else
-    git show HEAD:working-tree-replacement.tex > working-tree-replacement.tex
-  fi
-elif [[ "$prompt" == *'content-guard.tex'* ]]; then
-  sed -i 's/Immutable sentence/Rewritten sentence/' content-guard.tex
-  printf '\n\\end{document}\n' >> content-guard.tex
-elif [[ "$prompt" == *'retry.tex'* ]]; then
-  if [[ " $* " == *' resume test-thread-123 '* ]]; then printf '\n\\end{document}\n' >> retry.tex; fi
-elif [[ "$prompt" == *'launcher-failure.tex'* ]]; then
-  printf '\n\\end{document}\n' >> launcher-failure.tex
-elif [[ "$prompt" == *'bare.tex'* ]]; then
-  bare_text="$(cat bare.tex)"
-  printf '\\documentclass{article}\n\\begin{document}\n%s\n\\end{document}\n' "$bare_text" > bare.tex
-else
-  printf '\n\\end{document}\n' >> recover.tex
-fi
-printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0}}'
+printf '%s\n' 'unexpected Codex invocation' > "$LOCALTEX_TEST_CODEX_INVOCATION"
+exit 2
 `);
   await chmod(fakeCodex, 0o755);
   const fakeCodexDesktop = join(temporaryRoot, "codex-desktop");
@@ -193,9 +154,8 @@ printf '%s\n' "$1" > "$LOCALTEX_TEST_CODEX_DESKTOP_REQUEST"
       UNDERTREE_CODEX_DESKTOP: fakeCodexDesktop,
       UNDERTREE_FILE_MANAGER: fakeFileManager,
       UNDERTREE_STATE_ROOT: join(temporaryRoot, "state"),
-      LOCALTEX_TEST_CODEX_PROMPT: codexPrompt,
+      LOCALTEX_TEST_CODEX_INVOCATION: codexInvocation,
       LOCALTEX_TEST_CODEX_DESKTOP_REQUEST: codexDesktopRequest,
-      LOCALTEX_TEST_CODEX_FAILURE_MARKER: codexFailureMarker,
     },
   });
   let serverOutput = "";
@@ -481,157 +441,31 @@ Legacy generated layout.
   assert.deepEqual([...bundledPdfs.keys()].sort(), ["main.pdf", "supplement.pdf"]);
   assert.equal(bundledPdfs.get("main.pdf").subarray(0, 4).toString(), "%PDF");
 
-  await writeFile(join(project, "recover.tex"), String.raw`\documentclass{article}
+  const failedSource = String.raw`\documentclass{article}
 \begin{document}
-Formatting repair fixture.
-`);
-  const failedBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
+Failed build source must remain unchanged.
+`;
+  await writeFile(join(project, "recover.tex"), failedSource);
+  const failedBuildResponse = await fetch(`${baseUrl}/api/project/${projectId}/build`, {
     method: "POST",
     headers: mutationHeaders,
     body: JSON.stringify({ sourcePath: "recover.tex", recoverWithCodex: true }),
-  })).json();
-  assert.notEqual(failedBuild.code, 0, "the recovery hook must be driven by a real failed TeX build");
-  assert.match(failedBuild.codexRecovery?.id || "", /^[a-f0-9]{24}$/);
-  let recovery;
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    recovery = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${failedBuild.codexRecovery.id}`, { headers })).json();
-    if (["fixed", "unresolved", "failed"].includes(recovery.state)) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  assert.equal(recovery?.state, "fixed", `${serverOutput}\n${JSON.stringify(recovery)}`);
-  assert.equal(recovery.threadId, "test-thread-123", "the private background thread remains resumable for one guarded retry");
-  assert.equal(recovery.pdfAvailable, true);
-  assert.match(await readFile(codexPrompt, "utf8"), /smallest possible mechanical fix to LaTeX syntax, escaping, braces, environments/);
-  assert.match(await readFile(codexPrompt, "utf8"), /Do not rewrite, summarize, expand, delete, or add content/);
-  assert.match(await readFile(codexPrompt, "utf8"), /current on-disk contents.*authoritative user document/);
-  assert.match(await readFile(codexPrompt, "utf8"), /Never run Git commands/);
-  await assert.rejects(readFile(codexDesktopRequest, "utf8"), { code: "ENOENT" }, "background recovery must not open or focus the Codex desktop app");
-  const recoveryState = join(temporaryRoot, "state", "codex-recovery");
-  await assert.rejects(access(join(recoveryState, `${recovery.id}.codex-home`)), { code: "ENOENT" }, "a successful recovery must remove its isolated Codex task home");
-  await assert.rejects(access(join(recoveryState, `${recovery.id}.jsonl`)), { code: "ENOENT" }, "a successful recovery must not leave a routine task report");
-  assert.match(await readFile(join(project, "recover.tex"), "utf8"), /\\end\{document\}/);
-  const recoveredPdf = await fetch(`${baseUrl}/api/project/${projectId}/pdf?sourcePath=recover.tex&download=1`, { headers });
-  assert.equal(recoveredPdf.status, 200);
-  assert.ok((await recoveredPdf.arrayBuffer()).byteLength > 1000);
+  });
+  assert.equal(failedBuildResponse.status, 200, serverOutput);
+  const failedBuild = await failedBuildResponse.json();
+  assert.notEqual(failedBuild.code, 0, "a real failed TeX build remains a failed build when recovery is disabled");
+  assert.equal(failedBuild.pdfAvailable, false);
+  assert.equal(Object.hasOwn(failedBuild, "codexRecovery"), false, "the unsupported recovery flag must not create an agent task");
+  assert.equal(await readFile(join(project, "recover.tex"), "utf8"), failedSource, "failed compilation must not rewrite manuscript source");
+  await assert.rejects(access(codexInvocation), { code: "ENOENT" }, "disabled recovery must not invoke Codex");
+  await assert.rejects(access(codexDesktopRequest), { code: "ENOENT" }, "disabled recovery must not invoke the Codex desktop app");
+  await assert.rejects(access(join(temporaryRoot, "state", "codex-recovery")), { code: "ENOENT" }, "disabled recovery must not create task state");
+  const recoveryUrl = `${baseUrl}/api/project/${projectId}/codex-recovery?id=${"0".repeat(24)}`;
+  assert.equal((await fetch(recoveryUrl)).status, 403, "recovery lookup still requires authentication");
+  const unknownRecovery = await fetch(recoveryUrl, { headers });
+  assert.equal(unknownRecovery.status, 404);
+  assert.equal((await unknownRecovery.json()).error, "Unknown Codex recovery task");
   await rm(join(project, "recover.tex"));
-
-  await writeFile(join(project, "bare.tex"), "heloo\n");
-  const bareBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
-    method: "POST",
-    headers: mutationHeaders,
-    body: JSON.stringify({ sourcePath: "bare.tex", recoverWithCodex: true }),
-  })).json();
-  let bareRecovery;
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    bareRecovery = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${bareBuild.codexRecovery.id}`, { headers })).json();
-    if (["fixed", "unresolved", "failed", "rejected"].includes(bareRecovery.state)) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  assert.equal(bareRecovery?.state, "fixed", `${serverOutput}\n${JSON.stringify(bareRecovery)}`);
-  assert.equal((await readFile(join(project, "bare.tex"), "utf8")).match(/heloo/g)?.length, 1, "a bare source must retain its exact visible text while receiving TeX structure");
-  await rm(join(project, "bare.tex"));
-
-  await writeFile(join(project, "working-tree-replacement.tex"), String.raw`\documentclass{article}
-\begin{document}
-Committed words that must not be restored.
-\end{document}
-`);
-  await run("git", ["add", "working-tree-replacement.tex"], project);
-  await run("git", ["commit", "-m", "Track replacement guard fixture", "--", "working-tree-replacement.tex"], project);
-  await writeFile(join(project, "working-tree-replacement.tex"), "current authoritative words\n");
-  const replacementBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
-    method: "POST",
-    headers: mutationHeaders,
-    body: JSON.stringify({ sourcePath: "working-tree-replacement.tex", recoverWithCodex: true }),
-  })).json();
-  let replacementRecovery;
-  for (let attempt = 0; attempt < 150; attempt += 1) {
-    replacementRecovery = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${replacementBuild.codexRecovery.id}`, { headers })).json();
-    if (["fixed", "unresolved", "failed", "rejected"].includes(replacementRecovery.state)) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  assert.equal(replacementRecovery?.state, "fixed", `${serverOutput}\n${JSON.stringify(replacementRecovery)}`);
-  assert.equal(replacementRecovery.attempt, 2, "a Git-baseline restoration must be rejected and corrected in the same Codex task");
-  const replacementSource = await readFile(join(project, "working-tree-replacement.tex"), "utf8");
-  assert.equal(replacementSource.match(/current authoritative words/g)?.length, 1);
-  assert.doesNotMatch(replacementSource, /Committed words/);
-  assert.match(await readFile(codexPrompt, "utf8"), /UnderTree rejected your first edit/);
-  assert.match(await readFile(codexPrompt, "utf8"), /Never run Git commands/);
-  await rm(join(project, "working-tree-replacement.tex"));
-
-  await writeFile(join(project, "launcher-failure.tex"), String.raw`\documentclass{article}
-\begin{document}
-Launcher retry fixture.
-`);
-  const launcherFailureBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
-    method: "POST",
-    headers: mutationHeaders,
-    body: JSON.stringify({ sourcePath: "launcher-failure.tex", recoverWithCodex: true }),
-  })).json();
-  let launcherFailure;
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    launcherFailure = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${launcherFailureBuild.codexRecovery.id}`, { headers })).json();
-    if (launcherFailure.state === "failed") break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  assert.equal(launcherFailure?.state, "failed");
-  assert.match(launcherFailure.message, /code 2.*simulated Codex launcher failure/);
-  const launcherRetryBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
-    method: "POST",
-    headers: mutationHeaders,
-    body: JSON.stringify({ sourcePath: "launcher-failure.tex", recoverWithCodex: true }),
-  })).json();
-  assert.notEqual(launcherRetryBuild.codexRecovery.id, launcherFailureBuild.codexRecovery.id, "a launcher failure must be immediately retryable");
-  let launcherRetry;
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    launcherRetry = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${launcherRetryBuild.codexRecovery.id}`, { headers })).json();
-    if (["fixed", "unresolved", "failed", "rejected"].includes(launcherRetry.state)) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  assert.equal(launcherRetry?.state, "fixed", `${serverOutput}\n${JSON.stringify(launcherRetry)}`);
-  await rm(join(project, "launcher-failure.tex"));
-
-  const guardedOriginal = String.raw`\documentclass{article}
-\begin{document}
-Immutable sentence.
-`;
-  await writeFile(join(project, "content-guard.tex"), guardedOriginal);
-  const guardedBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
-    method: "POST",
-    headers: mutationHeaders,
-    body: JSON.stringify({ sourcePath: "content-guard.tex", recoverWithCodex: true }),
-  })).json();
-  let guardedRecovery;
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    guardedRecovery = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${guardedBuild.codexRecovery.id}`, { headers })).json();
-    if (["fixed", "unresolved", "failed", "rejected"].includes(guardedRecovery.state)) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  assert.equal(guardedRecovery?.state, "rejected", `${serverOutput}\n${JSON.stringify(guardedRecovery)}`);
-  assert.equal(guardedRecovery.attempt, 2, "visible-text tampering must receive only one guarded correction attempt");
-  assert.match(guardedRecovery.message, /changed visible document text/);
-  assert.equal(await readFile(join(project, "content-guard.tex"), "utf8"), guardedOriginal, "content guard must restore the exact pre-recovery source");
-  await rm(join(project, "content-guard.tex"));
-
-  await writeFile(join(project, "retry.tex"), String.raw`\documentclass{article}
-\begin{document}
-Retry fixture text.
-`);
-  const retryBuild = await (await fetch(`${baseUrl}/api/project/${projectId}/build`, {
-    method: "POST",
-    headers: mutationHeaders,
-    body: JSON.stringify({ sourcePath: "retry.tex", recoverWithCodex: true }),
-  })).json();
-  let retryRecovery;
-  for (let attempt = 0; attempt < 150; attempt += 1) {
-    retryRecovery = await (await fetch(`${baseUrl}/api/project/${projectId}/codex-recovery?id=${retryBuild.codexRecovery.id}`, { headers })).json();
-    if (["fixed", "unresolved", "failed", "rejected"].includes(retryRecovery.state)) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  assert.equal(retryRecovery?.state, "fixed", `${serverOutput}\n${JSON.stringify(retryRecovery)}`);
-  assert.equal(retryRecovery.attempt, 2, "a failed verification should resume the same task exactly once");
-  assert.match(await readFile(join(project, "retry.tex"), "utf8"), /\\end\{document\}/);
-  await rm(join(project, "retry.tex"));
 
   const adaptiveBuildResponse = await fetch(`${baseUrl}/api/project/${projectId}/build`, {
     method: "POST",

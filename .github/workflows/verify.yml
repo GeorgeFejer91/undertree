@@ -21,6 +21,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
             fonts-noto-core \
+            fonts-liberation \
+            python3-gi \
+            gir1.2-gtk-3.0 \
+            gir1.2-webkit2-4.1 \
+            xvfb \
+            xauth \
+            dbus-x11 \
             latexmk \
             poppler-utils \
             texlive-fonts-recommended \
@@ -28,7 +35,7 @@ jobs:
             texlive-luatex \
             texlive-pictures
       - run: npm ci
-      - run: npm test
+      - run: dbus-run-session -- npm test
       - run: ./scripts/build-release.sh
       - run: ./scripts/test-release.sh
       - uses: actions/upload-artifact@v4

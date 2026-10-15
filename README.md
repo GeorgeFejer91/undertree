@@ -297,33 +297,10 @@ first successful build remains in the ignored project-local `.tex-build/`
 directory. Later file-tree and tab selections switch the right pane to that
 source's cached PDF immediately, even when the source has since changed; a
 visible stale marker then offers Recompile as the explicit update path. Only a
-source without a cached PDF triggers a selection-time build. Included fragments
-that cannot compile independently can still use the same guarded formatting-only
-recovery workflow on that first attempt.
-
-If that TeX build exits unsuccessfully or produces no PDF, **Automatically
-repair failed TeX with Codex** starts a private background task by default. It
-uses `gpt-5.6-luna` with low reasoning for both the initial repair and the single
-permitted retry. UnderTree gives each recovery an isolated temporary Codex home,
-never opens or focuses the Codex desktop app, and removes the task and routine
-success log after verification, so frequent repairs do not create sidebar tasks
-or success reports.
-
-The generated request is restricted to the smallest mechanical LaTeX
-formatting/build fix. The current on-disk source is authoritative; Codex is
-forbidden from using Git history or another file to restore older content, and
-from changing visible prose, order, meaning, citations, labels, headings, or
-focus. UnderTree stops direct builds at the first fatal error, sends a bounded
-diagnostic around that error, deduplicates identical failures, and temporarily
-protects the selected editor from competing saves. If the first candidate does
-not pass an independent verification build, the new diagnostic is sent once to
-the same private task. Any candidate that changes the visible-text signature is
-rejected, retained in private recovery state only when inspection is necessary,
-and the exact original source is restored. After a clean verification build,
-clean editor tabs reload and the PDF sidebar refreshes silently. Only unresolved
-errors are surfaced. The setting is saved per project and can be disabled in the
-compile-options menu. A preview-renderer failure after a clean TeX build does not
-invoke Codex because it is not a TeX formatting error.
+source without a cached PDF triggers a selection-time build. A failed build
+shows compiler diagnostics and keeps the last good preview. Background Codex
+repair is disabled in this distribution; correct the source locally and
+recompile. Failed builds leave manuscript content unchanged.
 
 Selecting another `.tex` tab switches the preview to that document's existing
 project-local PDF without recompiling it; recompiling updates only that selected
