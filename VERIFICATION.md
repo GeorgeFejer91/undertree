@@ -221,6 +221,32 @@ inference. Triage `artifacts/hosted-75be58e-triage/REPORT.md` has SHA-256
 `5a60c6a0758aedab0b640913df2f5f9dce865ec0b811b5f95e763b56f7d4a9a5`.
 Refreshed native/installer qualification remains pending.
 
+At `5b75573`, both hosted runs ([PR](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38718384452),
+[push](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38718375325))
+pass the xprop prerequisite, all browser gates, strict native Clippy, the desktop
+build, seven native Word count checks and thirteen baseline native UI checks.
+The historical archive build and extracted startup smoke also pass.
+
+Native publishing then passes five descriptive checks: real keyboard/source/PDF
+downloads, separate Review/App authority, explicit native root consent, exact
+MCP PDF bytes and ticket revocation. It stops on the later `pageOverflow`
+assertion at 320 px with 28 px root text. Both retained screenshots are identical
+and both frontend error lists are empty. The final dirty-buffer export and later
+installer checks do not run. The original failure does not retain document
+dimensions, so its overflow axis and possible resize/readiness contribution
+remain unclassified. Triage report
+`artifacts/hosted-5b75573-triage/REPORT.md` has SHA-256
+`6c316f66b3190a8f997bb809d0f2fb61a870ee7deca9f5113fe968a4055cb2ab`.
+
+The native publishing fixture now records geometry before its unchanged
+assertions, including document/body scroll sizes, dialog/root rectangles and
+measurement state. All 55 assertions, six groups, actions, deadlines and waits
+remain unchanged. Module and all embedded scripts pass syntax checks; this
+observability change has no native rerun or layout-fix claim. Public runner
+SHA-256 is `bcc2dd3916887fccbe39c324f3f7317fc71c88b0e7e86ddecdc66a681593f30a`;
+the two-copy handoff has SHA-256
+`67ea47f71df114c71d2d9a834a34ba8b822b7412909bf762a43def6fed0d39f2`.
+
 ## Immutable integrity and unsigned Linux package checkpoint — 2026-10-15
 
 The Rust/Tauri v2/HTML/CSS/Typst candidate at

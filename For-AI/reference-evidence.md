@@ -530,3 +530,13 @@ including 903 px client/scroll height. Those runs stop before native app launch
 while checking xprop; CI now explicitly installs its x11-utils package and
 checks availability. The exact discarded spawn error remains unclassified;
 refreshed native/installer acceptance is pending.
+
+The subsequent hosted `5b75573` runs pass seven native Word count checks and
+thirteen baseline native UI checks. Native publishing passes five download,
+consent and revocation groups before its narrow/enlarged-text overflow
+assertion; the final dirty-buffer export and installer gates remain unrun.
+The failure's exact overflow axis/readiness contribution is unclassified.
+Its fixture now retains geometry before the unchanged assertions. See the
+[native publishing follow-up](../VERIFICATION.md#instance-shutdown-follow-up--2026-10-15)
+for exact runs, triage and syntax-only observability identities; no layout fix
+or complete native-publishing pass is established.

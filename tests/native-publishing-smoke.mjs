@@ -214,8 +214,20 @@ try{
   checks.push('Actual native PDF-permission revocation invalidates the prior download ticket and prevents a fresh one while App controls remain enabled.');
   await command('/window/rect',{width:320,height:900,x:0,y:0});await execute('document.documentElement.style.fontSize="28px";');
   await until(()=>execute('return ["fit","reflow"].includes(document.getElementById("connection-pdf-export-summary").dataset.textFit)'),'Native PDF consent text did not finish Pretext measurement.');
-  const geometry=await execute('const root=document.querySelector(".pdf-export-root");return {width:innerWidth,height:innerHeight,text:getComputedStyle(document.documentElement).fontSize,root:root.textContent,rootWidth:root.clientWidth,rootScroll:root.scrollWidth,pageOverflow:document.documentElement.scrollWidth>innerWidth+1||document.documentElement.scrollHeight>innerHeight+1};');
-  assert.equal(geometry.root,project);assert.ok(geometry.rootScroll<=geometry.rootWidth+1);assert.equal(geometry.pageOverflow,false);evidence.consentGeometry=geometry;
+  const geometry=await execute(`
+    const root=document.querySelector('.pdf-export-root');
+    const dimensions=node=>node?{clientWidth:node.clientWidth,clientHeight:node.clientHeight,scrollWidth:node.scrollWidth,scrollHeight:node.scrollHeight}:null;
+    const rect=node=>{if(!node)return null;const box=node.getBoundingClientRect();return {left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width,height:box.height};};
+    return {width:innerWidth,height:innerHeight,text:getComputedStyle(document.documentElement).fontSize,
+      root:root.textContent,rootWidth:root.clientWidth,rootScroll:root.scrollWidth,
+      pageOverflow:document.documentElement.scrollWidth>innerWidth+1||document.documentElement.scrollHeight>innerHeight+1,
+      document:dimensions(document.documentElement),body:dimensions(document.body),
+      dialog:dimensions(document.getElementById('connection-dialog')),app:dimensions(document.getElementById('review-app')),rootDimensions:dimensions(root),
+      rects:{dialog:rect(document.getElementById('connection-dialog')),app:rect(document.getElementById('review-app')),root:rect(root)},
+      textFit:{summary:document.getElementById('connection-pdf-export-summary').dataset.textFit,root:root.dataset.textFit}};
+  `);
+  evidence.consentGeometry=geometry;
+  assert.equal(geometry.root,project);assert.ok(geometry.rootScroll<=geometry.rootWidth+1);assert.equal(geometry.pageOverflow,false);
   await command('/window/rect',{width:1600,height:1000,x:0,y:0});await execute('document.documentElement.style.fontSize="";');await until(()=>execute('return innerWidth>=1500&&parseFloat(getComputedStyle(document.documentElement).fontSize)<20'),'The native viewport/font did not restore before typing.');await execute('return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));');
   await click('#connection-dialog [data-close]');const beforeDirtyTyping=await execute('return window.__nativeAppSaveAttempts');await chmod(project,0o555);await click('.cm-content');native('xdotool',['windowactivate','--sync',nativeWindow,'key','--clearmodifiers','ctrl+End']);native('xdotool',['type','--clearmodifiers','--delay','3','Unsaved buffer export stays local.']);
   await until(()=>execute('return document.querySelector(".cm-content").textContent.includes("Unsaved buffer export stays local.")'),'The actual native typing did not produce the complete dirty-buffer fixture.');
