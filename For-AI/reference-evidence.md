@@ -461,5 +461,10 @@ The [instance shutdown follow-up](../VERIFICATION.md#instance-shutdown-follow-up
 separately changes runtime Stop to release its owned lock even with a surviving
 duplicate handle. A deterministic red/green regression, 211 isolated Rust tests,
 strict review Clippy and independent source review pass. Original hosted failures
-are retained; inherited-descriptor timing is an inference. A hosted rerun and
-the repaired runtime's native/package qualification are still pending.
+are retained; inherited-descriptor timing is an inference. Its hosted rerun
+passes Rust and the main Review UI, then exposes a selection fixture that types
+before the requested file finishes mounting. A genuine held-Open negative
+control reproduces that failure; the corrected readiness fixture passes the
+same probe with both original assertions intact. The linked follow-up records
+exact evidence. Full hosted and repaired-runtime package qualification remain
+pending.

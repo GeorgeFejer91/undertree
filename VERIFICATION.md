@@ -80,8 +80,20 @@ the receipt at `artifacts/instance-stop-repair/handoff.json` has SHA-256
 Independent source review accepts the narrow repair. An inherited descriptor
 explains the hosted timing failure but was not traced in CI. The deterministic
 duplicate-handle result is observed. This runtime follow-up is separate from
-immutable v9; hosted rerun, its native/package checks and other platforms remain
-pending.
+immutable v9; full hosted/native/package qualification and other platforms
+remain pending.
+
+The hosted reruns pass Rust and the main Review UI gate, then fail the selection
+fixture while switching files. It waited for any existing editor before typing.
+An artifact probe holds the real queued Open response for 500 ms and reproduces
+the same failure after the passing control. The corrected fixture waits for the
+requested file's completed mount and its actual dirty newline before Save. The
+same probe passes both selection, byte-preservation and Undo/Redo checks without
+relaxing their assertions or changing product code. Report:
+`artifacts/hosted-v9-selection-readiness/REPORT.md`, SHA-256
+`54a894083659df5368141ca99f0ec6df38a5c52189f92228fc4780dcc754660e`.
+The corrected maintained runner has SHA-256
+`4f8bff74dd0ea57b5015f678131493345be43488f3b82f6a8d3fddd80b8fb2c8`.
 
 ## Immutable integrity and unsigned Linux package checkpoint — 2026-10-15
 

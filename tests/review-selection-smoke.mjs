@@ -62,12 +62,16 @@ try {
     };
     await page.route('**/api/review', holdSave);
     try {
-      await page.locator(`.file-button[data-path="${path}"]`).click(); await page.locator('.cm-content').waitFor();
+      const fileButton = page.locator(`.file-button[data-path="${path}"]`);
+      await fileButton.click();
+      await until(async () => await fileButton.getAttribute('aria-current') === 'true', 'The requested document did not finish mounting.');
+      await page.locator('.cm-content').waitFor();
       await page.evaluate(() => {
         window.__selectionSubmitted = false;
         document.getElementById('highlight-form').addEventListener('submit', () => { window.__selectionSubmitted = true; }, { once: true, capture: true });
       });
       await page.locator('.cm-content').focus(); await page.keyboard.press('Control+End'); await page.keyboard.insertText('\n');
+      await until(async () => await page.locator('.cm-line').count() === 3 && await page.locator('#save-label').textContent() === 'Unsaved changes', 'The requested document edit did not reach its dirty buffer.');
       await page.keyboard.press('Control+s');
       await until(() => saveReady, 'The earlier successful Save response was not held.');
       await capturePassage(); await page.getByRole('button', { name: 'Add highlight', exact: true }).click();
