@@ -82,6 +82,23 @@ retired-page/raw-save/anonymous denial and shutdown revocation. Receipt:
 `artifacts/qa-final-app-v2/artifacts/native-ui/native-ui-evidence.json`, SHA-256
 `3851597c0f30e8e72c4417111d4afaacfb9500ce0b80e4b10bdf415ef1860977`.
 
+A separate authoring run passed all eight checks against this exact copied v2
+service and its matching assets. The frozen runner SHA-256 is
+`bf8143ea9875f22d65c9a596cbe77a402171b684df028fc5abaf951080b6afa7`;
+receipt `artifacts/qualification/authoring-combined-v2/artifacts/reverse-engineering/typst-authoring/evidence.json`
+has SHA-256
+`bfbfd26f4a23dd15dc4ccb6d948679f2bd927dea3f7f0cbc206daafe2185d4f0`.
+It records the exact HTML/CSS/JavaScript identities, including manuscript
+JavaScript SHA-256
+`379cc3f6d938b9353c49b59c2c27674b2b0ba190a1c9317168bc0c564f3676b4`.
+Real insertion, literal-source syntax styling, independent undo/redo, placeholder
+typing, seven menu actions at 320 CSS px and 200% text, HTML refusal and real
+Typst PDF output passed with zero page errors. This qualifies local authoring
+with the v2 editor session; it does not qualify App permissions, native OS IME
+or later builds. The earlier C4pf authoring receipt remains separate and
+unchanged. The v2 service, three named assets, runner and receipt were rehashed
+when this entry was reconciled; no old result was relabeled as a current run.
+
 The real local MCP App browser gate and existing Connections gate passed
 against the copied service/assets. App checks cover a separate explicit grant,
 the unchanged three-tool Review catalogue, acknowledged presentation/selection
@@ -496,3 +513,15 @@ App gate passes; 20 separately labelled synthetic cases cover exact-busy,
 fatal-error and producer refusal. No genuine busy occurs in that local run.
 The linked follow-up records exact inputs and complete owned-process cleanup;
 new hosted/native/installer acceptance is still pending.
+
+At `02ada71`, both hosted runs pass the full App browser gate as well as
+Review UI, Word count, Connections and historical archive smoke. They then fail
+the separate App controls layout fixture at 320 CSS px/200% text. The original
+nine-case fixture reproduces 92 px vertical overflow locally with Chrome 155:
+the additional closed PDF-export section pushes Refresh/Stop below the finite
+dialog. Scoped narrow Connections spacing removes that overflow; all nine
+cases and original functional/Pretext assertions pass unchanged, with exact
+regrowth. Full values, fonts, controls and overflow policy remain intact.
+CI now retains its report and PNGs. See the linked verification follow-up for
+exact red/green inputs; this is local mocked-control presentation evidence,
+not hosted Chrome 151, native authorization or installer qualification.

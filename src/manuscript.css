@@ -158,7 +158,11 @@ dialog blockquote { margin: .8rem 0; padding: .65rem; border-left: 3px solid #9a
 .connection-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid #d6dcd8; margin-top: clamp(.5rem, 1.4vh, 1rem); padding-top: clamp(.35rem, 1.2vh, .8rem); }
 .connection-actions button { padding-inline: .35rem; }
 @media (max-width: 380px) {
-  #connection-dialog { padding: .8rem; }
+  #connection-dialog { padding: .8rem; --connection-gap: clamp(.25rem, min(1.5vw, 1.2vh), .7rem); }
+  #connection-dialog > p,#connection-panel-app > p,#connection-panel-app > .checkbox-label,#connection-panel-app > details { margin-block: var(--connection-gap); }
+  #connection-dialog .connection-heading { gap: var(--connection-gap); }
+  #connection-dialog .connection-tabs { gap: var(--connection-gap); padding-block: var(--connection-gap); margin-block-end: var(--connection-gap); }
+  #connection-dialog .connection-actions { margin-block-start: var(--connection-gap); }
   #connection-shares li { grid-template-columns: minmax(0, 1fr); }
   #connection-shares button { justify-self: start; }
 }

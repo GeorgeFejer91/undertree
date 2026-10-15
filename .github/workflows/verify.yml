@@ -137,6 +137,8 @@ jobs:
             artifacts/review-policy-failure.png
             artifacts/word-count-smoke.json
             artifacts/word-count-failure.png
+            artifacts/connection-controls-ui/report.json
+            artifacts/connection-controls-ui/*.png
             !artifacts/**/private-provenance.json
           if-no-files-found: warn
       - name: Upload the qualified unsigned Rust/Tauri product installer

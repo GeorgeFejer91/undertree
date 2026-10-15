@@ -169,6 +169,39 @@ handoff `artifacts/hosted-7a9aa26-triage/app-readiness-handoff.json` has SHA-256
 This changes verification only; no source operation is retried. Refreshed hosted,
 newer combined native and complete installer qualification remain pending.
 
+Both hosted runs at `02ada71` ([PR](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38710508511),
+[push](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38710502425))
+pass Rust, real Typst, the complete Review UI, Word count, Connections, the full
+App browser gate and the historical compatibility archive smoke. Both then
+fail `connection-controls-ui-smoke.mjs` at 320 CSS px with 200% text; later native
+and installer steps are skipped. The uploaded artifacts omit that report and
+its PNGs, so the exact hosted geometry is unavailable.
+
+The unchanged nine-case fixture reproduces the same labelled failure locally
+on Chrome 155.0.8059.79: dialog clientHeight 942 versus scrollHeight 1034. The
+closed PDF-export fallback adds a legitimate section, and the footer is clipped.
+Horizontal bounds, actual Pretext fits and all functional checks pass. Red
+qualification `artifacts/hosted-02ada71-triage/qualification.json` has SHA-256
+`8905f28ccce4136fe2e008ee84866ca940cbfdbce9f97d547af865eeabd83e5a`.
+
+Five narrowly scoped Connections rules now derive spacing from both dimensions
+inside the existing 380 px breakpoint. Fonts, controls, disclosures, full-value
+routes and overflow policy are unchanged. On the exact public source plus only
+this CSS hunk, the original runner
+`056365f65e7645ef8c3ffc472d483dbefd32e65a1d28bb9ac32b1f41a30e39e3`
+passes every original functional assertion and all nine geometry observations.
+The failing case now has clientHeight 903 equal to scrollHeight 903; regrowth
+retains its exact original 372 px geometry. Public CSS SHA-256 is
+`625356e6756e2786ff8f1d88958a66efafd6ce328b024ec1c3d53ad25f1f3875`.
+Green qualification `artifacts/connections-finite-fix/qualification.json` has
+SHA-256 `9a1830b99409e299af5743249e5ee7535c4413cb8fcd436944c97789988aff01`;
+report SHA-256 is
+`bc029b53b54edffb595a49c727eac8fc7e74c1782745941689a423c4b4d0ea0b`.
+All guarded sources/dependencies remain exact and all 12 observed owned PIDs
+exit. CI additionally retains only this fixture's report/PNGs, excluding its
+cache. Hosted Chrome 151, native controls, the newer unpublished integration
+and complete installer acceptance remain separate gates.
+
 ## Immutable integrity and unsigned Linux package checkpoint — 2026-10-15
 
 The Rust/Tauri v2/HTML/CSS/Typst candidate at
