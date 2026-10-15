@@ -1,7 +1,7 @@
 import './manuscript.css';
 import { basicSetup } from 'codemirror';
-import { EditorView, Decoration } from '@codemirror/view';
-import { EditorState, StateEffect, StateField, Compartment } from '@codemirror/state';
+import { EditorView, Decoration, highlightSpecialChars } from '@codemirror/view';
+import { EditorState, StateEffect, StateField, Compartment, Transaction } from '@codemirror/state';
 import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
 import { ReviewSession } from '../modules/frontend/review-session.js';
@@ -12,6 +12,8 @@ import { setupConnectionManager } from './connection-manager.js';
 import { LatestCompileScheduler } from '../modules/frontend/latest-compile-scheduler.js';
 import { manuscriptTree, clampPaneWidth } from '../modules/frontend/manuscript-workspace.js';
 import { ManuscriptPdfViewer } from '../modules/frontend/manuscript-pdf-viewer.js';
+import { positionReviewCards, acceptedTextChange } from '../modules/frontend/review-position.js';
+import { sourceFormat } from '../modules/frontend/source-format.js';
 import { undo, redo, selectAll } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
 import * as pdfjs from 'pdfjs-dist';
@@ -23,12 +25,14 @@ const sessions = new Map();
 let projects = [];
 let active = null;
 let view = null;
-let saveTimer = null;
+const saveTimers = new Map();
 let previewTimer = null;
 let selection = null;
 let refreshing = false;
 let sharingSession = null;
 let palette = [];
+let paletteSession = null;
+let githubProject = null;
 const syncTimers = new Map();
 const pausedSync = new Set();
 let compiling = false;
@@ -36,9 +40,22 @@ const explicitCompiles = [];
 let pdfLoadingTask = null;
 let pdfBytes = null;
 let pdfGeneration = 0;
+let navigationIntent = 0;
+let fileInventoryGeneration = 0;
 let windowClosing = false;
 let windowFocus = null;
 let reviewCursor = -1;
+let selectedReviewId = null;
+let reanchorSelection = null;
+let reviewLayoutFrame = 0;
+let alignReviewSource = false;
+let revealReviewId = null;
+let restoreReviewScroll = null;
+let renderedReviewSession = null;
+const reviewActivity = new WeakMap();
+const reviewCardsObserved = new Set();
+const reviewGeometry = new ResizeObserver(() => scheduleReviewPositions());
+reviewGeometry.observe($('review-list'));
 let showingLogs = false;
 const expandedFolders = new Set();
 try {
@@ -46,11 +63,13 @@ try {
   if (Array.isArray(folders)) for (const folder of folders.slice(-500)) if (typeof folder === 'string') expandedFolders.add(folder);
 } catch { /* Storage availability does not affect editing. */ }
 const workspace = document.querySelector('.review-workspace');
+const workspaceMenus = [...document.querySelectorAll('#workspace-menu,.editor-menu')];
 const pdfViewer = new ManuscriptPdfViewer({
   scroller: $('typst-preview'), pages: $('typst-pages'), onError: error => status(error.message, true),
   onChange: ({ page, total, scale, fit }) => {
     $('pdf-page-number').value = String(page); $('pdf-page-number').max = String(total);
-    $('pdf-page-count').textContent = `of ${total}`; $('pdf-zoom-label').textContent = `${Math.round(scale * 100)}%${fit ? ' · fit' : ''}`;
+    $('pdf-page-count').textContent = `of ${total}`; $('pdf-zoom-label').textContent = `${Math.round(scale * 100)}%`;
+    $('pdf-fit-width').setAttribute('aria-pressed', String(fit));
     $('pdf-previous').disabled = page <= 1; $('pdf-next').disabled = page >= total;
   },
 });
@@ -74,9 +93,13 @@ function element(tag, text, className = '') {
   const node = document.createElement(tag); node.textContent = text; node.className = className; return node;
 }
 function status(message, error = false) { $('review-status').textContent = message; $('review-status').classList.toggle('error', error); }
+function pdfStatus(message, state = 'stale') {
+  const node = $('typst-preview-status'); node.textContent = message; node.dataset.state = state;
+  node.classList.toggle('sr-only', state === 'current');
+}
 function windowEditorAccess() { return [EditorState.readOnly.of(windowClosing), EditorView.editable.of(!windowClosing)]; }
 function setWindowClosing(busy) {
-  if (busy && view?.composing) throw new Error('Finish the current text composition before closing the window.');
+  if (busy && view?.compositionStarted) throw new Error('Finish the current text composition before closing the window.');
   if (busy) windowFocus = document.activeElement;
   windowClosing = busy;
   for (const region of document.querySelectorAll('.review-topbar,.review-workspace,.mobile-views,dialog')) region.inert = busy;
@@ -85,6 +108,18 @@ function setWindowClosing(busy) {
 }
 function task(callback) { return async event => { try { await callback(event); } catch (error) { status(error.message || String(error), true); } }; }
 function closeDialogs() { for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close(); }
+function closeWorkspaceMenus(restoreFocus = false) {
+  for (const menu of workspaceMenus) if (menu.open) { menu.open = false; if (restoreFocus) menu.querySelector('summary').focus(); }
+}
+function formatSource(command) {
+  if (!view || !active) return;
+  if (view.compositionStarted) throw { message: 'Finish the current text composition before formatting the source.' };
+  if (view.state.selection.ranges.length !== 1) throw { message: 'Use a single selection for this source formatting command.' };
+  const extension = active.path.split('.').pop().toLowerCase();
+  const selection = view.state.selection.main;
+  const spec = sourceFormat(view.state.doc.toString(), { from: selection.from, to: selection.to }, command, extension);
+  showPane('editor'); view.dispatch({ ...spec, userEvent: 'input.format' }); view.focus();
+}
 function mobileView(name) {
   document.querySelector('.review-workspace').dataset.mobileView = name;
   for (const button of document.querySelectorAll('[data-view]')) button.setAttribute('aria-pressed', String(button.dataset.view === name));
@@ -94,6 +129,84 @@ function reviewPanel(open) {
   $('review-toggle').setAttribute('aria-pressed', String(open));
   if (open && innerWidth <= 900) mobileView('review');
   else if (!open && workspace.dataset.mobileView === 'review') mobileView('editor');
+  scheduleReviewPositions();
+}
+function reviewCue() {
+  const pending = active?.snapshot.review.suggestions.filter(item => item.status === 'pending') || [];
+  let activity = active && reviewActivity.get(active);
+  if (active && !activity) { activity = { known: new Set(pending.map(item => item.id)), unseen: new Set() }; reviewActivity.set(active, activity); }
+  if (activity) {
+    for (const item of pending) if (!activity.known.has(item.id)) activity.unseen.add(item.id);
+    const ids = new Set(pending.map(item => item.id));
+    for (const id of activity.unseen) if (!ids.has(id)) activity.unseen.delete(id);
+    activity.known = ids;
+  }
+  const unseen = activity?.unseen.size || 0;
+  $('review-pending-count').textContent = String(pending.length);
+  for (const id of ['review-toggle-count', 'review-mobile-count']) {
+    $(id).hidden = !pending.length; $(id).textContent = String(pending.length); $(id).classList.toggle('has-new', unseen > 0);
+  }
+  $('review-new-cue').hidden = !unseen;
+  $('review-new-cue').textContent = `${unseen} new suggestion${unseen === 1 ? '' : 's'} · show`;
+  const announcement = pending.length ? `${pending.length} pending suggestion${pending.length === 1 ? '' : 's'}${unseen ? `; ${unseen} new` : ''}. Open Review to inspect them.` : '';
+  if ($('review-announcement').textContent !== announcement) $('review-announcement').textContent = announcement;
+}
+function acknowledgeReview(id) { reviewActivity.get(active)?.unseen.delete(id); reviewCue(); }
+function markSelectedReview(id) {
+  selectedReviewId = id;
+  if (active) active.reviewSelectedId = id;
+  for (const card of $('review-list').querySelectorAll('[data-review-id]')) card.dataset.selected = String(card.dataset.reviewId === id);
+}
+function scheduleReviewPositions(alignSource = false) {
+  alignReviewSource ||= alignSource;
+  if (reviewLayoutFrame) return;
+  reviewLayoutFrame = requestAnimationFrame(() => {
+    reviewLayoutFrame = 0;
+    const passages = $('review-passages'); const list = $('review-list');
+    if (!passages || !list.clientWidth || !list.clientHeight) return;
+    const sourceVisible = view && innerWidth > 900 && view.scrollDOM.getClientRects().length;
+    const origin = sourceVisible ? view.documentTop + view.scrollDOM.scrollTop - list.getBoundingClientRect().top - passages.offsetTop : 0;
+    const cards = [...passages.children];
+    const scrollSpace = $('review-scroll-space');
+    const listStyle = getComputedStyle(list);
+    const trailingHeight = [...list.children].filter(node => node !== passages && node !== scrollSpace).reduce((height, node) => {
+      const style = getComputedStyle(node);
+      return height + node.offsetHeight + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+    }, parseFloat(listStyle.paddingBottom) || 0);
+    const positions = positionReviewCards(cards.map(card => {
+      const from = Number(card.dataset.sourcePosition);
+      const desiredTop = sourceVisible && card.dataset.stale !== 'true' && from <= view.state.doc.length ? view.lineBlockAt(from).top + origin : 0;
+      return { id: card.dataset.reviewId, from, desiredTop, height: card.offsetHeight, card };
+    }), selectedReviewId);
+    const selected = positions.find(item => item.id === selectedReviewId);
+    let targetScroll = restoreReviewScroll ?? list.scrollTop;
+    if (alignReviewSource && sourceVisible && selected && selected.card.dataset.stale !== 'true') {
+      const source = view.coordsAtPos(selected.from);
+      if (source) {
+        const target = Math.max(0, Math.min(list.clientHeight - Math.min(list.clientHeight, selected.height), source.top - list.getBoundingClientRect().top));
+        targetScroll = passages.offsetTop + selected.top - target;
+      }
+    } else if (revealReviewId) {
+      const revealed = positions.find(item => item.id === revealReviewId);
+      if (revealed) targetScroll = passages.offsetTop + revealed.top;
+    }
+    let bottom = -8;
+    for (const item of positions) { item.card.style.marginTop = `${Math.max(0, item.top - bottom - 8)}px`; bottom = item.top + item.height; }
+    if (scrollSpace) scrollSpace.style.height = `${Math.max(0, targetScroll + list.clientHeight - passages.offsetTop - Math.max(0, bottom) - trailingHeight)}px`;
+    list.scrollTop = Math.max(0, targetScroll);
+    restoreReviewScroll = null; revealReviewId = null; alignReviewSource = false;
+  });
+}
+function locateReview(id, anchor) { markSelectedReview(id); acknowledgeReview(id); selectAnchor(anchor); scheduleReviewPositions(true); }
+function beginReanchor(marker) {
+  if (!active || !view) return;
+  if (view.compositionStarted) throw { message: 'Finish the current text composition before reanchoring a highlight.' };
+  const range = view.state.selection.main;
+  if (range.empty) throw { message: 'Select the current passage in the source editor, then choose Reanchor from selection.' };
+  reanchorSelection = { session: active, version: active.version, id: marker.id, from: range.from, to: range.to, quote: view.state.sliceDoc(range.from, range.to) };
+  $('reanchor-old').textContent = marker.anchor.quote; $('reanchor-new').textContent = reanchorSelection.quote;
+  $('reanchor-rule').textContent = `Keep the existing “${active.snapshot.review.rules.find(rule => rule.id === marker.rule)?.label || 'Highlight'}” rule and passage prompt.`;
+  $('reanchor-dialog').showModal();
 }
 function showPane(name) {
   workspace.dataset[`${name === 'files' ? 'files' : name}Collapsed`] = 'false';
@@ -110,10 +223,9 @@ function renderOutline() {
   if (!entries.length) outline.append(element('p', 'This source has no headings.', 'file-help'));
 }
 function treeMode(outline) {
-  showPane('files'); $('manuscript-files').hidden = outline; $('manuscript-outline').hidden = !outline;
-  $('files-heading').textContent = outline ? 'Outline' : 'Files';
+  showPane('files');
+  if (outline) { $('outline-panel').dataset.collapsed = 'false'; $('outline-toggle').setAttribute('aria-expanded','true'); $('manuscript-outline').hidden = false; renderOutline(); $('outline-toggle').focus(); }
   $('rail-files').setAttribute('aria-pressed', String(!outline)); $('rail-outline').setAttribute('aria-pressed', String(outline));
-  if (outline) renderOutline();
 }
 function reviewAnchors() {
   if (!active) return [];
@@ -123,11 +235,43 @@ function navigateReview(delta) {
   const entries = reviewAnchors(); if (!entries.length) return;
   reviewCursor = reviewCursor < 0 ? (delta < 0 ? entries.length - 1 : 0) : (reviewCursor + delta + entries.length) % entries.length;
   const item = entries[reviewCursor]; reviewPanel(true); selectAnchor(item.anchor);
+  markSelectedReview(item.id); acknowledgeReview(item.id); scheduleReviewPositions(true);
   const card = [...$('review-list').querySelectorAll('[data-review-id]')].find(node => node.dataset.reviewId === item.id);
   for (const node of $('review-list').querySelectorAll('[data-review-id]')) node.dataset.selected = String(node === card);
   card?.scrollIntoView({ block: 'nearest' });
 }
 function keyFor(project, path) { return `${project}:${path}`; }
+function navigationCurrent(intent, project) { return intent === navigationIntent && project === $('project-select').value; }
+function sessionNavigationCurrent(intent, session) {
+  return navigationCurrent(intent, session.project) && sessions.get(keyFor(session.project, session.path)) === session;
+}
+function requireNavigationReady() {
+  if (!view?.compositionStarted) return;
+  if (active) $('project-select').value = active.project;
+  throw {message:'Finish the current text composition before switching or closing manuscripts.'};
+}
+function detachEditor(preserve = true) {
+  requireNavigationReady();
+  const editor = view; const session = active; const cleanup = pdfLoadingTask;
+  view = null; active = null; pdfLoadingTask = null; pdfBytes = null; pdfGeneration += 1;
+  if (preserve && editor && session) {
+    session.editorState = editor.state; session.editorScroll = { top: editor.scrollDOM.scrollTop, left: editor.scrollDOM.scrollLeft }; session.reviewScroll = $('review-list').scrollTop;
+  }
+  clearTimeout(previewTimer); editor?.destroy(); pdfViewer.clear(); $('manuscript-source').replaceChildren();
+  return cleanup;
+}
+async function selectProject(intent, project) {
+  const previous = active;
+  try { if (previous?.dirty) await saveSession(previous); }
+  catch (error) {
+    if (active === previous && navigationCurrent(intent, project)) $('project-select').value = previous.project;
+    throw error;
+  }
+  if (!navigationCurrent(intent, project)) return;
+  const cleanup = detachEditor(); compileScheduler.cancel(); renderTabs(); renderReview();
+  await cleanup?.destroy();
+  if (navigationCurrent(intent, project)) await loadFiles(intent);
+}
 function currentProject() { return projects.find(p => p.id === $('project-select').value); }
 function queueSync(project) {
   if (!projects.find(p => p.id === project)?.autoSync || pausedSync.has(project)) return;
@@ -138,6 +282,7 @@ function queueSync(project) {
   }, 4000));
 }
 async function saveSession(session) {
+  clearTimeout(saveTimers.get(session)); saveTimers.delete(session);
   let snapshot;
   try { snapshot = await session.flush(); }
   catch (error) { if(active === session) renderReview(); throw error; }
@@ -174,6 +319,10 @@ function preview() {
   parsed.head.append(style);
   $('manuscript-preview').srcdoc = '<!doctype html>\n' + parsed.documentElement.outerHTML;
 }
+function publicationCurrent(result, session) {
+  return result.current === true && !session.dirty && !session.conflict
+    && result.revision === session.snapshot.review.revision;
+}
 async function showPdf(result, session) {
   if (session !== active || !result.available) return;
   const generation = ++pdfGeneration;
@@ -184,10 +333,11 @@ async function showPdf(result, session) {
   await pdfLoadingTask?.destroy();
   if (generation !== pdfGeneration || session !== active) { await loadingTask.destroy(); return; }
   pdfViewer.clear(); pdfLoadingTask = loadingTask; pdfBytes = bytes;
-  $('pdf-toolbar').hidden = false;
+  $('pdf-toolbar').hidden = showingLogs;
   await pdfViewer.setDocument(pdf);
   if (generation !== pdfGeneration || session !== active || pdfLoadingTask !== loadingTask) return;
-  $('typst-preview-status').textContent = `${result.current && !session.dirty ? 'Current PDF' : 'Last good PDF · source changed'} · ${pdf.numPages} page${pdf.numPages===1?'':'s'}`;
+  const current = publicationCurrent(result, session);
+  pdfStatus(`${current ? 'Current PDF' : 'Last good PDF · source changed'} · ${pdf.numPages} page${pdf.numPages===1?'':'s'}`, current ? 'current' : 'stale');
   $('export-pdf').hidden = false;
 }
 async function compileSession(session, explicit = false) {
@@ -205,9 +355,10 @@ async function compileSession(session, explicit = false) {
     const snapshot = await saveSession(session);
     const result = await request({action:'compile',project:session.project,path:session.path,revision:snapshot.review.revision});
     await showPdf(result,session);
-    $('compile-log').textContent = `Compiled ${session.path} successfully.\n${result.current && !session.dirty ? 'PDF matches the saved source.' : 'Newer source changes remain in the editor.'}`;
-    status(result.current && !session.dirty ? 'Typst PDF compiled locally.' : 'Compiled preview retained; newer source still needs compilation.');
+    $('compile-log').textContent = `Compiled ${session.path} successfully.\n${publicationCurrent(result, session) ? 'PDF matches the saved source.' : 'Newer source changes remain in the editor.'}`;
+    status(publicationCurrent(result, session) ? 'Typst PDF compiled locally.' : 'Compiled preview retained; newer source still needs compilation.');
   } catch (error) {
+    if (session === active) pdfStatus(`Compilation failed${pdfBytes ? ' · last good PDF retained' : ''}. Open the compilation log for details.`, 'error');
     $('compile-log').textContent = error.message || String(error); status(error.message, true); throw error;
   } finally {
     compiling=false; $('typst-compile').textContent = 'Recompile';
@@ -224,13 +375,18 @@ function renderTabs() {
     button.dataset.measure = ''; button.onclick = task(() => openSession(session));
     const tab = element('div','','manuscript-tab');
     const close = actionButton('×',async () => {
+      const intent = active === session ? ++navigationIntent : navigationIntent;
       await saveSession(session);
+      if (session.dirty || session.conflict) throw { message: 'The manuscript changed while saving. Save it before closing this tab.' };
+      if (sessions.get(keyFor(session.project,session.path)) !== session) return;
+      if (active === session) requireNavigationReady();
       sessions.delete(keyFor(session.project,session.path));
       if (active === session) {
-        view?.destroy();view=null;active=null;compileScheduler.cancel();
-        $('manuscript-source').replaceChildren();pdfGeneration+=1;pdfViewer.clear();await pdfLoadingTask?.destroy();pdfLoadingTask=null;pdfBytes=null;
+        const cleanup = detachEditor(false); compileScheduler.cancel(); renderTabs(); renderReview();
+        await cleanup?.destroy();
+        if (!navigationCurrent(intent, session.project)) return;
         const next=[...sessions.values()].find(s=>s.project===session.project);
-        if (next) await openSession(next);
+        if (next) await openSession(next, intent);
       }
       renderTabs();renderReview();
     });
@@ -252,93 +408,153 @@ function actionButton(text, callback, className = '') {
   const button = element('button', text, className); button.dataset.measure = ''; button.onclick = task(callback); return button;
 }
 function renderReview() {
-  const list = $('review-list'); list.replaceChildren();
+  const list = $('review-list');
+  restoreReviewScroll = renderedReviewSession === active ? list.scrollTop : active?.reviewScroll || 0;
+  const historyOpen = list.querySelector('details')?.open || false;
+  const focused = list.contains(document.activeElement) ? { id: document.activeElement.closest('[data-review-id]')?.dataset.reviewId, label: document.activeElement.textContent } : null;
+  for (const card of reviewCardsObserved) reviewGeometry.unobserve(card);
+  reviewCardsObserved.clear(); list.replaceChildren(); renderedReviewSession = active;
+  reviewCue();
   $('manuscript-share').disabled = !active || !/\.(html?|typ)$/i.test(active.path);
   if (sharingSession !== active) $('manuscript-share').checked = Boolean(active?.snapshot.shared);
   $('review-conflict').hidden = !active?.conflict;
   for (const id of ['manuscript-save','highlight-selection','palette-open','export-manuscript','highlight-rule']) $(id).disabled = !active;
+  for (const button of document.querySelectorAll('[data-command]')) {
+    const command = button.dataset.command;
+    if (['save','download','undo','redo','find','select-all','highlight','palette','bold','italic','heading','bullet-list','numbered-list'].includes(command)) button.disabled = !active || (['bold','italic','heading','bullet-list','numbered-list'].includes(command) && !/\.(typ|html?)$/i.test(active.path));
+    if (command === 'import') button.hidden = !active?.path.endsWith('.tex');
+  }
   const noReviewPassages = !reviewAnchors().length;
   $('review-previous').disabled = noReviewPassages; $('review-next').disabled = noReviewPassages;
   if (!active) { $('typst-compile').hidden = true; $('pdf-toolbar').hidden = true; $('export-pdf').hidden = true; list.append(element('p', 'Select text in the editor to add a highlight or reviewer instruction.', 'review-empty')); return; }
   const review = active.snapshot.review;
+  const passages = element('div', '', 'review-passages'); passages.id = 'review-passages';
+  list.append(passages);
   for (const id of ['highlight-rule', 'highlight-dialog-rule']) {
     const select = $(id); const previous = select.value; select.replaceChildren();
     for (const rule of review.rules) { const option = element('option', rule.label); option.value = rule.id; select.append(option); }
     if (review.rules.some(r => r.id === previous)) select.value = previous;
   }
-  if (review.markers.length) list.append(element('h3', 'Your highlights', 'review-group-heading'));
   for (const marker of review.markers) {
     const rule = review.rules.find(r => r.id === marker.rule);
     const card = element('article', '', 'review-card'); card.style.setProperty('--review-color', rule?.color || '#666666');
     card.dataset.reviewId = marker.id; card.dataset.sourcePosition = String(marker.anchor.from);
+    card.dataset.stale = String(marker.anchor.stale);
     const heading = element('h3', rule?.label || 'Highlight'); heading.dataset.measure = ''; card.append(heading);
     card.append(element('blockquote', marker.anchor.quote));
     if (rule?.prompt || marker.prompt) card.append(element('p', [rule?.prompt, marker.prompt].filter(Boolean).join(' '), 'rationale'));
-    if (marker.anchor.stale) card.append(element('p', 'Stale highlight. Remove it and select the current passage again. Stale protection blocks agent suggestions.', 'stale-note'));
+    if (marker.anchor.stale) card.append(element('p', 'Stale highlight. Select the current passage and reanchor this highlight, or remove it. Stale protection blocks agent suggestions.', 'stale-note'));
     const actions = element('div', '', 'card-actions');
-    const locate = actionButton('Locate', () => selectAnchor(marker.anchor)); locate.disabled = marker.anchor.stale;
+    const locate = actionButton('Locate', () => locateReview(marker.id, marker.anchor)); locate.disabled = marker.anchor.stale;
     actions.append(locate, actionButton('Remove highlight', async () => { const session = active; await session.mutate('unmark', { id: marker.id }); if (active === session) { renderReview(); decorations(); } queueSync(session.project); }));
-    card.append(actions); list.append(card);
+    if (marker.anchor.stale) actions.prepend(actionButton('Reanchor from selection', () => beginReanchor(marker)));
+    card.append(actions); passages.append(card);
   }
   const pending = review.suggestions.filter(s => s.status === 'pending');
-  list.append(element('h3', `Suggestions (${pending.length})`, 'review-group-heading'));
   if (!pending.length) list.append(element('p', 'Agent suggestions will appear here after you share this manuscript and connect ChatGPT. Your text changes only when you accept.', 'review-empty'));
   for (const suggestion of pending) {
     const card = element('article', '', 'review-card suggestion-card'); card.style.setProperty('--review-color', suggestion.color);
     card.dataset.reviewId = suggestion.id; card.dataset.sourcePosition = String(suggestion.anchor.from);
+    card.dataset.stale = String(suggestion.anchor.stale);
     const heading = element('h3', 'Proposed wording'); heading.dataset.measure = ''; card.append(heading);
     card.append(element('blockquote', suggestion.anchor.quote), element('p', suggestion.replacement, 'replacement'), element('p', suggestion.rationale, 'rationale'));
     if (suggestion.prompt) card.append(element('p', suggestion.prompt, 'rationale'));
     if (suggestion.anchor.stale) card.append(element('p', 'The original passage changed. Ask for a new suggestion.', 'stale-note'));
     const actions = element('div', '', 'card-actions');
     const decide = async decision => {
+      if (decision === 'accepted' && view?.compositionStarted) throw { message: 'Finish the current text composition before accepting a suggestion.' };
       const session = active;
       await session.mutate('decide', { id: suggestion.id, decision });
       if (active === session) {
-        if (!session.conflict && view.state.doc.toString() !== session.content) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: session.content }, annotations: authoritative.of(true) });
+        if (decision === 'accepted' && view.compositionStarted && view.state.doc.toString() !== session.content) {
+          session.edit(view.state.doc.toString()); session.conflict = session.snapshot;
+          status('The suggestion was accepted on disk while text composition began. Your editor buffer is kept; finish composing, then resolve the external change.', true);
+        }
+        acknowledgeReview(suggestion.id);
+        if (!session.conflict && view.state.doc.toString() !== session.content) {
+          const previous = view.state.doc.toString(); const next = session.content;
+          // Replace only the accepted passage so CodeMirror can map the caret and preserve useful undo.
+          view.dispatch({ changes: acceptedTextChange(previous, next), annotations: [authoritative.of(true), Transaction.userEvent.of('input.review')] });
+        }
         renderReview(); decorations(); preview(); renderTabs();
+        if (decision === 'accepted' && session.path.endsWith('.typ')) {
+          pdfStatus('Source changed · last good PDF retained');
+          compileScheduler.request(keyFor(session.project, session.path));
+        }
       }
       queueSync(session.project);
     };
     const accept = actionButton('Accept', () => decide('accepted'), 'accept-suggestion'); accept.disabled = suggestion.anchor.stale || Boolean(active.conflict);
-    const locate = actionButton('Locate', () => selectAnchor(suggestion.anchor)); locate.disabled = suggestion.anchor.stale;
-    actions.append(accept, actionButton('Reject', () => decide('rejected'), 'reject-suggestion'), locate); card.append(actions); list.append(card);
+    const locate = actionButton('Locate', () => locateReview(suggestion.id, suggestion.anchor)); locate.disabled = suggestion.anchor.stale;
+    actions.append(accept, actionButton('Reject', () => decide('rejected'), 'reject-suggestion'), locate); card.append(actions); passages.append(card);
   }
+  const orderedCards = [...passages.children].sort((a, b) => Number(a.dataset.sourcePosition) - Number(b.dataset.sourcePosition));
+  passages.replaceChildren(...orderedCards);
+  for (const card of orderedCards) { card.dataset.selected = String(card.dataset.reviewId === selectedReviewId); reviewGeometry.observe(card); reviewCardsObserved.add(card); }
   const decided = review.suggestions.filter(s => s.status !== 'pending');
   if (decided.length) {
     const details = element('details'); details.append(element('summary', `Reviewed (${decided.length})`));
+    details.open = historyOpen;
     for (const s of decided) details.append(element('p', `${s.status === 'accepted' ? 'Accepted' : 'Rejected'}: ${s.replacement}`, 'rationale'));
     list.append(details);
   }
+  const scrollSpace = element('div', '', 'review-scroll-space'); scrollSpace.id = 'review-scroll-space'; scrollSpace.setAttribute('aria-hidden', 'true'); list.append(scrollSpace);
+  if (focused?.id) {
+    const card = orderedCards.find(card => card.dataset.reviewId === focused.id);
+    [...card?.querySelectorAll('button') || []].find(button => button.textContent === focused.label)?.focus({ preventScroll: true });
+  }
+  scheduleReviewPositions();
 }
 import { Annotation } from '@codemirror/state';
 const authoritative = Annotation.define();
-async function openSession(session) {
+async function openSession(session, intent = ++navigationIntent) {
+  if (!sessionNavigationCurrent(intent, session)) return;
   if (active === session && view) return;
-  if (active?.dirty) await saveSession(active);
-  if (active && view) { active.editorState = view.state; active.editorScroll = { top: view.scrollDOM.scrollTop, left: view.scrollDOM.scrollLeft }; }
-  clearTimeout(saveTimer); view?.destroy(); active = session;
-  pdfGeneration += 1; pdfBytes = null; pdfViewer.clear(); await pdfLoadingTask?.destroy(); pdfLoadingTask = null;
-  $('manuscript-source').replaceChildren();
-  const extensions = [basicSetup, EditorView.lineWrapping, reviewField, windowEditing.of(windowEditorAccess()), EditorView.updateListener.of(update => {
+  const previous = active;
+  if (previous?.dirty) await saveSession(previous);
+  if (!sessionNavigationCurrent(intent, session)) return;
+  const cleanup = detachEditor(); renderTabs(); renderReview();
+  await cleanup?.destroy();
+  if (!sessionNavigationCurrent(intent, session)) return;
+  active = session;
+  selectedReviewId = session.reviewSelectedId || null;
+  // Literal carriage returns stay in the document so review UTF-16 positions match the saved source.
+  const extensions = [EditorState.lineSeparator.of('\n'), highlightSpecialChars({ render: code => {
+    if (code !== 13) return null;
+    const carriage = element('span', '', 'cm-preserved-cr'); carriage.setAttribute('aria-hidden', 'true'); return carriage;
+  } }), basicSetup, EditorView.lineWrapping, reviewField, windowEditing.of(windowEditorAccess()), EditorView.updateListener.of(update => {
+    if (update.selectionSet && !session.dirty && !update.docChanged && !update.view.compositionStarted && active === session) {
+      const range = update.state.selection.main;
+      const candidates = reviewAnchors().filter(item => range.from < item.anchor.to && range.to >= item.anchor.from);
+      const item = candidates.find(item => item.id === selectedReviewId) || candidates[0];
+      if (item) { markSelectedReview(item.id); scheduleReviewPositions(true); }
+    }
     if (!update.docChanged || update.transactions.some(t => t.annotation(authoritative))) return;
     session.edit(update.state.doc.toString());
     if (active === session) { $('save-label').textContent = 'Unsaved changes'; renderTabs(); }
-    clearTimeout(saveTimer); saveTimer = setTimeout(() => task(() => saveSession(session))(), 450);
+    clearTimeout(saveTimers.get(session));
+    saveTimers.set(session, setTimeout(() => { saveTimers.delete(session); void task(() => saveSession(session))(); }, 450));
     clearTimeout(previewTimer); previewTimer = setTimeout(() => { preview(); renderOutline(); }, 250);
-    if (session.path.endsWith('.typ')) { $('typst-preview-status').textContent='Source changed · last good PDF retained'; compileScheduler.request(keyFor(session.project,session.path)); }
+    if (session.path.endsWith('.typ')) { pdfStatus('Source changed · last good PDF retained'); compileScheduler.request(keyFor(session.project,session.path)); }
   })];
   if (/\.html?$/i.test(session.path)) extensions.push(html());
   else if (/\.css$/i.test(session.path)) extensions.push(css());
   let editorState = session.editorState;
   if (editorState && editorState.doc.toString() !== session.content) editorState = editorState.update({changes:{from:0,to:editorState.doc.length,insert:session.content},annotations:authoritative.of(true)}).state;
   view = new EditorView({ state: editorState || EditorState.create({ doc: session.content, extensions }), parent: $('manuscript-source') });
+  view.scrollDOM.addEventListener('scroll', () => scheduleReviewPositions(true), { passive: true });
   if (session.editorScroll) requestAnimationFrame(() => { if (active === session && view) { view.scrollDOM.scrollTop = session.editorScroll.top; view.scrollDOM.scrollLeft = session.editorScroll.left; } });
   renderTabs(); renderReview(); decorations(); preview(); renderOutline(); showPane('editor');
   const typst = session.path.endsWith('.typ');
   $('typst-compile').hidden = !typst; $('tex-import').hidden = !session.path.endsWith('.tex');
   $('manuscript-preview').hidden = typst || showingLogs; $('typst-preview').hidden = !typst || showingLogs; $('export-pdf').hidden = true; $('pdf-toolbar').hidden = true; $('typst-preview-status').hidden = !typst;
-  if (typst) { $('typst-pages').replaceChildren(); $('typst-preview-status').textContent='Compile this Typst manuscript to see its PDF.'; const result=await request({action:'pdf',project:session.project,path:session.path}); await showPdf(result,session); }
+  if (typst) {
+    $('typst-pages').replaceChildren(); pdfStatus('Compile this Typst manuscript to see its PDF.', 'empty');
+    const result=await request({action:'pdf',project:session.project,path:session.path});
+    if (!navigationCurrent(intent, session.project)) return;
+    await showPdf(result,session);
+    if (!navigationCurrent(intent, session.project)) return;
+  }
   $('save-label').textContent = session.dirty ? 'Unsaved changes' : 'Saved locally';
   for (const button of document.querySelectorAll('.file-button')) {
     button.setAttribute('aria-current', String(button.dataset.path === session.path));
@@ -348,19 +564,28 @@ async function openSession(session) {
     }
   }
 }
+function requireSessionCapacity(project, path) {
+  if (!sessions.has(keyFor(project, path)) && sessions.size >= 20) throw {message:'Close a file tab before opening another. UnderTree keeps at most 20 editor buffers.'};
+}
 async function openFile(path) {
+  const intent = ++navigationIntent;
   const project = $('project-select').value;
   let session = sessions.get(keyFor(project, path));
   if (!session) {
-    if (sessions.size >= 20) throw {message:'Close a file tab before opening another. UnderTree keeps at most 20 editor buffers.'};
-    session = new ReviewSession(await request({ action: 'open', project, path }), project, request); sessions.set(keyFor(project, path), session);
+    requireSessionCapacity(project, path);
+    const snapshot = await request({ action: 'open', project, path });
+    if (!navigationCurrent(intent, project)) return;
+    session = new ReviewSession(snapshot, project, request); sessions.set(keyFor(project, path), session);
   }
-  await openSession(session);
+  await openSession(session, intent);
 }
-async function loadFiles() {
-  const project = $('project-select').value; $('manuscript-files').replaceChildren();
+async function loadFiles(intent = navigationIntent) {
+  const project = $('project-select').value;
+  if (!navigationCurrent(intent, project)) return;
+  const generation = ++fileInventoryGeneration; $('manuscript-files').replaceChildren();
   if (!project) return;
   const files = await request({ action: 'files', project });
+  if (generation !== fileInventoryGeneration || project !== $('project-select').value) return;
   function appendTree(nodes, parent) {
     for (const node of nodes) {
       if (node.file) {
@@ -380,14 +605,17 @@ async function loadFiles() {
   appendTree(manuscriptTree(files), $('manuscript-files'));
   if (!files.length) $('manuscript-files').append(element('p', 'No manuscript sources yet. Use + to create one.', 'file-help'));
 }
-async function loadProjects(selected) {
-  projects = await request({ action: 'projects' }); const select = $('project-select'); const previous = selected || select.value;
+async function loadProjects(selected, intent = ++navigationIntent) {
+  const response = await request({ action: 'projects' });
+  if (intent !== navigationIntent) return;
+  projects = response; const select = $('project-select'); const previous = selected || select.value;
   select.replaceChildren(element('option', 'Choose a project'));
   select.firstChild.value = '';
   for (const p of projects) { const option = element('option', p.name); option.value = p.id; select.append(option); }
   if (projects.some(p => p.id === previous)) select.value = previous;
   else if (projects.length === 1) select.value = projects[0].id;
-  await loadFiles();
+  if (active && active.project !== select.value) await selectProject(intent, select.value);
+  else await loadFiles(intent);
 }
 function downloadBuffer() {
   if (!active) return;
@@ -410,24 +638,57 @@ function paletteRows() {
 for (const button of document.querySelectorAll('[data-close]')) button.onclick = () => button.closest('dialog').close();
 for (const button of document.querySelectorAll('[data-view]')) button.onclick = () => mobileView(button.dataset.view);
 $('project-open').onclick = task(async () => {
-  if (nativeReview) { const project = await chooseProject(); if (project) await loadProjects(project.id); }
+  if (nativeReview) { const intent = ++navigationIntent; const project = await chooseProject(); if (project && intent === navigationIntent) await loadProjects(project.id, intent); }
   else $('project-dialog').showModal();
 });
-$('project-form').onsubmit = task(async event => { event.preventDefault(); const project = await request({ action: 'add_project', root: $('project-root').value }); closeDialogs(); await loadProjects(project.id); });
-$('project-select').onchange = task(async () => { if (active?.dirty) await saveSession(active); if(active && view) active.editorState=view.state;active = null; view?.destroy(); view = null;compileScheduler.cancel(); $('manuscript-source').replaceChildren(); renderTabs(); renderReview(); await loadFiles(); });
+$('project-form').onsubmit = task(async event => { event.preventDefault(); const intent = ++navigationIntent; const project = await request({ action: 'add_project', root: $('project-root').value }); if (intent !== navigationIntent) return; closeDialogs(); await loadProjects(project.id, intent); });
+$('project-select').onchange = task(() => selectProject(++navigationIntent, $('project-select').value));
 $('file-new').onclick = task(async () => { if (!currentProject()) throw {message:'Choose a project folder first.'}; $('new-dialog').showModal(); });
-$('new-form').onsubmit = task(async event => { event.preventDefault(); const project = currentProject(); const snapshot = await request({ action: 'create', project: project.id, path: $('new-path').value }); const session = new ReviewSession(snapshot, project.id, request); sessions.set(keyFor(project.id, snapshot.path), session); closeDialogs(); await loadFiles(); await openSession(session); });
-$('manuscript-save').onclick = task(async () => { if (active) await saveSession(active); });
+$('new-form').onsubmit = task(async event => {
+  event.preventDefault(); const intent = ++navigationIntent; const project = currentProject();
+  requireSessionCapacity(project.id, $('new-path').value);
+  const snapshot = await request({ action: 'create', project: project.id, path: $('new-path').value });
+  if (!navigationCurrent(intent, project.id)) return; $('new-dialog').close();
+  const session = new ReviewSession(snapshot, project.id, request); sessions.set(keyFor(project.id, snapshot.path), session);
+  await loadFiles(intent); await openSession(session, intent);
+});
+$('manuscript-save').onclick = task(async () => { closeWorkspaceMenus(); if (active) await saveSession(active); });
 $('highlight-selection').onclick = task(async () => {
+  closeWorkspaceMenus();
   if (!active || !view) return; const selected = view.state.selection.main;
   if (selected.empty) throw {message:'Select a passage in the source editor first.'};
   selection = { session: active, from: selected.from, to: selected.to, quote: view.state.sliceDoc(selected.from, selected.to), version: active.version };
   $('highlight-quote').textContent = selection.quote; $('highlight-dialog-rule').value = $('highlight-rule').value; $('highlight-prompt').value = ''; $('highlight-dialog').showModal();
 });
-$('highlight-form').onsubmit = task(async event => { event.preventDefault(); if (!selection || selection.session !== active || selection.version !== active.version) throw {message:'The selection changed. Select the passage again.'}; await active.mutate('mark', { from: selection.from, to: selection.to, rule: $('highlight-dialog-rule').value, prompt: $('highlight-prompt').value }); closeDialogs(); renderReview(); decorations(); reviewPanel(true); queueSync(active.project); });
-$('palette-open').onclick = task(async () => { if (!active) return; palette = structuredClone(active.snapshot.review.rules); paletteRows(); $('palette-dialog').showModal(); });
+$('highlight-form').onsubmit = task(async event => {
+  event.preventDefault(); const selected = selection;
+  if (!selected || selected.session !== active || selected.version !== active.version) throw {message:'The selection changed. Select the passage again.'};
+  const session = selected.session;
+  await session.mutate('mark', { from: selected.from, to: selected.to, rule: $('highlight-dialog-rule').value, prompt: $('highlight-prompt').value });
+  if (selection === selected) $('highlight-dialog').close();
+  if (active === session) { renderReview(); decorations(); reviewPanel(true); } queueSync(session.project);
+});
+$('reanchor-form').onsubmit = task(async event => {
+  event.preventDefault();
+  const selected = reanchorSelection;
+  if (!selected || selected.session !== active || selected.version !== active.version) throw { message: 'The selected passage changed. Select it again before reanchoring.' };
+  await saveSession(selected.session);
+  if (selected.session !== active || selected.version !== active.version) throw { message: 'The selected passage changed while saving. Select it again before reanchoring.' };
+  await selected.session.mutate('reanchor', { id: selected.id, from: selected.from, to: selected.to, quote: selected.quote });
+  if (reanchorSelection === selected) { reanchorSelection = null; $('reanchor-dialog').close(); }
+  if (active === selected.session) { markSelectedReview(selected.id); renderReview(); decorations(); scheduleReviewPositions(true); }
+  queueSync(selected.session.project);
+  status('Highlight reanchored.');
+});
+$('palette-open').onclick = task(async () => { closeWorkspaceMenus(); if (!active) return; paletteSession = active; palette = structuredClone(active.snapshot.review.rules); paletteRows(); $('palette-dialog').showModal(); });
 $('rule-add').onclick = () => { if (palette.length >= 24) return; palette.push({ id: crypto.randomUUID(), label: 'Custom instruction', color: '#8295d2', action: 'prompt', prompt: '' }); paletteRows(); };
-$('palette-form').onsubmit = task(async event => { event.preventDefault(); if (!active) return; await active.mutate('palette', { rules: palette }); closeDialogs(); renderReview(); decorations(); queueSync(active.project); });
+$('palette-form').onsubmit = task(async event => {
+  event.preventDefault(); const session = paletteSession; if (!session || session !== active) throw {message:'The manuscript changed. Open its color rules again.'};
+  const rules = palette;
+  await session.mutate('palette', { rules });
+  if (paletteSession === session && palette === rules) $('palette-dialog').close();
+  if (active === session) { renderReview(); decorations(); } queueSync(session.project);
+});
 $('manuscript-share').onchange = task(async () => {
   if (!active) return;
   const session = active; const enabled = $('manuscript-share').checked; sharingSession = session;
@@ -436,22 +697,39 @@ $('manuscript-share').onchange = task(async () => {
 });
 $('review-refresh').onclick = task(async () => { if (!active) return; await active.refresh(); renderReview(); decorations(); });
 $('export-buffer').onclick = downloadBuffer;
-$('export-manuscript').onclick = downloadBuffer;
+$('export-manuscript').onclick = () => { closeWorkspaceMenus(); downloadBuffer(); };
 $('typst-compile').onclick = task(() => compileSession(active,true));
 $('tex-import').onclick = task(async () => {
+  closeWorkspaceMenus();
   if (!active?.path.endsWith('.tex')) return;
-  await saveSession(active);
-  const project=active.project; const target=active.path.replace(/\.tex$/,'.typ');
-  const result=await request({action:'import_tex',project,path:active.path,target});
+  const importing = active; const intent = ++navigationIntent;
+  const project=importing.project; const target=importing.path.replace(/\.tex$/,'.typ');
+  requireSessionCapacity(project, target);
+  await saveSession(importing);
+  const result=await request({action:'import_tex',project,path:importing.path,target});
+  if (!navigationCurrent(intent, project)) return;
   const session=new ReviewSession(result.snapshot,project,request);sessions.set(keyFor(project,target),session);
-  await loadFiles();await openSession(session);
+  await loadFiles(intent);await openSession(session, intent);
   status(`Imported to ${target}. ${result.warnings.length} formatting notice(s); see ${target}.import-report.json. The .tex original was kept.`);
 });
 $('export-pdf').onclick = () => {
   if (!pdfBytes || !active) return;
   const url = URL.createObjectURL(new Blob([pdfBytes],{type:'application/pdf'})); const a=element('a'); a.href=url; a.download=active.path.split('/').pop().replace(/\.typ$/,'.pdf'); a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 };
-$('reload-buffer').onclick = task(async () => { if (!active) return; const session = active; const snapshot = await request({action:'open',project:session.project,path:session.path}); const replacement = new ReviewSession(snapshot,session.project,request); sessions.set(keyFor(session.project,session.path),replacement); active = null; await openSession(replacement); });
+$('reload-buffer').onclick = task(async () => {
+  if (!active) return;
+  requireNavigationReady();
+  const session = active; const intent = ++navigationIntent; const version = session.version;
+  const snapshot = await request({action:'open',project:session.project,path:session.path});
+  if (!navigationCurrent(intent, session.project) || active !== session) return;
+  requireNavigationReady();
+  if (session.version !== version) throw { message: 'Your buffer changed while the disk version was loading. Your edits are kept; choose Load disk version again to discard them.' };
+  clearTimeout(saveTimers.get(session)); saveTimers.delete(session);
+  const cleanup = detachEditor(false); renderReview(); await cleanup?.destroy();
+  if (!navigationCurrent(intent, session.project)) return;
+  const replacement = new ReviewSession(snapshot,session.project,request); sessions.set(keyFor(session.project,session.path),replacement);
+  await openSession(replacement, intent);
+});
 const connections = setupConnectionManager({
   request, status,
   onRevoked: share => {
@@ -463,19 +741,29 @@ const connections = setupConnectionManager({
     if (!sharingSession) $('manuscript-share').checked = Boolean(active?.snapshot.shared);
   },
 });
-$('git-open').onclick = task(async () => { const project = currentProject(); if (!project) throw {message:'Choose a project first.'}; $('github-repository').value = project.repository; $('github-auto').checked = project.autoSync; try { const result = await request({action:'git_status',project:project.id}); $('github-status').textContent = `Branch: ${result.branch}\n${result.status || 'Working tree clean'}`; } catch { $('github-status').textContent = 'Connect this local folder to an existing GitHub repository.'; } $('git-dialog').showModal(); });
-$('git-form').onsubmit = task(async event => { event.preventDefault(); const project = currentProject(); await request({action:'bind_github',project:project.id,repository:$('github-repository').value,auto_sync:$('github-auto').checked}); pausedSync.delete(project.id); await loadProjects(project.id); status('GitHub repository connected.'); });
-$('github-sync-now').onclick = task(async () => { if (active) await saveSession(active); const project = currentProject(); const result = await request({action:'sync',project:project.id}); pausedSync.delete(project.id); status(result.message); $('github-status').textContent = result.message; });
+$('git-open').onclick = task(async () => { const project = currentProject(); if (!project) throw {message:'Choose a project first.'}; githubProject = project; $('github-repository').value = project.repository; $('github-auto').checked = project.autoSync; try { const result = await request({action:'git_status',project:project.id}); $('github-status').textContent = `Branch: ${result.branch}\n${result.status || 'Working tree clean'}`; } catch { $('github-status').textContent = 'Connect this local folder to an existing GitHub repository.'; } if (currentProject()?.id === project.id) $('git-dialog').showModal(); });
+$('git-form').onsubmit = task(async event => { event.preventDefault(); const project = githubProject; if (!project) return; const intent = ++navigationIntent; await request({action:'bind_github',project:project.id,repository:$('github-repository').value,auto_sync:$('github-auto').checked}); pausedSync.delete(project.id); await loadProjects(project.id, intent); status('GitHub repository connected.'); });
+$('github-sync-now').onclick = task(async () => { const project = githubProject; if (!project) return; const session = active; if (session?.project === project.id) await saveSession(session); const result = await request({action:'sync',project:project.id}); pausedSync.delete(project.id); status(result.message); $('github-status').textContent = result.message; });
 document.addEventListener('keydown', task(async event => {
   if ((event.ctrlKey || event.metaKey) && event.key === 's') { event.preventDefault(); if (active) await saveSession(active); }
   if (event.key === 'F5' || ((event.ctrlKey || event.metaKey) && event.key === 'Enter')) { event.preventDefault(); await compileSession(active, true); }
-  if (event.key === 'Escape') $('workspace-menu').open = false;
+  if (event.key === 'Escape') closeWorkspaceMenus(true);
 }));
 
 $('review-toggle').onclick = () => reviewPanel(workspace.dataset.reviewOpen !== 'true');
+$('review-new-cue').onclick = () => {
+  const id = reviewActivity.get(active)?.unseen.values().next().value;
+  if (!id) return;
+  reviewPanel(true); markSelectedReview(id); acknowledgeReview(id); revealReviewId = id; scheduleReviewPositions();
+};
+$('review-list').addEventListener('scroll', () => { if (active) active.reviewScroll = $('review-list').scrollTop; }, { passive: true });
 $('review-close').onclick = () => reviewPanel(false);
 $('review-previous').onclick = () => navigateReview(-1); $('review-next').onclick = () => navigateReview(1);
 $('rail-files').onclick = () => treeMode(false); $('rail-outline').onclick = () => treeMode(true);
+$('outline-toggle').onclick = () => {
+  const collapsed = $('outline-panel').dataset.collapsed !== 'true';
+  $('outline-panel').dataset.collapsed = String(collapsed); $('outline-toggle').setAttribute('aria-expanded', String(!collapsed)); $('manuscript-outline').hidden = collapsed;
+};
 $('rail-editor').onclick = () => showPane('editor'); $('rail-preview').onclick = () => showPane('preview');
 $('files-collapse').onclick = () => { workspace.dataset.filesCollapsed = 'true'; };
 $('editor-collapse').onclick = () => { workspace.dataset.editorCollapsed = 'true'; workspace.dataset.previewCollapsed = 'false'; mobileView('preview'); };
@@ -483,26 +771,44 @@ $('preview-collapse').onclick = () => { workspace.dataset.previewCollapsed = 'tr
 $('editor-search').onclick = () => { if (view) { showPane('editor'); openSearchPanel(view); } };
 $('pdf-previous').onclick = () => pdfViewer.go(pdfViewer.page - 1); $('pdf-next').onclick = () => pdfViewer.go(pdfViewer.page + 1);
 $('pdf-page-number').onchange = () => pdfViewer.go(Number($('pdf-page-number').value));
-$('pdf-zoom-out').onclick = () => pdfViewer.zoom(1 / 1.2); $('pdf-zoom-in').onclick = () => pdfViewer.zoom(1.2); $('pdf-fit-width').onclick = () => pdfViewer.fit();
+$('pdf-zoom-out').onclick = () => pdfViewer.zoom(.8); $('pdf-zoom-in').onclick = () => pdfViewer.zoom(1.25); $('pdf-fit-width').onclick = () => pdfViewer.fit();
 $('compile-log-toggle').onclick = () => {
   showingLogs = !showingLogs; $('compile-log').hidden = !showingLogs; $('compile-log-toggle').setAttribute('aria-pressed', String(showingLogs));
   $('manuscript-preview').hidden = showingLogs || active?.path.endsWith('.typ');
   $('typst-preview').hidden = showingLogs || !active?.path.endsWith('.typ'); $('pdf-toolbar').hidden = showingLogs || !pdfBytes;
 };
 for (const button of document.querySelectorAll('[data-command]')) button.onclick = task(async () => {
-  const command = button.dataset.command; $('workspace-menu').open = false;
-  const triggers = { 'open-project': 'project-open', 'new-file': 'file-new', github: 'git-open', connections: 'connection-open', download: 'export-manuscript' };
+  const command = button.dataset.command; closeWorkspaceMenus();
+  const triggers = { 'open-project': 'project-open', 'new-file': 'file-new', github: 'git-open', connections: 'connection-open', download: 'export-manuscript', save: 'manuscript-save', highlight: 'highlight-selection', palette: 'palette-open', import: 'tex-import', logs: 'compile-log-toggle' };
   if (triggers[command]) $(triggers[command]).click();
   else if (['files', 'editor', 'preview'].includes(command)) showPane(command);
+  else if (command === 'outline') treeMode(true);
   else if (command === 'review') reviewPanel(true);
+  else if (command === 'help') $('help-dialog').showModal();
+  else if (['bold','italic','heading','bullet-list','numbered-list'].includes(command)) formatSource(command);
   else if (view) { showPane('editor'); ({ undo, redo, 'select-all': selectAll, find: openSearchPanel })[command]?.(view); view.focus(); }
 });
-document.addEventListener('pointerdown', event => { if (!$('workspace-menu').contains(event.target)) $('workspace-menu').open = false; });
+for (const menu of workspaceMenus) {
+  menu.addEventListener('toggle', () => { if (menu.open) for (const other of workspaceMenus) if (other !== menu) other.open = false; });
+  menu.querySelector('summary').addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown') { event.preventDefault(); menu.open = true; menu.querySelector('button:not(:disabled):not([hidden])')?.focus(); }
+    else if (['ArrowLeft','ArrowRight'].includes(event.key) && menu.classList.contains('editor-menu')) {
+      event.preventDefault(); const siblings = workspaceMenus.filter(item => item.classList.contains('editor-menu'));
+      const next = siblings[(siblings.indexOf(menu) + (event.key === 'ArrowRight' ? 1 : siblings.length - 1)) % siblings.length];
+      closeWorkspaceMenus(); next.querySelector('summary').focus();
+    }
+  });
+}
+document.addEventListener('pointerdown', event => { for (const menu of workspaceMenus) if (!menu.contains(event.target)) menu.open = false; });
 
 function resizeFiles(width) {
   const available = workspace.clientWidth - 40;
   const next = clampPaneWidth(width, available); workspace.style.setProperty('--files-size', `${next}px`);
   $('files-splitter').setAttribute('aria-valuenow', String(Math.round(next))); $('files-splitter').setAttribute('aria-valuemax', String(Math.max(150, available - 400)));
+}
+function resetFilesWidth() {
+  workspace.style.removeProperty('--files-size');
+  $('files-splitter').setAttribute('aria-valuenow', String(Math.round(document.querySelector('.manuscript-files').getBoundingClientRect().width)));
 }
 function resizePreview(fraction) {
   const next = Math.max(.2, Math.min(.8, fraction));
@@ -528,16 +834,22 @@ for (const id of ['files-splitter', 'preview-splitter']) {
   splitter.onkeydown = event => {
     if (!['ArrowLeft', 'ArrowRight', 'Home'].includes(event.key)) return; event.preventDefault();
     const direction = event.key === 'ArrowLeft' ? -1 : 1;
-    if (id === 'files-splitter') resizeFiles(event.key === 'Home' ? 220 : Number(splitter.getAttribute('aria-valuenow')) + direction * 20);
+    if (id === 'files-splitter') {
+      if (event.key === 'Home') resetFilesWidth();
+      else resizeFiles(document.querySelector('.manuscript-files').getBoundingClientRect().width + direction * 20);
+    }
     else resizePreview(event.key === 'Home' ? .5 : Number(splitter.getAttribute('aria-valuenow')) / 100 + direction * .05);
   };
-  splitter.ondblclick = () => id === 'files-splitter' ? resizeFiles(220) : resizePreview(.5);
+  splitter.ondblclick = () => id === 'files-splitter' ? resetFilesWidth() : resizePreview(.5);
 }
 new ResizeObserver(([entry]) => {
   const { width, height } = entry.contentRect;
   workspace.style.setProperty('--chrome-gap', `${Math.max(4, Math.min(9, width / 180, height / 70))}px`);
   workspace.style.setProperty('--chrome-font-scale', String(Math.max(.9, Math.min(1, width / 700, height / 450))));
-  if (workspace.style.getPropertyValue('--files-size') && width > 900) resizeFiles(Number.parseFloat(workspace.style.getPropertyValue('--files-size')));
+  if (width > 900) {
+    if (workspace.style.getPropertyValue('--files-size')) resizeFiles(Number.parseFloat(workspace.style.getPropertyValue('--files-size')));
+    else if (workspace.dataset.filesCollapsed !== 'true') $('files-splitter').setAttribute('aria-valuenow', String(Math.round(document.querySelector('.manuscript-files').getBoundingClientRect().width)));
+  }
 }).observe(workspace);
 window.addEventListener('beforeunload', event => { if ([...sessions.values()].some(s => s.dirty || s.conflict)) { event.preventDefault(); event.returnValue = ''; } });
 await setupWindowChrome({
@@ -545,7 +857,6 @@ await setupWindowChrome({
   onClosing: setWindowClosing,
   canClose: () => ![...sessions.values()].some(session => session.dirty || session.conflict),
   beforeClose: async () => {
-    clearTimeout(saveTimer);
     for (const session of sessions.values()) await saveSession(session);
   },
 });

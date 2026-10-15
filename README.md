@@ -39,9 +39,11 @@ full renderer is not embedded in the desktop binary yet.
 Choose a project folder, open or create a manuscript, and select a passage to
 apply a color rule. Rules can protect text, reject agent changes, or attach a
 custom instruction such as “Keep the meaning; make this snappier.” Colors and
-prompts are editable. Suggestions appear beside the source, and only your
-local Accept action changes the manuscript. Protection and rejection rules
-override prompts; outdated quotes or protection require local resolution.
+prompts are editable. Suggestions appear beside their source passages, with a
+pending count and a cue for new proposals. Only your local Accept action changes
+the manuscript. Protection and rejection rules override prompts. To repair a
+stale highlight, select its current passage and use **Reanchor from selection**;
+the confirmation preserves its color rule and custom prompt.
 
 ChatGPT access is opt-in. Install and enable `zrok2` separately, provide an
 existing reserved public name and its HTTPS origin under **Connections → zrok**,

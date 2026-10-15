@@ -1,6 +1,8 @@
 import { boundedPdfOutputScale, clampPdfPage, nextPdfScale } from '../../src/pdf-viewer-state.js';
 import { pdfPageWindow } from './manuscript-workspace.js';
 
+const PDF_TO_CSS_UNITS = 96 / 72;
+
 // Only three page canvases live at once; spacers keep every page reachable by scrolling.
 export class ManuscriptPdfViewer {
   constructor({ scroller, pages, onChange, onError }) {
@@ -39,7 +41,7 @@ export class ManuscriptPdfViewer {
   }
   offset(page) {
     let offset = (page - 1) * this.pageHeight;
-    for (const [number, height] of this.heights) if (number < page) offset += (height - this.base.height) * this.currentScale;
+    for (const [number, height] of this.heights) if (number < page) offset += (height - this.base.height) * this.currentScale * PDF_TO_CSS_UNITS;
     return offset;
   }
   async render() {
@@ -49,8 +51,9 @@ export class ManuscriptPdfViewer {
     this.rendering = true;
     try {
     const width = Math.max(100, this.scroller.clientWidth - 32);
-    const scale = this.scale ?? Math.min(2, width / this.base.width);
-    this.currentScale = scale; this.pageHeight = this.base.height * scale + 16;
+    const scale = this.scale ?? Math.min(2, width / this.base.width) / PDF_TO_CSS_UNITS;
+    const viewportScale = scale * PDF_TO_CSS_UNITS;
+    this.currentScale = scale; this.pageHeight = this.base.height * viewportScale + 16;
     const window = pdfPageWindow(this.page, pdf.numPages);
     const previousHeight = this.height;
     this.height = this.pageHeight;
@@ -59,7 +62,7 @@ export class ManuscriptPdfViewer {
     const slots = [];
     for (let number = window.first; number <= window.last; number += 1) {
       const slot = document.createElement('div'); slot.className = 'pdf-page'; slot.dataset.page = String(number);
-      slot.setAttribute('aria-label', `PDF page ${number}`); slot.style.height = `${(this.heights.get(number) || this.base.height) * scale}px`; slot.style.width = `${this.base.width * scale}px`;
+      slot.setAttribute('aria-label', `PDF page ${number}`); slot.style.height = `${(this.heights.get(number) || this.base.height) * viewportScale}px`; slot.style.width = `${this.base.width * viewportScale}px`;
       slots.push(slot);
     }
     this.releaseCanvases(); this.pages.replaceChildren(top, ...slots, bottom);
@@ -70,14 +73,14 @@ export class ManuscriptPdfViewer {
       try { page = await pdf.getPage(Number(slot.dataset.page)); }
       catch (error) { if (generation !== this.generation) return; throw error; }
       if (generation !== this.generation) return;
-      const viewport = page.getViewport({ scale });
+      const viewport = page.getViewport({ scale: viewportScale });
       if (this.heights.size >= 1000 && !this.heights.has(Number(slot.dataset.page))) this.heights.delete(this.heights.keys().next().value);
-      this.heights.set(Number(slot.dataset.page), viewport.height / scale);
+      this.heights.set(Number(slot.dataset.page), viewport.height / viewportScale);
       slot.style.height = `${viewport.height}px`; slot.style.width = `${viewport.width}px`;
       top.style.height = `${this.offset(window.first)}px`; bottom.style.height = `${this.offset(pdf.numPages + 1) - this.offset(window.last + 1)}px`;
       // One third of the legacy 10-million-pixel budget per live page.
       const output = Math.min(boundedPdfOutputScale(viewport.width, viewport.height, devicePixelRatio), Math.sqrt(3_000_000 / (viewport.width * viewport.height)));
-      const canvas = document.createElement('canvas'); canvas.width = Math.ceil(viewport.width * output); canvas.height = Math.ceil(viewport.height * output);
+      const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.floor(viewport.width * output)); canvas.height = Math.max(1, Math.floor(viewport.height * output));
       canvas.style.width = `${viewport.width}px`; canvas.style.height = `${viewport.height}px`;
       slot.append(canvas);
       const task = page.render({ canvasContext: canvas.getContext('2d'), viewport, transform: output === 1 ? null : [output, 0, 0, output, 0, 0] });

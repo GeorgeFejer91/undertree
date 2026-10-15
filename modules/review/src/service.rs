@@ -272,10 +272,13 @@ impl Service {
         project: &str,
         relative: &str,
         path: &Path,
-        old: &str,
+        previous: Option<&str>,
         content: &str,
         review: &Review,
     ) -> Result<()> {
+        // None is reserved for a source just written with create_new by Create or Import.
+        let owns_source = previous.is_none_or(|old| old != content);
+        let old = previous.unwrap_or(content);
         review.validate_for_text(content)?;
         if review.revision != digest(content) {
             return Err(Error::new(
@@ -312,11 +315,13 @@ impl Service {
             .iter_mut()
             .find(|p| p.id == project)
             .ok_or_else(|| Error::new("project", "Project unavailable."))?;
-        p.pending.insert(relative.to_owned());
+        if owns_source {
+            p.pending.insert(relative.to_owned());
+            p.pending_revisions
+                .insert(relative.to_owned(), digest(content));
+        }
         p.pending
             .insert(format!("{relative}.undertree-review.json"));
-        p.pending_revisions
-            .insert(relative.to_owned(), digest(content));
         p.pending_revisions.insert(
             format!("{relative}.undertree-review.json"),
             digest(&review_json),
@@ -436,7 +441,7 @@ impl Service {
                 new.write_all(content.as_bytes())?;
                 new.sync_all()?;
                 let review = Review::new(content);
-                self.persist(&project, &path, &file, content, content, &review)?;
+                self.persist(&project, &path, &file, None, content, &review)?;
                 self.snapshot(&p, &path, &file)
             }
             Operation::ImportTex {
@@ -472,7 +477,7 @@ impl Service {
                     &project,
                     &target,
                     &destination,
-                    &converted.content,
+                    None,
                     &converted.content,
                     &review,
                 )?;
@@ -501,7 +506,7 @@ impl Service {
                 let (old, mut review) = self.read_document(&file)?;
                 review.check_revision(&revision, &old)?;
                 review.reconcile(&old, &content);
-                self.persist(&project, &path, &file, &old, &content, &review)?;
+                self.persist(&project, &path, &file, Some(&old), &content, &review)?;
                 self.snapshot(&p, &path, &file)
             }
             Operation::Palette {
@@ -515,7 +520,7 @@ impl Service {
                 let (text, mut review) = self.read_document(&file)?;
                 review.check_revision(&revision, &text)?;
                 review.rules = rules;
-                self.persist(&project, &path, &file, &text, &text, &review)?;
+                self.persist(&project, &path, &file, Some(&text), &text, &review)?;
                 self.snapshot(&p, &path, &file)
             }
             Operation::Mark {
@@ -547,7 +552,23 @@ impl Service {
                     rule,
                     prompt,
                 });
-                self.persist(&project, &path, &file, &text, &text, &review)?;
+                self.persist(&project, &path, &file, Some(&text), &text, &review)?;
+                self.snapshot(&p, &path, &file)
+            }
+            Operation::Reanchor {
+                project,
+                path,
+                revision,
+                id,
+                from,
+                to,
+                quote,
+            } => {
+                let p = self.project(&project)?;
+                let file = self.path(&p, &path, false)?;
+                let (text, mut review) = self.read_document(&file)?;
+                review.reanchor(&text, &revision, &id, from..to, &quote)?;
+                self.persist(&project, &path, &file, Some(&text), &text, &review)?;
                 self.snapshot(&p, &path, &file)
             }
             Operation::Unmark {
@@ -561,7 +582,7 @@ impl Service {
                 let (text, mut review) = self.read_document(&file)?;
                 review.check_revision(&revision, &text)?;
                 review.markers.retain(|m| m.id != id);
-                self.persist(&project, &path, &file, &text, &text, &review)?;
+                self.persist(&project, &path, &file, Some(&text), &text, &review)?;
                 self.snapshot(&p, &path, &file)
             }
             Operation::Decide {
@@ -581,7 +602,7 @@ impl Service {
                     decision,
                     path.ends_with(".typ"),
                 )?;
-                self.persist(&project, &path, &file, &text, &changed, &review)?;
+                self.persist(&project, &path, &file, Some(&text), &changed, &review)?;
                 self.snapshot(&p, &path, &file)
             }
             Operation::Share {
@@ -670,7 +691,7 @@ impl Service {
                     let (text, mut review) = self.read_document(&file)?;
                     let suggestion =
                         review.propose_format(&text, proposal, path.ends_with(".typ"))?;
-                    self.persist(&project, &path, &file, &text, &text, &review)?;
+                    self.persist(&project, &path, &file, Some(&text), &text, &review)?;
                     Ok(json!({"suggestion":suggestion,"manuscriptChanged":false}))
                 } else {
                     self.snapshot(&p, &path, &file)
@@ -1636,6 +1657,420 @@ mod tests {
                 .unwrap()
                 .trim(),
             result["head"].as_str().unwrap()
+        );
+        assert!(git(&project.root, &["status", "--porcelain=v1"])
+            .await
+            .unwrap()
+            .is_empty());
+    }
+    #[test]
+    fn local_reanchor_persists_without_source_changes_and_resumes_scoped_review() {
+        for (filename, original, current, old_from, old_to, from, to, world_from, world_to) in [
+            (
+                "main.html",
+                "<p>Hello world</p>",
+                "<p>😀 Changed world</p>",
+                3,
+                8,
+                6,
+                13,
+                14,
+                19,
+            ),
+            (
+                "main.typ",
+                "Hello world.\n",
+                "😀 Changed world.\n",
+                0,
+                5,
+                3,
+                10,
+                11,
+                16,
+            ),
+        ] {
+            let temporary = tempfile::tempdir().unwrap();
+            let root = temporary.path().join("project");
+            fs::create_dir(&root).unwrap();
+            let file = root.join(filename);
+            fs::write(&file, original).unwrap();
+            let service = Service::new(temporary.path().join("state")).unwrap();
+            let project = service
+                .local(Operation::AddProject {
+                    root: root.to_string_lossy().into(),
+                })
+                .unwrap();
+            let project = project["id"].as_str().unwrap().to_owned();
+            let marked = service
+                .local(Operation::Mark {
+                    project: project.clone(),
+                    path: filename.into(),
+                    revision: digest(original),
+                    from: old_from,
+                    to: old_to,
+                    rule: "protect".into(),
+                    prompt: "Retain every scientific claim.".into(),
+                })
+                .unwrap();
+            let id = marked["review"]["markers"][0]["id"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            let saved = service
+                .local(Operation::Save {
+                    project: project.clone(),
+                    path: filename.into(),
+                    revision: digest(original),
+                    content: current.into(),
+                })
+                .unwrap();
+            assert_eq!(saved["review"]["markers"][0]["anchor"]["stale"], true);
+            let shared = service
+                .local(Operation::Share {
+                    project: project.clone(),
+                    path: filename.into(),
+                    enabled: true,
+                })
+                .unwrap();
+            let document_id = shared["documentId"].as_str().unwrap();
+            let request = json!({"documentId":document_id,"proposal":{"requestId":"after-reanchor","revision":digest(current),"from":world_from,"to":world_to,"quote":"world","replacement":"reader","rationale":"Clearer wording."}});
+            assert_eq!(
+                service
+                    .remote("suggest_text", request.clone())
+                    .unwrap_err()
+                    .code,
+                "protected"
+            );
+            let original_modified = fs::metadata(&file).unwrap().modified().unwrap();
+            let before_sidecar = fs::read(sidecar(&file)).unwrap();
+            assert_eq!(
+                service
+                    .local(Operation::Reanchor {
+                        project: project.clone(),
+                        path: filename.into(),
+                        revision: digest(current),
+                        id: id.clone(),
+                        from,
+                        to,
+                        quote: "Wrong selection".into()
+                    })
+                    .unwrap_err()
+                    .code,
+                "stale"
+            );
+            assert_eq!(fs::read(sidecar(&file)).unwrap(), before_sidecar);
+            let updated = service
+                .local(Operation::Reanchor {
+                    project: project.clone(),
+                    path: filename.into(),
+                    revision: digest(current),
+                    id: id.clone(),
+                    from,
+                    to,
+                    quote: "Changed".into(),
+                })
+                .unwrap();
+            assert_eq!(updated["review"]["rules"], saved["review"]["rules"]);
+            assert_eq!(updated["review"]["markers"].as_array().unwrap().len(), 1);
+            let marker = &updated["review"]["markers"][0];
+            assert_eq!(marker["id"], id);
+            assert_eq!(marker["rule"], "protect");
+            assert_eq!(marker["prompt"], "Retain every scientific claim.");
+            assert_eq!(marker["anchor"]["stale"], false);
+            assert_eq!(marker["anchor"]["quote"], "Changed");
+            assert_eq!(updated["review"]["revision"], digest(current));
+            assert_eq!(service.remote("reanchor",json!({"documentId":document_id,"id":id,"from":from,"to":to,"quote":"Changed"})).unwrap_err().code,"scope");
+            assert!(service.remote("suggest_text", request).is_ok());
+            assert_eq!(fs::read_to_string(&file).unwrap(), current);
+            assert_eq!(
+                fs::metadata(&file).unwrap().modified().unwrap(),
+                original_modified
+            );
+            assert!(service
+                .project(&project)
+                .unwrap()
+                .pending
+                .contains(&format!("{filename}.undertree-review.json")));
+            assert!(!journal_path(&file).exists());
+            let reopened = service
+                .local(Operation::Open {
+                    project,
+                    path: filename.into(),
+                })
+                .unwrap();
+            assert_eq!(reopened["review"]["markers"][0], *marker);
+        }
+    }
+
+    #[test]
+    fn reanchor_json_requires_quote_and_cannot_replace_policy_fields() {
+        let valid = json!({"action":"reanchor","project":"project","path":"main.typ","revision":digest("Text"),"id":"marker","from":0,"to":4,"quote":"Text"});
+        assert!(matches!(
+            serde_json::from_value::<Operation>(valid.clone()).unwrap(),
+            Operation::Reanchor { .. }
+        ));
+        for field in ["rule", "prompt", "color"] {
+            let mut request = valid.clone();
+            request[field] = json!("changed");
+            assert!(serde_json::from_value::<Operation>(request).is_err());
+        }
+        let mut missing_quote = valid.clone();
+        missing_quote.as_object_mut().unwrap().remove("quote");
+        assert!(serde_json::from_value::<Operation>(missing_quote).is_err());
+        for invalid in [json!(-1), json!(0.5), json!("0")] {
+            let mut request = valid.clone();
+            request["from"] = invalid;
+            assert!(serde_json::from_value::<Operation>(request).is_err());
+        }
+    }
+    #[tokio::test]
+    async fn metadata_writes_do_not_adopt_external_changes_to_pending_sources() {
+        let (_temporary, service, project, _) = git_fixture().await;
+        let owned = "= Manuscript\n\nUnderTree's saved text.\n";
+        let project = save_fixture(&service, &project, owned);
+        let prior_revision = project.pending_revisions["main.typ"].clone();
+        let prior_head = git_head(&project.root).await.unwrap();
+        let external = "= Manuscript\n\nExternal paragraph.\n";
+        fs::write(project.root.join("main.typ"), external).unwrap();
+        let from = external.find("External").unwrap();
+        let marked = service
+            .local(Operation::Mark {
+                project: project.id.clone(),
+                path: "main.typ".into(),
+                revision: digest(external),
+                from,
+                to: from + 8,
+                rule: "snappier".into(),
+                prompt: "Retain meaning.".into(),
+            })
+            .unwrap();
+        let marker = marked["review"]["markers"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let assert_owner = || {
+            let current = service.project(&project.id).unwrap();
+            assert!(current.pending.contains("main.typ"));
+            assert_eq!(current.pending_revisions["main.typ"], prior_revision);
+            assert_ne!(current.pending_revisions["main.typ"], digest(external));
+        };
+        assert_owner();
+        let shared = service
+            .local(Operation::Share {
+                project: project.id.clone(),
+                path: "main.typ".into(),
+                enabled: true,
+            })
+            .unwrap();
+        let from = external.find("paragraph").unwrap();
+        let suggestion = service.remote("suggest_text",json!({"documentId":shared["documentId"],"proposal":{"requestId":"external-review","revision":digest(external),"from":from,"to":from+9,"quote":"paragraph","replacement":"passage","rationale":"Clearer wording."}})).unwrap();
+        assert_owner();
+        let rules = serde_json::from_value(marked["review"]["rules"].clone()).unwrap();
+        service
+            .local(Operation::Palette {
+                project: project.id.clone(),
+                path: "main.typ".into(),
+                revision: digest(external),
+                rules,
+            })
+            .unwrap();
+        assert_owner();
+        service
+            .local(Operation::Reanchor {
+                project: project.id.clone(),
+                path: "main.typ".into(),
+                revision: digest(external),
+                id: marker.clone(),
+                from,
+                to: from + 9,
+                quote: "paragraph".into(),
+            })
+            .unwrap();
+        assert_owner();
+        service
+            .local(Operation::Unmark {
+                project: project.id.clone(),
+                path: "main.typ".into(),
+                revision: digest(external),
+                id: marker,
+            })
+            .unwrap();
+        assert_owner();
+        service
+            .local(Operation::Decide {
+                project: project.id.clone(),
+                path: "main.typ".into(),
+                revision: digest(external),
+                id: suggestion["suggestion"]["id"].as_str().unwrap().into(),
+                decision: crate::document::Decision::Rejected,
+            })
+            .unwrap();
+        assert_owner();
+        service
+            .local(Operation::Save {
+                project: project.id.clone(),
+                path: "main.typ".into(),
+                revision: digest(external),
+                content: external.into(),
+            })
+            .unwrap();
+        assert_owner();
+        let project = service.project(&project.id).unwrap();
+        assert_eq!(
+            sync_fixture(&service, &project).await.unwrap_err().code,
+            "conflict"
+        );
+        assert_eq!(git_head(&project.root).await.unwrap(), prior_head);
+        assert_eq!(
+            fs::read_to_string(project.root.join("main.typ")).unwrap(),
+            external
+        );
+        assert!(!project.root.join(".git/index.lock").exists());
+    }
+
+    #[tokio::test]
+    async fn clean_source_highlights_checkpoint_only_the_sidecar_and_leave_external_sources_unowned(
+    ) {
+        let (_temporary, service, project, remote) = git_fixture().await;
+        let text = fs::read_to_string(project.root.join("main.typ")).unwrap();
+        let from = text.find("Hello").unwrap();
+        service
+            .local(Operation::Mark {
+                project: project.id.clone(),
+                path: "main.typ".into(),
+                revision: digest(&text),
+                from,
+                to: from + 5,
+                rule: "snappier".into(),
+                prompt: "Keep the claim.".into(),
+            })
+            .unwrap();
+        let project = service.project(&project.id).unwrap();
+        assert!(!project.pending.contains("main.typ"));
+        assert!(!project.pending_revisions.contains_key("main.typ"));
+        let result = sync_fixture(&service, &project).await.unwrap();
+        let head = result["head"].as_str().unwrap();
+        let changed = git(
+            &project.root,
+            &["diff-tree", "--no-commit-id", "--name-only", "-r", head],
+        )
+        .await
+        .unwrap();
+        assert_eq!(changed.trim(), "main.typ.undertree-review.json");
+        assert_eq!(
+            git(&remote, &["show", &format!("{head}:main.typ")])
+                .await
+                .unwrap(),
+            text
+        );
+        assert!(git(&project.root, &["status", "--porcelain=v1"])
+            .await
+            .unwrap()
+            .is_empty());
+        let external = "= Manuscript\n\nExternal editor's content.\n";
+        fs::write(project.root.join("main.typ"), external).unwrap();
+        let snapshot = service
+            .local(Operation::Open {
+                project: project.id.clone(),
+                path: "main.typ".into(),
+            })
+            .unwrap();
+        let rules = serde_json::from_value(snapshot["review"]["rules"].clone()).unwrap();
+        service
+            .local(Operation::Palette {
+                project: project.id.clone(),
+                path: "main.typ".into(),
+                revision: digest(external),
+                rules,
+            })
+            .unwrap();
+        let project = service.project(&project.id).unwrap();
+        assert!(!project.pending.contains("main.typ"));
+        assert!(!project.pending_revisions.contains_key("main.typ"));
+        assert_eq!(
+            sync_fixture(&service, &project).await.unwrap_err().code,
+            "conflict"
+        );
+        assert_eq!(
+            git(&project.root, &["rev-parse", "HEAD"])
+                .await
+                .unwrap()
+                .trim(),
+            head
+        );
+        assert_eq!(
+            fs::read_to_string(project.root.join("main.typ")).unwrap(),
+            external
+        );
+    }
+
+    #[tokio::test]
+    async fn create_and_tex_import_explicitly_own_their_new_sources() {
+        let (_temporary, service, project, remote) = git_fixture().await;
+        let tex = "\\begin{document}\\section{Result}Some text.\\end{document}";
+        fs::write(project.root.join("original.tex"), tex).unwrap();
+        git(&project.root, &["add", "--", "original.tex"])
+            .await
+            .unwrap();
+        git(&project.root, &["commit", "-m", "Original import fixture"])
+            .await
+            .unwrap();
+        git(&project.root, &["push", "origin", "HEAD:refs/heads/main"])
+            .await
+            .unwrap();
+        service
+            .local(Operation::Create {
+                project: project.id.clone(),
+                path: "created.typ".into(),
+            })
+            .unwrap();
+        service
+            .local(Operation::ImportTex {
+                project: project.id.clone(),
+                path: "original.tex".into(),
+                target: "converted.typ".into(),
+            })
+            .unwrap();
+        let project = service.project(&project.id).unwrap();
+        let expected: BTreeSet<String> = [
+            "created.typ",
+            "created.typ.undertree-review.json",
+            "converted.typ",
+            "converted.typ.undertree-review.json",
+            "converted.typ.import-report.json",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        assert_eq!(project.pending, expected);
+        for relative in &expected {
+            assert_eq!(
+                project.pending_revisions[relative],
+                digest(&fs::read_to_string(project.root.join(relative)).unwrap())
+            );
+        }
+        assert!(!project.pending.contains("original.tex"));
+        assert_eq!(
+            fs::read_to_string(project.root.join("original.tex")).unwrap(),
+            tex
+        );
+        let result = sync_fixture(&service, &project).await.unwrap();
+        let head = result["head"].as_str().unwrap();
+        let changed: BTreeSet<String> = git(
+            &project.root,
+            &["diff-tree", "--no-commit-id", "--name-only", "-r", head],
+        )
+        .await
+        .unwrap()
+        .lines()
+        .map(String::from)
+        .collect();
+        assert_eq!(changed, expected);
+        assert_eq!(
+            git(&remote, &["show", &format!("{head}:original.tex")])
+                .await
+                .unwrap(),
+            tex
         );
         assert!(git(&project.root, &["status", "--porcelain=v1"])
             .await

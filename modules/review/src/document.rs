@@ -373,6 +373,37 @@ impl Review {
         Ok(())
     }
 
+    pub fn reanchor(
+        &mut self,
+        text: &str,
+        revision: &str,
+        id: &str,
+        range: std::ops::Range<usize>,
+        quote: &str,
+    ) -> Result<()> {
+        self.check_revision(revision, text)?;
+        if quote.len() > 32_000 || !valid_id(id, 100) {
+            return Err(Error::new(
+                "limit",
+                "Use an existing highlight ID and a passage smaller than 32 KB.",
+            ));
+        }
+        let index = self
+            .markers
+            .iter()
+            .position(|marker| marker.id == id)
+            .ok_or_else(|| Error::new("missing", "This highlight no longer exists."))?;
+        let anchor = Anchor::new(text, range.start, range.end)?;
+        if anchor.quote != quote {
+            return Err(Error::new(
+                "stale",
+                "The selected passage does not match the current manuscript.",
+            ));
+        }
+        self.markers[index].anchor = anchor;
+        Ok(())
+    }
+
     pub fn reconcile(&mut self, old: &str, new: &str) {
         for marker in &mut self.markers {
             marker.anchor.reconcile(old, new);
@@ -925,5 +956,143 @@ mod tests {
             "protected"
         );
         assert_eq!(review.suggestions[0].status, Status::Pending);
+    }
+    #[test]
+    fn reanchor_preserves_rules_and_prompts_and_only_resolves_the_selected_marker() {
+        let original = "<p>Hello world</p>";
+        let current = "<p>Changed world</p>";
+        let mut review = Review::new(original);
+        for id in ["first", "second"] {
+            review.markers.push(Marker {
+                id: id.into(),
+                anchor: Anchor::new(original, 3, 8).unwrap(),
+                rule: "protect".into(),
+                prompt: "Keep every claim.".into(),
+            });
+        }
+        let rules = serde_json::to_value(&review.rules).unwrap();
+        review.invalidate_external(current);
+        assert_eq!(
+            review
+                .propose(current, proposal(current, 11, 16))
+                .unwrap_err()
+                .code,
+            "protected"
+        );
+        review
+            .reanchor(current, &digest(current), "first", 3..10, "Changed")
+            .unwrap();
+        assert!(!review.markers[0].anchor.stale);
+        assert!(review.markers[1].anchor.stale);
+        assert_eq!(
+            review
+                .propose(current, proposal(current, 11, 16))
+                .unwrap_err()
+                .code,
+            "protected"
+        );
+        review
+            .reanchor(current, &digest(current), "second", 3..10, "Changed")
+            .unwrap();
+        assert_eq!(review.markers.len(), 2);
+        for marker in &review.markers {
+            assert_eq!(marker.rule, "protect");
+            assert_eq!(marker.prompt, "Keep every claim.");
+            assert_eq!(marker.anchor.quote, "Changed");
+        }
+        assert_eq!(serde_json::to_value(&review.rules).unwrap(), rules);
+        assert_eq!(
+            review
+                .propose(current, proposal(current, 3, 10))
+                .unwrap_err()
+                .code,
+            "protected"
+        );
+        assert!(review.propose(current, proposal(current, 11, 16)).is_ok());
+        assert_eq!(review.revision, digest(current));
+    }
+
+    #[test]
+    fn invalid_reanchor_cannot_clear_stale_protection() {
+        let original = "<p>Hello world</p>";
+        let current = "<p>😀 world</p>";
+        let mut review = Review::new(original);
+        review.markers.push(Marker {
+            id: "marker".into(),
+            anchor: Anchor::new(original, 3, 8).unwrap(),
+            rule: "protect".into(),
+            prompt: "Preserve meaning.".into(),
+        });
+        review.invalidate_external(current);
+        let before = serde_json::to_value(&review).unwrap();
+        let revision = digest(current);
+        let oversized = "x".repeat(32_001);
+        for (revision, id, range, quote, code) in [
+            (digest(original), "marker", 3..5, "😀", "stale"),
+            (revision.clone(), "missing", 3..5, "😀", "missing"),
+            (revision.clone(), "marker", 3..5, "Wrong", "stale"),
+            (revision.clone(), "marker", 3..4, "😀", "range"),
+            (revision.clone(), "marker", 3..3, "", "range"),
+            (
+                revision.clone(),
+                "marker",
+                usize::MAX - 1..usize::MAX,
+                "x",
+                "range",
+            ),
+            (
+                revision.clone(),
+                "marker",
+                3..5,
+                oversized.as_str(),
+                "limit",
+            ),
+        ] {
+            assert_eq!(
+                review
+                    .reanchor(current, &revision, id, range, quote)
+                    .unwrap_err()
+                    .code,
+                code
+            );
+            assert_eq!(serde_json::to_value(&review).unwrap(), before);
+        }
+        review
+            .reanchor(current, &revision, "marker", 3..5, "😀")
+            .unwrap();
+        assert_eq!(review.markers[0].anchor.quote, "😀");
+        assert!(!review.markers[0].anchor.stale);
+    }
+
+    #[test]
+    fn local_reanchor_keeps_syntax_and_math_scope_without_granting_remote_edits() {
+        for (text, range, quote, typst) in [
+            ("<p>Hello</p>", 0..3, "<p>", false),
+            ("#let x = 1\n\nProse $x + 1$\n", 0..4, "#let", true),
+            ("$x + 1$\n", 1..6, "x + 1", true),
+        ] {
+            let mut review = Review::new(text);
+            let mut anchor = Anchor::new(text, range.start, range.end).unwrap();
+            anchor.stale = true;
+            review.markers.push(Marker {
+                id: "marker".into(),
+                anchor,
+                rule: "snappier".into(),
+                prompt: "Keep this syntax.".into(),
+            });
+            review
+                .reanchor(text, &digest(text), "marker", range.clone(), quote)
+                .unwrap();
+            assert!(!review.markers[0].anchor.stale);
+            assert_eq!(review.markers[0].prompt, "Keep this syntax.");
+            let request = proposal(text, range.start, range.end);
+            assert_eq!(
+                review
+                    .propose_format(text, request, typst)
+                    .unwrap_err()
+                    .code,
+                "scope"
+            );
+        }
     }
 }

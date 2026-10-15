@@ -72,7 +72,14 @@ async function request(path, body, method = 'POST') {
 const command = (path, body, method) => request(`/session/${session}${path}`, body, method);
 const execute = (script, args = []) => command('/execute/sync', { script, args });
 const find = async selector => (await command('/element', { using: 'css selector', value: selector }))['element-6066-11e4-a52e-4f735466cecf'];
-const click = async selector => command(`/element/${await find(selector)}/click`, {});
+async function click(selector) {
+  const menu = await execute(`
+    const parent = document.querySelector(arguments[0])?.closest('details:not([open])');
+    return parent?.id ? '#' + CSS.escape(parent.id) + ' > summary' : null;
+  `, [selector]);
+  if (menu) await command(`/element/${await find(menu)}/click`, {});
+  return command(`/element/${await find(selector)}/click`, {});
+}
 async function append(text) {
   const editor = await find('.cm-content');
   await command(`/element/${editor}/click`, {});
@@ -145,6 +152,9 @@ try {
   const source = join(project, 'main.typ');
   const original = '#set page(paper: "a4")\n\n= Native manuscript\n\nHello from the real Tauri WebView.\n';
   await writeFile(source, original);
+  const crlfSource = join(project, 'windows.typ');
+  const crlfOriginal = '= Windows manuscript\r\n\r\nSecond 😀 passage.\r\n';
+  await writeFile(crlfSource, crlfOriginal);
   const data = join(fixture, 'data');
   const state = join(data, 'io.github.georgefejer91.UnderTree', 'review');
   await mkdir(state, { recursive: true });
@@ -187,6 +197,25 @@ try {
   evidence.nativePid = Number(native('xdotool', ['getwindowpid', nativeWindow]));
   await click('.file-button[data-path="main.typ"]');
   await waitFor(() => execute('return document.querySelector(".cm-content")?.textContent.includes("Hello from the real Tauri WebView.")'), 'Typst manuscript did not open.');
+  await click('.file-button[data-path="windows.typ"]');
+  await waitFor(() => execute('return document.querySelector(".cm-content")?.textContent.includes("Second 😀 passage.")'), 'The CRLF fixture did not open.');
+  await click('.cm-content');
+  native('xdotool', ['windowactivate', '--sync', nativeWindow, 'key', '--clearmodifiers', 'ctrl+Home', 'Down', 'Down', 'Home', 'shift+End']);
+  await click('#highlight-selection');
+  const selectedQuote = await execute('return document.getElementById("highlight-quote").textContent');
+  assert.equal(selectedQuote.trim(), 'Second 😀 passage.');
+  await click('#highlight-form button[type="submit"]');
+  let crlfReview;
+  await waitFor(async () => { crlfReview = JSON.parse(await readFile(`${crlfSource}.undertree-review.json`, 'utf8')); return crlfReview.markers.length === 1; }, 'Native CRLF highlight was not saved.');
+  const crlfAnchor = crlfReview.markers[0].anchor;
+  assert.equal(crlfAnchor.from, crlfOriginal.indexOf('Second'));
+  assert.equal(crlfOriginal.slice(crlfAnchor.from, crlfAnchor.to), selectedQuote);
+  assert.equal(crlfAnchor.quote, selectedQuote);
+  assert.equal(await readFile(crlfSource, 'utf8'), crlfOriginal, 'Highlighting leaves the original CRLF source bytes unchanged.');
+  await click('#review-close');
+  await click('.file-button[data-path="main.typ"]');
+  await waitFor(() => execute('return document.querySelector(".cm-content")?.textContent.includes("Hello from the real Tauri WebView.")'), 'Main Typst manuscript did not reopen.');
+  checks.push('Native source selection and Rust highlight anchors agree on UTF-16 offsets across CRLF and emoji without changing manuscript bytes.');
   await append('\nSaved from native key input.\n');
   await click('#manuscript-save');
   await waitFor(async () => (await readFile(source, 'utf8')).includes('Saved from native key input.'), 'Native save did not persist the editor buffer.');

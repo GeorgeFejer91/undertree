@@ -14,6 +14,9 @@ catalogue is a separate closed subset.
 - Local acceptance rechecks source revision, quote, valid prose and current
   protection. Replacement text is escaped for HTML or Typst. Protect/reject
   beats prompts; stale protection fails closed.
+- Local `reanchor` takes `project`, `path`, the current `revision`, marker `id`,
+  UTF-16 `from`/`to` and exact `quote`. It moves the existing highlight while
+  keeping its rule and prompt; it never edits source or grants MCP authority.
 - Manuscripts are UTF-8 text with adjacent version-1
   `.undertree-review.json` sidecars. A transient `.undertree-pending.json`
   journal recovers interrupted source/metadata writes. Unknown/corrupt metadata
@@ -86,6 +89,8 @@ to retarget a different existing origin. Synchronization stages only
 UnderTree-owned pending sources/sidecars/import reports, checks ancestry and
 conflicts, never force-pushes and verifies the remote branch head. Automatic
 checkpoints are scheduled by the UI after a debounce and remain optional.
+Metadata-only review changes own only the sidecar; they cannot adopt external
+source edits or renew a previously saved source's pending digest.
 
 See [the product goal](../../For-AI/product-goal.md) and
 [reference evidence](../../For-AI/reference-evidence.md) for migration scope,

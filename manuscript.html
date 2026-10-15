@@ -22,7 +22,20 @@
     </header>
     <p id="window-error" class="window-error" role="alert" data-measure hidden></p>
     <header class="review-topbar">
+      <div class="topbar-left">
       <strong class="wordmark" data-measure>UnderTree</strong>
+      <nav class="workspace-menus" aria-label="Editor menus">
+        <details id="menu-file" class="editor-menu"><summary id="menu-file-toggle" aria-haspopup="true" data-measure>File</summary><div class="workspace-menu-panel">
+          <button data-command="open-project">Open project folder</button><button data-command="new-file">New manuscript</button>
+          <button id="manuscript-save" data-measure>Save</button><button id="export-manuscript" data-measure>Download source</button>
+          <button id="tex-import" data-measure hidden>Import to Typst</button><button data-command="github">GitHub storage</button><button data-command="connections">ChatGPT connections</button>
+        </div></details>
+        <details id="menu-edit" class="editor-menu"><summary id="menu-edit-toggle" aria-haspopup="true" data-measure>Edit</summary><div class="workspace-menu-panel"><button data-command="undo">Undo</button><button data-command="redo">Redo</button><button data-command="find">Find and replace</button><button data-command="select-all">Select all</button></div></details>
+        <details id="menu-insert" class="editor-menu"><summary id="menu-insert-toggle" aria-haspopup="true" data-measure>Insert</summary><div class="workspace-menu-panel"><button data-command="heading">Section heading</button><button data-command="bullet-list">Bulleted list</button><button data-command="numbered-list">Numbered list</button></div></details>
+        <details id="menu-view" class="editor-menu"><summary id="menu-view-toggle" aria-haspopup="true" data-measure>View</summary><div class="workspace-menu-panel"><button data-command="files">Show file panel</button><button data-command="outline">Show file outline</button><button data-command="editor">Show editor panel</button><button data-command="preview">Show preview panel</button><button data-command="review">Show manuscript review</button><button data-command="logs">Compilation log</button></div></details>
+        <details id="menu-format" class="editor-menu"><summary id="menu-format-toggle" aria-haspopup="true" data-measure>Format</summary><div class="workspace-menu-panel"><button data-command="bold">Bold</button><button data-command="italic">Italic</button><button id="highlight-selection" data-measure>Highlight selection</button><label class="menu-rule">Highlight rule<select id="highlight-rule" aria-label="Highlight rule"></select></label><button id="palette-open" data-measure>Color rules</button></div></details>
+        <details id="menu-help" class="editor-menu"><summary id="menu-help-toggle" aria-haspopup="true" data-measure>Help</summary><div class="workspace-menu-panel"><button data-command="help">UnderTree help</button></div></details>
+      </nav>
       <details id="workspace-menu" class="workspace-menu">
         <summary data-measure>Menu</summary>
         <div class="workspace-menu-panel">
@@ -33,75 +46,86 @@
           <button data-command="connections">ChatGPT connections</button>
           <button data-command="review">Show manuscript review</button>
           <h3>Editor</h3>
+          <button data-command="save">Save</button>
           <button data-command="undo">Undo</button><button data-command="redo">Redo</button>
           <button data-command="find">Find and replace</button><button data-command="select-all">Select all</button>
-          <button data-command="download">Download source</button>
+          <button data-command="download">Download source</button><button data-command="import" hidden>Import to Typst</button>
+          <h3>Format and review</h3><button data-command="bold">Bold</button><button data-command="italic">Italic</button><button data-command="heading">Section heading</button><button data-command="bullet-list">Bulleted list</button><button data-command="numbered-list">Numbered list</button><button data-command="highlight">Highlight selection</button><button data-command="palette">Color rules</button>
           <h3>Layout</h3>
-          <button data-command="files">Show file panel</button><button data-command="editor">Show editor panel</button><button data-command="preview">Show preview panel</button>
+          <button data-command="files">Show file panel</button><button data-command="outline">Show file outline</button><button data-command="editor">Show editor panel</button><button data-command="preview">Show preview panel</button><button data-command="logs">Compilation log</button><button data-command="help">UnderTree help</button>
         </div>
       </details>
-      <button id="project-open" data-measure>Open folder</button>
+      <button id="project-open" data-measure hidden>Open folder</button>
+      </div>
       <select id="project-select" aria-label="Current project"><option value="">Choose a project</option></select>
       <div class="topbar-actions">
-        <button id="review-toggle" aria-label="Toggle review panel" aria-pressed="false" data-measure>Review</button>
+        <button id="review-toggle" aria-label="Toggle review panel" aria-pressed="false" data-measure>Review <span id="review-toggle-count" class="review-count" hidden></span></button>
         <button id="git-open" data-measure>GitHub</button>
         <button id="connection-open" aria-haspopup="dialog" data-measure>Connections</button>
       </div>
     </header>
     <nav class="mobile-views" aria-label="Workspace views">
-      <button data-view="files">Files</button><button data-view="editor" aria-pressed="true">Editor</button><button data-view="review">Review</button><button data-view="preview">Preview</button>
+      <button data-view="files">Files</button><button data-view="editor" aria-pressed="true">Editor</button><button data-view="review" aria-label="Review">Review <span id="review-mobile-count" class="review-count" aria-hidden="true" hidden></span></button><button data-view="preview">Preview</button>
     </nav>
     <section class="review-workspace" data-mobile-view="editor" data-review-open="false" data-files-collapsed="false" data-editor-collapsed="false" data-preview-collapsed="false">
       <nav class="navigation-rail" aria-label="Project navigation">
-        <button id="rail-files" aria-label="Show project files" title="Files" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 3h9v11H3zM3 6V4h7l2 2"/></svg></button>
-        <button id="rail-outline" aria-label="Show document outline" title="Outline" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h14M7 12h14M7 19h14M3 5h1M3 12h1M3 19h1"/></svg></button>
-        <button id="rail-editor" aria-label="Show source editor" title="Editor"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/></svg></button>
-        <button id="rail-preview" aria-label="Show PDF preview" title="Preview"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 2h10l4 4v16H5zM14 2v5h5M8 12h8M8 16h8"/></svg></button>
+        <button id="rail-files" aria-label="Show project files" title="Files" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M3 6h7l2 3h9v11H3zM3 6V4h7l2 2"/></svg></button>
+        <button id="rail-outline" aria-label="Show document outline" title="Outline" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M7 5h14M7 12h14M7 19h14M3 5h1M3 12h1M3 19h1"/></svg></button>
+        <button id="rail-editor" aria-label="Show source editor" title="Editor"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/></svg></button>
+        <button id="rail-preview" aria-label="Show PDF preview" title="Preview"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M5 2h10l4 4v16H5zM14 2v5h5M8 12h8M8 16h8"/></svg></button>
       </nav>
       <aside class="manuscript-files" aria-label="Project files">
-        <div class="pane-heading"><h2 id="files-heading" data-measure>Files</h2><button id="file-new" aria-label="New manuscript">+</button><button id="files-collapse" aria-label="Collapse file panel">‹</button></div>
+        <div class="pane-heading"><h2 id="files-heading" data-measure>File tree</h2><button id="file-new" aria-label="New manuscript">+</button><button id="files-collapse" aria-label="Collapse file panel">‹</button></div>
         <div id="manuscript-files"></div>
-        <div id="manuscript-outline" aria-label="Document outline" hidden></div>
-        <p class="file-help">Typst and HTML manuscripts and their review files stay in your project folder.</p>
+        <section id="outline-panel" data-collapsed="false"><button id="outline-toggle" aria-expanded="true" aria-controls="manuscript-outline" data-measure>File outline</button><div id="manuscript-outline" aria-label="Document outline"></div></section>
       </aside>
-      <div id="files-splitter" class="pane-splitter" role="separator" tabindex="0" aria-label="Resize file panel" aria-orientation="vertical" aria-valuemin="150" aria-valuemax="500" aria-valuenow="220"></div>
+      <div id="files-splitter" class="pane-splitter" role="separator" tabindex="0" aria-label="Resize file panel" aria-orientation="vertical" aria-valuemin="150" aria-valuemax="500" aria-valuenow="233"></div>
       <section class="manuscript-editor" aria-label="Manuscript source editor">
         <div id="manuscript-tabs" class="manuscript-tabs"></div>
         <div class="manuscript-toolbar" role="toolbar" aria-label="Manuscript actions">
-          <button id="manuscript-save" data-measure>Save</button>
-          <select id="highlight-rule" aria-label="Highlight rule"></select>
-          <button id="highlight-selection" data-measure>Highlight selection</button>
-          <button id="palette-open" data-measure>Color rules</button>
-          <button id="editor-search" aria-label="Find in source" data-measure>Find</button>
-          <button id="tex-import" data-measure hidden>Import to Typst</button>
-          <span id="save-label" role="status" data-measure>No file open</span>
-          <button id="editor-collapse" aria-label="Collapse editor panel">‹</button>
+          <button id="source-undo" class="source-icon" data-command="undo" aria-label="Undo" title="Undo"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="m8 4-5 5 5 5M3 9h11a6 6 0 0 1 0 12"/></svg></button><button id="source-redo" class="source-icon" data-command="redo" aria-label="Redo" title="Redo"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="m16 4 5 5-5 5M21 9H10a6 6 0 0 0 0 12"/></svg></button>
+          <button id="source-heading" class="source-icon" data-command="heading" aria-label="Section heading" title="Section heading"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M5 5v14M19 5v14M5 12h14"/></svg></button>
+          <button id="source-bold" class="source-icon" data-command="bold" aria-label="Bold" title="Bold"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M7 4h6a4 4 0 0 1 0 8H7zM7 12h7a4 4 0 0 1 0 8H7z"/></svg></button><button id="source-italic" class="source-icon" data-command="italic" aria-label="Italic" title="Italic"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M10 4h9M5 20h9M15 4 9 20"/></svg></button>
+          <button id="source-bullets" class="source-icon" data-command="bullet-list" aria-label="Bulleted list" title="Bulleted list"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M8 5h13M8 12h13M8 19h13M3 5h1M3 12h1M3 19h1"/></svg></button><button id="source-numbered" class="source-icon" data-command="numbered-list" aria-label="Numbered list" title="Numbered list"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M9 6h12M9 17h12M3 3h2v7M2 10h5M2 14h5v3l-5 4h5"/></svg></button>
+          <button id="editor-search" class="source-icon" aria-label="Find in source" title="Find in source"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><circle cx="10" cy="10" r="6"/><path d="m14.5 14.5 5.5 5.5"/></svg></button>
+          <button id="editor-collapse" class="source-icon" aria-label="Collapse editor panel" title="Collapse editor panel"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="m15 6-6 6 6 6"/></svg></button>
         </div>
         <div id="manuscript-source"><div class="empty-source"><h1>Open a manuscript</h1><p>Choose a local project and a Typst or HTML file to write, preview, and review.</p></div></div>
       </section>
       <aside class="manuscript-review" aria-label="Manuscript review">
-        <div class="pane-heading"><h2 data-measure>Review</h2><button id="review-previous" aria-label="Previous review passage">↑</button><button id="review-next" aria-label="Next review passage">↓</button><button id="review-refresh" aria-label="Refresh review">↻</button><button id="review-close" aria-label="Close review panel">×</button></div>
+        <div class="pane-heading"><h2 data-measure>Review <span id="review-pending-count" class="review-count">0</span></h2><button id="review-previous" aria-label="Previous review passage">↑</button><button id="review-next" aria-label="Next review passage">↓</button><button id="review-refresh" aria-label="Refresh review">↻</button><button id="review-close" aria-label="Close review panel">×</button></div>
+        <button id="review-new-cue" data-measure hidden>New suggestions</button>
         <label class="share-toggle"><input id="manuscript-share" type="checkbox">Share this manuscript with ChatGPT</label>
         <div id="review-conflict" role="alert" hidden><p>The file changed while you were editing. Your buffer has been kept.</p><button id="export-buffer">Export my buffer</button><button id="reload-buffer">Load disk version</button></div>
         <div id="review-list"></div>
       </aside>
       <div id="preview-splitter" class="pane-splitter" role="separator" tabindex="0" aria-label="Resize editor and preview panels" aria-orientation="vertical" aria-valuemin="20" aria-valuemax="80" aria-valuenow="50"></div>
       <section class="manuscript-preview" aria-label="Manuscript preview">
-        <div class="pane-heading preview-toolbar"><button id="typst-compile" data-measure hidden>Recompile</button><button id="compile-log-toggle" aria-label="Show compilation log" aria-pressed="false" data-measure>Logs</button><button id="export-manuscript" data-measure>Export source</button><button id="export-pdf" data-measure hidden>Export PDF</button><button id="preview-collapse" aria-label="Collapse preview panel">›</button></div>
-        <div id="pdf-toolbar" class="pdf-toolbar" role="toolbar" aria-label="PDF navigation" hidden>
-          <button id="pdf-previous" aria-label="Previous PDF page">‹</button><label class="pdf-page-input">Page<input id="pdf-page-number" type="number" min="1" value="1" aria-label="PDF page number"></label><span id="pdf-page-count" data-measure>of 1</span><button id="pdf-next" aria-label="Next PDF page">›</button>
-          <button id="pdf-zoom-out" aria-label="Zoom PDF out">−</button><span id="pdf-zoom-label" data-measure>100%</span><button id="pdf-zoom-in" aria-label="Zoom PDF in">+</button><button id="pdf-fit-width" data-measure>Fit width</button>
+        <div class="pane-heading preview-toolbar" role="toolbar" aria-label="Compilation and preview">
+          <button id="typst-compile" data-measure hidden>Recompile</button>
+          <button id="compile-log-toggle" class="preview-icon" aria-label="Show compilation log" title="Compilation log" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M5 3h9l5 5v13H5zM14 3v6h5M8 13h8M8 17h6"/></svg></button>
+          <button id="export-pdf" class="preview-icon" aria-label="Export PDF" title="Download PDF" hidden><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg></button>
+          <div id="pdf-toolbar" class="pdf-toolbar" role="group" aria-label="PDF navigation" hidden>
+            <button id="pdf-previous" class="preview-icon" aria-label="Previous PDF page" title="Previous page"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="m6 15 6-6 6 6"/></svg></button><button id="pdf-next" class="preview-icon" aria-label="Next PDF page" title="Next page"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="m6 9 6 6 6-6"/></svg></button>
+            <label class="pdf-page-input"><span class="sr-only">Page</span><input id="pdf-page-number" type="number" min="1" value="1" aria-label="PDF page number"></label><span id="pdf-page-count" data-measure>of 1</span>
+            <button id="pdf-zoom-out" class="preview-icon" aria-label="Zoom PDF out" title="Zoom out"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M5 12h14"/></svg></button><button id="pdf-zoom-in" class="preview-icon" aria-label="Zoom PDF in" title="Zoom in"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M5 12h14M12 5v14"/></svg></button><span id="pdf-zoom-label" data-measure>100%</span>
+            <button id="pdf-fit-width" class="preview-icon" aria-label="Fit width" title="Fit PDF to width" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="M3 5v14M21 5v14M5 12h14m-11-3-3 3 3 3m8-6 3 3-3 3"/></svg></button>
+          </div>
+          <button id="preview-collapse" class="preview-icon" aria-label="Collapse preview panel" title="Collapse preview panel"><svg viewBox="0 0 24 24" aria-hidden="true" preserveAspectRatio="xMidYMid meet" focusable="false"><path d="m9 6 6 6-6 6"/></svg></button>
         </div>
         <pre id="compile-log" role="log" aria-label="Compilation log" hidden>No compilation has run yet.</pre>
         <iframe id="manuscript-preview" sandbox="" title="Manuscript preview"></iframe>
         <p id="typst-preview-status" class="preview-status" role="status" hidden>Compile this Typst manuscript to see its PDF.</p><div id="typst-preview" hidden><div id="typst-pages"></div></div>
       </section>
     </section>
-    <footer class="review-status"><span id="review-status" role="status">Local files · offline editing</span><span id="tunnel-label">ChatGPT disconnected</span></footer>
+    <footer class="review-status"><span id="review-status" role="status">Local files · offline editing</span><span id="save-label" role="status" data-measure>No file open</span><span id="tunnel-label">ChatGPT disconnected</span></footer>
   </main>
+  <p id="review-announcement" class="sr-only" role="status" aria-live="polite"></p>
+  <dialog id="help-dialog" aria-labelledby="help-title"><h2 id="help-title">UnderTree help</h2><p>Open a local project from File. Typst and HTML sources and their adjacent review files stay in that folder.</p><p>Use Ctrl/⌘ S to save and Ctrl/⌘ Enter or F5 to compile Typst. Source formatting changes your selected text and remains undoable.</p><p>Format → Highlight selection attaches a color rule or prompt. ChatGPT proposals appear in Review; only your local decisions change the source.</p><p>File → Import to Typst converts a TeX source into a new file and report. Unsupported formatting is reported and the original is retained.</p><div class="dialog-actions"><button type="button" data-close>Close</button></div></dialog>
   <dialog id="project-dialog"><form id="project-form"><h2>Open local project</h2><label>Folder path<input id="project-root" required placeholder="/path/to/project"></label><p>This approves only that folder for UnderTree.</p><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Open folder</button></div></form></dialog>
   <dialog id="new-dialog"><form id="new-form"><h2>New manuscript</h2><label>Filename<input id="new-path" value="manuscript.typ" required pattern=".+\.(typ|html)"></label><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Create</button></div></form></dialog>
   <dialog id="highlight-dialog"><form id="highlight-form"><h2>Highlight passage</h2><blockquote id="highlight-quote"></blockquote><label>Color rule<select id="highlight-dialog-rule"></select></label><label>Additional prompt for this passage<textarea id="highlight-prompt" rows="3" maxlength="4000" placeholder="Keep the content, but make the wording snappier."></textarea></label><p>Protection and rejection rules take precedence over prompts.</p><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Add highlight</button></div></form></dialog>
+  <dialog id="reanchor-dialog" aria-labelledby="reanchor-title"><form id="reanchor-form"><h2 id="reanchor-title">Reanchor highlight</h2><p id="reanchor-rule"></p><p>Previous passage</p><blockquote id="reanchor-old"></blockquote><p>Current selected passage</p><blockquote id="reanchor-new"></blockquote><p>This moves the existing highlight to your current selection. Its color, action and prompts stay the same.</p><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Reanchor highlight</button></div></form></dialog>
   <dialog id="palette-dialog"><form id="palette-form"><h2>Color rules</h2><p>Assign each color a fixed action or an instruction for the reviewer.</p><div id="palette-rules"></div><button id="rule-add" type="button">Add color rule</button><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Save rules</button></div></form></dialog>
   <dialog id="connection-dialog" aria-labelledby="connection-title">
     <div class="connection-heading"><h2 id="connection-title" data-measure>Connections</h2><button type="button" data-close data-measure>Close</button></div>

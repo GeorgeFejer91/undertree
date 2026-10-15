@@ -37,8 +37,8 @@ export class ReviewSession {
   }
   mutate(action, payload = {}) {
     const work = this.queue.catch(() => {}).then(async () => {
-    await this.saveCurrent();
     const version = this.version;
+    await this.saveCurrent();
     const response = await this.request({ action, project: this.project, path: this.path, revision: this.snapshot.review.revision, ...payload });
     if (response.content !== undefined) {
       this.snapshot = response;
@@ -58,8 +58,9 @@ export class ReviewSession {
   async refresh() {
     if (this.dirty || this.conflict) return false;
     const version = this.version;
+    const snapshot = this.snapshot;
     const response = await this.request({ action: 'review', project: this.project, path: this.path });
-    if (version !== this.version) return false;
+    if (version !== this.version || snapshot !== this.snapshot) return false;
     if (response.content !== this.content) { this.conflict = response; return false; }
     this.snapshot = response;
     return true;

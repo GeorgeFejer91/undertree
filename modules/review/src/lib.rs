@@ -87,6 +87,15 @@ pub enum Operation {
         rule: String,
         prompt: String,
     },
+    Reanchor {
+        project: String,
+        path: String,
+        revision: String,
+        id: String,
+        from: usize,
+        to: usize,
+        quote: String,
+    },
     Unmark {
         project: String,
         path: String,

@@ -1,5 +1,5 @@
-export const PDF_MIN_SCALE = 0.25;
-export const PDF_MAX_SCALE = 4;
+export const PDF_MIN_SCALE = 0.1;
+export const PDF_MAX_SCALE = 9.99;
 export const PDF_MAX_RENDER_PIXELS = 10_000_000;
 
 export function clampPdfPage(currentPage, delta, totalPages) {

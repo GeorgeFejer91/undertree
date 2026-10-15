@@ -65,14 +65,15 @@ h3 { font-size: 1rem; }
 .manuscript-tabs button[aria-selected="true"] { background: var(--chrome); color: var(--light); box-shadow: inset 0 2px #38cc89; border-start-start-radius: 8px; }
 .manuscript-tab { display: flex; flex: none; min-width: 0; border-right: 1px solid var(--divider); }
 .manuscript-tab > button[aria-label^="Close "] { padding-inline: .4rem; }
-.manuscript-toolbar { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; min-height: 2.2857rem; padding: .55rem; border-bottom: 1px solid var(--divider); color: var(--light); background: var(--toolbar); }
+.manuscript-toolbar { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; min-height: 2.2857rem; padding: .55rem; border-bottom: 1px solid var(--divider); color: var(--light); background: var(--chrome); }
 .manuscript-toolbar button,.manuscript-toolbar select { font-size: .9rem; }
 #save-label { color: var(--disabled); font-size: .85rem; padding: .2rem; }
 #manuscript-source { min-height: 0; flex: 1; overflow: hidden; }
 .cm-editor { height: 100%; }
 .cm-scroller { overflow: auto; font-family: "JetBrains Mono", "DejaVu Sans Mono", Consolas, monospace; line-height: 1.48; }
 .cm-content { padding: .8rem 0; }
-.cm-gutters { background: #f5f7f8 !important; border-right: 1px solid #e3e7e8 !important; color: #8a8a8a !important; }
+.cm-gutters { background: #f0f0f0 !important; border-right: 1px solid #e3e7e8 !important; color: #333 !important; min-inline-size: 4em; line-height: 1.6; }
+.cm-lineNumbers { flex: 1; }
 .cm-activeLine,.cm-activeLineGutter { background: var(--green-pale) !important; }
 .cm-selectionBackground { background: #cfead9 !important; }
 .empty-source { padding: 2rem; color: var(--muted); }
@@ -142,9 +143,20 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflo
 .native-window .review-workspace { min-height: 0; overflow: auto; }
 
 /* Finite chrome stretches within its pane; documents and inventories own their scrolling. */
-#review-app { min-height: 0; }
-.review-topbar { gap: .5rem; padding: 2px 6px; min-height: 2.8571rem; position: relative; z-index: 20; }
-.review-topbar button,.workspace-menu summary { min-height: 2rem; padding: .1429rem .65rem; }
+#review-app { min-height: 0; container-type: inline-size; }
+.review-topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; padding: 2px 6px; min-height: 40px; position: relative; z-index: 20; }
+.topbar-left { display: flex; gap: 4px; align-items: center; min-width: 0; }
+.workspace-menus { display: flex; align-items: center; min-width: 0; }
+.editor-menu { position: relative; flex: none; }
+.editor-menu summary { display: block; list-style: none; cursor: pointer; padding: 4px 8px; line-height: 1.4286; border-radius: 3px; }
+.editor-menu summary::-webkit-details-marker { display: none; }
+.editor-menu summary:hover,.editor-menu[open] summary { background: var(--toolbar); }
+.editor-menu summary:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.review-topbar #project-select { width: min(28vw, 24rem); justify-self: center; text-align: center; text-align-last: center; padding-inline: 1.75rem; }
+.topbar-actions { justify-content: flex-end; flex-wrap: wrap; gap: 2px; min-width: 0; }
+.menu-rule { padding: .5rem .4rem; display: flex; flex-direction: column; gap: .3rem; }
+.menu-rule select { width: 100%; max-width: 100%; font-size: 1rem; }
+.review-topbar button,.workspace-menu summary { min-height: 28px; padding: .1429rem .65rem; }
 .review-topbar select { background: transparent; border-color: transparent; color: var(--light); padding: .1429rem .5rem; }
 .review-topbar select option { color: var(--ink); background: var(--canvas); }
 .review-topbar select,.manuscript-toolbar select {
@@ -192,20 +204,55 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflo
 #manuscript-outline { overflow: auto; flex: 1; padding: .45rem; }
 .outline-button { display: block; text-align: left; width: 100%; border: 0; background: transparent; color: inherit; }
 .outline-button:hover { background: var(--toolbar); }
-.manuscript-toolbar { gap: var(--chrome-gap, 4px); padding: 2px 4px; }
+.manuscript-toolbar { gap: 0; padding: 1px 4px; min-height: 32px; }
+.manuscript-toolbar .source-icon { display: grid; place-items: center; inline-size: 28px; block-size: 28px; min-inline-size: 28px; min-block-size: 28px; padding: 0; }
+.source-icon svg { display: block; inline-size: 18px; block-size: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.cm-editor { font-size: .857142857rem; }
+.cm-scroller { line-height: 1.6; }
+.cm-content { line-height: 1.6; padding-block: 0; }
+.cm-preserved-cr { display: inline-block; width: 0; height: 0; }
+#typst-pages { padding-top: 0; }
+#manuscript-files { flex: 1 1 0; min-height: 0; }
+#outline-panel { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; border-top: 5px solid var(--divider); }
+#outline-panel[data-collapsed="true"] { flex: none; }
+#outline-toggle { flex: none; border: 0; border-radius: 0; min-height: 32px; padding: 4px 12px; text-align: left; color: var(--light); background: var(--chrome); }
+#outline-toggle::before { content: "⌄"; display: inline-block; width: 16px; }
+#outline-toggle[aria-expanded="false"]::before { content: "›"; }
+#manuscript-outline { flex: 1; min-height: 0; padding: 4px 16px; }
+.review-workspace { --files-size: calc(15vw - 7.05px); }
 .manuscript-toolbar button,.pdf-toolbar button { font-size: calc(1rem * var(--chrome-font-scale, 1)); }
 .manuscript-toolbar #editor-collapse { margin-left: auto; }
-.preview-toolbar { justify-content: flex-start; min-height: 2.2857rem; padding: 2px 4px; background: var(--toolbar); }
+.manuscript-preview { position: relative; }
+.preview-toolbar { justify-content: flex-start; min-height: 32px; padding: 1px 4px; gap: 0; background: var(--toolbar); }
+.preview-toolbar #typst-compile { min-height: 26px; padding: 1px 8px; line-height: 1.4; }
 .preview-toolbar #preview-collapse { margin-left: auto; }
-.pdf-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; min-height: 2.2857rem; padding: 2px 6px; border-bottom: 1px solid var(--divider); background: var(--toolbar); color: var(--light); font-size: 1rem; }
-.pdf-page-input { display: inline-flex; align-items: center; gap: .3rem; }
-#pdf-page-number { width: 3.5rem; padding: .1429rem; color: var(--light); background: var(--chrome); border-color: var(--divider); }
+.pdf-toolbar { display: flex; flex: 1 1 auto; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0; min-width: 0; color: var(--light); font-size: 1rem; }
+.preview-toolbar .preview-icon { display: grid; place-items: center; inline-size: 24px; block-size: 28px; min-inline-size: 24px; min-block-size: 28px; padding: 0; }
+.preview-icon svg { display: block; inline-size: 16px; block-size: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.preview-icon[aria-pressed="true"] { background: var(--green-selected); }
+.pdf-page-input { display: inline-flex; align-items: center; }
+#pdf-page-number { width: 4ch; min-width: 32px; height: max(24px, 1.7143rem); padding: 0 2px; text-align: center; color: var(--light); background: var(--chrome); border-color: var(--disabled); -moz-appearance: textfield; }
+#pdf-page-number::-webkit-inner-spin-button,#pdf-page-number::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+#pdf-page-count,#pdf-zoom-label { flex: none; white-space: nowrap; line-height: 1.4286; }
+#pdf-page-count { padding-inline: 2px; }
+#pdf-zoom-label { min-inline-size: 4ch; text-align: center; }
+#typst-preview-status { position: absolute; inset: auto .6rem .6rem; z-index: 1; padding: .35rem .7rem; border: 1px solid var(--divider); border-radius: 3px; background: var(--chrome); color: var(--light); font-size: .85rem; pointer-events: none; }
+#typst-preview-status[data-state="error"] { border-color: #d9b87c; background: #fff0d5; color: #743723; }
+#typst-preview-status.sr-only { inset: auto; padding: 0; border: 0; max-width: 1px; }
 .pdf-page { margin: 0 auto 16px; background: #fff; position: relative; }
 #typst-pages canvas { max-width: none; margin: 0; height: auto; }
-#typst-pages { min-width: 100%; padding-top: .5rem; }
+#typst-pages { min-width: 100%; padding-top: 0; }
 #compile-log { max-height: none; flex: 1; min-height: 0; margin: 0; padding: .8rem; background: #111820; color: var(--light); font-family: "DejaVu Sans Mono", Consolas, monospace; }
 .review-card[data-selected="true"] { box-shadow: 0 0 0 2px #648773; }
-.workspace-menu { position: relative; flex: none; }
+#review-list { position: relative; }
+.review-passages { position: relative; display: flex; flex-direction: column; gap: 8px; }
+.review-passages > .review-card { flex: none; margin-bottom: 0; }
+.review-count { display: inline-block; min-width: 1.25em; padding: 0 .25em; border: 1px solid currentColor; border-radius: 3px; font-size: .85em; text-align: center; vertical-align: middle; }
+.review-count.has-new { background: var(--green); color: #fff; border-color: var(--green); }
+#review-new-cue { flex: none; border: 0; border-bottom: 1px solid #b4cdbc; border-radius: 0; background: var(--green-pale); color: var(--green-selected); padding: .45rem .65rem; text-align: left; }
+#reanchor-dialog { overflow-wrap: anywhere; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.workspace-menu { display: none; position: relative; flex: none; }
 .workspace-menu summary { cursor: pointer; border: 1px solid transparent; border-radius: 4px; }
 .workspace-menu summary:hover { background: var(--toolbar); }
 .workspace-menu-panel { position: absolute; top: calc(100% + 5px); left: 0; width: 16rem; max-height: calc(100dvh - 8rem); overflow: auto; padding: .5rem; z-index: 20; background: var(--chrome); color: var(--light); border: 1px solid var(--divider); box-shadow: 0 4px 12px #0003; }
@@ -213,8 +260,11 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflo
 .review-topbar .workspace-menu-panel button { display: block; width: 100%; text-align: left; border: 0; background: transparent; color: var(--light); }
 .review-topbar .workspace-menu-panel button:hover { background: var(--toolbar); }
 @media (max-width: 1250px) {
-  .review-workspace { --files-size: 170px; }
   .review-workspace[data-review-open="true"] { --review-size: 240px; }
+}
+@container (max-width: 70em) {
+  .workspace-menus { display: none; }
+  .workspace-menu { display: block; }
 }
 @media (max-width: 900px) {
   .mobile-views { display: flex; flex-wrap: wrap; gap: .3rem; padding: .3rem .5rem; background: var(--toolbar); color: var(--light); flex: none; }
@@ -226,9 +276,12 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflo
   .review-workspace[data-mobile-view="files"] .manuscript-files,
   .review-workspace[data-mobile-view="review"] .manuscript-review,
   .review-workspace[data-mobile-view="preview"] .manuscript-preview { display: flex !important; }
-  .review-topbar { gap: .3rem; }
+  .review-topbar { display: flex; gap: .3rem; }
+  .workspace-menus,.review-topbar .wordmark { display: none; }
+  .workspace-menu { display: block; }
+  .topbar-left { flex: 1; }
   .topbar-actions { margin-left: auto; flex-wrap: wrap; }
-  .review-topbar select { order: 3; flex-basis: 100%; max-width: none; }
+  .review-topbar #project-select { order: 3; flex-basis: 100%; max-width: none; width: 100%; }
   .manuscript-toolbar select { max-width: 12rem; }
   .manuscript-tabs button { max-width: 14rem; }
   .review-status { padding: .3rem .5rem; }
@@ -236,14 +289,11 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflo
 @media (max-width: 500px) {
   .window-drag { padding: 4px 8px; }
   .review-topbar { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px; min-height: 40px; padding: 4px; }
-  .review-topbar .wordmark { grid-column: 1 / -1; }
   #project-open,.topbar-actions { display: none; }
-  .review-topbar select { order: initial; width: 100%; max-width: 100%; }
+  .review-topbar #project-select { order: initial; width: 100%; max-width: 100%; }
   .mobile-views { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; }
   .mobile-views button { padding: 2px 4px; min-height: 32px; overflow-wrap: normal; }
   .workspace-menu-panel { width: min(16rem, calc(100vw - 12px)); max-height: calc(100dvh - 120px); }
   .manuscript-toolbar #editor-collapse,.pane-heading button[aria-label^="Collapse"],.pane-heading button[aria-label="Close review panel"] { min-width: 36px; min-height: 36px; padding: 2px; }
   .manuscript-tabs button { max-width: min(14rem, calc(100vw - 80px)); }
-  /* The Menu and Highlight dialog retain these duplicate controls. */
-  #editor-search,#highlight-rule { display: none; }
 }
