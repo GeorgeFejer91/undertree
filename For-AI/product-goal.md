@@ -65,3 +65,10 @@ existing user projects/settings and use the current Rust/Tauri identity.
 Platform and feature limitations must remain distinct from the larger final
 product goal; shipping a native preview does not establish that goal's
 completion.
+
+The Linux installer/release/this-PC row is VERIFIED for the public
+[v0.3.0 native preview](https://github.com/GeorgeFejer91/undertree_texstudio/releases/tag/v0.3.0)
+on 2026-10-15: qualified exact package, anonymous download/checksums,
+installation/removal/reinstallation, real desktop-launch Typst compilation
+and a normal user app left open. See [the exact report](../VERIFICATION.md#native-linux-release-and-this-pc-installation-2026-10-15).
+This bounded completion does not complete the other acceptance rows.

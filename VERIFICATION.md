@@ -1,6 +1,78 @@
 # Verification report
 
-## Current viewer and native History checkpoint — 2026-10-15
+## Native Linux release and this-PC installation (2026-10-15)
+
+[UnderTree v0.3.0](https://github.com/GeorgeFejer91/undertree_texstudio/releases/tag/v0.3.0)
+is a publicly available Rust/Tauri Linux preview. The exact 10,178,958-byte
+`UnderTree_0.3.0_amd64.deb` has SHA-256
+`6e20cd825eca2212225fd5a3bd6816a48c45fbe11f22c2c036f1fd9c7db57fd2`.
+The release includes checksums and a portable qualification receipt. Anonymous
+HTTPS downloads of the page and all three assets return 200; strict checksum
+verification passes. Public-download evidence is
+`artifacts/qualification/release-delivery-v16/public-download/execution.json`,
+SHA-256 `d80cdb0190f91ddf7e4123884b458d3d9f824921898aa6c5d05de0c12d140bd2`.
+
+The actual optimized build uses the 304-source/15-asset v16 snapshot, manifest
+`4a580ecd5b5c1c5fc44e3461c4e480b6d62c9965e1693d9349515e08c95102ac`,
+matching public build commit `c3e09a1b8ff579a4cbb7c5cdbb52210de69cdf30`.
+Release tag `v0.3.0` points to `89ca118615b955a484715b4574fcf033d0317256`,
+which adds only the seven-line
+project-tree fixture correction below; runtime/package inputs are unchanged.
+The packaged desktop SHA-256 is
+`966ea7ae31e5fc2d8c40adb273c2d719fd5e49c9fc9c28dafab564e56f38fa94`;
+CLI SHA-256 is
+`00dfa49398f582e9c95b66c680fda8edb1474e9f53a1f2ecbfb07cb51f36d4e6`.
+The desktop differs from its build output only by Tauri's exact Debian bundle
+marker. Fresh notices, format, architecture and 382 frontend tests pass with
+zero failures/skips. Prior 413-test/strict-Clippy evidence is explicitly reused
+for the same 67 Rust/native input files, rather than presented as a new run.
+
+The extracted package passes 87 checks across twelve gates: baseline 13,
+App 6, Word count 7, publishing 6, OS import 7, saved ZIP 7, retired-page ZIP 2,
+acknowledged Close 3, revoked Close 3, History 8, diagnostics 5 and real Typst
+publishing 20 with zero skips. Aggregate evidence is
+`artifacts/qualification/release-delivery-v16/package-qualification/execution.json`,
+SHA-256 `32563ceb0dc7ee11c5aa871a6ace7ae65d2711ee8136d85ba3f098f077046bbd`.
+All source/assets/package guards match, observed owned processes exit and
+qualification temporary storage is removed. The unsent automatic-compile
+Close repair passes the unchanged full native baseline, including protected
+Save retry and actual window shutdown. Earlier failed Close receipts remain
+preserved.
+
+The GitHub-downloaded package is installed on this Debian 13 amd64 PC.
+Install, package-only removal and reinstall each exit zero, installed files
+match the archive, and all five pre-existing app-data files are preserved.
+The genuine system desktop launcher uses the normal desktop PATH without
+`UNDERTREE_TYPST`. Clicking the source and pressing F5 produces a current,
+10,738-byte PDF containing the fixture sentinel, with saved source unchanged.
+The compiler resolves to separately installed `/usr/local/bin/typst` 0.15.1.
+The isolated qualification app closes and revokes its descriptor; a normal
+user-profile instance is then left open. Installation evidence
+`installation-cycle.json` has SHA-256 `3624fa4c79de96e494862ae85721886cbdfab4198c4e68e93d91f888327c4b3f`;
+`installed-gui/execution.json` has SHA-256
+`329be24d1506521e6bcb220af181159202b951ef83c423da60940c30c45d6a35`,
+both under `artifacts/qualification/release-delivery-v16/`.
+
+Hosted run 38758056770 passed Rust tests, real Typst and editor-save, then
+stopped at a conflicting browser fixture: it deliberately creates 34 nested
+folders but subsequently expects Save despite the 32-level staging limit.
+The corrected fixture first verifies refusal preserves disk/draft, removes
+only its disposable depth subtree and explicitly retries Save. All original
+assertions remain, with three preservation assertions added. All seven
+browser checks pass on the installed CLI and frozen assets. Composite evidence
+`artifacts/qualification/public-installer-v16-source/project-tree-installed-cli-fixed/qualification-final.json`
+has SHA-256 `5e6cc8455cd39e5ff9023ca2100934bd6820e117efe13b34ada0bf892e624f36`.
+The original wrapper's empty-Chrome-directory cleanup failure is retained;
+separate verified removal completes cleanup without rerunning the gate.
+The corrected hosted run is separate evidence, not a claimed full CI pass.
+
+This release satisfies the Linux installer/GitHub/this-PC installation slice.
+Full Overleaf parity, source Move/rename/trash, public ChatGPT/zrok, hard
+dependency-report temporary quotas, other platforms and signing remain open.
+The larger delivery goal remains active. Historical checkpoints below retain
+their original runtime and fixture scopes.
+
+## Previous v15 viewer and native History checkpoint — 2026-10-15
 
 The unpublished v15 capture, `artifacts/qa-current-history-diagnostics-v15`,
 contains 303 sources, 15 fresh frontend assets and two copied binaries. Final

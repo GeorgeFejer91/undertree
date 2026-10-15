@@ -2,7 +2,39 @@
 
 Evidence ledger for the 2026-10-14 Rust/Tauri/Typst migration. This is authored orchestration context, not a runtime input. Source inspection establishes source behavior; only an exercised path establishes integration behavior.
 
-## Current combined capture, 2026-10-15
+## Native Linux release and installed app, 2026-10-15
+
+[UnderTree v0.3.0](https://github.com/GeorgeFejer91/undertree_texstudio/releases/tag/v0.3.0)
+is publicly released as a Rust/Tauri Linux preview. The 10,178,958-byte Debian
+installer SHA-256 is `6e20cd825eca2212225fd5a3bd6816a48c45fbe11f22c2c036f1fd9c7db57fd2`.
+Anonymous page/asset downloads and strict checksums pass (`d80cdb01…`).
+Build commit `c3e09a1…` matches the 304-source/15-asset v16 manifest
+`4a580ecd…`; tag commit `89ca118…` changes only the browser fixture.
+Packaged desktop `966ea7ae…` and CLI `00dfa493…` pass 87 native/compiler
+checks across twelve gates, including baseline13, History8, diagnostics5,
+real OS import/ZIP and real Typst20. Aggregate evidence `32563ceb…` proves
+input guards and cleanup. All 382 frontend tests pass. Prior Rust/Clippy
+results apply to exactly unchanged 67 input files and are not relabeled.
+
+Actual GitHub-downloaded bytes install, remove and reinstall successfully on
+this Debian 13 amd64 PC while preserving existing app data (`3624fa4c…`).
+The system desktop launcher compiles a current PDF with expected text through
+normal PATH and separately installed Typst, without a compiler override
+(`329be24d…`). A normal user-profile app is left open. The Close repair clears
+the previous native failure on the exact package. The seven-check project-tree
+browser gate also passes after explicitly testing the bounded depth refusal
+and then removing only its owned fixture before retry; original assertions
+remain (`5e6cc845…`). Earlier failures remain immutable, and hosted CI remains a
+separate gate assessed only from its actual result.
+
+See [the release and installation report](../VERIFICATION.md#native-linux-release-and-this-pc-installation-2026-10-15)
+for exact receipts, compiler identity, source/fixture distinctions and limits.
+The portable receipt and checksums travel with the public release; ignored
+raw local artifacts do not. The installer slice is complete; the full delivery
+goal, Move/parity/live/platform acceptance and hard dependency-output bound
+remain active/open.
+
+## Previous v15 combined capture, 2026-10-15
 
 The newer unpublished v15 capture binds 303 sources, 15 fresh assets and
 desktop `5e2be040…` / unchanged CLI `d343134a…` to final manifest `282ec7e1…`.
@@ -21,7 +53,7 @@ earlier hosted public build's overflow remains unresolved. The original v15
 baseline fails after 11 groups when custom Close is refused because an
 unidentified local operation is pending; its final two groups remain
 unqualified. Captured inputs remain unchanged and cleanup completes. See the
-[current checkpoint](../VERIFICATION.md#current-viewer-and-native-history-checkpoint--2026-10-15)
+[current checkpoint](../VERIFICATION.md#previous-v15-viewer-and-native-history-checkpoint--2026-10-15)
 for exact receipts and limits. The goal remains active.
 
 ## Previous v14 combined capture, 2026-10-15
