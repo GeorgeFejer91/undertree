@@ -61,6 +61,14 @@ Cancel leaves them unchanged. Reset defaults fills the dialog for review before
 Apply. Settings preserve source text, undo history and pane choices. If local
 storage is unavailable, the app reports that preferences apply for this session.
 
+**File → Word count** counts a captured snapshot of the current editor file,
+including unsaved text and source selections. It reports source words and a
+literal prose estimate without saving or compiling. Typst estimates include
+literal content, including unused definitions; generated text and included files
+are excluded. HTML estimates exclude code and non-prose subtrees. The dialog
+shows its scope and segmentation locale; it does not report a rendered project
+total. Typst prose analysis requires the desktop app.
+
 Use **File → Set as main document** on a `.typ` file to keep building the
 complete manuscript while editing chapters, BibTeX/Hayagriva bibliographies,
 or data files. Recompile saves the project's open buffers before building;

@@ -106,14 +106,14 @@ async function saveExactSource(page, project, path, expected) {
     return saved;
   } finally { page.off('response',observe); }
 }
-let browser;
+let browser, failurePage;
 try {
   assert.equal((await fetch(base+'/api/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'projects'})})).status,401);
   const project=await call({action:'add_project',root:projectRoot});
   const denied=await call({action:'open',project:project.id,path:'../main.html'},true);assert.equal(denied.code,'path');
   browser=await chromium.launch({executablePath:process.env.UNDERTREE_CHROME || '/usr/bin/google-chrome',headless:true,args:['--no-sandbox']});
   const context=await browser.newContext({viewport:{width:1600,height:1000}});
-  const page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  const page=failurePage=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.goto(base+`/manuscript.html#session=${token}`);
   assert.equal(await page.locator('#window-titlebar').isVisible(), false, 'native controls stay hidden in browser mode');
   assert.equal(await page.locator('#review-app').evaluate(root => root.classList.contains('native-window')), false, 'browser keeps its own window frame');
@@ -714,7 +714,7 @@ try {
   assert.equal(await page.locator('#typst-preview-status').getAttribute('data-state'),'stale','an observed external dependency conflict invalidates the visible main PDF');
   assert.equal(await page.locator('.cm-content').textContent(),bibliographyDuringDecision,'refresh conflict retains the existing dependency editor');
   await page.locator('#reload-buffer').click();
-  await page.waitForFunction(()=>document.querySelector('.cm-content').textContent.includes('External bibliography edit.'));
+  await page.waitForFunction(()=>document.querySelector('.cm-content')?.textContent.includes('External bibliography edit.'));
   await page.locator('#typst-compile').click();await page.waitForFunction(()=>document.getElementById('typst-preview-status').dataset.state==='current',{},{timeout:15000});
   await page.getByRole('button',{name:'part.typ',exact:true}).click();await waitForSource(page,'chapters/part.typ');
   const goodMain=await call({action:'pdf',project:project.id,path:'book.typ'});assert.equal(goodMain.current,true);
@@ -733,11 +733,19 @@ try {
   await page.getByRole('button',{name:'references.bib',exact:true}).click();await waitForSource(page,'references.bib');
   assert.equal(await page.locator('#typst-compile').isVisible(),false,'a bibliography has no compile action without a configured main');
   await page.getByRole('button',{name:'main.typ',exact:true}).click();await waitForSource(page,'main.typ');
+  const mainBeforeExternalChange=await page.locator('.cm-content').textContent();
   const checkpoint=await call({action:'open',project:project.id,path:'main.typ'});
   await call({action:'save',project:project.id,path:'main.typ',revision:checkpoint.review.revision,content:'#unknown-function()'});
   const invalid=await call({action:'open',project:project.id,path:'main.typ'});
   await call({action:'compile',project:project.id,path:'main.typ',revision:invalid.review.revision},true);
   const preserved=await call({action:'pdf',project:project.id,path:'main.typ'});assert.equal(preserved.available,true);assert.equal(preserved.current,false);
+  await menuAction(page,'view','Show manuscript review');
+  await page.locator('#review-conflict').waitFor({state:'visible',timeout:10000});
+  assert.equal(await page.locator('.cm-content').textContent(),mainBeforeExternalChange,'the external failing source must not silently replace the open buffer');
+  await page.locator('#reload-buffer').click();
+  await page.waitForFunction(()=>document.querySelector('.cm-content')?.textContent==='#unknown-function()'&&document.getElementById('review-conflict').hidden&&document.getElementById('save-label').textContent==='Saved locally');
+  await page.locator('#typst-pages canvas').first().waitFor({timeout:10000});
+  await page.waitForFunction(()=>document.getElementById('typst-preview-status').dataset.state==='stale',{},{timeout:10000});
   await page.getByRole('button',{name:'Close main.typ',exact:true}).click();
   await page.getByRole('tab',{name:'main.typ',exact:true}).waitFor({state:'detached'});
   await page.getByRole('button',{name:'main.typ',exact:true}).click();await waitForSource(page,'main.typ');await page.locator('#typst-pages canvas').first().waitFor({timeout:10000});
@@ -876,6 +884,25 @@ try {
   await blockedStorageContext.close();
   assert.deepEqual(errors,[]);
   console.log('Real Rust review/MCP, local reanchor/protection, pending/new cues, source-linked card collision/navigation/scroll, accepted Typst automatic PDF, six menus/centered title/source formatting/undo/outline, exact CRLF source markers and byte roundtrip, width×height/200%/text-spacing chrome, one 32px desktop preview toolbar/enlarged reflow/actual source+PDF downloads, all 10 PDF pages with bounded canvases, explicit builds, delayed real PDF Worker termination/open responses with independent file undo, delayed palette/highlight project ownership and recorded autosync targets, TeX import, delayed save/reload/IME acceptance safety, revision-aware delayed PDF status, persisted pane/text settings with undo, reload, clamp/regrowth, 320px/200% and denied storage, and visible failure/last-good PDF checks passed. zrok process and final autosync response simulated; public tunnel, live GitHub push and full rendered Overleaf parity not tested.');
+} catch (error) {
+  await (async () => {
+    const output=resolve('artifacts/review-ui-failure');await mkdir(output,{recursive:true});
+    const observed=await failurePage?.evaluate(()=>({
+      tab:document.querySelector('#manuscript-tabs [aria-selected="true"]')?.textContent,
+      status:document.querySelector('.review-status')?.textContent,
+      saved:document.getElementById('save-label')?.textContent,
+      conflictHidden:document.getElementById('review-conflict')?.hidden,
+      conflictVisible:Boolean(document.getElementById('review-conflict')?.getClientRects().length),
+      source:document.querySelector('.cm-content')?.textContent,
+    })).catch(()=>null);
+    const {source,...ui}=observed||{};
+    await writeFile(join(output,`${basename(root)}.json`),JSON.stringify({
+      snapshotReceipt,snapshotSha256,error:{name:error.name,message:error.message},ui,
+      sourceSha256:typeof source==='string'?createHash('sha256').update(source).digest('hex'):null,
+    },null,2)+'\n');
+    await failurePage?.screenshot({path:join(output,`${basename(root)}.png`)});
+  })().catch(()=>{});
+  throw error;
 } finally {
   await browser?.close();child.kill('SIGINT');
   await new Promise(r=>{if(child.exitCode!==null) r();else {child.once('exit',r);setTimeout(r,3000).unref();}});

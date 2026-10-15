@@ -108,4 +108,13 @@ the existing connection manager. It keeps transient checkbox state and never
 grants native authority optimistically. PDF permission carries both expected App
 and export generations; its native commit rejects stale consent requests.
 
+`word_count.rs` extracts bounded literal Typst markup from supplied text without
+evaluation, file access or compilation. `word_count_native.rs` owns the strict
+current-main-owner query and one retained blocking-worker permit. The Tauri
+adapter exposes only `word_count_typst_text`; Operation, CLI, HTTP and MCP do
+not gain a count or source-access route. Frontend `word-count*.js` captures the
+current immutable editor document/selection, counts source words and HTML prose
+in a worker, and rejects stale dialog results. Counts describe a local file
+snapshot and literal estimates, not evaluated or included project totals.
+
 The authenticated local HTTP contract remains the boundary between the legacy frontend and compiler modules. Do not bypass either authority with renderer filesystem access or privileged synchronous IPC.

@@ -9,6 +9,7 @@ use undertree_review::service::editor::EditorOperation;
 use undertree_review::service::file_import::ImportOperation;
 use undertree_review::service::project_export::ExportOperation;
 use undertree_review::service::Service;
+use undertree_review::word_count_native::{WordCountReply, WordCountRequest, WordCountWorker};
 use undertree_review::{Error, Operation};
 
 #[tauri::command]
@@ -17,6 +18,16 @@ async fn review_action(
     operation: Operation,
 ) -> std::result::Result<serde_json::Value, Error> {
     state.inner().dispatch(operation).await
+}
+
+#[tauri::command]
+async fn word_count_typst_text(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, Arc<Service>>,
+    worker: tauri::State<'_, WordCountWorker>,
+    request: WordCountRequest,
+) -> std::result::Result<WordCountReply, Error> {
+    worker.analyze(state.inner(), window.label(), request).await
 }
 
 #[tauri::command]
@@ -348,10 +359,12 @@ fn main() {
             let instance = tauri::async_runtime::block_on(LocalInstance::start(service.clone()))?;
             app.manage(instance);
             app.manage(service);
+            app.manage(WordCountWorker::default());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             review_action,
+            word_count_typst_text,
             editor_connect,
             editor_operation,
             control_operation,

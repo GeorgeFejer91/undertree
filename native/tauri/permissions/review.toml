@@ -4,6 +4,11 @@ description = "Named local manuscript and review operations; Rust validates proj
 commands.allow = ["review_action"]
 
 [[permission]]
+identifier = "allow-word-count"
+description = "Analyze bounded text supplied by the current local main window without accessing project files."
+commands.allow = ["word_count_typst_text"]
+
+[[permission]]
 identifier = "allow-editor-operation"
 description = "Coordinate registered editor sessions in the local main window; never exposed through CLI or MCP."
 commands.allow = ["editor_connect", "editor_operation"]

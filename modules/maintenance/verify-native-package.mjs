@@ -21,6 +21,7 @@ assert.ok(build.packages.some(item => resolve(item.path) === archive), 'The arch
 const extracted = await mkdtemp(join(tmpdir(), 'undertree-native-package-'));
 const artifacts = resolve(process.env.UNDERTREE_NATIVE_PACKAGE_ARTIFACTS || join(root, 'artifacts/native-package'));
 const nativeUiRunner = resolve(process.env.UNDERTREE_NATIVE_UI_RUNNER || join(root, 'tests/native-ui-smoke.mjs'));
+const nativeWordCountRunner = resolve(process.env.UNDERTREE_NATIVE_WORD_COUNT_RUNNER || join(root, 'tests/native-word-count-smoke.mjs'));
 const nativeAppRunner = resolve(process.env.UNDERTREE_NATIVE_APP_RUNNER || join(root, 'tests/native-app-controls-smoke.mjs'));
 const nativePublishingRunner = resolve(process.env.UNDERTREE_NATIVE_PUBLISHING_RUNNER || join(root, 'tests/native-publishing-smoke.mjs'));
 const nativeImportRunner = resolve(process.env.UNDERTREE_NATIVE_IMPORT_RUNNER || join(root, 'tests/native-import-smoke.mjs'));
@@ -101,6 +102,13 @@ try {
   process.stdout.write(nativeApp.stdout);
   process.stderr.write(nativeApp.stderr);
   for (const [name, runner, extra] of [
+    ['word-count', nativeWordCountRunner, {
+      UNDERTREE_NATIVE_WORD_COUNT_LAUNCH: '1',
+      UNDERTREE_EXPECTED_DESKTOP_SHA256: await hash(desktop),
+      UNDERTREE_REVIEW_CLI: cli,
+      UNDERTREE_NATIVE_WORD_COUNT_ARTIFACTS: join(artifacts, 'word-count'),
+      UNDERTREE_NATIVE_WORD_COUNT_DENSE: '1',
+    }],
     ['publishing', nativePublishingRunner, {}],
     ['import', nativeImportRunner, {}],
     ['project-export', nativeProjectExportRunner, {}],
@@ -130,6 +138,7 @@ try {
       rustComponents: attribution.rustComponents.length, javascriptComponents: attribution.javascriptComponents.length },
     runners: {
       nativeUi: { path: nativeUiRunner, sha256: await hash(nativeUiRunner) },
+      nativeWordCount: { path: nativeWordCountRunner, sha256: await hash(nativeWordCountRunner) },
       nativeApp: { path: nativeAppRunner, sha256: await hash(nativeAppRunner) },
       nativePublishing: { path: nativePublishingRunner, sha256: await hash(nativePublishingRunner) },
       nativeImport: { path: nativeImportRunner, sha256: await hash(nativeImportRunner) },
@@ -137,7 +146,7 @@ try {
       nativeProjectExportEpoch: { path: nativeProjectExportEpochRunner, sha256: await hash(nativeProjectExportEpochRunner) },
       nativeClose: { path: nativeCloseRunner, sha256: await hash(nativeCloseRunner) },
     },
-    installed: false, qualification: 'Extracted Debian package, offline CLI help, native shared authority, MCP App controls, isolated source/PDF downloads and consent, native file import, saved-project ZIP/retired-page Save and clean/revoked Close acknowledgements.',
+    installed: false, qualification: 'Extracted Debian package, offline CLI help, native shared authority and Word count, MCP App controls, isolated source/PDF downloads and consent, native file import, saved-project ZIP/retired-page Save and clean/revoked Close acknowledgements.',
     limitations: 'Simulated zrok child; no public ChatGPT route, system installation, upgrade, removal, signing, other Linux distribution, Windows or macOS qualification.',
   }, null, 2));
   console.log(`Extracted Rust/Tauri Debian package passed without installation; evidence in ${artifacts}.`);

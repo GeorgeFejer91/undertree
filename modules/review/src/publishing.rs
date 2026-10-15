@@ -14,6 +14,9 @@ use std::process::Stdio;
 use std::sync::Arc;
 use tokio::io::AsyncReadExt;
 
+#[cfg(test)]
+pub(crate) mod diagnostics;
+
 const MAX_PDF: usize = 16 * 1024 * 1024;
 const MAX_DIAGNOSTICS: usize = 64 * 1024;
 const MAX_PREVIEW_INFO: usize = 1024 * 1024;

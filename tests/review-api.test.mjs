@@ -13,7 +13,7 @@ test('a native page connects once and cannot reacquire ownership after retiremen
     return { protocolVersion: 1, requests: [] };
   } } };
   const api = await import(`../modules/frontend/review-api.js?native-epoch=${Date.now()}`);
-  await Promise.all([api.editorRequest({ action: 'editor_poll' }), api.controlRequest({ action: 'control_poll' }), api.chooseImportFiles('project', 'assets'), api.importRequest({ action: 'import_status', requestId: 'request' }), api.prepareProjectExport('project'), api.chooseProjectExportDestination('archive', 'download'), api.projectExportRequest({ action: 'export_status', requestId: 'download' })]);
+  await Promise.all([api.editorRequest({ action: 'editor_poll' }), api.controlRequest({ action: 'control_poll' }), api.chooseImportFiles('project', 'assets'), api.importRequest({ action: 'import_status', requestId: 'request' }), api.prepareProjectExport('project'), api.chooseProjectExportDestination('archive', 'download'), api.projectExportRequest({ action: 'export_status', requestId: 'download' }), api.wordCountTypstText('count', 'supplied dirty text')]);
   assert.equal(calls.filter(call => call.command === 'editor_connect').length, 1);
   assert.equal(calls.filter(call => call.command === 'editor_operation').every(call => call.args.ownerId === 'page-epoch'), true);
   assert.equal(calls.find(call => call.command === 'control_operation').args.ownerId, 'page-epoch', 'app controls share the existing page owner');
@@ -22,6 +22,7 @@ test('a native page connects once and cannot reacquire ownership after retiremen
   assert.deepEqual(calls.find(call => call.command === 'prepare_project_export').args, { ownerId: 'page-epoch', project: 'project' });
   assert.deepEqual(calls.find(call => call.command === 'choose_project_export_destination').args, { ownerId: 'page-epoch', exportId: 'archive', requestId: 'download' });
   assert.deepEqual(calls.find(call => call.command === 'project_export_operation').args, { ownerId: 'page-epoch', operation: { action: 'export_status', requestId: 'download' } });
+  assert.deepEqual(calls.find(call => call.command === 'word_count_typst_text').args, { request: { ownerId: 'page-epoch', requestId: 'count', source: 'supplied dirty text' } });
   retired = true;
   await assert.rejects(api.editorRequest({ action: 'editor_poll' }), error => error.code === 'stale_session');
   await assert.rejects(api.controlRequest({ action: 'control_poll' }), error => error.code === 'stale_session');
@@ -30,6 +31,7 @@ test('a native page connects once and cannot reacquire ownership after retiremen
   await assert.rejects(api.prepareProjectExport('project'), error => error.code === 'stale_session');
   await assert.rejects(api.chooseProjectExportDestination('archive', 'download'), error => error.code === 'stale_session');
   await assert.rejects(api.projectExportRequest({ action: 'export_status', requestId: 'download' }), error => error.code === 'stale_session');
+  await assert.rejects(api.wordCountTypstText('count', 'supplied dirty text'), error => error.code === 'stale_session');
   assert.equal(calls.filter(call => call.command === 'editor_connect').length, 1, 'an old page cannot rotate the current native owner');
 });
 test('an initial native connection failure can retry without dispatching an ownerless operation', async t => {
@@ -60,5 +62,6 @@ test('standalone browser import and project download refuse before connecting an
   await assert.rejects(api.prepareProjectExport('project'), error => error.code === 'desktop_required');
   await assert.rejects(api.chooseProjectExportDestination('archive', 'download'), error => error.code === 'desktop_required');
   await assert.rejects(api.projectExportRequest({ action: 'export_status', requestId: 'download' }), error => error.code === 'desktop_required');
+  await assert.rejects(api.wordCountTypstText('count', 'supplied dirty text'), error => error.code === 'desktop_required');
   assert.equal(network, 0); assert.equal(ipc, 0);
 });

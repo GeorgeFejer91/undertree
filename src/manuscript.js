@@ -8,7 +8,8 @@ import { ReviewSession } from '../modules/frontend/review-session.js';
 import { NativeFileImport } from '../modules/frontend/file-import.js';
 import { NativeProjectExport } from '../modules/frontend/project-export.js';
 import { EditorSessionBridge } from '../modules/frontend/editor-session-bridge.js';
-import { reviewRequest as nativeRequest, editorRequest, controlRequest, chooseProject, chooseImportFiles, importRequest, prepareProjectExport, chooseProjectExportDestination, projectExportRequest, nativeReview } from '../modules/frontend/review-api.js';
+import { reviewRequest as nativeRequest, editorRequest, controlRequest, chooseProject, chooseImportFiles, importRequest, prepareProjectExport, chooseProjectExportDestination, projectExportRequest, wordCountTypstText, nativeReview } from '../modules/frontend/review-api.js';
+import { WordCountController, captureWordCount, wordCountCurrent } from '../modules/frontend/word-count-controller.js';
 import { McpControlBridge } from './mcp-control.js';
 import { captureControlState, assertControlState, assertControlPassage, controlPreviewIdentity, assertControlPreview } from '../modules/frontend/manuscript-control-state.js';
 import { observeReviewText } from '../modules/frontend/review-text-layout.js';
@@ -163,6 +164,7 @@ function setWindowClosing(busy) {
   if (busy && view?.compositionStarted) throw new Error('Finish the current text composition before closing the window.');
   if (busy) windowFocus = document.activeElement;
   windowClosing = busy;
+  wordCount.changed();
   for (const session of sessions.values()) editorBridge.changed(session);
   for (const region of document.querySelectorAll('.review-topbar,.review-workspace,.mobile-views,dialog')) region.inert = busy;
   if (view) view.dispatch({ effects: windowEditing.reconfigure(windowEditorAccess()) });
@@ -227,6 +229,36 @@ function applyEditorSettings(event) {
   localRequestsVersion += 1; applyEditorPreferences(); const stored = rememberWorkspace();
   $('editor-settings-dialog').close();
   status(stored ? 'Editor settings saved.' : 'Editor settings applied for this session. Storage is unavailable; these settings will not be restored after reopening.', !stored);
+}
+let wordCountReturnFocus = null;
+const wordCount = new WordCountController({
+  native: nativeReview, analyzeTypst: wordCountTypstText,
+  isCurrent: captured => $('word-count-dialog').open && sessions.get(keyFor(captured.project,captured.path)) === captured.session && wordCountCurrent(captured, active, view?.state, wordCount.current?.capture.requestId, { composing: !!view?.compositionStarted, closing: windowClosing }),
+  onChange: renderWordCount,
+});
+function renderWordCount(context) {
+  $('word-count-path').textContent = context.capture.path;
+  $('word-count-state').textContent = [context.capture.dirty ? 'Unsaved at capture.' : 'Saved at capture.', context.capture.conflict || context.capture.reviewProblem ? 'Local draft; source or review data needs resolution.' : ''].filter(Boolean).join(' ');
+  $('word-count-status').textContent = context.message; $('word-count-status').hidden = !context.message;
+  $('word-count-results').hidden = context.phase !== 'ready';
+  const result = context.result;
+  if (!result) return;
+  const words = count => `${count.toLocaleString(result.locale)} ${count === 1 ? 'word' : 'words'}`;
+  $('word-count-prose').textContent = result.proseWords == null ? 'Unavailable' : words(result.proseWords);
+  $('word-count-source').textContent = words(result.sourceWords);
+  $('word-count-selection').textContent = result.selectionReason ? 'Unavailable' : result.selectionWords == null ? 'No selected text' : `${words(result.selectionWords)}${result.selectionRanges > 1 ? ` · ${result.selectionRanges} ranges` : ''}`;
+  $('word-count-prose-reason').textContent = result.proseReason || ''; $('word-count-prose-reason').hidden = !result.proseReason;
+  $('word-count-selection-reason').textContent = result.selectionReason || ''; $('word-count-selection-reason').hidden = !result.selectionReason;
+  $('word-count-locale').textContent = `Word segmentation locale: ${result.locale}`;
+}
+function openWordCount(trigger) {
+  if (windowClosing || view?.compositionStarted) throw { message: 'Finish composing text before opening Word count. Your buffer is kept.' };
+  if (!active || !view || !/\.(typ|html?)$/i.test(active.path)) throw { message: 'Open a Typst or HTML file to count its current editor text.' };
+  const captured = captureWordCount(active, view.state, crypto.randomUUID());
+  const source = view.state.doc.toString();
+  wordCountReturnFocus = trigger?.closest('details')?.querySelector('summary') || document.activeElement;
+  localRequestsVersion += 1; $('word-count-dialog').showModal();
+  void wordCount.open(captured, { source, format: /\.typ$/i.test(captured.path) ? 'typ' : 'html', locale: document.documentElement.lang || 'en' });
 }
 function restoreWorkspacePreferences() {
   for (const key of ['filesCollapsed', 'editorCollapsed', 'previewCollapsed', 'reviewOpen']) workspace.dataset[key] = String(workspacePreferences[key]);
@@ -369,6 +401,7 @@ function detachEditor(preserve = true) {
   requireNavigationReady();
   const editor = view; const session = active; const cleanup = pdfLoadingTask;
   view = null; active = null; pdfLoadingTask = null; pdfBytes = null; pdfPath = ''; pdfGeneration += 1;
+  wordCount.changed();
   if (preserve && editor && session) {
     session.editorState = editor.state; session.editorScroll = { top: editor.scrollDOM.scrollTop, left: editor.scrollDOM.scrollLeft }; session.reviewScroll = $('review-list').scrollTop;
   }
@@ -852,9 +885,10 @@ async function mountSession(session, intent, read = request) {
     if (code !== 13) return null;
     const carriage = element('span', '', 'cm-preserved-cr'); carriage.setAttribute('aria-hidden', 'true'); return carriage;
   } }), basicSetup, editorWrapping.of(workspacePreferences.wordWrap ? EditorView.lineWrapping : []), reviewField, windowEditing.of(windowEditorAccess()), EditorView.domEventHandlers({
-    compositionstart: () => { queueMicrotask(() => editorBridge.changed(session)); },
+    compositionstart: () => { queueMicrotask(() => { editorBridge.changed(session); wordCount.changed(); }); },
     compositionend: () => { setTimeout(() => editorBridge.changed(session), 0); },
   }), EditorView.updateListener.of(update => {
+    if (update.docChanged || update.selectionSet) queueMicrotask(() => wordCount.changed());
     if (update.selectionSet && !session.dirty && !update.docChanged && !update.view.compositionStarted && active === session) {
       const range = update.state.selection.main;
       const candidates = reviewAnchors().filter(item => range.from < item.anchor.to && range.to >= item.anchor.from);
@@ -1073,6 +1107,11 @@ $('settings-reset').onclick = () => fillEditorSettings(normalizeWorkspacePrefere
 $('editor-settings-dialog').addEventListener('close', () => {
   const target = [settingsReturnFocus, $('menu-view-toggle'), $('workspace-menu').querySelector('summary')].find(node => node?.getClientRects().length);
   target?.focus(); settingsReturnFocus = null;
+});
+$('word-count-dialog').addEventListener('close', () => {
+  wordCount.close();
+  const target = [wordCountReturnFocus, $('menu-file-toggle'), $('workspace-menu').querySelector('summary')].find(node => node?.getClientRects().length);
+  target?.focus({ preventScroll: true }); wordCountReturnFocus = null;
 });
 for (const button of document.querySelectorAll('[data-view]')) button.onclick = () => mobileView(button.dataset.view);
 $('project-open').onclick = task(async () => {
@@ -1297,6 +1336,7 @@ for (const button of document.querySelectorAll('[data-command]')) button.onclick
   else if (command === 'review') reviewPanel(true);
   else if (command === 'word-wrap') { workspacePreferences.wordWrap = !workspacePreferences.wordWrap; applyEditorPreferences(); rememberWorkspace(); }
   else if (command === 'editor-settings') openEditorSettings(button);
+  else if (command === 'word-count') openWordCount(button);
   else if (command === 'text-larger' || command === 'text-smaller') { workspacePreferences.editorFontSize = Math.max(10, Math.min(28, workspacePreferences.editorFontSize + (command === 'text-larger' ? 1 : -1))); applyEditorPreferences(); rememberWorkspace(); }
   else if (command === 'reset-workspace') { workspacePreferences = normalizeWorkspacePreferences(); restoreWorkspacePreferences(); mobileView('editor'); rememberWorkspace(); }
   else if (command === 'help') $('help-dialog').showModal();
@@ -1389,7 +1429,7 @@ windowChrome = await setupWindowChrome({
 });
 observeReviewText(document.body);
 editorBridge.start();
-window.addEventListener('pagehide', () => { appControls?.stop(); editorBridge.stop(); for (const session of sessions.values()) void editorBridge.unwatch(session); });
+window.addEventListener('pagehide', () => { wordCount.close(); appControls?.stop(); editorBridge.stop(); for (const session of sessions.values()) void editorBridge.unwatch(session); });
 window.addEventListener('pageshow', event => { if (event.persisted) { for (const session of sessions.values()) editorBridge.watch(session); editorBridge.start(); appControls?.start(); } });
 await task(async () => { await loadProjects(); renderReview(); await connections.refresh(); })();
 appControls = new McpControlBridge({

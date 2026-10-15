@@ -3,5 +3,5 @@
   "identifier": "main",
   "description": "Local UnderTree window; no remote origins, shell or generic filesystem plugins.",
   "windows": ["main"],
-  "permissions": ["core:default", "core:window:allow-close", "core:window:allow-minimize", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize", "allow-review-action", "allow-editor-operation", "allow-control-operation", "allow-choose-project", "allow-file-import", "allow-project-export", "core:window:allow-maximize", "core:window:allow-unmaximize", "core:window:allow-unminimize", "core:window:allow-set-focus"]
+  "permissions": ["core:default", "core:window:allow-close", "core:window:allow-minimize", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize", "allow-review-action", "allow-word-count", "allow-editor-operation", "allow-control-operation", "allow-choose-project", "allow-file-import", "allow-project-export", "core:window:allow-maximize", "core:window:allow-unmaximize", "core:window:allow-unminimize", "core:window:allow-set-focus"]
 }

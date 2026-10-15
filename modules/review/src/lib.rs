@@ -6,6 +6,8 @@ pub mod publishing;
 pub mod service;
 pub mod tex_import;
 pub mod transport;
+pub mod word_count;
+pub mod word_count_native;
 
 use serde::{Deserialize, Serialize};
 

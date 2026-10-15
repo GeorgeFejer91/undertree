@@ -6,7 +6,7 @@ import { editorLineHeights, normalizeWorkspacePreferences } from '../modules/fro
 import { captureControlState, assertControlState } from '../modules/frontend/manuscript-control-state.js';
 
 const source = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
-const functions = source.slice(source.indexOf('function applyEditorPreferences()'), source.indexOf('function restoreWorkspacePreferences()'));
+const functions = source.slice(source.indexOf('function applyEditorPreferences()'), source.indexOf('let wordCountReturnFocus'));
 function setup({ composing = false, stored = true } = {}) {
   const props = {}, transactions = [], measures = [], messages = [];
   let opened = 0, closed = 0;

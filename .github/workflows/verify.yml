@@ -61,12 +61,22 @@ jobs:
       - run: npm run test:editor-settings
       - run: npm run test:review-selection
       - run: npm run test:review-policy
+      - run: npm run test:word-count
       - run: npm run test:connections-ui
       - run: npm run test:mcp-app-controls
       - run: node tests/connection-controls-ui-smoke.mjs
       - run: npm run test:review-text-layout
       - run: cargo clippy --locked -p undertree-review -p undertree-desktop --all-targets --features custom-protocol -- -D warnings
       - run: cargo build --locked -p undertree-desktop --features custom-protocol
+      - name: Qualify native Word count and retired-owner results
+        run: |
+          UNDERTREE_NATIVE_WORD_COUNT_LAUNCH=1 \
+          UNDERTREE_DESKTOP="$PWD/target/debug/undertree-desktop" \
+          UNDERTREE_EXPECTED_DESKTOP_SHA256="$(sha256sum target/debug/undertree-desktop | cut -d ' ' -f 1)" \
+          UNDERTREE_REVIEW_CLI="$PWD/target/debug/undertree-review" \
+          UNDERTREE_NATIVE_WORD_COUNT_ARTIFACTS="$PWD/artifacts/native-word-count" \
+          UNDERTREE_NATIVE_WORD_COUNT_DENSE=1 \
+          dbus-run-session -- npm run test:native-word-count
       - run: dbus-run-session -- npm run test:native-ui
       - name: Qualify native source and PDF downloads with private destination preflight
         run: dbus-run-session -- npm run test:native-publishing
@@ -102,6 +112,10 @@ jobs:
             artifacts/reverse-engineering/typst-parity/
             artifacts/native-ui-evidence.json
             artifacts/native-*.png
+            artifacts/native-word-count/native-word-count-evidence.json
+            artifacts/native-word-count/*.png
+            artifacts/review-ui-failure/
+            artifacts/reverse-engineering/typst-overleaf-engine-parity/review-ui-snapshot-*.json
             artifacts/native-package/
             artifacts/native-release/
             artifacts/native-app-controls/
@@ -119,6 +133,9 @@ jobs:
             artifacts/review-selection-failure.png
             artifacts/review-policy-smoke.json
             artifacts/review-policy-failure.png
+            artifacts/word-count-smoke.json
+            artifacts/word-count-failure.png
+            !artifacts/**/private-provenance.json
           if-no-files-found: warn
       - name: Upload the qualified unsigned Rust/Tauri product installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

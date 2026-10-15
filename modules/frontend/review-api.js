@@ -64,6 +64,11 @@ export async function projectExportRequest(operation) {
   const ownerId = await editorOwnerId();
   return invoke('project_export_operation', { ownerId, operation });
 }
+export async function wordCountTypstText(requestId, source) {
+  if (!native) throw { code: 'desktop_required', message: 'The Typst prose estimate requires the UnderTree desktop app.' };
+  const ownerId = await editorOwnerId();
+  return invoke('word_count_typst_text', { request: { ownerId, requestId, source } });
+}
 async function editorResult(response) {
   const value = await response.json().catch(() => null);
   if (!response.ok || !value?.ok) throw value?.error || { message: 'The native editor bridge is unavailable.' };

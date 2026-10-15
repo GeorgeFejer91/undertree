@@ -426,7 +426,33 @@ receipts are `artifacts/backend-policy-evidence/freeze.json` and
 `artifacts/coordination/policy-continuity-frontend-freeze.json`. Import's later
 post-publication preservation and retired-owner fixes have 14 focused tests
 passing; see `artifacts/qa-delivery-2026-10-15/import-race-repair-receipt.json`.
-These are separate source/candidate results. Ordinary-journal ownership and
-Create recovery follow-ups still require a final combined capture and native
-qualification; they are not included in the scoped policy CLI. Source lifecycle
-epochs and Rename/Move remain planning-only.
+These were separate source/candidate results and are not retroactively included
+in the scoped policy CLI.
+
+The later immutable v8 integrity checkpoint combines these repairs with strict
+journal ownership, durable receipt identity, exact pending-write completion and
+Create/import preservation after uncertain publication. All 252 source hashes,
+14 assets and both debug binaries remain exact. Its 182 Rust tests, 216 focused
+frontend tests, strict native Clippy and 13 successful native fixture groups
+pass. The separately built unsigned Debian package also passes extracted
+contents, attribution, offline CLI and 13 native fixture groups. Each native
+aggregate contains 65 descriptive check statements, not 65 unique requirements.
+See the [exact v8 identities and evidence limits](../VERIFICATION.md#immutable-integrity-and-unsigned-linux-package-checkpoint--2026-10-15).
+Package aggregate SHA-256 is
+`ef923a8be007afe2d5083cf6b59368ed4bda1887cd651bb00d3f4f27ba0e00e9`.
+The package remains local, unsigned and uninstalled. Newer Word count and pure
+diagnostic work are outside v8; lifecycle epochs and Rename/Move remain
+planning-only. Remaining acceptance in [product-goal.md](product-goal.md) keeps
+the delivery goal active.
+
+The later [native Word count checkpoint](../VERIFICATION.md#immutable-native-word-count-checkpoint--2026-10-15)
+captures 261 sources, 15 assets and both binaries before the live source-epoch
+work. Real Tauri/WebKit count, dirty-history/late-reply/owner/layout checks and
+five native regression groups pass. Its matching CLI passes 20 real-Typst
+publishing checks; the full Review UI gate passes with explicit external-change
+Reload and null-readiness fixture corrections. Preserve the original hosted
+failure as evidence of correct conflict refusal. The maintained native runner
+and CI/notice/documentation overlays do not retroactively alter the captured
+runtime. No new installer or green expanded hosted run is inferred. The
+authenticated root-replacement counterexample and remaining captured-root,
+History, lifecycle and diagnostic work are explicitly scoped in that report.

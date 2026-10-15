@@ -1,5 +1,110 @@
 # Verification report
 
+## Immutable native Word count checkpoint — 2026-10-15
+
+`artifacts/qa-final-word-count-v9-sources.json` records 261 sources, 15 built
+assets, desktop SHA-256
+`b3fcc69ec48354dc8d57a20afcef0f8160fda8c539f256db2ae4272a93e17112`
+and CLI SHA-256
+`e66f24800fc328ec0756c0d728e938f5210309aa80c08d456ce65449fe2b5b3c`.
+Receipt SHA-256 is
+`c3dd1af0f2545cfcf1683d055943f68e257de27e59bcc1458325bbbd8eae9e6c`.
+All copied sources, assets and binaries remained unchanged. The source checks
+pass: 210 Rust tests, 230 focused frontend tests, six maintenance tests plus
+the Electron-injection check, format, architecture, notices and strict native
+Clippy. The corrected Rust run explicitly uses real Typst 0.15.1; an earlier
+run missing its required fixture environment remains recorded. The matching
+CLI also passes all 20 real-Typst publication checks.
+
+Actual Tauri/WebKit Word count passes seven core descriptive checks: captured
+dirty chapter/selection, literal versus source distinction, incomplete syntax,
+HTML worker, no count-induced writes, retained selection/scroll/Undo/Redo,
+late response retirement, native owner/field checks and readable measured
+layouts. One dense 2 MiB sample completes in 8,827 ms end to end, returning
+190,650 literal-prose words and 381,300 source words under the unchanged
+15-second UI deadline. These are observations on this machine, not latency
+guarantees or rendered/include totals. The maximum-source dismissal case holds
+a genuine completed Rust response; it proves pending-controller dismissal and
+no late worker/result, not native CPU-in-flight responsiveness.
+Report: `artifacts/word-count-native-prep/REPORT.md`; successful runtime receipt
+SHA-256 `143c149da6468a358fd92a328fdab3893f6bef6d90cfac1cd9044b78cf8c9c25`.
+Earlier admission-contention and scroll-readiness fixture attempts are preserved.
+
+Five further native regression groups pass, recording 31 descriptive statements:
+baseline, App/read overlap, enlarged Settings, policy continuity and held late
+policy reply. Aggregate SHA-256 is
+`51e47951586e37654f9ff444ec202e5af971f697ed85156e1388432f4858b319`.
+The full Review UI gate also passes on the exact v9 CLI/assets with corrected
+fixture SHA-256 `0ee2dc11b3330fc810e992076a1333508a01820d834088c100a9b56b1860957d`.
+Hosted v8 CI exposed its incorrect attempt to close an externally changed,
+conflicted tab. An independent browser probe confirmed correct refusal without
+saving; the fixture now explicitly Reloads before its clean Close/PDF checks.
+An unrelated transient-null reload predicate was corrected separately. Original
+hosted/local failures and passive failure captures remain archived. Full gate
+aggregate SHA-256 is
+`f64795e00effa5eac1e4cbb4865893fb5f31d7bb03eff3e7f73262908a5e837a`.
+
+The proven native runner is maintained as `tests/native-word-count-smoke.mjs`
+with only its introductory comment/default artifact path changed; CI supplies
+an explicit built desktop/hash. Subsequent verification/CI/documentation and
+notice-input overlays do not change the captured runtime. A green expanded
+hosted run and a Word count installer have not yet been observed.
+
+Source epochs, Rename/Move, native saved-version History and structured
+diagnostics remain separate integration work. A finite authenticated local and
+browser-owner probe on v9 demonstrates that same-path root replacement with
+equal source/policy bytes can accept an old Save/EditorCommit; different-source
+controls refuse. Its report is
+`artifacts/reverse-engineering/history-root-replacement-v9-attempt03/REPORT.md`.
+It does not exercise a Tauri owner or the newer live identity changes. Captured
+root expectations and bound filesystem effects remain required before stronger
+replacement-safety claims. The publisher's uncertain-pointer error-path repair
+is also outside v9. This remains a checkpoint with the overall goal active.
+
+## Immutable integrity and unsigned Linux package checkpoint — 2026-10-15
+
+The Rust/Tauri v2/HTML/CSS/Typst candidate at
+`artifacts/qa-final-integrity-v8` contains 252 source files, 14 built assets,
+desktop SHA-256 `75a973af15be0d851b3a78baf03730367f8d828724eeb10243dc329b2c797d47`
+and CLI SHA-256 `dc372904a20e7789c06aeb14216c50f1ed9ba6d338e32345cd9b3c2e7467fdb6`.
+Its source receipt has SHA-256
+`32adc926a1882f53245c78a2f356558f8053b29dc711e426ad070424ccce231f`.
+All captured sources, assets and binaries remained unchanged during qualification.
+
+Architecture and Electron-injection checks, formatting, 216 focused frontend
+tests, 182 Rust tests, six release-maintenance tests, strict native Clippy and
+both native builds pass. The native aggregate records 13 successful fixture
+groups with 65 descriptive check statements. They cover editing/shared
+authority, App controls, publishing, import, saved-project ZIP, retired-page
+protection, Close, policy continuity, late replies and enlarged layouts.
+These counts describe evidence entries, not unique requirements or complete
+product acceptance. Earlier fixture failures remain preserved.
+
+The separately built unsigned Debian package is preserved at
+`artifacts/qa-v8-installer-evidence/verified-build-outputs/UnderTree_0.3.0_amd64-v8-checkpoint.deb`,
+SHA-256 `68c2f673c4bc9e524bc7a9b4798247e584bfc5a7fd2467d7eaf168c8749012b3`.
+Contents, runtime dependencies, exact notices for 329 Rust and 27 bundled
+JavaScript components, offline CLI and another 13 native fixture groups with
+65 recorded statements passed after extraction without installation. The
+packaged desktop differs from the recorded release build only by Tauri's exact
+`UNK` to `DEB` bundle marker; every other byte matches. Final package provenance
+is `artifacts/qa-v8-installer-evidence/v8-packaged-checkpoint.json`, SHA-256
+`ef923a8be007afe2d5083cf6b59368ed4bda1887cd651bb00d3f4f27ba0e00e9`.
+Debug and packaged results are separate observations, not additive unique coverage.
+
+Native policy checks establish current-Service continuity after known metadata
+loss and exact-byte restoration. The alternate metadata case is valid JSON
+with an added newline; corrupt JSON and real save-producer interruption have
+separate Rust/browser evidence. The native seeded wrong-prior journal proves
+refusal, not producer recovery. No-save assertions cover blocked/retry phases;
+later ordinary Undo/Redo save attempts are denied. Persistent witness continuity
+across restart is not established. Reviewed suggestions are not named History.
+
+This checkpoint excludes newer Word count and diagnostic work, source epochs,
+Rename/Move and the remaining product acceptance. Public ChatGPT/zrok, physical
+IME, installation/upgrade/removal, signing, other Linux distributions, Windows
+and macOS remain unqualified. No final-product completion follows from this pass.
+
 ## Immutable native controls and settings checkpoint — 2026-10-15
 
 `artifacts/qa-final-controls-settings-v7-sources.json` records 228 sources,

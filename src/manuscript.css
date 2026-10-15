@@ -122,6 +122,18 @@ dialog blockquote { margin: .8rem 0; padding: .65rem; border-left: 3px solid #9a
 .editor-settings-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--settings-gap); }
 #editor-settings-form .editor-settings-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .5rem; }
 .editor-settings-wrap input { inline-size: 1rem; block-size: 1rem; margin: 0; }
+#word-count-dialog { padding: clamp(.6rem, min(2vw, 2vh), 1.3rem); overflow: hidden; overflow-wrap: anywhere; }
+#word-count-dialog[open] { display: flex; flex-direction: column; gap: clamp(.4rem, 1.5vh, .8rem); }
+#word-count-dialog h2,#word-count-dialog .dialog-actions { flex: none; margin: 0; }
+.word-count-body { min-block-size: 0; overflow: auto; }
+.word-count-body > p:first-child { margin-block-start: 0; }
+#word-count-path { font-weight: 600; }
+#word-count-results dl { margin: .7rem 0; display: grid; gap: .7rem; }
+#word-count-results dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .3rem 1rem; }
+#word-count-results dt { flex: 1 1 12rem; }
+#word-count-results dd { margin: 0; font-weight: 600; }
+#word-count-results dl > div:first-child { padding-block-end: .6rem; border-bottom: 1px solid #d6dcd8; }
+.word-count-body details summary { cursor: pointer; }
 #connection-dialog { width: min(40rem, calc(100% - 2rem)); overflow-wrap: anywhere; }
 .connection-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .8rem; }
 .connection-heading h2 { flex: 1 1 12rem; margin: .25rem 0; min-width: 0; }
