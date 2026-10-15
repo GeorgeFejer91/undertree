@@ -202,6 +202,25 @@ exit. CI additionally retains only this fixture's report/PNGs, excluding its
 cache. Hosted Chrome 151, native controls, the newer unpublished integration
 and complete installer acceptance remain separate gates.
 
+Both hosted runs at `75be58e` ([PR](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38715515566),
+[push](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38715509292))
+pass all browser gates, strict native Clippy and the desktop build, plus
+historical compatibility. The retained
+Connections report records Chrome 151.0.7922.34, all nine observations with
+zero issues, and 903 px client/scroll height for the previously failing state.
+Report SHA-256 is
+`737c0d5d2a9ec8bd78ad03f1709a8bafbf34232467eb7e6bb40348c0131957f1`.
+
+Both native lanes then stop in window-manager setup before any app session or
+Word count assertion. Their first xprop check returns null status without
+retaining the spawn error. Every public native fixture requires that program;
+the explicit CI package list omitted x11-utils. The setup now installs that
+package and checks command availability, preserving the native assertions and
+deadlines. Missing-executable ENOENT was not directly retained and remains an
+inference. Triage `artifacts/hosted-75be58e-triage/REPORT.md` has SHA-256
+`5a60c6a0758aedab0b640913df2f5f9dce865ec0b811b5f95e763b56f7d4a9a5`.
+Refreshed native/installer qualification remains pending.
+
 ## Immutable integrity and unsigned Linux package checkpoint — 2026-10-15
 
 The Rust/Tauri v2/HTML/CSS/Typst candidate at

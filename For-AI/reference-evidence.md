@@ -524,4 +524,9 @@ cases and original functional/Pretext assertions pass unchanged, with exact
 regrowth. Full values, fonts, controls and overflow policy remain intact.
 CI now retains its report and PNGs. See the linked verification follow-up for
 exact red/green inputs; this is local mocked-control presentation evidence,
-not hosted Chrome 151, native authorization or installer qualification.
+not native authorization or installer qualification. The later hosted
+`75be58e` report independently passes all nine observations on Chrome 151,
+including 903 px client/scroll height. Those runs stop before native app launch
+while checking xprop; CI now explicitly installs its x11-utils package and
+checks availability. The exact discarded spawn error remains unclassified;
+refreshed native/installer acceptance is pending.

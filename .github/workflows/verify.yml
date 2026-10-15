@@ -29,7 +29,8 @@ jobs:
             libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
             fonts-dejavu-core fonts-liberation fonts-noto-core poppler-utils \
             python3-gi gir1.2-gtk-3.0 gir1.2-webkit2-4.1 \
-            xvfb xauth dbus-x11 xfwm4 xdotool wmctrl webkit2gtk-driver
+            xvfb xauth dbus-x11 x11-utils xfwm4 xdotool wmctrl webkit2gtk-driver
+          command -v xprop
       - name: Select the qualified Rust toolchain
         run: |
           rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
