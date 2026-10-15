@@ -14,7 +14,9 @@ import { manuscriptTree, clampPaneWidth } from '../modules/frontend/manuscript-w
 import { ManuscriptPdfViewer } from '../modules/frontend/manuscript-pdf-viewer.js';
 import { positionReviewCards, acceptedTextChange } from '../modules/frontend/review-position.js';
 import { sourceFormat } from '../modules/frontend/source-format.js';
-import { undo, redo, selectAll } from '@codemirror/commands';
+import { typstInsertion } from '../modules/frontend/typst-insertion.js';
+import { typstLanguage } from '../modules/frontend/typst-language.js';
+import { undo, redo, selectAll, isolateHistory } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
 import * as pdfjs from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -22,6 +24,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 const $ = id => document.getElementById(id);
 const sessions = new Map();
+const insertionCommands = new Set(['inline-math', 'display-math', 'citation', 'reference', 'link', 'figure', 'table']);
 let projects = [];
 let active = null;
 let view = null;
@@ -67,7 +70,8 @@ const workspaceMenus = [...document.querySelectorAll('#workspace-menu,.editor-me
 const pdfViewer = new ManuscriptPdfViewer({
   scroller: $('typst-preview'), pages: $('typst-pages'), onError: error => status(error.message, true),
   onChange: ({ page, total, scale, fit }) => {
-    $('pdf-page-number').value = String(page); $('pdf-page-number').max = String(total);
+    if (document.activeElement !== $('pdf-page-number')) $('pdf-page-number').value = String(page);
+    $('pdf-page-number').max = String(total);
     $('pdf-page-count').textContent = `of ${total}`; $('pdf-zoom-label').textContent = `${Math.round(scale * 100)}%`;
     $('pdf-fit-width').setAttribute('aria-pressed', String(fit));
     $('pdf-previous').disabled = page <= 1; $('pdf-next').disabled = page >= total;
@@ -117,8 +121,9 @@ function formatSource(command) {
   if (view.state.selection.ranges.length !== 1) throw { message: 'Use a single selection for this source formatting command.' };
   const extension = active.path.split('.').pop().toLowerCase();
   const selection = view.state.selection.main;
-  const spec = sourceFormat(view.state.doc.toString(), { from: selection.from, to: selection.to }, command, extension);
-  showPane('editor'); view.dispatch({ ...spec, userEvent: 'input.format' }); view.focus();
+  const format = insertionCommands.has(command) ? typstInsertion : sourceFormat;
+  const spec = format(view.state.doc.toString(), { from: selection.from, to: selection.to }, command, extension);
+  showPane('editor'); view.dispatch({ ...spec, annotations: spec.annotations ?? isolateHistory.of('full'), userEvent: 'input.format' }); view.focus();
 }
 function mobileView(name) {
   document.querySelector('.review-workspace').dataset.mobileView = name;
@@ -422,6 +427,7 @@ function renderReview() {
   for (const button of document.querySelectorAll('[data-command]')) {
     const command = button.dataset.command;
     if (['save','download','undo','redo','find','select-all','highlight','palette','bold','italic','heading','bullet-list','numbered-list'].includes(command)) button.disabled = !active || (['bold','italic','heading','bullet-list','numbered-list'].includes(command) && !/\.(typ|html?)$/i.test(active.path));
+    if (insertionCommands.has(command)) button.disabled = !active?.path.endsWith('.typ');
     if (command === 'import') button.hidden = !active?.path.endsWith('.tex');
   }
   const noReviewPassages = !reviewAnchors().length;
@@ -539,6 +545,7 @@ async function openSession(session, intent = ++navigationIntent) {
   })];
   if (/\.html?$/i.test(session.path)) extensions.push(html());
   else if (/\.css$/i.test(session.path)) extensions.push(css());
+  else if (/\.typ$/i.test(session.path)) extensions.push(typstLanguage);
   let editorState = session.editorState;
   if (editorState && editorState.doc.toString() !== session.content) editorState = editorState.update({changes:{from:0,to:editorState.doc.length,insert:session.content},annotations:authoritative.of(true)}).state;
   view = new EditorView({ state: editorState || EditorState.create({ doc: session.content, extensions }), parent: $('manuscript-source') });
@@ -785,7 +792,7 @@ for (const button of document.querySelectorAll('[data-command]')) button.onclick
   else if (command === 'outline') treeMode(true);
   else if (command === 'review') reviewPanel(true);
   else if (command === 'help') $('help-dialog').showModal();
-  else if (['bold','italic','heading','bullet-list','numbered-list'].includes(command)) formatSource(command);
+  else if (insertionCommands.has(command) || ['bold','italic','heading','bullet-list','numbered-list'].includes(command)) formatSource(command);
   else if (view) { showPane('editor'); ({ undo, redo, 'select-all': selectAll, find: openSearchPanel })[command]?.(view); view.focus(); }
 });
 for (const menu of workspaceMenus) {

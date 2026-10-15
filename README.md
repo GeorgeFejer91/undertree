@@ -36,6 +36,12 @@ documents, or set `UNDERTREE_TYPST` to its executable. The Rust backend uses
 Typst's syntax library for review validation and supervises the compiler; the
 full renderer is not embedded in the desktop binary yet.
 
+Typst source has syntax highlighting and **Insert** actions for inline/display
+math, citations, cross-references, links, figures and tables. Replace selected
+placeholders with your bibliography keys, labels, URLs or image paths. Each
+insertion is one undo step; use it in Typst markup rather than inside code,
+comments or raw text. Highlighting is a bounded approximation of Typst syntax.
+
 Choose a project folder, open or create a manuscript, and select a passage to
 apply a color rule. Rules can protect text, reject agent changes, or attach a
 custom instruction such as “Keep the meaning; make this snappier.” Colors and
@@ -78,7 +84,15 @@ layout are not equivalent; read the report and inspect the output before use.
 
 Run `npm run test:review`, `npm run test:review-ui`, and
 `npm run verify:architecture` for the native policy, rendered review UI and
-module-boundary checks. See [the review module](modules/review/README.md) for
+module-boundary checks. The Typst authoring browser gate requires Typst 0.15.1
+and explicit isolated build paths:
+
+```bash
+UNDERTREE_REVIEW_BINARY=/absolute/path/to/undertree-review \
+UNDERTREE_REVIEW_ASSETS=/absolute/path/to/dist npm run test:typst-authoring
+```
+
+See [the review module](modules/review/README.md) for
 the local CLI and [architecture](ARCHITECTURE.md) for authority boundaries.
 
 `npm run test:native-ui` exercises the bundled Linux Tauri window in an isolated

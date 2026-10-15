@@ -34,6 +34,13 @@ jobs:
             texlive-latex-extra \
             texlive-luatex \
             texlive-pictures
+      - name: Install the qualified Typst compiler
+        run: |
+          # Digest supplied by the official typst/typst v0.15.1 release asset API.
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/typst.tar.xz" https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-unknown-linux-musl.tar.xz
+          printf '%s  %s\n' a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c "$RUNNER_TEMP/typst.tar.xz" | sha256sum --check --strict
+          tar -xJf "$RUNNER_TEMP/typst.tar.xz" -C "$RUNNER_TEMP"
+          echo "UNDERTREE_TYPST=$RUNNER_TEMP/typst-x86_64-unknown-linux-musl/typst" >> "$GITHUB_ENV"
       - run: npm ci
       - run: dbus-run-session -- npm test
       - run: ./scripts/build-release.sh

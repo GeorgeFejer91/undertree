@@ -1,5 +1,22 @@
 # Verification report
 
+## Isolated Typst authoring and viewport PDF — 2026-10-15
+
+The indexed `manuscript-C4pfNK5A.js` frontend passed its production build,
+architecture check, all 47 focused language/insertion/PDF tests, the complete
+real-service review browser gate and eight Typst authoring browser checks.
+The authoring gate verifies syntax styling, all seven Insert actions, editable
+placeholders, independent undo/redo, source-preserving IME/selection guards,
+CRLF saves, actual Typst 0.15.1 PDF content and 320 px/200% text menus.
+Startup failure and blocked-receipt checks also verified private fixture cleanup.
+
+This used the unchanged previously qualified review authority and excludes newer
+working App-control/editor-service code. Native authoring and physical OS IME
+remain unqualified. Exact source/artifact identities, raw receipt hashes and PDF
+limits are recorded in [the reference evidence](For-AI/reference-evidence.md).
+
+## Historical legacy verification — 2026-08-11
+
 Verified on 2026-08-11 against the installed UnderTree service and the
 `pretext-a4-layout-compiler` project.
 

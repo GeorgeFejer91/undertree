@@ -377,7 +377,25 @@ try {
   await page.locator('#pdf-page-number').fill('10'); await page.locator('#pdf-page-number').press('Enter');
   await page.locator('#pdf-page-number').blur();
   await page.locator('.pdf-page[data-page="10"] canvas').waitFor({timeout:10000});
-  assert.ok(await page.locator('#typst-pages canvas').count()<=3,'PDF page navigation keeps a bounded canvas window');
+  assert.ok(await page.locator('#typst-pages canvas').count()<=128,'PDF page navigation keeps a bounded visible canvas window');
+  await page.locator('#pdf-page-number').fill('1'); await page.locator('#pdf-page-number').press('Enter'); await page.locator('#pdf-page-number').blur();
+  for (let step=0; step<30 && Number.parseInt(await page.locator('#pdf-zoom-label').textContent())>10; step++) {
+    await page.locator('#pdf-zoom-out').click(); await page.waitForTimeout(100);
+  }
+  await page.waitForFunction(()=>document.getElementById('pdf-zoom-label').textContent==='10%');
+  await page.waitForFunction(()=>{
+    const pane=document.getElementById('typst-preview'),bounds=pane.getBoundingClientRect(),pages=[...document.querySelectorAll('.pdf-page')];
+    return pages.filter(page=>{const box=page.getBoundingClientRect();return box.bottom>bounds.top&&box.top<bounds.bottom;}).every(page=>page.querySelector('canvas')?.height>0) && pages.length>3;
+  },{},{timeout:10000});
+  const lowZoom=await page.evaluate(()=>{
+    const pane=document.getElementById('typst-preview'),bounds=pane.getBoundingClientRect(),slots=[...document.querySelectorAll('.pdf-page')],canvases=[...document.querySelectorAll('#typst-pages canvas')];
+    return {visible:slots.filter(slot=>{const box=slot.getBoundingClientRect();return box.bottom>bounds.top&&box.top<bounds.bottom;}).map(slot=>({page:slot.dataset.page,painted:Boolean(slot.querySelector('canvas')?.height)})),canvases:canvases.length,pixels:canvases.reduce((sum,canvas)=>sum+canvas.width*canvas.height,0)};
+  });
+  assert.ok(lowZoom.visible.length>3 && lowZoom.visible.every(slot=>slot.painted),'10% paints all viewport-visible PDF slots');
+  assert.ok(lowZoom.canvases<=128 && lowZoom.pixels<=9_000_000,'visible pages share strict canvas-count and total-pixel budgets');
+  await page.locator('#pdf-fit-width').click(); await page.waitForTimeout(150);
+  await page.locator('#pdf-page-number').fill('10'); await page.locator('#pdf-page-number').press('Enter'); await page.locator('#pdf-page-number').blur();
+  await page.locator('.pdf-page[data-page="10"] canvas').waitFor({timeout:10000});
   const fittedPageWidth=(await page.locator('.pdf-page[data-page="10"]').boundingBox()).width;
   const fittedLabel=Number.parseInt(await page.locator('#pdf-zoom-label').textContent());
   await page.locator('#pdf-zoom-in').click();
