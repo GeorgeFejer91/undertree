@@ -11,8 +11,9 @@ const temporary = await mkdtemp(join(tmpdir(), 'undertree-project-tree-'));
 const binary = resolve(process.env.UNDERTREE_REVIEW_BINARY || 'target/debug/undertree-review');
 const assets = join(temporary, 'assets'), projectRoot = join(temporary, 'project'), otherRoot = join(temporary, 'other');
 const token = randomBytes(32).toString('hex'), checks = [], observations = [], errors = [], operations = [];
-const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
-let service, browser, port, log = '', base;
+const deferred = () => { let resolve, reject; const promise = new Promise((done, fail) => { resolve = done; reject = fail; }); promise.catch(() => {}); return { promise, resolve, reject }; };
+const safeMessage = value => String(value ?? '').replaceAll(token, '[redacted]').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 1000);
+let service, browser, page, port, log = '', base, lateCreationReply;
 async function waitUntil(check, message) {
   const deadline = Date.now() + 12_000;
   while (Date.now() < deadline) {
@@ -45,7 +46,7 @@ try {
   await waitUntil(() => !!port, 'The isolated Rust authority did not start.'); base = `http://127.0.0.1:${port}`;
   const project = await native({ action: 'add_project', root: projectRoot }), other = await native({ action: 'add_project', root: otherRoot });
   browser = await chromium.launch({ executablePath: process.env.UNDERTREE_CHROME || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
-  const page = await browser.newPage({ viewport: { width: 1280, height: 850 } }); page.on('pageerror', error => errors.push(error.message));
+  page = await browser.newPage({ viewport: { width: 1280, height: 850 } }); page.on('pageerror', error => errors.push(error.message));
   let blockSaves = true;
   page.on('request', request => {
     if (/\/api\/(review|editor)$/.test(request.url())) operations.push(request.postDataJSON());
@@ -132,9 +133,22 @@ try {
   await page.route('**/api/review', async route => {
     const operation = route.request().postDataJSON();
     if (operation.action !== 'create_directory' || operation.path !== 'late-folder' || heldCreation) return route.fallback();
-    heldCreation = true; const response = await route.fetch(); assert.equal((await response.json()).ok, true); created.resolve(); await releaseCreation.promise; await route.fulfill({ response }); creationDone.resolve();
+    heldCreation = true;
+    try {
+      const response = await route.fetch(), result = await response.json();
+      lateCreationReply = {
+        ok: result.ok, status: response.status(),
+        error: result.error ? { code: safeMessage(result.error.code).slice(0, 80), message: safeMessage(result.error.message) } : null,
+      };
+      created.resolve(lateCreationReply);
+      if (result.ok === true) await releaseCreation.promise;
+      await route.fulfill({ response }); creationDone.resolve();
+    } catch (error) { created.reject(error); creationDone.reject(error); }
   });
-  await newFolder('late-folder'); await created.promise; await page.locator('#new-folder-dialog [data-close]').click();
+  await newFolder('late-folder');
+  const creation = await created.promise;
+  assert.equal(creation.ok, true, `late-folder native response: ${JSON.stringify(creation)}`);
+  await page.locator('#new-folder-dialog [data-close]').click();
   await page.locator('#project-select').selectOption(other.id);
   await waitUntil(() => tree.getAttribute('data-project').then(value => value === other.id), 'The second project inventory did not become current.');
   await command('new-folder'); await page.locator('#new-folder-path').fill('other-draft');
@@ -164,6 +178,24 @@ try {
   assert.deepEqual(errors, []);
   await mkdir(resolve('artifacts'), { recursive: true }); await writeFile(resolve('artifacts/project-tree-smoke.json'), JSON.stringify({ browser: browser.version(), checks, observations, errors, scope: 'local UI inventory and one-leaf folder creation; no remote file management' }, null, 2) + '\n');
   console.log(`Project tree: ${checks.length} real Rust/rendered checks passed.`);
+} catch (error) {
+  const directory = resolve('artifacts/project-tree-failure');
+  await mkdir(directory, { recursive: true });
+  const ui = await page?.evaluate(() => ({
+    save: document.getElementById('save-label')?.textContent?.slice(0, 1000),
+    status: document.getElementById('review-status')?.textContent?.slice(0, 1000),
+    folderError: document.getElementById('new-folder-error')?.textContent?.slice(0, 1000),
+    folderPath: document.getElementById('new-folder-path')?.value?.slice(0, 1000),
+    folderOpen: document.getElementById('new-folder-dialog')?.open,
+    project: document.getElementById('project-select')?.value,
+  })).catch(capture => ({ captureError: safeMessage(capture.message) }));
+  await writeFile(join(directory, 'evidence.json'), JSON.stringify({
+    result: 'failed', error: safeMessage(error.message), lateCreationReply, checks, observations,
+    errors: errors.slice(-32).map(safeMessage), ui,
+    operations: operations.slice(-128).map(({ action, project, path }) => ({ action, project, path })),
+  }, null, 2) + '\n');
+  await page?.screenshot({ path: join(directory, 'failure.png') }).catch(() => {});
+  throw error;
 } finally {
   await browser?.close();
   if (service?.exitCode === null) { service.kill('SIGINT'); await Promise.race([new Promise(resolve => service.once('exit', resolve)), new Promise(resolve => setTimeout(resolve, 3000))]); if (service.exitCode === null) service.kill('SIGKILL'); }

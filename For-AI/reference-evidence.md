@@ -468,3 +468,12 @@ control reproduces that failure; the corrected readiness fixture passes the
 same probe with both original assertions intact. The linked follow-up records
 exact evidence. Full hosted and repaired-runtime package qualification remain
 pending.
+
+The following hosted runs expose a valid earlier unconfirmed save response in a
+receipt fixture and a separate folder-creation failure with its error discarded.
+A deterministic delayed-acknowledgement integration case requires the final
+exact durable saved receipt; nine editor-session tests pass. Folder failure
+observability is qualified with a normal seven-check run and a genuine native
+`exists` refusal. Its hosted cause remains unclassified; CI now retains failure
+JSON/PNG. These verification changes preserve runtime behavior and do not imply
+green hosted or installer qualification; see the linked shutdown follow-up.

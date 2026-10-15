@@ -95,6 +95,32 @@ relaxing their assertions or changing product code. Report:
 The corrected maintained runner has SHA-256
 `4f8bff74dd0ea57b5015f678131493345be43488f3b82f6a8d3fddd80b8fb2c8`.
 
+The next hosted runs at `e6945f7` expose two separate verification failures.
+The push run receives a committed/unconfirmed waiter response in the clean-save
+fixture; the API deliberately permits that historical response after its
+500 ms acknowledgement grace. A deterministic real-service case now waits for
+that response, sends the renderer completion, and requires two exact durable
+saved receipts with unchanged source bytes and mtime. The existing external-edit
+refusal remains intact; the clean test separately requires the latest durable
+saved receipt. All nine editor-session integration tests pass on an isolated
+copy of the public source. Evidence:
+`artifacts/hosted-e694-project-tree/receipt-semantics-execution.json`.
+
+The PR run instead fails a folder-creation success assertion whose native error
+body was discarded. Its cause remains unclassified. The unchanged local scenario
+passes all seven checks. The maintained fixture now awaits that original strict
+assertion in its main flow, retains the bounded actual native error and emits
+failure JSON/PNG; CI collects these artifacts. A genuine pre-existing-folder
+negative control fails with Rust's `exists` refusal and emits both files, while
+the normal scenario passes. This qualifies failure observability, not the hosted
+failure's cause. Both browser invocations clean up their owned processes and
+preserve the fixed CLI/assets. No application runtime changes, timeout increases,
+readiness corrections or automatic retries are introduced by this follow-up.
+Report: `artifacts/hosted-e694-project-tree/REPORT.md`; promotion receipts are
+`receipt-semantics-promotion.json` and
+`observability-qualification/qualification-and-promotion.json` in that directory.
+Full hosted and installer qualification remain pending.
+
 ## Immutable integrity and unsigned Linux package checkpoint — 2026-10-15
 
 The Rust/Tauri v2/HTML/CSS/Typst candidate at

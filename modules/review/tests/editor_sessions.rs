@@ -271,6 +271,58 @@ async fn lost_renderer_ack_keeps_a_committed_unconfirmed_receipt() {
 }
 
 #[tokio::test]
+async fn delayed_renderer_ack_confirms_durable_receipt_without_rewriting_source() {
+    let fixture = Fixture::new();
+    let owner = "native:main";
+    fixture.register(owner, "Original source", 0).await;
+    let id = uuid::Uuid::new_v4().to_string();
+    let (task, request) = fixture.pending(owner, &id).await;
+    let modified = fs::metadata(&fixture.file).unwrap().modified().unwrap();
+    let committed = fixture
+        .commit(owner, &request, "Original source", 0)
+        .await
+        .unwrap();
+    assert_eq!(committed["receipt"]["status"], "committed");
+    assert_eq!(
+        committed["receipt"]["savedRevision"],
+        digest("Original source")
+    );
+    let unconfirmed = tokio::time::timeout(Duration::from_secs(2), task)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_eq!(unconfirmed["status"], "committed");
+    assert_eq!(unconfirmed["bufferStatus"], "unconfirmed");
+
+    let completed = fixture.complete(owner, &request, "saved", 0).await;
+    assert_eq!(completed["status"], "committed");
+    assert_eq!(completed["bufferStatus"], "saved");
+    assert_eq!(completed["savedRevision"], digest("Original source"));
+    for _ in 0..2 {
+        let durable = fixture
+            .service
+            .dispatch_as(
+                CallerContext::LocalCli,
+                Operation::SaveReceipt {
+                    request_id: id.clone(),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(durable, completed);
+        assert_eq!(
+            fs::read_to_string(&fixture.file).unwrap(),
+            "Original source"
+        );
+        assert_eq!(
+            fs::metadata(&fixture.file).unwrap().modified().unwrap(),
+            modified
+        );
+    }
+}
+
+#[tokio::test]
 async fn clean_buffers_verify_disk_and_external_changes_never_get_overwritten() {
     let fixture = Fixture::new();
     let owner = "native:main";
@@ -310,7 +362,28 @@ async fn clean_buffers_verify_disk_and_external_changes_never_get_overwritten() 
         modified
     );
     fresh.complete(owner, &request, "saved", 0).await;
-    assert_eq!(task.await.unwrap().unwrap()["bufferStatus"], "saved");
+    let waiter = task.await.unwrap().unwrap();
+    assert_eq!(waiter["status"], "committed");
+    assert!(matches!(
+        waiter["bufferStatus"].as_str(),
+        Some("saved" | "unconfirmed")
+    ));
+    let confirmed = fresh
+        .service
+        .dispatch_as(
+            CallerContext::LocalCli,
+            Operation::SaveReceipt { request_id: id },
+        )
+        .await
+        .unwrap();
+    assert_eq!(confirmed["status"], "committed");
+    assert_eq!(confirmed["bufferStatus"], "saved");
+    assert_eq!(confirmed["savedRevision"], digest("Original source"));
+    assert_eq!(fs::read_to_string(&fresh.file).unwrap(), "Original source");
+    assert_eq!(
+        fs::metadata(&fresh.file).unwrap().modified().unwrap(),
+        modified
+    );
 }
 
 #[tokio::test]

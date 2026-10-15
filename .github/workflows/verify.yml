@@ -129,6 +129,8 @@ jobs:
             artifacts/html-editor-smoke.png
             artifacts/workspace-layout-smoke.json
             artifacts/editor-settings-smoke.json
+            artifacts/project-tree-smoke.json
+            artifacts/project-tree-failure/
             artifacts/review-selection-smoke.json
             artifacts/review-selection-failure.png
             artifacts/review-policy-smoke.json
