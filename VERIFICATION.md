@@ -6,7 +6,7 @@ The current workspace connects the existing menu-navigation helper to the
 actual File/Edit/Insert/View/Highlight/Help and mobile disclosures. Keyboard
 traversal rechecks visible, enabled commands, preserves native form controls,
 and returns focus on Escape. Existing command and protected-Close handlers
-remain byte-identical. Three browser fixture helpers now accept the actual
+remain byte-identical. Four browser fixture helpers now accept the actual
 menuitem or native-button roles.
 
 All seven production-hook regressions fail against the saved old adapter;
@@ -34,6 +34,15 @@ the declared metadata update produces the identical binary and passes the
 complete input checks. All owned runtime processes exit and private test
 storage is removed. CI now runs the same focused 37-check regression suite.
 Paired Overleaf comparison and new installer qualification remain separate.
+
+Hosted run 38819332811 passes the menu/Close regression step and historical
+compatibility job, then stops in the App-controls fixture at its File-menu
+locator: it still requests a button after the command becomes a menuitem.
+The scoped helper now accepts either actual role, preserving all 84 assertions,
+actions and deadlines. This repairs the observed locator mismatch; the next
+hosted run remains required. Separate frozen-v16 App fixture failures are
+preserved and remain under investigation; this role change does not resolve
+those failures.
 
 Hosted runs 38760615456 and 38760604395 stop before any policy scenario because
 their fixture compares an unrooted setup document ID with the UI's rooted

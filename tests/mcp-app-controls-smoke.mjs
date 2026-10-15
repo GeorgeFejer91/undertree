@@ -106,7 +106,8 @@ try {
   async function fileMenu(label) {
     const id = await page.locator('#workspace-menu > summary').isVisible() ? 'workspace-menu' : 'menu-file';
     await page.locator(`#${id} > summary`).click();
-    await page.locator(`#${id}`).getByRole('button',{name:label,exact:true}).click();
+    const menu = page.locator(`#${id}`);
+    await menu.getByRole('menuitem',{name:label,exact:true}).or(menu.getByRole('button',{name:label,exact:true})).click();
   }
   await page.goto(`${base}/manuscript.html#session=${token}`);
   await openLocal('private.typ', privateOriginal);

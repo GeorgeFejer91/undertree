@@ -627,3 +627,10 @@ quota, compiler/cache sandboxing and crash residue remain separate gaps.
 Subsequent compiler-source capture and creation-alias fixes require their own
 receipts and a matched native integration; these focused passes do not qualify
 the newer desktop or an installer.
+
+The [menu-navigation and policy-fixture continuation](../VERIFICATION.md#menu-navigation-and-policy-fixture-continuation--2026-10-16)
+qualifies the integrated keyboard menus with 37 focused checks, six Chromium
+groups and four actual Linux Tauri/WebKit groups. The separately corrected
+root/epoch-bound policy fixture passes six groups on unchanged v16 runtime
+inputs. This does not establish full hosted, paired Overleaf or new-installer
+acceptance; the linked report preserves the exact identities and failed runs.
