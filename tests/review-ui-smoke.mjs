@@ -70,7 +70,7 @@ async function assertChrome(page, label) {
 async function menuAction(page, menu, label) {
   const id=await page.locator('#workspace-menu summary').isVisible()?'workspace-menu':`menu-${menu}`;
   await page.locator(`#${id} summary`).click();
-  await page.locator(`#${id}`).getByRole('button',{name:label,exact:true}).click();
+  await page.locator(`#${id}`).getByRole('menuitem',{name:label,exact:true}).or(page.locator(`#${id}`).getByRole('button',{name:label,exact:true})).click();
 }
 async function waitForSource(page, path) {
   await page.waitForFunction(path => {

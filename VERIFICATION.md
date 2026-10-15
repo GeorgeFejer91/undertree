@@ -1,5 +1,60 @@
 # Verification report
 
+## Menu navigation and policy fixture continuation — 2026-10-16
+
+The current workspace connects the existing menu-navigation helper to the
+actual File/Edit/Insert/View/Highlight/Help and mobile disclosures. Keyboard
+traversal rechecks visible, enabled commands, preserves native form controls,
+and returns focus on Escape. Existing command and protected-Close handlers
+remain byte-identical. Three browser fixture helpers now accept the actual
+menuitem or native-button roles.
+
+All seven production-hook regressions fail against the saved old adapter;
+the integrated adapter passes 37 focused checks. A fresh 65-input/15-asset
+frontend build and the unchanged installed v16 CLI pass six actual Chromium
+groups, including desktop/mobile traversal, fixture command activation,
+320 CSS px/200% text, breakpoint/regrowth checks, and preservation of dirty
+source, selection, Undo/Redo and exact saved protection bytes without
+menu-triggered writes. Receipt
+`artifacts/qualification/menu-navigation-p1/continuation/browser-attempt02/receipt.json`
+has SHA-256 `b7b18d56fb3d98863b7253e0bc75b7ce52e4d66a5b73e196c119c207680b4866`.
+The initial missing-sidecar fixture failure is preserved; corrected setup
+creates a real root/epoch-bound protection before taking its byte baseline.
+The matching Linux Tauri/WebKit binary passes four native groups covering all
+six desktop menus, native form controls, narrow/enlarged/short/regrown layouts,
+and dirty selection/Undo/Redo with exact source and policy preservation.
+Native receipt `continuation/native-attempt01/receipt.json` under the same menu
+qualification directory has SHA-256
+`9e3576a143b95031ab3169ac3c93b3cd454901c2389555312fcddd9584b280a9`.
+Desktop SHA-256 is
+`8cf8df01466a136cc5c7ccd465afd6514474181dcf6d2a297cd5767f85e0aca1`.
+The first successful build's strict input wrapper rejected a concurrent notice
+manifest refresh. That failure is retained; a separate same-config build with
+the declared metadata update produces the identical binary and passes the
+complete input checks. All owned runtime processes exit and private test
+storage is removed. CI now runs the same focused 37-check regression suite.
+Paired Overleaf comparison and new installer qualification remain separate.
+
+Hosted runs 38760615456 and 38760604395 stop before any policy scenario because
+their fixture compares an unrooted setup document ID with the UI's rooted
+share. The exact old runner reproduces that refusal locally. Capturing the
+root/epoch and reopening with that binding passes all six real-service policy
+groups on the same v16 binary/assets, retaining all 44 original assertions and
+scenario deadlines and adding two setup identity assertions. No product policy
+change was needed. Handoff
+`artifacts/qualification/policy-ci-continuation-20261016/handoff.json` has SHA-256
+`44c45d5b3ffb70a93ee39c0afe178ed540763d1aa0c3ba55f458a39c1f4771a5`.
+The qualified inherited correction does not establish a green hosted run.
+
+Architecture and refreshed attribution verification pass; the actual Rust and
+JavaScript license payloads remain identical to v16. The broader initial
+`npm test` run is not green: three legacy compatibility cases require absent
+`latexmk`, and the old menu fixture was stopped after its cyclic assertion
+diff stalled. Its 408 passes and four failures remain in
+`artifacts/qualification/continuation-20261016/baseline-js-tests.log`.
+Rename/Move is still a private, unintegrated candidate under independent
+review. These results do not complete the final product acceptance rows.
+
 ## Native Linux release and this-PC installation (2026-10-15)
 
 [UnderTree v0.3.0](https://github.com/GeorgeFejer91/undertree_texstudio/releases/tag/v0.3.0)

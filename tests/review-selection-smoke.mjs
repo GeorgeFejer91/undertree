@@ -31,7 +31,7 @@ async function capturePassage() {
   for (let index = 0; index < original.indexOf('target'); index += 1) await page.keyboard.press('ArrowRight');
   for (let index = 0; index < 'target'.length; index += 1) await page.keyboard.press('Shift+ArrowRight');
   const menu = await page.locator('#menu-format-toggle').isVisible() ? '#menu-format' : '#workspace-menu';
-  await page.locator(menu + ' summary').click(); await page.locator(menu).getByRole('button', { name: 'Highlight selection', exact: true }).click();
+  await page.locator(menu + ' summary').click(); await page.locator(menu).getByRole('menuitem', { name: 'Highlight selection', exact: true }).or(page.locator(menu).getByRole('button', { name: 'Highlight selection', exact: true })).click();
   assert.equal(await page.locator('#highlight-quote').textContent(), 'target');
   await page.locator('#highlight-dialog-rule').selectOption('protect');
 }

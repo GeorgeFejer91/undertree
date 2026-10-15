@@ -16,6 +16,7 @@ import { McpControlBridge } from './mcp-control.js';
 import { captureControlState, assertControlState, assertControlPassage, controlPreviewIdentity, assertControlPreview } from '../modules/frontend/manuscript-control-state.js';
 import { observeReviewText } from '../modules/frontend/review-text-layout.js';
 import { setupWindowChrome } from '../modules/frontend/window-chrome.js';
+import { setupMenuNavigation } from '../modules/frontend/menu-navigation.js';
 import { setupConnectionManager } from './connection-manager.js';
 import { LatestCompileScheduler } from '../modules/frontend/latest-compile-scheduler.js';
 import { manuscriptTree, clampPaneWidth, capturePublicationInputs, publicationPreviewCurrent, editorLineHeights, normalizeWorkspacePreferences, readWorkspacePreferences, writeWorkspacePreferences } from '../modules/frontend/manuscript-workspace.js';
@@ -210,7 +211,7 @@ function setWindowClosing(busy) {
 function task(callback) { return async event => { const session = active; try { await callback(event); } catch (error) { if (session && active !== session && ['policy_missing','recovery_conflict','stale_document','stale_root'].includes(error.code)) return; status(error.message || String(error), true); } }; }
 function closeDialogs() { for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close(); }
 function closeWorkspaceMenus(restoreFocus = false) {
-  for (const menu of workspaceMenus) if (menu.open) { menu.open = false; if (restoreFocus) menu.querySelector('summary').focus(); }
+  menuNavigation.close(restoreFocus);
 }
 function formatSource(command) {
   if (!view || !active) return;
@@ -1593,18 +1594,10 @@ for (const button of document.querySelectorAll('[data-command]')) button.onclick
   else if (insertionCommands.has(command) || ['bold','italic','heading','bullet-list','numbered-list'].includes(command)) formatSource(command);
   else if (view) { showPane('editor'); ({ undo, redo, 'select-all': selectAll, find: openSearchPanel })[command]?.(view); view.focus(); }
 });
-for (const menu of workspaceMenus) {
-  menu.addEventListener('toggle', () => { if (menu.open) for (const other of workspaceMenus) if (other !== menu) other.open = false; });
-  menu.querySelector('summary').addEventListener('keydown', event => {
-    if (event.key === 'ArrowDown') { event.preventDefault(); menu.open = true; menu.querySelector('button:not(:disabled):not([hidden])')?.focus(); }
-    else if (['ArrowLeft','ArrowRight'].includes(event.key) && menu.classList.contains('editor-menu')) {
-      event.preventDefault(); const siblings = workspaceMenus.filter(item => item.classList.contains('editor-menu'));
-      const next = siblings[(siblings.indexOf(menu) + (event.key === 'ArrowRight' ? 1 : siblings.length - 1)) % siblings.length];
-      closeWorkspaceMenus(); next.querySelector('summary').focus();
-    }
-  });
-}
-document.addEventListener('pointerdown', event => { for (const menu of workspaceMenus) if (!menu.contains(event.target)) menu.open = false; });
+const menuNavigation = setupMenuNavigation(workspaceMenus, {
+  isComposing: () => !!view?.compositionStarted,
+  isClosing: () => windowClosing,
+});
 
 function resizeFiles(width, persist = true) {
   if (getComputedStyle(workspace).display !== 'grid') return;
