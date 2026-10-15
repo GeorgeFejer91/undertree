@@ -477,3 +477,13 @@ observability is qualified with a normal seven-check run and a genuine native
 `exists` refusal. Its hosted cause remains unclassified; CI now retains failure
 JSON/PNG. These verification changes preserve runtime behavior and do not imply
 green hosted or installer qualification; see the linked shutdown follow-up.
+
+A later Word count fixture failure is reproduced with passive focus/selection
+tracing. Waiting for the real dialog close handler and exact DOM selection
+preserves all original insertion/history/no-save assertions; the full five-group
+browser gate passes on the unchanged captured runtime. The separate hosted
+Settings-save failure remains unclassified. Failure capture now targets the
+actual auxiliary page; an intentional failure verifies its JSON/source identity
+and visually inspected PNG with complete owned-process cleanup. The linked
+follow-up records runner and evidence identities; these results do not qualify
+newer native work or establish a green hosted/package run.

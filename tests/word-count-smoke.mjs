@@ -73,7 +73,14 @@ try {
   assert.match(await page.locator('#word-count-state').textContent(), /Unsaved at capture/); assert.equal(saves().length,before);
   assert.equal(await readFile(join(projectRoot,'current.html'),'utf8'),original); assert.deepEqual(await readPolicy(),policy);
   await page.keyboard.press('Escape'); await page.locator('#word-count-dialog').waitFor({state:'hidden'});
-  await page.locator('.cm-content').focus(); await page.keyboard.insertText('chosen');
+  // The dialog's close event returns menu focus before CodeMirror restores its DOM selection.
+  await page.waitForFunction(() => document.activeElement === document.getElementById('menu-file-toggle'));
+  await page.locator('.cm-content').focus();
+  await page.waitForFunction(() => {
+    const content = document.querySelector('#manuscript-source .cm-content'), selected = document.getSelection();
+    return document.activeElement === content && content?.contains(selected?.anchorNode) && content?.contains(selected?.focusNode) && selected.toString() === 'beta';
+  });
+  await page.keyboard.insertText('chosen');
   assert.equal(await page.locator('.cm-content').textContent(),'Alpha chosen gamma delta');
   await page.locator('#source-undo').click(); assert.equal(await page.locator('.cm-content').textContent(),dirty);
   await page.locator('#source-redo').click(); assert.equal(await page.locator('.cm-content').textContent(),'Alpha chosen gamma delta');

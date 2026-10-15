@@ -121,6 +121,33 @@ Report: `artifacts/hosted-e694-project-tree/REPORT.md`; promotion receipts are
 `observability-qualification/qualification-and-promotion.json` in that directory.
 Full hosted and installer qualification remain pending.
 
+At `faea2e7`, the PR's Word count fixture inserts at the wrong DOM caret after
+closing its dialog, while the push run separately times out saving Settings.
+A passive browser probe reproduces the exact Word count prefix failure: the
+real dialog close handler returns focus after the fixture has already focused
+the editor. The fixture now waits for that handler and the actual selected
+`beta` text inside CodeMirror before inserting. The bounded probe and all five
+maintained Word count groups pass against the unchanged v9 assets and fixed
+shutdown CLI. No source selection is fabricated and replacement, Undo/Redo,
+count and no-save assertions remain intact, with no retry or longer deadline.
+Runner SHA-256 is
+`43fc1cf4eb0d8a368cce0516a16cf4092e65503ee20a6ba279b90371391fc28b`;
+report `artifacts/hosted-faea-triage/word-count-focus/REPORT.md` has SHA-256
+`96bb1cc3626c8830c84d2a9604cf42bf18ca9ce20fe38d8274e5aeadee520865`.
+The separate hosted Settings failure remains unclassified; a bounded local
+workflow passes but does not reproduce its cause. Failure capture now follows
+the actual preference or blocked-storage page and restores the main target
+after context closure. One intentional failure verifies its preference-stage
+JSON, exact source hash and visually inspected PNG; all 18 observed owned
+processes exit and all 289 guarded inputs remain unchanged. This qualifies
+logging, not a full Review UI rerun or the hosted failure's cause. Maintained
+logger SHA-256 is
+`83356ab0332036094cc59c9505144639d78e8d32b237e003fac744202513dddd`;
+qualification `artifacts/hosted-faea-preference-observability-prep/invocation-01/qualification.json`
+has SHA-256
+`96f4dcee97737fcbb718d236eca97783460aa444264c5cfa6fe99f38dfc32781`.
+A refreshed hosted run and complete installer qualification remain pending.
+
 ## Immutable integrity and unsigned Linux package checkpoint — 2026-10-15
 
 The Rust/Tauri v2/HTML/CSS/Typst candidate at

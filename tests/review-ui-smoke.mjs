@@ -106,7 +106,7 @@ async function saveExactSource(page, project, path, expected) {
     return saved;
   } finally { page.off('response',observe); }
 }
-let browser, failurePage;
+let browser, failurePage, failureStage='main';
 try {
   assert.equal((await fetch(base+'/api/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'projects'})})).status,401);
   const project=await call({action:'add_project',root:projectRoot});
@@ -839,7 +839,7 @@ try {
   const preferenceRoot=join(root,'preferences-project');await mkdir(preferenceRoot);
   const preferenceSource='<p>'+ 'An editable sentence. '.repeat(25)+'</p>\n';await writeFile(join(preferenceRoot,'settings.html'),preferenceSource);
   const preferenceProject=await call({action:'add_project',root:preferenceRoot});
-  const preferenceContext=await browser.newContext({viewport:{width:1600,height:1000}});const preferencePage=await preferenceContext.newPage();
+  const preferenceContext=await browser.newContext({viewport:{width:1600,height:1000}});const preferencePage=failurePage=await preferenceContext.newPage();failureStage='preferences';
   preferencePage.on('pageerror',error=>errors.push(error.message));
   await preferencePage.goto(base+`/manuscript.html#session=${token}`);
   await preferencePage.locator('#project-select').selectOption(preferenceProject.id);await preferencePage.getByRole('button',{name:'settings.html',exact:true}).click();await waitForSource(preferencePage,'settings.html');
@@ -874,14 +874,14 @@ try {
   assert.equal(await preferencePage.locator('.cm-content').evaluate(node=>getComputedStyle(node).fontSize),'12px','Reset workspace restores the pinned default source typography');
   assert.equal(await preferencePage.locator('.cm-content').evaluate(node=>node.classList.contains('cm-lineWrapping')),true);
   assert.ok(Math.abs((await preferencePage.locator('.manuscript-files').boundingBox()).width-232.95)<=1,'Reset workspace restores the proportional reference sidebar');
-  await preferenceContext.close();
+  await preferenceContext.close();failurePage=page;failureStage='main';
   const blockedStorageContext=await browser.newContext({viewport:{width:1600,height:1000}});
   await blockedStorageContext.addInitScript(()=>Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Storage unavailable','SecurityError');}}));
-  const blockedStoragePage=await blockedStorageContext.newPage();blockedStoragePage.on('pageerror',error=>errors.push(error.message));
+  const blockedStoragePage=failurePage=await blockedStorageContext.newPage();failureStage='blocked-storage';blockedStoragePage.on('pageerror',error=>errors.push(error.message));
   await blockedStoragePage.goto(base+`/manuscript.html#session=${token}`);await blockedStoragePage.locator('#project-select').selectOption(preferenceProject.id);await blockedStoragePage.getByRole('button',{name:'settings.html',exact:true}).click();await waitForSource(blockedStoragePage,'settings.html');
   await menuAction(blockedStoragePage,'view','Larger editor text');
   assert.equal(await blockedStoragePage.locator('.cm-content').evaluate(node=>getComputedStyle(node).fontSize),'13px','settings remain usable when browser storage is unavailable');
-  await blockedStorageContext.close();
+  await blockedStorageContext.close();failurePage=page;failureStage='main';
   assert.deepEqual(errors,[]);
   console.log('Real Rust review/MCP, local reanchor/protection, pending/new cues, source-linked card collision/navigation/scroll, accepted Typst automatic PDF, six menus/centered title/source formatting/undo/outline, exact CRLF source markers and byte roundtrip, width×height/200%/text-spacing chrome, one 32px desktop preview toolbar/enlarged reflow/actual source+PDF downloads, all 10 PDF pages with bounded canvases, explicit builds, delayed real PDF Worker termination/open responses with independent file undo, delayed palette/highlight project ownership and recorded autosync targets, TeX import, delayed save/reload/IME acceptance safety, revision-aware delayed PDF status, persisted pane/text settings with undo, reload, clamp/regrowth, 320px/200% and denied storage, and visible failure/last-good PDF checks passed. zrok process and final autosync response simulated; public tunnel, live GitHub push and full rendered Overleaf parity not tested.');
 } catch (error) {
@@ -897,7 +897,7 @@ try {
     })).catch(()=>null);
     const {source,...ui}=observed||{};
     await writeFile(join(output,`${basename(root)}.json`),JSON.stringify({
-      snapshotReceipt,snapshotSha256,error:{name:error.name,message:error.message},ui,
+      snapshotReceipt,snapshotSha256,pageStage:failureStage,error:{name:error.name,message:error.message},ui,
       sourceSha256:typeof source==='string'?createHash('sha256').update(source).digest('hex'):null,
     },null,2)+'\n');
     await failurePage?.screenshot({path:join(output,`${basename(root)}.png`)});
