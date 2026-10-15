@@ -39,6 +39,20 @@ try {
     const body = await fetch(base + '/api/review', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(operation) }).then(response => response.json());
     assert.equal(body.ok, true, body.error?.message); return body.result;
   }
+  async function observeLocalRead(action, project, path) {
+    assert.ok(action === 'projects' || action === 'pdf', 'Readiness observes only Projects or Pdf; never replay a producer.');
+    assert.ok(action === 'projects' ? project === undefined && path === undefined : typeof project === 'string' && typeof path === 'string', 'Use the exact read-only observation shape.');
+    const operation = action === 'projects' ? { action: 'projects' } : { action: 'pdf', project, path };
+    const response = await fetch(base + '/api/review', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(operation) });
+    const body = await response.json();
+    if (response.status === 400 && body?.ok === false && body.error?.code === 'busy' && body.error.message === 'A local document operation is running. Retry this action.') {
+      console.log(JSON.stringify({ readinessBusy: action })); return null;
+    }
+    assert.equal(response.ok, true, body?.error?.message || `Read observation HTTP ${response.status}`);
+    assert.equal(body?.ok, true, body?.error?.message);
+    assert.ok(action === 'projects' ? Array.isArray(body.result) : typeof body.result?.available === 'boolean', 'The read observation result is malformed.');
+    return body.result;
+  }
   const project = await local({ action: 'add_project', root: projectRoot });
   browser = await chromium.launch({ executablePath: process.env.UNDERTREE_CHROME || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }), errors = [];
@@ -221,11 +235,11 @@ try {
   await page.keyboard.press('Escape');
   await openLocal('private.typ', privateOriginal);
   await fileMenu('Set as main document');
-  await until(async () => (await local({action:'projects'})).find(value=>value.id===project.id).mainDocument === 'private.typ', 'The local main-document setting did not apply.');
+  await until(async () => (await observeLocalRead('projects'))?.find(value=>value.id===project.id).mainDocument === 'private.typ', 'The local main-document setting did not apply.');
   await page.locator('#typst-compile').click();
   await page.locator('#typst-pages canvas').first().waitFor({state:'visible',timeout:30_000});
   assert.equal(await page.locator('#pdf-page-count').textContent(), 'of 1');
-  await until(async () => (await local({action:'pdf',project:project.id,path:'private.typ'})).available, 'The local private PDF did not compile.');
+  await until(async () => (await observeLocalRead('pdf',project.id,'private.typ'))?.available === true, 'The local private PDF did not compile.');
   await openLocal('chapter.typ', chapterOriginal);
   await page.locator('#typst-pages canvas').first().waitFor({state:'visible',timeout:20_000});
   assert.match(await page.locator('#typst-compile').getAttribute('title'), /private\.typ/);
@@ -236,7 +250,7 @@ try {
   assert.equal(JSON.stringify(chapterWorkspace).includes(privateSnapshot.documentId), false);
   assert.equal((await tool('set_preview_view',{requestId:'private-main-preview',page:1})).isError,true, 'the private main PDF cannot be remotely controlled');
   await fileMenu('Clear main document');
-  await until(async () => !(await local({action:'projects'})).find(value=>value.id===project.id).mainDocument, 'The temporary local main-document setting did not clear.');
+  await until(async () => { const projects = await observeLocalRead('projects'); return projects && !projects.find(value=>value.id===project.id).mainDocument; }, 'The temporary local main-document setting did not clear.');
   await applied('open_manuscript',{documentId},'return-to-shared-main');
   await waitForSource('main.typ',original);
 

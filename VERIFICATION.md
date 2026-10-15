@@ -148,6 +148,27 @@ has SHA-256
 `96f4dcee97737fcbb718d236eca97783460aa444264c5cfa6fe99f38dfc32781`.
 A refreshed hosted run and complete installer qualification remain pending.
 
+Both hosted runs at `7a9aa26` pass Rust, real Typst, Review UI, Word count,
+Connections and the historical compatibility archive smoke. Both then fail an
+App fixture Projects-read poll on Rust's pre-effect document-lock `busy` refusal;
+later native/installer gates are skipped. The fixture now observes only Projects
+or Pdf and treats only that exact HTTP400/error code/message as not ready.
+Other HTTP, JSON, transport and native errors remain fatal, producers are
+refused before dispatch, and the original poll deadlines are unchanged.
+
+The complete maintained App browser gate passes on the fixed shutdown CLI and
+15 unchanged v9 assets, retaining all original rendered, no-save, private-main
+PDF, inactive-dirty-buffer, held-response and revocation assertions. No real
+readiness-busy response occurred in this local run; 20 separate labelled
+synthetic controls verify that classification and fatal-error/producer refusal.
+All 15 observed owned processes exit, and the guarded inputs remain unchanged.
+Runner SHA-256 is
+`1689ee15fffdca335b2195cb8f0abcaeb63d1a5bf9937277e1b2de1e65912a1e`;
+handoff `artifacts/hosted-7a9aa26-triage/app-readiness-handoff.json` has SHA-256
+`57709e5223dfa4b3b8ffc83eca30276b82e1f3fd324f83c4a44066837ee181ec`.
+This changes verification only; no source operation is retried. Refreshed hosted,
+newer combined native and complete installer qualification remain pending.
+
 ## Immutable integrity and unsigned Linux package checkpoint — 2026-10-15
 
 The Rust/Tauri v2/HTML/CSS/Typst candidate at

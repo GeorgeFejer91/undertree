@@ -487,3 +487,12 @@ actual auxiliary page; an intentional failure verifies its JSON/source identity
 and visually inspected PNG with complete owned-process cleanup. The linked
 follow-up records runner and evidence identities; these results do not qualify
 newer native work or establish a green hosted/package run.
+
+Both next hosted runs pass through Connections and the legacy archive smoke,
+then stop on an App fixture's strict Projects-read assertion during a real
+pre-effect busy refusal. A closed Projects/Pdf readiness observer preserves
+all original authority, no-save, rendered and revocation checks. Its full local
+App gate passes; 20 separately labelled synthetic cases cover exact-busy,
+fatal-error and producer refusal. No genuine busy occurs in that local run.
+The linked follow-up records exact inputs and complete owned-process cleanup;
+new hosted/native/installer acceptance is still pending.
