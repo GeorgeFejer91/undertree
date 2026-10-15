@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { access, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertHtmlPrintProfile, patchElementStyle } from "./html-print-profile.js";
@@ -75,11 +75,30 @@ export async function renderHtmlPrint({ sourcePath, projectRoot, pdfPath, manife
   const source = await realpath(sourcePath);
   const sourceRelative = relative(root, source);
   if (sourceRelative.startsWith("..") || isAbsolute(sourceRelative)) throw new Error("HTML source must be inside the project root.");
+  const manifest = manifestPath || `${pdfPath}.manifest.json`;
+  const destinations = [source, pdfPath, manifest, ...(texPath ? [texPath] : [])];
+  const identities = new Set();
+  const paths = new Set();
+  for (const destination of destinations) {
+    const canonical = await realpath(destination).catch(error => {
+      if (error.code !== "ENOENT") throw error;
+      return resolve(destination);
+    });
+    const metadata = await stat(destination).catch(error => {
+      if (error.code !== "ENOENT") throw error;
+      return null;
+    });
+    const identity = metadata ? `${metadata.dev}:${metadata.ino}` : "";
+    if (paths.has(canonical) || (identity && identities.has(identity))) {
+      throw new Error("Render outputs must be different from the source and each other.");
+    }
+    paths.add(canonical);
+    if (identity) identities.add(identity);
+  }
   let html = await readFile(source, "utf8");
   const profile = assertHtmlPrintProfile(html);
   await validateAssets(profile, source, root, Boolean(texPath));
   await mkdir(dirname(pdfPath), { recursive: true });
-  const manifest = manifestPath || `${pdfPath}.manifest.json`;
   await mkdir(dirname(manifest), { recursive: true });
 
   const python = "/usr/bin/python3";

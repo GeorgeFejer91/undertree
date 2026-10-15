@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import process from "node:process";
+import packageMetadata from "./package.json" with { type: "json" };
 
 const PORT = Number(process.env.UNDERTREE_PORT || 37371);
 const ORIGIN = process.env.UNDERTREE_ORIGIN || `http://127.0.0.1:${PORT}`;
@@ -135,6 +136,7 @@ async function stdinText() {
 
 const COMMANDS = {
   health: "Show service and version information",
+  "render-html": "Render a local HTML print profile: render-html <source.html> --pdf FILE [--tex FILE]",
   projects: "List remembered projects",
   "project-add": "Add a folder: project-add <folder> [--name NAME]",
   tree: "Read project tree and build settings: tree <project>",
@@ -158,8 +160,27 @@ const COMMANDS = {
 
 async function main() {
   if (["help", "commands"].includes(command)) {
-    print({ executable: "undertree", version: "0.2.0", output: "JSON on stdout; errors as JSON on stderr", commands: COMMANDS });
+    print({ executable: "undertree", version: packageMetadata.version, output: "JSON on stdout; errors as JSON on stderr", commands: COMMANDS });
     return;
+  }
+  if (!Object.hasOwn(COMMANDS, command)) throw new Error(`Unknown command: ${command}. Run undertree help.`);
+  if (command === "render-html") {
+    const source = positional[0];
+    const pdf = flags.get("pdf");
+    const tex = flags.get("tex");
+    if (positional.length !== 1 || !source || typeof pdf !== "string" || !pdf.trim()
+      || (flags.has("tex") && (typeof tex !== "string" || !tex.trim()))) {
+      throw new Error("Usage: undertree render-html <source.html> --pdf FILE [--tex FILE]");
+    }
+    const sourcePath = resolve(source);
+    const pdfPath = resolve(pdf);
+    const texPath = tex ? resolve(tex) : "";
+    if (pdfPath === sourcePath || texPath === sourcePath || pdfPath === texPath) {
+      throw new Error("Render outputs must be different from the source and each other.");
+    }
+    if (texPath) await mkdir(dirname(texPath), { recursive: true });
+    const { renderHtmlPrint } = await import("./src/html-renderer.mjs");
+    return print(await renderHtmlPrint({ sourcePath, projectRoot: dirname(sourcePath), pdfPath, texPath, persistFits: false }));
   }
   if (command === "health") return print(await ensureServer());
   if (command === "projects") return print({ projects: await projects() });
@@ -231,7 +252,6 @@ async function main() {
     if (result.code !== 0) process.exitCode = result.code || 2;
     return;
   }
-  throw new Error(`Unknown command: ${command}. Run undertree help.`);
 }
 
 main().catch((error) => {

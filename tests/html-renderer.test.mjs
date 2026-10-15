@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { link, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -9,6 +9,28 @@ import { promisify } from "node:util";
 import { applyResolvedFitsToHtml, renderHtmlPrint } from "../src/html-renderer.mjs";
 
 const exec = promisify(execFile);
+
+test("HTML rendering refuses source/output aliases including implicit manifest, symlink and hardlink destinations", async context => {
+  const directory = await mkdtemp(join(tmpdir(), "undertree-render-alias-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const source = join(directory, "print.pdf.manifest.json");
+  const content = await readFile(resolve("examples/html-print-profile.html"), "utf8");
+  await writeFile(source, content);
+  const aliases = [join(directory, "linked.pdf"), join(directory, "hardlinked.pdf")];
+  await symlink(source, aliases[0]);
+  await link(source, aliases[1]);
+  for (const options of [
+    { pdfPath: join(directory, "print.pdf") },
+    { pdfPath: aliases[0] },
+    { pdfPath: aliases[1] },
+    { pdfPath: join(directory, "other.pdf"), manifestPath: source },
+    { pdfPath: join(directory, "other.pdf"), texPath: source },
+    { pdfPath: join(directory, "same"), manifestPath: join(directory, "same") },
+  ]) {
+    await assert.rejects(renderHtmlPrint({ sourcePath: source, projectRoot: directory, ...options }), /different from the source/);
+    assert.equal(await readFile(source, "utf8"), content);
+  }
+});
 
 test("native WebKit waits for Pretext and produces the declared A4 page", { timeout: 90000 }, async (context) => {
   const temporary = await mkdtemp(join(tmpdir(), "undertree-html-render-"));
