@@ -231,6 +231,7 @@ try{
   assert.equal(await execute('return window.__nativeAppSaveAttempts'),savesBefore);assert.equal(hash(await readFile(source)),sourceBefore);assert.equal(hash(await readFile(policy)),policyBefore);
   checks.push('Actual native PDF-permission revocation invalidates the prior download ticket and prevents a fresh one while App controls remain enabled.');
   await command('/window/rect',{width:320,height:900,x:0,y:0});await execute('document.documentElement.style.fontSize="28px";');
+  await execute('return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));');
   await until(()=>execute('return ["fit","reflow"].includes(document.getElementById("connection-pdf-export-summary").dataset.textFit)'),'Native PDF consent text did not finish Pretext measurement.');
   const geometry=await execute(`
     const root=document.querySelector('.pdf-export-root');
