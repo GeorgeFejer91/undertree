@@ -304,6 +304,15 @@ try {
   assert.equal(crlfOriginal.slice(crlfAnchor.from, crlfAnchor.to), selectedQuote);
   assert.equal(crlfAnchor.quote, selectedQuote);
   assert.equal(await readFile(crlfSource, 'utf8'), crlfOriginal, 'Highlighting leaves the original CRLF source bytes unchanged.');
+  evidence.nativeReviewCloseReady = await waitFor(() => execute(`
+    const node=document.getElementById('review-close'),box=node.getBoundingClientRect();
+    const state={highlightOpen:document.getElementById('highlight-dialog').open,reviewOpen:document.querySelector('.review-workspace').dataset.reviewOpen,
+      modal:document.querySelector('dialog:modal')?.id||null,disabled:node.disabled,inert:!!node.closest('[hidden],[inert]'),visibility:getComputedStyle(node).visibility,
+      box:{left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width,height:box.height}};
+    const hit=document.elementFromPoint(box.left+box.width/2,box.top+box.height/2);
+    return !state.highlightOpen&&state.reviewOpen==='true'&&!state.modal&&!state.disabled&&!state.inert&&state.visibility==='visible'
+      &&box.width>0&&box.height>0&&box.left>=0&&box.right<=innerWidth&&box.top>=0&&box.bottom<=innerHeight&&node.contains(hit)?state:false;
+  `), 'Highlight acknowledgement did not expose the actual Review Close control.');
   await click('#review-close');
   await click('.file-button[data-path="main.typ"]');
   await waitFor(() => execute('return document.querySelector(".cm-content")?.textContent.includes("Hello from the real Tauri WebView.")'), 'Main Typst manuscript did not reopen.');
