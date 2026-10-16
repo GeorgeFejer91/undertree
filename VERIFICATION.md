@@ -216,7 +216,17 @@ both hook 0 (`prepared`) and hook 1 (`pending`), verifies List/Status against th
 actual durable intent with byte-pure reads, preserves original source/epochs,
 and waits for real completion plus release of both exclusions within its
 unchanged finite loop. Runtime behavior and every other test remain unchanged.
-The new test source requires fresh hosted qualification.
+The corrected snapshot passes all 42 focused tests with exact source guards
+and clean worker/storage shutdown. Independent evidence review has SHA-256
+`4edb261e7ef1626ad42e3b1fd5f5e01a25c99ac865c4f8748dfc5b83878d3705`.
+Hosted push run 38843248578 on `4bd92f8` passes all 410 library tests, the
+integration suites and every preceding product browser gate. Its strict native
+Clippy step then refuses an immediately invoked closure after the test-only
+fault hook is compiled out. Extracting that exact body into a private helper
+preserves the fault boundary, Result-to-`outcome_unknown` handling and caller's
+exclusion lifetime without a lint allowance. Independent source review has
+SHA-256 `8eac0e2803ab883f03d3c09537ed84face79c17896c8d1508271016441bb3f1e`.
+The extracted helper and native effect gate require fresh hosted qualification.
 
 The maintained native UI gate also gains one helper on its existing disposable
 window. It exercises both actual typed Move commands, exact source/Review/opaque

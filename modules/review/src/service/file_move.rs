@@ -2068,22 +2068,7 @@ impl Service {
                 return Err(Error::new("outcome_unknown", format!("Receipt retirement's durable decision is uncertain ({}). Preserve this generation and restart to inspect its private journal.", error.code)));
             }
         }
-        let finish = (|| {
-            #[cfg(test)]
-            self.move_test_boundary(20)?;
-            finish_retirement(
-                &self.state,
-                &registry,
-                generation,
-                &retirement,
-                &mut |step| {
-                    #[cfg(test)]
-                    self.move_test_boundary(step)?;
-                    let _ = step;
-                    Ok(())
-                },
-            )
-        })();
+        let finish = self.finish_move_retirement(&registry, generation, &retirement);
         if let Err(error) = finish {
             return Err(Error::new("outcome_unknown", format!("Explicit receipt retirement remains fenced ({}). Its known private journal was preserved; restart to inspect the same generation.", error.code)));
         }
@@ -2102,6 +2087,21 @@ impl Service {
         Ok(
             json!({"retiredGeneration":generation,"generation":retirement.next_generation,"retiredCount":records.len()}),
         )
+    }
+    fn finish_move_retirement(
+        &self,
+        registry: &Registry,
+        generation: &str,
+        retirement: &Retirement,
+    ) -> Result<()> {
+        #[cfg(test)]
+        self.move_test_boundary(20)?;
+        finish_retirement(&self.state, registry, generation, retirement, &mut |step| {
+            #[cfg(test)]
+            self.move_test_boundary(step)?;
+            let _ = step;
+            Ok(())
+        })
     }
     fn cleanup_move_store(&self) -> Result<()> {
         let records = lock(&self.file_move)?
