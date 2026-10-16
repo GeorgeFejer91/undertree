@@ -1,5 +1,68 @@
 # Verification report
 
+## Native source Move interface candidate — 2026-10-16
+
+The desktop File menu now provides a native-only dialog for one closed `.typ`
+or `.html` source and its Review/import group. The controller persists and
+reads back each request identity before native submission, retains uncertain
+outcomes, and exposes explicit preparation, commit, inspection, cancellation,
+forward reconciliation and terminal maintenance. It guards both endpoint
+sessions, composition, current rooted tree/epochs and pending native/App Close
+without saving or discarding buffers. Current Projects observations refresh
+metadata/tree; a changed main path marks the retained old PDF stale without
+clearing its bytes, opening a source or rebuilding it. A newer local main
+selection wins over a held old Projects reply.
+
+Independent source review accepts the five-file implementation and V5 width
+correction with 67 focused checks, including actual adapter callbacks and eight
+focus cases.
+An earlier rendered candidate records a real 320px/28px-text layout failure;
+putting operation buttons in the scrollable body gives Close a bounded footer.
+The V3 run passes thirteen geometry groups but fails unconditional DOM
+Tab containment. A separate passive trace records focused Prepare becoming
+hidden and dropping to BODY, then a later window blur at the browser boundary.
+V4 moves only the just-invalidated Prepare focus to its status, preserving any
+newer user focus. Its reviewed browser assertion requires no background-page
+focus, classifies only observed unfocused browser boundaries and demands one
+real key return into the modal. Earlier failed receipts remain failed.
+
+The isolated integration passes all 67 checks, architecture, the frontend build
+and current attribution verification. Its fifteen assets and source guards are
+recorded in `artifacts/qualification/native-move-ui-integration-20261016/`;
+current V5 build receipt SHA-256 is
+`1dbf8a27a8996df4e54d039b2570b4be2b706ed81466db476607bef96dc1adec`.
+Rust and JavaScript license texts remain byte-identical for 331 and 27
+components; only current input metadata changes.
+
+A source-reviewed native fixture extension retains all 76 original assertions
+and adds a distinct prelaunch source group. After the typed-command helper's
+generation retirement, it will exercise actual dialog buttons, destination
+key input, Prepare without a move, Close/reopen identity retention, explicit
+Commit, exact group bytes/modes/epochs and tree refresh. Unrelated source,
+policy, editor and Save/compiler counters must stay unchanged. The native test
+also checks actual 28px root text and eight short/tall,
+320/wide, maintenance-open/closed dialog geometries in WebKitGTK, restores
+prior font/window geometry, and retains failed measurements before restoration.
+Final source review SHA-256 is
+`4e571edeebabe3f3e510d46ab187934e896f10b1ce1440864af35c11c04834ea`.
+The complete V4 rendered run passes the twelve original layouts, intended
+Prepare status focus, original keyboard/regrowth/Escape sequence and browser
+boundary return, then exposes a maintenance button wider than its body. Its
+36 input guards and strict cleanup pass; the failure remains recorded. V5
+extends the existing maximum-width rule to that button, retaining all labels,
+fonts, actions and assertions. The full V5 rendered run then passes 657 checks
+and 654 geometry observations,
+including the original layouts, five maintenance sizes and eighteen operation
+state/size cases. All nineteen observed browser boundaries have successful
+single-key returns, with no outside focus or dropped observations. All 36
+inputs remain exact; seventy owned processes exit, no zombies remain and
+private temporary storage is empty and removed. Independent actual-result
+review SHA-256 is
+`7fbc1c7542fcb1bf24cccabe4e537a1216623c53aa92b7558dc656ac49de09c6`.
+Integrated native UI/installer results remain pending. No release, installation,
+IME or paired Overleaf parity is inferred from the build or mocked native wire.
+
+
 ## Linux dependency-report bound candidate — 2026-10-16
 
 The isolated compiler candidate drains dependency JSON concurrently with PDF
@@ -34,9 +97,15 @@ native/review Clippy. Both stop at the parent native Move fixture setup before
 any Move operation: the prior deliberately failed build has no successful
 rebuild after CLI save. The parent now supplies that real Recompile setup and
 a saved-revision check, while retaining the original predicate and deadline.
-The corrected source and actual native publication still require complete
-hosted qualification. No performance, crash-residue, public route,
-installation or release qualification is inferred from these source results.
+Following the fixture corrections, complete push run 38846680784 and PR run
+38846688124 on `635e4af` pass all 418 library tests, integration/browser checks,
+strict native/review Clippy, every native gate and extracted installer
+qualification. Downloaded push package SHA-256 is
+`c264919b77aaf6ad9727b0ebb897b70d0232b7b5d1b8aca1ec44f18459295857`.
+Independent verification checks archive digests, package/build/extracted
+receipts, packaged binaries/attribution and exact source/runner identities.
+No performance, crash-residue, public route, installation or release
+qualification is inferred from those bounded results.
 
 ## Menu navigation and policy fixture continuation — 2026-10-16
 
@@ -291,6 +360,16 @@ epoch advance, pure receipt reads, completed replay and explicit generation
 retirement. It checks that the unrelated editor/source/policy and compiler/Save
 counters remain unchanged. This helper is source-reviewed; its native effect
 results remain pending. No browser mock is counted as native Move evidence.
+
+Complete push run 38846620822 and PR run 38846628481 on `f8f0511` now pass
+all 410 library tests, integration/browser checks, strict native/review Clippy,
+every native gate and extracted installer qualification. The actual typed
+Move helper passes in both debug and extracted release binaries. Downloaded
+push package SHA-256 is
+`ed6c335a00c46242c47ec7c8bae820634ee8b2ed05279e28b9d5049fbbcc9616`.
+The independently verified four-run Move/compiler summary has SHA-256
+`ea49a7486e8af7a4ac87c1c06f96896bd5ba9581cb9180e4f3c6799d52cf8b85`.
+This qualifies the backend and compiler slices, not the newer frontend UI.
 
 Fresh pinned cargo-about generation selects 331 Rust components, adding
 `nix` 0.31.3 and `cfg_aliases` 0.2.2 with their actual license/notice texts.

@@ -369,3 +369,19 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflo
   .manuscript-review .share-toggle,#review-list { padding-block: 4px; }
   #review-list { min-block-size: 0; }
 }
+
+/* Move dialog: finite title/actions with a scrollable inventory and full selectable paths. */
+#file-move-dialog { --move-gap: clamp(.4rem, min(1.5vw, 1.5vh), .9rem); inline-size: min(42rem, calc(100% - 2rem)); block-size: min(42rem, calc(100dvh - 2rem)); padding: clamp(.6rem, min(2vw, 2vh), 1.3rem); overflow: hidden; }
+#file-move-dialog[open] { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--move-gap); }
+#file-move-dialog h2,#file-move-dialog .dialog-actions,#file-move-dialog p,#file-move-dialog label { margin: 0; }
+.file-move-body { min-block-size: 0; overflow: auto; display: grid; grid-template-columns: minmax(0, 1fr); align-content: space-between; gap: var(--move-gap); padding-inline-end: .2rem; }
+#file-move-draft { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--move-gap); min-inline-size: 0; }
+#file-move-dialog select,#file-move-dialog input { min-inline-size: 0; max-inline-size: 100%; inline-size: 100%; font: inherit; }
+#file-move-paths { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--move-gap); margin: 0; }
+#file-move-paths > div { min-inline-size: 0; }
+#file-move-paths dd { margin-inline-start: 0; overflow-wrap: anywhere; white-space: pre-wrap; user-select: text; }
+#file-move-dialog .file-move-confirm { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .5rem; }
+#file-move-dialog .file-move-confirm input { inline-size: 1rem; block-size: 1rem; margin-block-start: .2rem; }
+.file-move-operations { display: flex; flex-wrap: wrap; align-items: start; gap: var(--move-gap); min-inline-size: 0; }
+#file-move-dialog .dialog-actions > button,#file-move-dialog .file-move-operations > button,#file-move-maintenance > button { max-inline-size: 100%; }
+#file-move-maintenance > :not(summary) { margin-block-start: var(--move-gap); }
