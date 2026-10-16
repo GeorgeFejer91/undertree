@@ -138,7 +138,7 @@ test('policy changes invalidate held App captures and keep publication stale wit
 
 const manuscript = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
 test('a late policy error cannot replace a different active manuscript status', async () => {
-  const task = manuscript.match(/^function task\(callback\) \{.*\}$/m)?.[0]; assert.ok(task);
+  const start = manuscript.indexOf('function task('), end = manuscript.indexOf('\nfunction closeDialogs(', start); assert.ok(start >= 0 && end > start); const task = manuscript.slice(start, end); assert.ok(task);
   for (const switched of [false, true]) {
     const gate = deferred(), messages = [], context = { active: {}, status: message => messages.push(message) };
     const wrap = runInNewContext(`${task}\ntask`, context);

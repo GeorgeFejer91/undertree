@@ -201,5 +201,46 @@ test('menu buttons retain their native Enter/Space action and the frozen Close a
   assert.equal(hash(source.slice(source.indexOf('function setWindowClosing('), source.indexOf('function task('))), '64e7a22dc7cc49b76def339c241311733a016c828f31db06919e28e102f6e89a');
   const commands = source.slice(commandStart, setupStart), moveCommand = "  else if (command === 'move-source') openFileMove(button);\n";
   assert.equal(commands.split(moveCommand).length, 2, 'Exactly one native Move command extends the frozen dispatcher');
-  assert.equal(hash(commands.replace(moveCommand, '')), '2ad1b1841ec4a0c780841ed0c15cb4e572f33442846c49153f76323d8b126560');
+  const findFocus = "if (command !== 'find') view.focus();";
+  assert.equal(commands.split(findFocus).length, 2, 'Exactly one Find focus correction extends the frozen dispatcher');
+  const chatgptCommand = "  if (command === 'chatgpt') { $('workspace-menu-toggle').focus(); $('chatgpt-open').click(); }\n  else if (triggers[command]) $(triggers[command]).click();\n";
+  assert.equal(commands.split(chatgptCommand).length, 2, 'Exactly one ChatGPT branch returns focus before opening Connections');
+  assert.equal(hash(commands.replace(moveCommand, '').replace(findFocus, 'view.focus();').replace(chatgptCommand, "  if (triggers[command]) $(triggers[command]).click();\n")), '2ad1b1841ec4a0c780841ed0c15cb4e572f33442846c49153f76323d8b126560');
+});
+
+test('actual command dispatch retains Find query focus and refocuses ordinary editor commands', async () => {
+  for (const command of ['find', 'undo', 'redo', 'select-all']) {
+    const button = { dataset: { command } }, calls = [], state = Object.freeze({});
+    let focus = 'menu';
+    const view = { state, focus: () => { calls.push('editor-focus'); focus = 'editor'; } };
+    const action = name => target => { assert.equal(target, view); calls.push(name); };
+    runInNewContext(source.slice(commandStart, setupStart), {
+      document: { querySelectorAll: () => [button] }, task: callback => callback,
+      closeWorkspaceMenus: () => calls.push('close-menu'), showPane: pane => { assert.equal(pane, 'editor'); calls.push('editor-pane'); },
+      view, insertionCommands: new Set(), undo: action('undo'), redo: action('redo'), selectAll: action('select-all'),
+      openSearchPanel: target => { action('find')(target); focus = 'query'; },
+    });
+    await button.onclick();
+    assert.equal(focus, command === 'find' ? 'query' : 'editor', `${command}: preserve the command's intended focus`);
+    assert.deepEqual(calls, ['close-menu', 'editor-pane', command, ...(command === 'find' ? [] : ['editor-focus'])]);
+    assert.equal(view.state, state);
+  }
+});
+
+test('actual ChatGPT dispatch restores the workspace menu focus before opening Connections', async () => {
+  const button = { dataset: { command: 'chatgpt' } }, calls = [], state = Object.freeze({ dirty: true });
+  const view = { state, focus: () => assert.fail('ChatGPT must preserve the editor focus route') };
+  const controls = {
+    'workspace-menu-toggle': { focus: () => calls.push('workspace-menu-focus') },
+    'chatgpt-open': { click: () => calls.push('chatgpt-open') },
+  };
+  runInNewContext(source.slice(commandStart, setupStart), {
+    document: { querySelectorAll: () => [button] }, task: callback => callback,
+    closeWorkspaceMenus: () => calls.push('close-menu'), $: id => {
+      assert.ok(controls[id], `Unexpected control ${id}`); return controls[id];
+    }, view,
+  });
+  await button.onclick();
+  assert.deepEqual(calls, ['close-menu', 'workspace-menu-focus', 'chatgpt-open']);
+  assert.equal(view.state, state);
 });

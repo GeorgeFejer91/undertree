@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { cp, mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readFile, readdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -63,6 +63,15 @@ try {
   await page.goto(base + `/manuscript.html#session=${token}`);
   await page.locator('#project-select').selectOption(project.id); await page.locator('.file-button[data-path="settings.html"]').click();
   const content = page.locator('.cm-content'); await content.waitFor();
+  const pdfEngines = [];
+  for (const name of await readdir(join(assets, 'assets'))) {
+    if (name.endsWith('.js') && (await readFile(join(assets, 'assets', name), 'utf8')).includes('Setting up fake worker failed')) pdfEngines.push(name);
+  }
+  assert.ok(pdfEngines.length, 'the production bundle contains the PDF engine');
+  const startupPdfEngines = await page.evaluate(names => performance.getEntriesByType('resource').filter(entry => names.includes(new URL(entry.name).pathname.split('/').pop())).map(entry => entry.name), pdfEngines);
+  observations.push({ check: 'deferred-pdf-engine', loaded: startupPdfEngines.length });
+  assert.deepEqual(startupPdfEngines, [], 'HTML editing defers loading the PDF engine');
+  checks.push('HTML startup does not load the PDF engine');
   const presentation = () => page.evaluate(() => {
     const content = document.querySelector('.cm-content'), source = content.querySelector('.cm-line'), gutter = [...document.querySelectorAll('.cm-lineNumbers .cm-gutterElement')].find(node => node.textContent === '1');
     return { font: parseFloat(getComputedStyle(content).fontSize), spacing: parseFloat(getComputedStyle(content).lineHeight), gutterSpacing: parseFloat(getComputedStyle(gutter).lineHeight), gutterTop: gutter.getBoundingClientRect().top, sourceTop: source.getBoundingClientRect().top, wrap: content.classList.contains('cm-lineWrapping'), reviewGap: document.querySelector('.review-card')?.style.marginTop };
@@ -76,7 +85,7 @@ try {
     assert.ok(Math.abs(state.gutterTop - state.sourceTop) < 1); assert.ok(parseFloat(state.reviewGap) >= 0);
   }
   assert.equal(changedContent(), 0, 'presentation changes never issue source saves or compilation');
-  const compactGap = parseFloat(observations[0].reviewGap), wideGap = parseFloat(observations[2].reviewGap);
+  const compactGap = parseFloat(observations.find(item => item.name === 'compact').reviewGap), wideGap = parseFloat(observations.find(item => item.name === 'wide').reviewGap);
   assert.ok(wideGap > compactGap, 'source-linked Review positions remeasure for taller source lines');
   checks.push('pinned source/gutter spacing and Review alignment update without source operations');
 
@@ -182,6 +191,26 @@ try {
   await apply(blockedPage, 20, 'compact', true); assert.match(await blockedPage.locator('#review-status').textContent(), /this session.*not be restored/);
   assert.equal(await blockedPage.locator('.cm-content').evaluate(node => getComputedStyle(node).fontSize), '20px');
   await settings(blockedPage); assert.equal(await blockedPage.locator('#settings-line-height').inputValue(), 'compact'); await blockedPage.keyboard.press('Escape'); await blocked.close();
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.evaluate(() => { document.documentElement.style.fontSize = '14px'; });
+  await content.focus(); await page.keyboard.press('Control+End'); await page.keyboard.insertText(' First performance edit.'); await settle(page);
+  await page.evaluate(() => {
+    window.typingTab = document.querySelector('#manuscript-tabs [role="tab"][aria-selected="true"]');
+    window.typingLabel = document.getElementById('save-label').firstChild;
+    window.typingMutations = 0;
+    window.typingObserver = new MutationObserver(records => { window.typingMutations += records.length; });
+    for (const id of ['manuscript-tabs', 'save-label']) window.typingObserver.observe(document.getElementById(id), { childList: true, subtree: true, characterData: true });
+  });
+  for (let index = 0; index < 20; index += 1) await page.keyboard.insertText('x');
+  await settle(page);
+  const typing = await page.evaluate(() => {
+    window.typingObserver.disconnect();
+    return { mutations: window.typingMutations, sameTab: window.typingTab === document.querySelector('#manuscript-tabs [role="tab"][aria-selected="true"]'), sameLabel: window.typingLabel === document.getElementById('save-label').firstChild };
+  });
+  observations.push({ check: 'continuous-dirty-typing', ...typing });
+  assert.deepEqual(typing, { mutations: 0, sameTab: true, sameLabel: true }, 'continuous dirty typing retains tabs and save-label nodes without chrome mutations');
+  assert.match(await content.textContent(), /First performance edit\.x{20}/, 'all real input remains in the editor');
+  checks.push('continuous dirty typing preserves tab nodes and performs zero tab/save-label mutations');
   assert.equal(await readFile(join(projectRoot, 'settings.html'), 'utf8'), original); assert.deepEqual(await readFile(join(projectRoot, 'settings.html.undertree-review.json')), policy);
   assert.deepEqual(errors, []); checks.push('denied storage remains usable and truthful; exact source/policy preserved');
   await mkdir(resolve('artifacts'), { recursive: true });

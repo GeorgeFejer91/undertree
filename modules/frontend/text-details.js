@@ -55,11 +55,14 @@ export function createTextDetails(source) {
       if (button.getAttribute('aria-label') !== name) button.setAttribute('aria-label', name);
       slot.classList.toggle('error', error);
       if (active !== next) {
-        const restoreFocus = !next && document.activeElement === button;
+        const restoreFocus = document.hasFocus() && (next ? source.contains(document.activeElement) : document.activeElement === button);
         active = next;
         slot.classList.toggle('text-details-active', active);
         button.hidden = !active;
-        if (restoreFocus) { source.tabIndex = -1; source.focus(); }
+        if (restoreFocus) {
+          if (!active) source.tabIndex = -1;
+          (active ? button : source).focus();
+        }
       }
       const role = active ? source.getAttribute('role') || source.querySelector('[role="status"], [role="alert"]')?.getAttribute('role') || null : null;
       if (slot.getAttribute('role') !== role) {

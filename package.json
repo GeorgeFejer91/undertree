@@ -39,6 +39,7 @@
     "test:typst-authoring": "node tests/typst-authoring-smoke.mjs",
     "test:typst-publishing": "node tests/typst-publishing-smoke.mjs",
     "test:connections-ui": "node tests/connections-ui-smoke.mjs",
+    "connection:profile": "node modules/maintenance/secret-tunnel-profile.mjs",
     "test:native-ui": "node tests/native-ui-smoke.mjs",
     "test:native-word-count": "node tests/native-word-count-smoke.mjs",
     "test:native-publishing": "node tests/native-publishing-smoke.mjs",
@@ -56,7 +57,12 @@
     "test:project-tree": "node tests/project-tree-smoke.mjs",
     "test:pdf-export-consent": "node tests/pdf-export-consent-smoke.mjs",
     "test:pdf-export": "node tests/pdf-export-smoke.mjs",
-    "test:mcp-app-controls": "node tests/mcp-app-controls-smoke.mjs"
+    "test:mcp-app-controls": "node tests/mcp-app-controls-smoke.mjs",
+    "test:mcp-review-policy": "node tests/mcp-review-policy-smoke.mjs",
+    "test:review-discard": "node tests/review-discard-smoke.mjs",
+    "test:mcp-hub": "node tests/mcp-hub-smoke.mjs",
+    "test:mcp-hub-ui": "node tests/mcp-hub-ui-smoke.mjs",
+    "test:native-mcp-hub": "node tests/native-mcp-hub-smoke.mjs"
   },
   "dependencies": {
     "@chenglou/pretext": "0.0.8",

@@ -102,9 +102,13 @@ failure retention and dependency freshness; a missing compiler fails the gate.
 This finite suite does not establish every LaTeX package or publisher template.
 
 Choose a project folder, open or create a manuscript, and select a passage to
-apply a color rule. Rules can protect text, reject agent changes, or attach a
-custom instruction such as “Keep the meaning; make this snappier.” Colors and
-prompts are editable. Suggestions appear beside their source passages, with a
+apply a color rule. Rules can protect text, attach a custom instruction such as
+“Keep the meaning; make this snappier,” or mark an idea for discard. **Discard
+idea** requires a deletion suggestion covering the complete highlighted passage;
+the manuscript changes only when you accept it. **Reject agent changes** remains
+a separate rule that blocks proposals. Colors and prompts are editable in
+**Format → Color rules**; existing projects can add a custom Discard idea rule.
+Suggestions appear beside their source passages, with a
 pending count and a cue for new proposals. Only your local Accept action changes
 the manuscript. Protection and rejection rules override prompts. To repair a
 stale highlight, select its current passage and use **Reanchor from selection**;
@@ -122,20 +126,88 @@ then explicitly share each manuscript. `UNDERTREE_ZROK` can select the
 executable. The generated MCP URL grants access to shared sources and their
 review context through exactly three tools: `list_manuscripts`,
 `read_manuscript`, and `suggest_text`. Stopping the tunnel revokes the session's
-shares. Live ChatGPT-to-zrok use still requires qualification.
+shares. Add the complete private HTTPS URL as a custom MCP server in
+[ChatGPT Plugins](https://chatgpt.com/plugins), install it, then select it in a
+new chat. Refresh the connection after server tool or metadata changes, as
+described in [OpenAI's connection guide](https://developers.openai.com/plugins/deploy/connect-chatgpt).
+Live ChatGPT-to-zrok use still requires qualification.
 
-The **Connections** popup also shows the private URL and observed MCP activity
-under **MCP**, and lists individual revoke controls under **Manuscripts**.
+Review always has suggestion-only authority, including for deletions. It has no
+tool that can switch itself into direct editing. The local **Share** checkbox
+and **Connections → Stop tunnel** control access. The separate **App controls**
+toggle grants non-content controls only.
+
+The **ChatGPT symbol** beside Review, GitHub and Connections opens the **Overview**
+menu directly. On narrow screens, use **Menu → ChatGPT MCP setup**. The menu
+links to zrok setup, provides the private address and copy action, and explains
+how to add it as a custom MCP server in ChatGPT. Expand **Connection activity
+and tools** for observed MCP activity; use **Shared** to revoke manuscripts.
 It remembers the public name and origin, while access and the tunnel remain
 session-only. Use `npm run test:connections-ui` after `npm run build` and
 `cargo build -p undertree-review` to check the popup with an isolated native
 service and simulated zrok child.
+
+An explicit Secret Tunnel import can preserve the complete existing
+`https://<name>.shares.zrok.io/t/<private-token>/mcp` address. Export only its
+connector identity and zrok enrolment into a new private directory:
+
+```bash
+npm run connection:profile -- export --settings /absolute/profile/settings.json --zrok-home /absolute/enabled/zrok-home --output /absolute/private/transfer
+```
+
+Transfer that directory between PCs with Magic Wormhole, then close UnderTree
+and import into its existing native review state directory:
+
+```bash
+npm run connection:profile -- import --input /absolute/private/received-transfer --state /absolute/UnderTree/review
+```
+
+Both commands require absolute paths and refuse existing output/connector
+profiles or conflicting setup. Import does not start a tunnel. It installs a
+private dedicated zrok home and a native-only `secret-tunnel-connector.json`;
+never put either in a repository or paste their contents into chat. No other
+Secret Tunnel account sessions or folder permissions are copied. Restart
+UnderTree, stop the source Secret Tunnel share before starting this same public
+name, then share manuscripts explicitly. The imported connector exposes only
+the three text-review tools; App controls and PDF downloads are unavailable.
+Stopping clears grants, but the imported bearer address is reused on the next
+explicit start. Anyone holding that address can access newly shared manuscripts;
+remove the imported profile locally to return to rotating addresses. Live
+cross-PC transfer and public connectivity require separate verification.
 
 The separate **App** tab enables session-only controls for safe navigation,
 selection, presentation settings, saved-source compilation and native window
 actions. It has its own private URL. It cannot edit or save files, change review
 rules, accept suggestions or trigger autosave. Dirty or conflicted buffers block
 navigation, compilation and remote Close.
+
+For one ChatGPT connector covering several apps or PCs, use **Connections →
+Apps**. Start the zrok connection, enable the shared app gateway, then link each
+app's existing MCP URL and allow its current tools. Copy the gateway URL from
+Overview into ChatGPT once. The gateway distinguishes apps with matching tool
+names and keeps each app's permissions; UnderTree Review suggestions still
+require local acceptance. Enable UnderTree's separate **App controls** to include its
+non-content controls behind that same URL. Refresh the ChatGPT connection after
+changing linked apps or controls.
+
+Copying another running Secret Tunnel/UnderTree URL links its existing app.
+Moving ownership of the same zrok URL uses the private transfer described above
+and a deliberate handover. Imported URLs stay Review-only until you explicitly
+enable the gateway. App links and grants are session-only and clear when the
+gateway or tunnel stops; reconnect them after restart. Up to 64 app links and
+512 upstream tools are supported. Live multi-PC ChatGPT routing requires its
+own verification; local fixtures do not prove it.
+Review color protections apply through UnderTree's Review tools, not to another
+app's filesystem access. Separately authorizing an app to write the same files
+can bypass that boundary; keep such access read-only for suggestion-only work.
+
+After building the Rust service and frontend, run `npm run test:mcp-hub` for
+JSON/stateful-SSE routing, `npm run test:mcp-hub-ui` for Connections, and
+`npm run test:mcp-review-policy` plus `npm run test:review-discard` for passage
+policies and local acceptance. `npm run test:native-mcp-hub` uses a matching
+bundled desktop executable for native IPC/window qualification.
+`node tests/mcp-imported-hub-smoke.mjs` separately checks same-URL imported
+connector switching and revocation with a disposable synthetic identity.
 
 **PDF export** has a further local permission inside that tab, initially off.
 Choose project folders explicitly: exported PDFs may contain current or future

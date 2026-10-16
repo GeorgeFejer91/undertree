@@ -16,11 +16,23 @@ The user explicitly requested making `GeorgeFejer91/undertree_texstudio` public 
 
 ## Observable target
 
+User direction, 2026-10-16: make MCP interoperability a reusable application
+module. UnderTree must create its own zrok endpoint, support explicit private
+Secret Tunnel/UnderTree identity transfer for URL handover, and support linked
+apps on multiple machines. A shared ChatGPT gateway URL must route only to
+locally registered app endpoints and their explicitly permitted tool catalogues.
+Copying a URL can link to its running app; taking over that same zrok reservation
+requires its private identity and a deliberate owner handover. Two concurrent
+owners must never claim one reservation. Review remains suggestion-only and
+target apps retain their own grants, restrictions and revocation. This is an
+expanded implementation/qualification requirement, not evidence of completion.
+See [the connection contract](PROTOCOLS/connections.md).
+
 - Reproduce the pinned open-source Overleaf workspace's outward appearance and supported interaction behavior: project/file navigation, source editing, previews, reviews, suggestion cards, and synchronization controls. Follow the comparative acceptance criteria in [overleaf-ui-parity.md](overleaf-ui-parity.md); preserve upstream licensing and attribution if code is copied. Do not claim authenticated browser reverse engineering when only public source was inspected.
 - Keep manuscripts as ordinary text (`.typ`, `.html`, and related source assets), with small versioned JSON sidecars for highlight policies and review proposals. GitHub can store the project, sources, and review metadata together. Preserve offline editing and explicit conflict handling.
 - Let ChatGPT web reach a dedicated, opt-in zrok MCP endpoint, following Secret Tunnel's native process supervision. Review mode retains explicitly shared manuscripts and narrowly scoped suggestions. Separate App controls may inspect authorized projects, operate safe views/settings, compile saved snapshots and export artifacts through the Rust authority. Keep scope, authentication, revocation, no-save editor guards and actual UI acknowledgement explicit; neither mode is a filesystem or command proxy.
 - Show proposed replacements in color-coded cards beside the editor. MCP agents cannot accept or reject them or change protections; the local user retains those controls. Validate exact source revision, quoted passage, current policies and anchor validity at submission and local acceptance.
-- Let users assign colors to fixed protection/rejection actions or custom prompts, with additional prompts on individual passages. Protection/rejection wins over prompts. Ambiguous or stale protection fails closed until the user resolves it.
+- Let users assign colors to protection/rejection, prompt-guided revision and discard-idea actions, with additional prompts on individual passages. Discard requires a deletion suggestion covering the marked idea, not an immediate edit. Protection/rejection wins; stale markers fail closed. Only local acceptance may change the source.
 - Add optional automatic GitHub checkpoint synchronization without committing unrelated work, overwriting external edits, rewriting history, or resolving divergence automatically.
 
 ## Publishing and UI acceptance scope

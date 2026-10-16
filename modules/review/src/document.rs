@@ -6,6 +6,7 @@ use uuid::Uuid;
 pub const MAX_TEXT: usize = 2 * 1024 * 1024;
 pub const MAX_ITEMS: usize = 500;
 const MAX_POLICY_PROMPT: usize = 32_000;
+const DISCARD_PROMPT: &str = "Discard this idea by suggesting deletion of the complete marked passage with an empty replacement. The user must accept the suggestion locally.";
 
 fn valid_color(color: &str) -> bool {
     color.len() == 7 && color.starts_with('#') && color[1..].bytes().all(|b| b.is_ascii_hexdigit())
@@ -32,6 +33,7 @@ pub enum Action {
     Protect,
     Prompt,
     Reject,
+    Discard,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -274,6 +276,13 @@ impl Review {
                     action: Action::Reject,
                     prompt: String::new(),
                 },
+                Rule {
+                    id: "discard".into(),
+                    label: "Discard idea".into(),
+                    color: "#bc8fc7".into(),
+                    action: Action::Discard,
+                    prompt: DISCARD_PROMPT.into(),
+                },
             ],
         }
     }
@@ -433,6 +442,7 @@ impl Review {
 
     pub fn policy(&self, from: usize, to: usize) -> Result<(String, String)> {
         let mut color = "#8ba8cc".to_owned();
+        let mut discard_color = None;
         let mut prompts = Vec::new();
         for marker in &self.markers {
             let rule = self.rule(&marker.rule)?;
@@ -442,13 +452,20 @@ impl Review {
             if marker.anchor.stale || from >= marker.anchor.to || to <= marker.anchor.from {
                 continue;
             }
-            if rule.action != Action::Prompt {
+            if matches!(rule.action, Action::Protect | Action::Reject) {
                 return Err(Error::new(
                     "protected",
                     "This passage is marked against agent changes.",
                 ));
             }
-            color = rule.color.clone();
+            if rule.action == Action::Discard {
+                discard_color = Some(rule.color.clone());
+                if !prompts.iter().any(|prompt| prompt == DISCARD_PROMPT) {
+                    prompts.push(DISCARD_PROMPT.to_owned());
+                }
+            } else {
+                color = rule.color.clone();
+            }
             for prompt in [&rule.prompt, &marker.prompt] {
                 if !prompt.is_empty() && !prompts.contains(prompt) {
                     prompts.push(prompt.clone());
@@ -459,7 +476,29 @@ impl Review {
         if prompt.len() > MAX_POLICY_PROMPT {
             return Err(Error::new("limit", "This passage has more than 32 KB of review instructions. Simplify its highlights first."));
         }
-        Ok((color, prompt))
+        Ok((discard_color.unwrap_or(color), prompt))
+    }
+
+    fn suggestion_policy(
+        &self,
+        from: usize,
+        to: usize,
+        replacement: &str,
+    ) -> Result<(String, String)> {
+        let policy = self.policy(from, to)?;
+        for marker in &self.markers {
+            if from < marker.anchor.to
+                && to > marker.anchor.from
+                && self.rule(&marker.rule)?.action == Action::Discard
+                && (!replacement.is_empty() || from > marker.anchor.from || to < marker.anchor.to)
+            {
+                return Err(Error::new(
+                    "discard",
+                    "This idea is marked for discard. Suggest deleting its complete marked passage with an empty replacement.",
+                ));
+            }
+        }
+        Ok(policy)
     }
 
     pub fn propose(&mut self, text: &str, proposal: Proposal) -> Result<Suggestion> {
@@ -517,7 +556,8 @@ impl Review {
         if !allowed {
             return Err(Error::new("scope", "Agents may suggest manuscript prose only, not markup, attributes, scripts, styles, Typst code, or equations."));
         }
-        let (color, prompt) = self.policy(proposal.from, proposal.to)?;
+        let (color, prompt) =
+            self.suggestion_policy(proposal.from, proposal.to, &proposal.replacement)?;
         let suggestion = Suggestion {
             id: Uuid::new_v4().to_string(),
             request_id: proposal.request_id,
@@ -588,7 +628,11 @@ impl Review {
                 "This suggestion no longer targets ordinary manuscript prose.",
             ));
         }
-        self.policy(suggestion.anchor.from, suggestion.anchor.to)?;
+        self.suggestion_policy(
+            suggestion.anchor.from,
+            suggestion.anchor.to,
+            &suggestion.replacement,
+        )?;
         let start = byte_offset(text, suggestion.anchor.from)?;
         let end = byte_offset(text, suggestion.anchor.to)?;
         let replacement = if typst {
@@ -602,6 +646,19 @@ impl Review {
                 "limit",
                 "The manuscript exceeds the 2 MB limit.",
             ));
+        }
+        if suggestion.replacement.is_empty() {
+            let from = suggestion.anchor.from;
+            let to = suggestion.anchor.to;
+            let rules = &self.rules;
+            self.markers.retain(|marker| {
+                marker.anchor.stale
+                    || marker.anchor.from < from
+                    || marker.anchor.to > to
+                    || !rules
+                        .iter()
+                        .any(|rule| rule.id == marker.rule && rule.action == Action::Discard)
+            });
         }
         self.suggestions[index].status = Status::Accepted;
         self.reconcile(text, &changed);
@@ -805,6 +862,263 @@ mod tests {
         review.invalidate_external("<p>Changed world</p>");
         assert_eq!(review.policy(11, 16).unwrap_err().code, "protected");
     }
+
+    #[test]
+    fn discard_is_a_pending_unicode_deletion_until_local_acceptance() {
+        for (text, from, typst, changed) in [
+            ("<p>😀 idea remains</p>", 3, false, "<p> remains</p>"),
+            ("😀 idea remains", 0, true, " remains"),
+        ] {
+            let mut review = Review::new(text);
+            let discard = review
+                .rules
+                .iter_mut()
+                .find(|rule| rule.id == "discard")
+                .unwrap();
+            discard.color = "#654321".into();
+            discard.prompt = "Remove the abandoned argument.".into();
+            review.markers.push(Marker {
+                id: "discarded-idea".into(),
+                anchor: Anchor::new(text, from, from + 7).unwrap(),
+                rule: "discard".into(),
+                prompt: "Keep the remaining claim.".into(),
+            });
+            let markers = serde_json::to_value(&review.markers).unwrap();
+            let mut deletion = proposal(text, from, from + 7);
+            deletion.replacement.clear();
+            let suggestion = review.propose_format(text, deletion, typst).unwrap();
+            assert_eq!(suggestion.status, Status::Pending);
+            assert_eq!(suggestion.color, "#654321");
+            assert!(suggestion.replacement.is_empty());
+            assert!(suggestion.prompt.contains(DISCARD_PROMPT));
+            assert!(suggestion.prompt.contains("Remove the abandoned argument."));
+            assert!(suggestion.prompt.contains("Keep the remaining claim."));
+            assert_eq!(serde_json::to_value(&review.markers).unwrap(), markers);
+            assert_eq!(review.revision, digest(text));
+            review.validate_for_text(text).unwrap();
+            let restored: Review =
+                serde_json::from_str(&serde_json::to_string(&review).unwrap()).unwrap();
+            restored.validate_for_text(text).unwrap();
+            assert_eq!(
+                review
+                    .decide_format(
+                        text,
+                        &digest(text),
+                        &suggestion.id,
+                        Decision::Accepted,
+                        typst
+                    )
+                    .unwrap(),
+                changed
+            );
+            assert_eq!(review.suggestions[0].status, Status::Accepted);
+            assert!(review.markers.is_empty());
+            assert_eq!(review.revision, digest(changed));
+            assert!(review.policy(0, 1).is_ok());
+        }
+    }
+
+    #[test]
+    fn discard_requires_empty_replacement_covering_every_touched_marker() {
+        let text = "<p>Hello world</p>";
+        let mut review = Review::new(text);
+        for (id, from, to) in [("first", 3, 8), ("second", 6, 14)] {
+            review.markers.push(Marker {
+                id: id.into(),
+                anchor: Anchor::new(text, from, to).unwrap(),
+                rule: "discard".into(),
+                prompt: String::new(),
+            });
+        }
+        for (from, to, replacement) in [
+            (3, 8, "Rewritten"),
+            (3, 7, ""),
+            (4, 8, ""),
+            (3, 8, ""),
+            (3, 14, " "),
+        ] {
+            let mut deletion = proposal(text, from, to);
+            deletion.replacement = replacement.into();
+            assert_eq!(review.propose(text, deletion).unwrap_err().code, "discard");
+            assert!(review.suggestions.is_empty());
+        }
+        let mut deletion = proposal(text, 3, 14);
+        deletion.replacement.clear();
+        assert!(review.propose(text, deletion).is_ok());
+    }
+
+    #[test]
+    fn accepted_deletion_retires_only_consumed_discard_markers() {
+        let text = "<p>Hello world</p>";
+        let mut review = Review::new(text);
+        for (id, rule, from, to) in [
+            ("removed", "discard", 3, 8),
+            ("remaining", "discard", 9, 14),
+            ("prompt", "snappier", 3, 8),
+        ] {
+            review.markers.push(Marker {
+                id: id.into(),
+                anchor: Anchor::new(text, from, to).unwrap(),
+                rule: rule.into(),
+                prompt: String::new(),
+            });
+        }
+        let mut deletion = proposal(text, 3, 8);
+        deletion.replacement.clear();
+        let suggestion = review.propose(text, deletion).unwrap();
+        assert_eq!(suggestion.color, review.rule("discard").unwrap().color);
+        let changed = review
+            .decide(text, &digest(text), &suggestion.id, Decision::Accepted)
+            .unwrap();
+        assert_eq!(changed, "<p> world</p>");
+        assert_eq!(review.markers.len(), 2);
+        assert_eq!(review.markers[0].id, "remaining");
+        assert_eq!(review.markers[0].anchor.quote, "world");
+        assert_eq!(review.markers[0].anchor.from, 4);
+        assert_eq!(review.markers[0].anchor.to, 9);
+        assert!(!review.markers[0].anchor.stale);
+        assert_eq!(review.markers[1].id, "prompt");
+        assert!(review.markers[1].anchor.stale);
+        review.validate_for_text(&changed).unwrap();
+        assert!(review.policy(4, 9).is_ok());
+    }
+
+    #[test]
+    fn protect_and_reject_override_discard_in_either_marker_order() {
+        let text = "<p>Hello world</p>";
+        for blocking_rule in ["protect", "reject"] {
+            for discard_first in [false, true] {
+                let mut review = Review::new(text);
+                for rule in if discard_first {
+                    ["discard", blocking_rule]
+                } else {
+                    [blocking_rule, "discard"]
+                } {
+                    review.markers.push(Marker {
+                        id: rule.into(),
+                        anchor: Anchor::new(text, 3, 8).unwrap(),
+                        rule: rule.into(),
+                        prompt: String::new(),
+                    });
+                }
+                for replacement in ["", "Rewritten"] {
+                    let mut deletion = proposal(text, 3, 8);
+                    deletion.replacement = replacement.into();
+                    assert_eq!(
+                        review.propose(text, deletion).unwrap_err().code,
+                        "protected"
+                    );
+                    assert!(review.suggestions.is_empty());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn discard_is_rechecked_at_acceptance_and_rejection_preserves_markers() {
+        let text = "<p>Hello world</p>";
+        let mut review = Review::new(text);
+        let rewritten = review.propose(text, proposal(text, 3, 8)).unwrap();
+        review.markers.push(Marker {
+            id: "discarded-idea".into(),
+            anchor: Anchor::new(text, 3, 8).unwrap(),
+            rule: "discard".into(),
+            prompt: String::new(),
+        });
+        assert_eq!(
+            review
+                .decide(text, &digest(text), &rewritten.id, Decision::Accepted)
+                .unwrap_err()
+                .code,
+            "discard"
+        );
+        assert_eq!(review.suggestions[0].status, Status::Pending);
+        let mut deletion = proposal(text, 3, 8);
+        deletion.request_id = "deletion".into();
+        deletion.replacement.clear();
+        let suggestion = review.propose(text, deletion).unwrap();
+        review
+            .rules
+            .iter_mut()
+            .find(|rule| rule.id == "discard")
+            .unwrap()
+            .action = Action::Protect;
+        assert_eq!(
+            review
+                .decide(text, &digest(text), &suggestion.id, Decision::Accepted)
+                .unwrap_err()
+                .code,
+            "protected"
+        );
+        review
+            .rules
+            .iter_mut()
+            .find(|rule| rule.id == "discard")
+            .unwrap()
+            .action = Action::Discard;
+        review.markers[0].anchor = Anchor::new(text, 3, 14).unwrap();
+        assert_eq!(
+            review
+                .decide(text, &digest(text), &suggestion.id, Decision::Accepted)
+                .unwrap_err()
+                .code,
+            "discard"
+        );
+        let markers = serde_json::to_value(&review.markers).unwrap();
+        assert_eq!(
+            review
+                .decide(text, &digest(text), &suggestion.id, Decision::Rejected)
+                .unwrap(),
+            text
+        );
+        assert_eq!(serde_json::to_value(&review.markers).unwrap(), markers);
+        assert_eq!(review.suggestions[1].status, Status::Rejected);
+    }
+
+    #[test]
+    fn stale_discard_blocks_new_proposals_and_acceptance_until_resolved_locally() {
+        let text = "<p>Hello world</p>";
+        let mut review = Review::new(text);
+        review.markers.push(Marker {
+            id: "discarded-idea".into(),
+            anchor: Anchor::new(text, 3, 8).unwrap(),
+            rule: "discard".into(),
+            prompt: String::new(),
+        });
+        let mut deletion = proposal(text, 3, 8);
+        deletion.replacement.clear();
+        let suggestion = review.propose(text, deletion).unwrap();
+        review.markers[0].anchor.stale = true;
+        let mut next_proposal = proposal(text, 9, 14);
+        next_proposal.request_id = "next-proposal".into();
+        assert_eq!(
+            review.propose(text, next_proposal).unwrap_err().code,
+            "protected"
+        );
+        assert_eq!(
+            review
+                .decide(text, &digest(text), &suggestion.id, Decision::Accepted)
+                .unwrap_err()
+                .code,
+            "protected"
+        );
+        assert_eq!(review.suggestions[0].status, Status::Pending);
+        assert_eq!(review.markers.len(), 1);
+    }
+
+    #[test]
+    fn existing_sidecars_keep_their_rules_without_adding_discard_implicitly() {
+        let text = "<p>Hello world</p>";
+        let mut legacy = Review::new(text);
+        legacy.rules.retain(|rule| rule.action != Action::Discard);
+        let encoded = serde_json::to_string(&legacy).unwrap();
+        let restored: Review = serde_json::from_str(&encoded).unwrap();
+        restored.validate_for_text(text).unwrap();
+        assert_eq!(restored.rules.len(), 3);
+        assert!(restored.rule("discard").is_err());
+        assert_eq!(serde_json::to_string(&restored).unwrap(), encoded);
+    }
+
     #[test]
     fn anchors_shift_for_earlier_edits_and_go_stale_on_overlap() {
         let old = "<p>Hello world</p>";

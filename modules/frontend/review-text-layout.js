@@ -1,8 +1,18 @@
 import { clearCache, setLocale, prepareWithSegments, measureLineStats, measureNaturalWidth } from '@chenglou/pretext';
 import { createTextDetails } from './text-details.js';
 
-const controls = '[data-measure], [data-text-details], button, summary, h2, h3, [role="status"], [role="alert"]';
+const controls = '[data-measure], [data-text-details], button, summary, h2, h3, [role="status"], [role="alert"], .cm-panel.cm-search label';
 const documentContent = '.cm-editor, [contenteditable="true"], iframe, canvas';
+const sourceContent = '.cm-content, [contenteditable="true"], iframe, canvas';
+const searchChrome = '.cm-panel.cm-search';
+
+function isSearchChrome(element) {
+  const panel = element.closest(searchChrome);
+  return Boolean(panel?.parentElement?.matches('.cm-panels')
+    && panel.parentElement.parentElement?.matches('.cm-editor') && !element.closest(sourceContent));
+}
+
+const excludedContent = element => element.closest(documentContent) && !isSearchChrome(element);
 const pixels = value => parseFloat(value) || 0;
 
 function textBox(element, style) {
@@ -12,7 +22,8 @@ function textBox(element, style) {
   const height = element.clientHeight - pixels(style.paddingTop) - pixels(style.paddingBottom);
   if (['flex', 'inline-flex', 'grid', 'inline-grid'].includes(style.display)) {
     for (const icon of element.children) {
-      if (icon.matches('svg, [aria-hidden="true"]') && !icon.textContent.trim()) {
+      if ((icon.matches('svg, [aria-hidden="true"]') && !icon.textContent.trim())
+        || (isSearchChrome(element) && element.matches('label') && icon.matches('input[type="checkbox"]'))) {
         const iconStyle = getComputedStyle(icon);
         width -= icon.getBoundingClientRect().width + pixels(iconStyle.marginLeft) + pixels(iconStyle.marginRight) + pixels(style.columnGap);
       }
@@ -99,10 +110,15 @@ export function observeReviewText(root) {
   const schedule = (element) => { dirty.add(element); if (!frame && fontsReady) frame = requestAnimationFrame(run); };
   const observer = new ResizeObserver(entries => entries.forEach(entry => schedule(slots.get(entry.target) || entry.target)));
   const register = (subtree) => {
-    if (!(subtree instanceof Element) || subtree.closest(documentContent)) return;
+    if (!(subtree instanceof Element) || subtree.closest(sourceContent)) return;
+    if (excludedContent(subtree)) {
+      // CodeMirror mounts panels after the editor. Never discover controls through source edits.
+      if (subtree.matches('.cm-editor, .cm-panels')) for (const panel of subtree.querySelectorAll(searchChrome)) register(panel);
+      return;
+    }
     const candidates = subtree.matches(controls) ? [subtree, ...subtree.querySelectorAll(controls)] : subtree.querySelectorAll(controls);
     for (const element of candidates) {
-      if (element.closest(documentContent)) continue;
+      if (excludedContent(element)) continue;
       if (!watched.has(element)) {
         watched.add(element); observer.observe(element);
         if (element.hasAttribute('data-text-details')) {
@@ -118,7 +134,15 @@ export function observeReviewText(root) {
     let removed = false;
     for (const record of records) {
       const target = record.target instanceof Element ? record.target : record.target.parentElement;
-      if (!target || target.closest(documentContent)) continue;
+      if (!target || target.closest(sourceContent)) continue;
+      if (excludedContent(target)) {
+        // Search removal also arrives on an otherwise excluded editor/panel container.
+        if (record.type === 'childList' && target.matches('.cm-editor, .cm-panels')) {
+          for (const node of record.addedNodes || []) register(node);
+          removed ||= [...record.removedNodes || []].some(node => node instanceof Element && node.matches('.cm-panel.cm-search, .cm-panels'));
+        }
+        continue;
+      }
       for (let parent = target; parent; parent = parent.parentElement) if (watched.has(parent)) schedule(parent);
       if (record.type === 'attributes') {
         if (record.attributeName === 'lang') { invalidate(); continue; }

@@ -32,7 +32,20 @@ test('same-byte pure Review retirement preserves snapshot/history and cannot hea
   assert.equal(session.snapshot, original); assert.equal(session.sourceEpoch, 0); assert.equal(session.editorState.undo, 'retained'); assert.equal(session.conflict, null);
   await assert.rejects(session.flush(), error => error.code === 'stale_document');
   await assert.rejects(session.refresh({ retryProblem: true }), error => error.code === 'stale_document');
-  assert.deepEqual(actions.map(operation => operation.action), ['review']); assert.equal(Object.hasOwn(actions[0], 'sourceEpoch'), false);
+  assert.deepEqual(actions.map(operation => operation.action), ['review']); assert.equal(actions[0].sourceEpoch, 0);
+});
+
+test('Review refresh preserves the rooted native document identity used by Share', async () => {
+  const root = { dev: '7', ino: '19' }, operations = [];
+  const original = { ...snap(3), expectedRoot: root, documentId: 'rooted-document' };
+  const session = new ReviewSession(original, 'project', async operation => {
+    operations.push(operation);
+    return { ...original, documentId: operation.expectedRoot ? 'rooted-document' : 'legacy-document' };
+  });
+  assert.equal(await session.refresh(), true);
+  assert.deepEqual(operations, [{ action: 'review', project: 'project', path: 'main.typ', sourceEpoch: 3, expectedRoot: root }]);
+  assert.equal(session.snapshot.documentId, original.documentId);
+  assert.equal(session.snapshot.shared, true);
 });
 
 test('queued Save and every policy intent capture identity before earlier work, even with unchanged bytes/version', async () => {
@@ -159,8 +172,13 @@ test('actual cached tree Open refuses a new occupant and stale project callback 
 test('actual PDF parse cannot install an old result after a same-object main rebind', async () => {
   const session = make(2), gate = defer(); let destroyed = 0, installed = 0;
   const code = manuscript.slice(manuscript.indexOf('async function showPdf('), manuscript.indexOf('async function loadPublicationPreview('));
-  const environment = { ...identity, active: session, sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, publicationPath: () => 'main.typ', observedSourceTarget: () => ({ ...captureSourceBinding(session), session }), pdfGeneration: 0, atob: () => '', pdfjs: { getDocument: () => ({ promise: gate.promise, destroy: async () => { destroyed += 1; } }) }, pdfViewer: { clear() { installed += 1; } }, pdfLoadingTask: null, $: () => ({}), showingLogs: false };
-  const show = runInNewContext(code + '\nshowPdf;', environment), work = show({ available: true, sourceEpoch: 2, base64: '' }, session);
+  // Model the asynchronous module loader; retain the callback's ownership checks.
+  assert.equal(code.split("await import('pdfjs-dist')").length, 2);
+  const modelCode = code.replace("await import('pdfjs-dist')", 'await loadPdfjs()');
+  const environment = { ...identity, active: session, sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, publicationPath: () => 'main.typ', observedSourceTarget: () => ({ ...captureSourceBinding(session), session }), pdfGeneration: 0, atob: () => '', pdfWorker: 'model-worker', pdfjs: { GlobalWorkerOptions: {}, getDocument: () => ({ promise: gate.promise, destroy: async () => { destroyed += 1; } }) }, pdfViewer: { clear() { installed += 1; } }, pdfLoadingTask: null, $: () => ({}), showingLogs: false };
+  environment.loadPdfjs = async () => environment.pdfjs;
+  const show = runInNewContext(modelCode + '\nshowPdf;', environment), work = show({ available: true, sourceEpoch: 2, base64: '' }, session);
+  await turn(); // Reach the held parser before rebinding, as the original test requires.
   rebind(session, 3); gate.resolve({}); await work; assert.equal(destroyed, 1); assert.equal(installed, 0);
 });
 
@@ -227,9 +245,10 @@ test('actual transport error ownership never freezes a newer same-path binding f
 test('actual explicit clean retired tab Close permits later native no-clobber Create without old epoch or history', async () => {
   const old = make(3), sessions = new Map([['project:main.typ', old]]), operations = [], mounted = [];
   old.identityProblem = { code: 'stale_document', message: 'Known retired source.' }; old.editorState = { undo: 'old history' };
-  const node = () => ({ children: [], dataset: {}, setAttribute() {}, append(...children) { this.children.push(...children); }, replaceChildren() { this.children = []; } });
+  const node = () => ({ children: [], dataset: {}, setAttribute() {}, querySelector() { return null; }, append(...children) { this.children.push(...children); }, replaceChildren() { this.children = []; } });
   const tabs = node(), nodes = new Map([['manuscript-tabs', tabs], ['project-select', { value: 'project' }], ['new-path', { value: 'main.typ' }], ['new-dialog', { close() {} }]]);
   const environment = { ...identity, newFileContext: { project: 'project' }, inventoryRoot: () => ({}), sessions, active: null, navigationIntent: 0, keyFor: (p, path) => `${p}:${path}`, $: id => nodes.get(id), element: node, actionButton: (text, callback) => ({ text, onclick: callback, setAttribute() {} }), task: callback => callback, requestAnimationFrame() {},
+    ResizeObserver: class { observe() {} unobserve() {} },
     saveSession() { throw Error('Known clean retired Close must never Save'); }, editorBridge: { unwatch: async () => {}, watch() {} }, renderReview() {}, currentProject: () => ({ id: 'project' }), requireSessionCapacity() {}, navigationCurrent: () => true,
     request: async operation => { operations.push(operation); return snap(4); }, loadFiles: async () => {}, openSession: async session => { mounted.push(session); }, ReviewSession,
   };

@@ -93,6 +93,8 @@ pub struct Service {
     documents: tokio::sync::Mutex<()>,
     pub shared: Mutex<BTreeMap<String, (String, String, u64, RootObservation)>>,
     pub tunnel: tokio::sync::Mutex<Option<Tunnel>>,
+    pub(crate) hub: crate::mcp_hub::Hub,
+    pub(crate) gateway: Mutex<Option<crate::transport::GatewaySession>>,
     pub sync_lock: Arc<tokio::sync::Mutex<()>>,
     pub compile_lock: Arc<tokio::sync::Mutex<()>>,
     connection_settings: Mutex<crate::transport::ConnectionSettings>,
@@ -123,6 +125,14 @@ pub struct Tunnel {
     pub mcp_initialized: bool,
     pub last_activity_ms: u64,
     pub tool_calls: u64,
+}
+
+impl Tunnel {
+    pub(crate) fn text_only_connector(&self) -> bool {
+        self.endpoint
+            .parse::<axum::http::Uri>()
+            .is_ok_and(|url| url.path().starts_with("/t/") && url.path().ends_with("/mcp"))
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -269,6 +279,8 @@ impl Service {
             documents: tokio::sync::Mutex::new(()),
             shared: Mutex::new(BTreeMap::new()),
             tunnel: tokio::sync::Mutex::new(None),
+            hub: crate::mcp_hub::Hub::new(),
+            gateway: Mutex::new(None),
             sync_lock: Arc::new(tokio::sync::Mutex::new(())),
             compile_lock: Arc::new(tokio::sync::Mutex::new(())),
             connection_settings: Mutex::new(settings),
@@ -294,6 +306,10 @@ impl Service {
 
     pub(crate) fn connection_settings(&self) -> Result<crate::transport::ConnectionSettings> {
         Ok(lock(&self.connection_settings)?.clone())
+    }
+
+    pub(crate) fn state_dir(&self) -> &Path {
+        &self.state
     }
 
     pub(crate) fn save_connection_settings(
@@ -1825,6 +1841,7 @@ impl Service {
             .filter(|operation| {
                 caller != CallerContext::LocalCli
                     || (!matches!(operation.action, "project_tree" | "create_directory")
+                        && !operation.action.starts_with("hub_")
                         && (!operation.mutates || operation.action == "save_editor"))
             })
             .collect();
@@ -1898,6 +1915,10 @@ impl Service {
             &request.operation,
             Operation::Tunnel { .. }
                 | Operation::Connection
+                | Operation::HubStatus
+                | Operation::HubEnable { .. }
+                | Operation::HubLink { .. }
+                | Operation::HubUnlink { .. }
                 | Operation::GitStatus { .. }
                 | Operation::BindGithub { .. }
                 | Operation::Sync { .. }
@@ -1936,6 +1957,20 @@ impl Service {
         } = request;
         if source_epoch > crate::MAX_SOURCE_EPOCH {
             return Err(source_identity::stale());
+        }
+        if caller != CallerContext::Local
+            && matches!(
+                operation,
+                Operation::HubStatus
+                    | Operation::HubEnable { .. }
+                    | Operation::HubLink { .. }
+                    | Operation::HubUnlink { .. }
+            )
+        {
+            return Err(Error::new(
+                "scope",
+                "App gateway configuration requires the authenticated local UI.",
+            ));
         }
         if caller == CallerContext::Review {
             return Err(Error::new(
@@ -1987,6 +2022,9 @@ impl Service {
             Operation::Connection => {
                 let mut value = crate::transport::connection(self).await?;
                 if caller == CallerContext::LocalCli {
+                    if let Some(gateway) = value.get_mut("gateway").and_then(Value::as_object_mut) {
+                        gateway.remove("endpoint");
+                    }
                     if let Some(control) =
                         value.get_mut("appControls").and_then(Value::as_object_mut)
                     {
@@ -1995,6 +2033,18 @@ impl Service {
                     }
                 }
                 Ok(value)
+            }
+            Operation::HubStatus => crate::transport::gateway_status(self).await,
+            Operation::HubEnable { enabled } => {
+                crate::transport::gateway_enable(self, enabled).await
+            }
+            Operation::HubLink { label, url } => {
+                self.hub.link(&label, &url).await?;
+                crate::transport::gateway_status(self).await
+            }
+            Operation::HubUnlink { id } => {
+                self.hub.unlink(&id).await?;
+                crate::transport::gateway_status(self).await
             }
             Operation::GitStatus { project } => self.git_status(&project).await,
             Operation::BindGithub {

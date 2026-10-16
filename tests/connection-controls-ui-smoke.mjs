@@ -11,9 +11,11 @@ await mkdir(artifacts, { recursive: true });
 const source = await readFile(resolve('manuscript.html'), 'utf8');
 const dialog = source.match(/<dialog id="connection-dialog"[\s\S]*?<\/dialog>/)?.[0];
 assert.ok(dialog, 'the production Connections dialog exists');
+const chatgpt = source.match(/<button id="chatgpt-open"[\s\S]*?<\/button>/)?.[0];
+assert.ok(chatgpt, 'the production ChatGPT shortcut exists');
 const route = '/__connection-controls-fixture.html';
 const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Connections control UI qualification</title></head><body>
-<button id="connection-open" type="button">Connections</button><span id="tunnel-label"></span>${dialog}
+<button id="connection-open" type="button">Connections</button>${chatgpt}<span id="tunnel-label"></span>${dialog}
 <script type="module">
 import '/src/manuscript.css';
 import { setupConnectionManager } from '/src/connection-manager.js';
@@ -29,6 +31,7 @@ const reviewUrl = 'https://review.example.invalid/mcp/review-capability';
 const request = async operation => {
   calls.push(structuredClone(operation));
   if (operation.action === 'connection') return structuredClone(state);
+  if (operation.action === 'hub_status') return { enabled:false, endpoint:'', apps:[], tools:[] };
   if (operation.action === 'tunnel') {
     state.running = operation.enabled; state.endpoint = state.running ? reviewUrl : '';
     state.config = { reservation:operation.reservation, publicUrl:operation.public_url };
@@ -51,14 +54,15 @@ const manager = setupConnectionManager({request,
 for (const button of document.querySelectorAll('[data-close]')) button.onclick = () => button.closest('dialog').close();
 observeReviewText(document.body);
 window.fixture = {calls,refresh:manager.refresh,state:()=>structuredClone(state),failNextGrant:()=>{failGrant=true;},
-  running:async()=>{state.running=true;state.endpoint=reviewUrl;await manager.refresh();}};
+  running:async()=>{state.running=true;state.endpoint=reviewUrl;await manager.refresh();},
+  textOnly:async()=>{state.textOnlyConnector=true;state.appControls={enabled:false,endpoint:''};await manager.refresh();}};
 window.fixtureReady = true;
 </script></body></html>`;
 
 const server = await createServer({
   configFile: false, root: resolve('.'), cacheDir: join(artifacts, 'vite-cache'), logLevel: 'error',
   optimizeDeps: { noDiscovery: true, include: ['@chenglou/pretext'] },
-  server: { host: '127.0.0.1', port: 0, strictPort: true },
+  server: { host: '127.0.0.1', port: 0, strictPort: true, watch: null },
   plugins: [{ name: 'connection-controls-fixture', configureServer(server) {
     server.middlewares.use(async (request, response, next) => {
       if (new URL(request.url, 'http://localhost').pathname !== route) return next();
@@ -85,6 +89,7 @@ try {
     await page.locator('#connection-open').click();
     await page.waitForFunction(() => document.getElementById('connection-refresh').disabled === false
       && document.getElementById('connection-status').textContent.includes('Tunnel stopped'));
+    assert.equal(await page.locator('#connection-tab-mcp').getAttribute('aria-selected'), 'true', 'Connections opens the overview');
     await page.locator('#connection-tab-app').click();
   }
   async function settled() {
@@ -99,24 +104,68 @@ try {
   await page.evaluate(() => window.fixture.running());
   assert.equal(await page.locator('#connection-app-enabled').isDisabled(), true, 'missing wrapper cannot enable controls');
   assert.match(await page.locator('#connection-app-status').textContent(), /unavailable/i);
+  await page.evaluate(() => window.fixture.textOnly());
+  assert.equal(await page.locator('#connection-tab-app').isDisabled(), true, 'imported connector exposes no App controls');
+  assert.equal(await page.locator('#connection-tab-mcp').getAttribute('aria-selected'), 'true', 'a restrictive status returns an open App panel to Overview');
+  await page.locator('#connection-tab-shared').focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await page.locator('#connection-tab-apps').getAttribute('aria-selected'), 'true', 'keyboard skips unavailable App controls and selects Apps');
+  assert.equal(await page.locator('#connection-tab-apps').evaluate(element => document.activeElement === element), true, 'keyboard focuses the selected Apps tab');
   await open();
   assert.equal(await page.getByRole('tab', {name:'App controls',exact:true}).count(), 1, 'compact tabs retain complete accessible names');
   assert.equal(await page.getByRole('tab', {name:'Shared manuscripts',exact:true}).count(), 1);
   assert.equal(await page.getByRole('button', {name:'Stop tunnel and revoke all access',exact:true}).count(), 1);
   assert.equal(await page.locator('#connection-app-enabled').isDisabled(), true, 'a stopped tunnel cannot enable controls');
   await page.locator('#connection-tab-zrok').focus();
-  for (const [key, expected] of [['ArrowRight', 'mcp'], ['ArrowRight', 'shared'], ['ArrowRight', 'app'], ['Home', 'zrok'], ['ArrowLeft', 'app']]) {
+  for (const [key, expected] of [['ArrowRight', 'shared'], ['ArrowRight', 'apps'], ['ArrowRight', 'app'], ['Home', 'mcp'], ['ArrowRight', 'zrok'], ['ArrowLeft', 'mcp'], ['ArrowLeft', 'app']]) {
     await page.keyboard.press(key);
-    assert.equal(await page.locator(`#connection-tab-${expected}`).getAttribute('aria-selected'), 'true');
-    assert.equal(await page.locator(`#connection-tab-${expected}`).evaluate(element => document.activeElement === element), true);
+    assert.equal(await page.locator(`#connection-tab-${expected}`).getAttribute('aria-selected'), 'true', `${key} selects ${expected}`);
+    assert.equal(await page.locator(`#connection-tab-${expected}`).evaluate(element => document.activeElement === element), true, `${key} focuses ${expected}`);
   }
+  assert.equal(await page.evaluate(() => window.fixture.calls.some(call => call.action === 'tunnel' || call.action === 'control_enable')), false, 'opening and navigating never grants access');
   await page.locator('#connection-tab-zrok').click();
+  await page.locator('#zrok-name').fill('');
+  await page.locator('#connection-tab-mcp').click();
+  await page.locator('#connection-start').click();
+  assert.equal(await page.locator('#connection-tab-zrok').getAttribute('aria-selected'), 'true', 'missing setup opens the required field');
+  assert.equal(await page.locator('#zrok-name').evaluate(element => document.activeElement === element), true);
+  assert.equal(await page.evaluate(() => window.fixture.calls.some(call => call.action === 'tunnel')), false, 'invalid overview setup never starts access');
   await page.locator('#zrok-name').fill('undertree-test');
   await page.locator('#zrok-origin').fill('https://review.example.invalid');
-  await page.locator('#tunnel-start').click();
+  await page.locator('#connection-tab-mcp').click();
+  await page.locator('#connection-start').click();
   await settled();
+  assert.equal(await page.locator('#connection-start').isDisabled(), true, 'running access cannot be started twice');
+  assert.equal(await page.locator('#connection-overview-tunnel').textContent(), 'zrok running');
+  assert.equal(await page.locator('#connection-overview-mcp').textContent(), 'No initialization observed');
   const reviewUrl = await page.locator('#connection-url').inputValue();
   assert.match(reviewUrl, /^https:\/\/review\.example\.invalid\/mcp\//);
+  await page.locator('#connection-copy').click();
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), reviewUrl, 'overview copies the complete Review capability');
+  await page.locator('#connection-url').evaluate(element => { element.focus(); element.select(); });
+  await page.evaluate(() => window.fixture.refresh());
+  assert.deepEqual(await page.locator('#connection-url').evaluate(element => [document.activeElement === element, element.selectionStart, element.selectionEnd]), [true, 0, reviewUrl.length]);
+  for (const [width, height, size] of [[1440,1000,14],[320,1000,14],[1440,480,14],[320,480,14],[320,1000,28],[1440,1000,14]]) {
+    await page.setViewportSize({width,height});
+    await page.evaluate(size => { document.documentElement.style.fontSize = `${size}px`; }, size);
+    await page.evaluate(async () => { await document.fonts.ready; await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); });
+    const geometry = await page.locator('#connection-dialog').evaluate(dialog => ({
+      fits: dialog.scrollWidth <= dialog.clientWidth + 1,
+      clipped: [...dialog.querySelectorAll('#connection-panel-mcp button, #connection-panel-mcp [data-measure]')]
+        .filter(element => element.getClientRects().length && element.scrollWidth > element.clientWidth + 2).map(element => element.id),
+      measured: dialog.querySelector('#connection-overview-tunnel').dataset.textFit,
+    }));
+    assert.equal(geometry.fits, true, `overview reflows at ${width}×${height}, text ${size}`);
+    assert.deepEqual(geometry.clipped, []);
+    assert.ok(['fit','reflow'].includes(geometry.measured), 'overview status uses production Pretext');
+    await page.locator('#tunnel-stop').scrollIntoViewIfNeeded();
+    assert.equal(await page.locator('#tunnel-stop').evaluate(element => element.getBoundingClientRect().bottom <= innerHeight), true, 'overlay actions remain reachable');
+    await page.locator('#connection-dialog').evaluate(element => { element.scrollTop = 0; });
+    await page.screenshot({path:join(artifacts, `overview-${width}-${height}-${size}.png`)});
+  }
+  await page.locator('.connection-chatgpt-setup summary').click();
+  assert.equal(await page.locator('.connection-chatgpt-setup li').count(), 3, 'setup instructions remain available');
+  await page.locator('.connection-chatgpt-setup summary').click();
   await page.locator('#connection-tab-app').click();
   assert.equal(await page.locator('#connection-app-enabled').isEnabled(), true);
   assert.equal(await page.locator('#connection-app-result').isHidden(), true);
@@ -165,6 +214,7 @@ try {
   assert.equal(await page.locator('#connection-dialog').evaluate(element => element.open), false);
   assert.equal(await page.locator('#connection-open').evaluate(element => document.activeElement === element), true, 'Escape returns focus to Connections');
   await page.locator('#connection-open').click();
+  await page.locator('#connection-tab-app').click();
 
   async function inspect(label) {
     await page.evaluate(async () => { await document.fonts.ready; await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); });

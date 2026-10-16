@@ -104,7 +104,7 @@ export class ReviewSession {
       if (this.recordIdentityProblem(error, binding) || !sourceBindingCurrent(this, binding)) throw error;
       this.recordReviewProblem(error);
       if (error.code === 'stale' || error.code === 'conflict') {
-        const observed = await this.request({ action: 'review', project: binding.project, path: binding.path }).catch(() => ({ content: null }));
+        const observed = await this.request({ action: 'review', ...binding }).catch(error => { this.recordIdentityProblem(error, binding); return { content: null }; });
         assertSourceBinding(this, binding);
         if (observed.content !== null) this.checkSnapshot(observed, binding);
         this.conflict = observed;
@@ -183,7 +183,7 @@ export class ReviewSession {
         if (this.recordIdentityProblem(error, binding) || !sourceBindingCurrent(this, binding)) throw error;
         this.recordReviewProblem(error);
         if (error.code === 'stale' || error.code === 'conflict') {
-          const observed = await this.request({ action: 'review', project: binding.project, path: binding.path }).catch(() => ({ content: null }));
+          const observed = await this.request({ action: 'review', ...binding }).catch(error => { this.recordIdentityProblem(error, binding); return { content: null }; });
           assertSourceBinding(this, binding);
           if (observed.content !== null) this.checkSnapshot(observed, binding);
           this.conflict = observed;
@@ -212,7 +212,7 @@ export class ReviewSession {
     const conflict = this.conflict;
     const project = this.project, path = this.path;
     let response;
-    try { response = await this.request({ action: 'review', project, path }); }
+    try { response = await this.request({ action: 'review', ...binding }); }
     catch (error) {
       if (isCurrent() && sourceBindingCurrent(this, binding) && snapshot === this.snapshot && problem === this.reviewProblem) { this.recordReviewProblem(error); this.recordIdentityProblem(error, binding); }
       throw error;

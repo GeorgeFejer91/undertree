@@ -70,10 +70,32 @@ h3 { font-size: 1rem; }
 .manuscript-toolbar { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; min-height: 2.2857rem; padding: .55rem; border-bottom: 1px solid var(--divider); color: var(--light); background: var(--chrome); }
 .manuscript-toolbar button,.manuscript-toolbar select { font-size: .9rem; }
 #save-label { color: var(--disabled); font-size: .85rem; padding: .2rem; }
-#manuscript-source { min-height: 0; flex: 1; overflow: hidden; }
+#manuscript-source { min-height: 0; flex: 1; overflow: hidden; container: source-pane / inline-size; }
 .cm-editor { height: 100%; }
 .cm-scroller { overflow: auto; font-family: "JetBrains Mono", "DejaVu Sans Mono", Consolas, monospace; line-height: 1.48; }
 .cm-content { padding: .8rem 0; }
+/* Keep CodeMirror's supported search DOM and handlers; bound only its finite chrome. */
+#manuscript-source .cm-panel.cm-search label { display: inline-flex; align-items: center; gap: .2em; min-inline-size: 0; max-inline-size: 100%; white-space: normal; overflow-wrap: anywhere; }
+#manuscript-source .cm-panel.cm-search label > input[type="checkbox"] { flex: none; margin: 0; }
+@container source-pane (max-width: 28rem) {
+  #manuscript-source .cm-panel.cm-search { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: clamp(1px, min(.6cqw, .4dvh), .15em); }
+  #manuscript-source .cm-panel.cm-search > :is(input, button, label) { margin: 0; min-inline-size: 0; max-inline-size: 100%; }
+  #manuscript-source .cm-panel.cm-search > input { inline-size: 100%; }
+  #manuscript-source .cm-panel.cm-search > button.cm-button { padding-inline: .2em; }
+  #manuscript-source .cm-panel.cm-search > input[name="search"] { grid-area: 1 / 1 / 2 / 4; }
+  #manuscript-source .cm-panel.cm-search > button[name="next"] { grid-area: 1 / 4 / 2 / 6; }
+  #manuscript-source .cm-panel.cm-search > button[name="prev"] { grid-area: 1 / 6 / 2 / 9; }
+  #manuscript-source .cm-panel.cm-search > button[name="select"] { grid-area: 1 / 9 / 2 / 10; }
+  #manuscript-source .cm-panel.cm-search > button[name="close"] { grid-area: 1 / 10 / 2 / 11; position: static; }
+  #manuscript-source .cm-panel.cm-search > label:nth-of-type(1) { grid-area: 2 / 1 / 3 / 5; }
+  #manuscript-source .cm-panel.cm-search > label:nth-of-type(2) { grid-area: 2 / 5 / 3 / 8; }
+  #manuscript-source .cm-panel.cm-search > label:nth-of-type(3) { grid-area: 2 / 8 / 3 / 11; }
+  #manuscript-source .cm-panel.cm-search > br { display: none; }
+  #manuscript-source .cm-panel.cm-search > input[name="replace"] { grid-area: 3 / 1 / 4 / 5; }
+  #manuscript-source .cm-panel.cm-search > button[name="replace"] { grid-area: 3 / 5 / 4 / 8; }
+  #manuscript-source .cm-panel.cm-search > button[name="replaceAll"] { grid-area: 3 / 8 / 4 / 11; }
+}
+
 .cm-gutters { background: #f0f0f0 !important; border-right: 1px solid #e3e7e8 !important; color: #333 !important; min-inline-size: 4em; line-height: var(--source-line-height, 1.6); }
 .cm-lineNumbers { flex: 1; }
 .cm-activeLine,.cm-activeLineGutter { background: var(--green-pale) !important; }
@@ -139,14 +161,31 @@ dialog blockquote { margin: .8rem 0; padding: .65rem; border-left: 3px solid #9a
 .connection-heading h2 { flex: 1 1 12rem; margin: .25rem 0; min-width: 0; }
 .connection-heading button { flex: none; }
 .connection-tabs { display: flex; flex-wrap: wrap; gap: .4rem; padding: .6rem 0; border-bottom: 1px solid #d6dcd8; margin-bottom: .7rem; }
-.connection-tabs button { flex: 1 1 3.5rem; padding: .25rem .35rem; }
+.connection-tabs button { flex: 1 0 3.5rem; padding: .25rem .35rem; }
 .connection-tabs [aria-selected="true"] { background: #e0eee3; border-color: #73937c; }
 #connection-error { color: #a33828; }
 #connection-tools { padding-inline-start: 1.4rem; font-family: Consolas, 'Liberation Mono', monospace; }
-#connection-shares { list-style: none; padding: 0; margin: .8rem 0; }
-#connection-shares li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .65rem; padding: .6rem 0; border-bottom: 1px solid #d6dcd8; }
-#connection-shares span { min-width: 0; }
+#connection-shares,#connection-hub-apps { list-style: none; padding: 0; margin: .8rem 0; }
+#connection-shares li,#connection-hub-apps li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .65rem; padding: .6rem 0; border-bottom: 1px solid #d6dcd8; }
+#connection-shares span,#connection-hub-apps span { min-width: 0; }
+#connection-hub-url,#connection-review-url { resize: vertical; width: 100%; }
 #connection-url { resize: vertical; width: 100%; }
+#connection-panel-mcp { --connection-gap: clamp(.5rem, min(2vw, 2vh), 1rem); }
+#connection-panel-mcp:not([hidden]) { display: grid; gap: var(--connection-gap); }
+#connection-panel-mcp h3,#connection-panel-mcp p { margin: 0; }
+.connection-mcp-setup,.connection-chatgpt-setup { display: grid; gap: var(--connection-gap); min-inline-size: 0; }
+.connection-access-actions { display: flex; flex-wrap: wrap; gap: var(--connection-gap); }
+.connection-access-actions button { flex: 1 1 9rem; }
+.connection-overview-status { display: grid; gap: .4rem; margin: 0; }
+.connection-overview-status > div { display: grid; grid-template-columns: minmax(5rem, 1fr) minmax(0, 2fr); gap: .5rem; }
+.connection-overview-status dt,.connection-overview-status dd { min-inline-size: 0; margin: 0; }
+.connection-overview-status dd { font-weight: 600; }
+.connection-chatgpt-setup summary { cursor: pointer; }
+.connection-chatgpt-setup[open] ol { margin-block-start: var(--connection-gap); }
+.connection-chatgpt-setup ol { margin: 0; padding-inline-start: 1.5rem; display: grid; gap: .5rem; }
+.connection-mcp-details { border-top: 1px solid #d6dcd8; padding-top: var(--connection-gap); }
+.connection-mcp-details summary { cursor: pointer; }
+.connection-mcp-details[open] p { margin-block: var(--connection-gap); }
 #connection-panel-app > details { margin-block: .5rem; }
 #connection-panel-app summary { cursor: pointer; }
 #connection-pdf-export { border-top: 1px solid #d6dcd8; padding-top: .5rem; }
@@ -163,8 +202,10 @@ dialog blockquote { margin: .8rem 0; padding: .65rem; border-left: 3px solid #9a
   #connection-dialog .connection-heading { gap: var(--connection-gap); }
   #connection-dialog .connection-tabs { gap: var(--connection-gap); padding-block: var(--connection-gap); margin-block-end: var(--connection-gap); }
   #connection-dialog .connection-actions { margin-block-start: var(--connection-gap); }
-  #connection-shares li { grid-template-columns: minmax(0, 1fr); }
-  #connection-shares button { justify-self: start; }
+  #connection-tab-mcp { flex-basis: 100%; }
+  #connection-dialog .connection-tabs button { padding-inline: .1rem; }
+  #connection-shares li,#connection-hub-apps li { grid-template-columns: minmax(0, 1fr); }
+  #connection-shares button,#connection-hub-apps button { justify-self: start; }
 }
 .checkbox-label { flex-direction: row; align-items: flex-start; }
 .palette-row { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: .4rem; padding: .7rem 0; border-bottom: 1px solid #dce3de; }
@@ -192,6 +233,8 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflo
 .menu-rule { padding: .5rem .4rem; display: flex; flex-direction: column; gap: .3rem; }
 .menu-rule select { width: 100%; max-width: 100%; font-size: 1rem; }
 .review-topbar button,.workspace-menu summary { min-height: 28px; padding: .1429rem .65rem; }
+#chatgpt-open { display: grid; place-items: center; inline-size: 2rem; block-size: 2rem; padding: .3rem; flex: none; }
+#chatgpt-open svg { display: block; inline-size: 100%; block-size: 100%; }
 .review-topbar select { background: transparent; border-color: transparent; color: var(--light); padding: .1429rem .5rem; }
 .review-topbar select option { color: var(--ink); background: var(--canvas); }
 .review-topbar select,.manuscript-toolbar select {
@@ -363,6 +406,11 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflo
 .text-details-slot.error:has(> .review-status) { color: #ffb4c0; }
 @media (max-height: 600px) {
   .review-status { --text-details-lines: 2; }
+}
+@media (max-width: 500px) and (max-height: 600px) {
+  .manuscript-tabs button { padding-block: 0; }
+  .mobile-views { gap: 1px; }
+  .mobile-views button { line-height: 1.2; }
 }
 @media (min-width: 901px) and (max-height: 600px) {
   .review-workspace[data-review-open="true"] { --review-size: max(240px, 14rem); }

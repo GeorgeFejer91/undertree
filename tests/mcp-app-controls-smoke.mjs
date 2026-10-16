@@ -118,8 +118,10 @@ try {
   await local({action:'palette',project:project.id,path:'private.typ',revision:privateSnapshot.review.revision,rules:privateSnapshot.review.rules});
   await openLocal('main.typ', original);
   const localSource = await local({ action: 'open', project: project.id, path: 'main.typ' });
-  await local({ action: 'palette', project: project.id, path: 'main.typ', revision: localSource.review.revision, rules: localSource.review.rules });
-  await local({ action: 'share', project: project.id, path: 'main.typ', enabled: true });
+  const mainBinding = Object.freeze({ sourceEpoch: localSource.sourceEpoch, expectedRoot: Object.freeze({ ...localSource.expectedRoot }) });
+  await local({ action: 'palette', project: project.id, path: 'main.typ', revision: localSource.review.revision, rules: localSource.review.rules, ...mainBinding });
+  const sharedMain = await local({ action: 'share', project: project.id, path: 'main.typ', enabled: true, ...mainBinding });
+  assert.notEqual(sharedMain.documentId, localSource.documentId, 'rooted UI sharing retains its identity separately from the legacy observation');
   await local({ action: 'tunnel', enabled: true, reservation: 'app-control-test', public_url: 'https://app-control.example.org' });
   await page.locator('#connection-open').click();
   await page.locator('#connection-tab-app').click();
@@ -161,8 +163,10 @@ try {
   const value = reply => { assert.equal(reply.isError, false, JSON.stringify(reply)); return reply.structuredContent.result; };
   const manuscripts = value(await tool('list_manuscripts'));
   assert.equal(manuscripts.length, 1); const documentId = manuscripts[0].documentId;
+  assert.equal(documentId, sharedMain.documentId, 'MCP lists the exact rooted share created by the local UI contract');
   const snapshot = value(await tool('read_manuscript', { documentId }));
   await until(async () => !(await tool('get_workspace')).isError, 'The app UI heartbeat did not attach after grant activation.');
+  await until(() => lastUiSnapshot?.openDocuments.some(document => document.documentId === documentId), 'The real UI did not publish the rooted shared manuscript identity.');
   async function applied(name, args, requestId) {
     const queued = value(await tool(name, { ...args, requestId }));
     let receipt = queued;
@@ -241,7 +245,9 @@ try {
   assert.deepEqual(writes, {save:0,editorCommit:0}, 'clean remote controls invoke neither source-save route');
 
   // The displayed main PDF can belong to an unshared source even while the chapter is shared.
-  await local({action:'share',project:project.id,path:'chapter.typ',enabled:true});
+  const chapterSource = await local({action:'open',project:project.id,path:'chapter.typ'});
+  const chapterBinding = Object.freeze({ sourceEpoch: chapterSource.sourceEpoch, expectedRoot: Object.freeze({ ...chapterSource.expectedRoot }) });
+  const sharedChapter = await local({action:'share',project:project.id,path:'chapter.typ',enabled:true,...chapterBinding});
   await page.locator('#connection-open').click(); await page.locator('#connection-refresh').click();
   await until(async () => (await page.locator('#connection-share-summary').textContent()).startsWith('2 manuscripts'), 'The chapter share did not reach the real UI.');
   await page.keyboard.press('Escape');
@@ -256,6 +262,7 @@ try {
   await page.locator('#typst-pages canvas').first().waitFor({state:'visible',timeout:20_000});
   assert.match(await page.locator('#typst-compile').getAttribute('title'), /private\.typ/);
   const chapterId = value(await tool('list_manuscripts')).find(value=>value.path==='chapter.typ').documentId;
+  assert.equal(chapterId, sharedChapter.documentId, 'the chapter keeps its exact rooted share identity');
   await until(async () => value(await tool('get_workspace')).workspace.activeDocumentId === chapterId, 'The shared chapter did not become active remotely.');
   const chapterWorkspace = value(await tool('get_workspace')).workspace;
   assert.equal(chapterWorkspace.preview, null, 'a shared chapter cannot expose its unshared main PDF');
@@ -279,8 +286,8 @@ try {
   await until(()=>pollHeld,'The real UI poll did not reach the dispatch gate.');
   assert.equal(value(await tool('open_manuscript',{documentId,requestId:'revoked-queued-open'})).state,'queued');
   const revokedEndpoint=appEndpoint;
-  await local({action:'share',project:project.id,path:'main.typ',enabled:false});
-  const reshared=await local({action:'share',project:project.id,path:'main.typ',enabled:true});
+  await local({action:'share',project:project.id,path:'main.typ',enabled:false,...mainBinding});
+  const reshared=await local({action:'share',project:project.id,path:'main.typ',enabled:true,...mainBinding});
   assert.equal(reshared.documentId,documentId);
   assert.equal((await local({action:'connection'})).appControls.enabled,false);
   await page.locator('#connection-open').click();await page.locator('#connection-tab-app').click();

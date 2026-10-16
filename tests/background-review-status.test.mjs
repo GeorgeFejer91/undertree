@@ -7,7 +7,7 @@ const source = readFileSync(new URL('../src/manuscript.js', import.meta.url), 'u
 const start = source.indexOf('setInterval(async () => {\n  if (document.hidden || refreshing');
 const end = source.indexOf('\n}, 2000);', start) + '\n}, 2000);'.length;
 assert.ok(start >= 0 && end > start);
-const taskStart = source.indexOf('function task(callback)');
+const taskStart = source.indexOf('function task(');
 const taskEnd = source.indexOf('\nfunction closeDialogs(', taskStart);
 assert.ok(taskStart >= 0 && taskEnd > taskStart);
 

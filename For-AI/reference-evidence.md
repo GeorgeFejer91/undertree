@@ -2,6 +2,129 @@
 
 Evidence ledger for the 2026-10-14 Rust/Tauri/Typst migration. This is authored orchestration context, not a runtime input. Source inspection establishes source behavior; only an exercised path establishes integration behavior.
 
+## Shared MCP gateway and discard policies, 2026-10-16
+
+The user's single-connector requirement is implemented as the separately enabled
+[shared app gateway](PROTOCOLS/connections.md#shared-app-gateway), not an expansion
+of Review's three-tool authority. Locally linked apps receive distinct aliases;
+target apps retain their own permissions. Upstream tool-list changes require
+local relinking, and uncertain calls are not transparently replayed.
+
+The real Rust/HTTP and Chromium discard gate passes four groups in
+`artifacts/review-discard-smoke.json`: custom color/action highlighting, pending
+MCP deletion without source writes, local rejection preserving source/markers,
+responsive deletion cards, and local acceptance deleting exactly the marked
+passage and retiring its marker. It uses CLI SHA-256
+`ce1d38c2dd910503cc5ccbfce05be805eb44fb26695b7f202814349e4520ce87`
+and its recorded immutable frontend assets. This qualifies discard interaction,
+not the later shared-gateway binary or native Tauri window. The focused document
+harness separately passes 23 tests against the actual document module. An
+earlier session/source-binding run passes 76 tests, but has no source-hash
+snapshot (`artifacts/chatgpt-mcp-review-unit-receipt.json`). A later working-tree
+rerun passes 74/76; two PDF VM fixtures fail with
+`ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` after concurrent lazy-PDF changes.
+Those unrelated fixtures remain untouched. A rooted refresh bug found by the
+integration gate is fixed without adopting stale document identities.
+
+The actual SDK-backed Hub module passes 13 runtime tests in 74.97 seconds,
+including stateful SSE, pagination, distinct aliases, replay prevention,
+revocation, tool-list drift, bounded instructions and oversized/error bodies.
+The isolated harness uses an equivalent `Error`/`Result` boundary and coherent
+Cargo-built dependencies, not the complete Service/Tauri crate. Its receipt and
+reusable harness are in `artifacts/mcp-hub-unit-harness/`; module SHA-256 is
+`5b828fe17f8d5ea5ce6ece1a58d7849a033501c4094995fff48143301c694e6b`.
+
+The rendered gateway fixture in `artifacts/mcp-hub-ui-smoke.json` is explicitly a
+simulated native API: enable/link/unlink, complete selectable/copyable URLs,
+transient URL input, imported-connector gating and narrow/zoom/localized text.
+It does not establish upstream routing. The real Rust service build and canonical
+HTTP policy/multi-app gates subsequently pass using CLI SHA-256
+`47ffbd9f21e37b1cca14d2be50ca0e5829b135c574759d1401781f9236b36a78`.
+Receipts are `artifacts/mcp-review-policy-final.log` and
+`artifacts/mcp-hub-final.log`: Typst/HTML protection and local acceptance,
+independent JSON/stateful-SSE apps, pagination, scoped instructions, distinct
+aliases, no replay after lost replies, CLI redaction and revocation. The imported
+HTTP gate passes four groups in
+`artifacts/mcp-imported-hub/imported-hub-evidence.json`, proving the preserved URL,
+explicit gateway switch, forwarding/deduplication, a separately authenticated
+browser-adapter App grant, and Review-only restoration. It does not fabricate a
+renderer acknowledgement. All tunnel/identity/peer inputs are synthetic.
+
+A subsequent final-source build includes the generic gateway initialization
+instructions to read the app-scoped context first. All three canonical HTTP
+gates pass again against CLI SHA-256
+`5ba0dc922ed6bd17bcf13c5806899e7e0a5f9188c21951f250cf8c646b7065d0`;
+the imported receipt is now
+`artifacts/mcp-imported-hub-v2/imported-hub-evidence.json`.
+Current-source native type-checking and the bundled desktop build pass with the
+immutable frontend in `artifacts/mcp-hub-ui-verified-dist`, tree hash
+`a483e8a91fcfa33f9688170da84fbf2aa968e3d1874fedf9b3fb0121ff6b62cb`.
+All 63 captured Rust/Cargo/native inputs remain unchanged after qualification.
+
+Actual Linux Tauri/WebKitGTK execution passes four native gateway groups against
+desktop SHA-256
+`8e89b6026d22f90cbfb69abdd6d4c817da3ce62523d532a9c5f05280994630a4`.
+The real Apps UI enables and registers a loopback app, forwards one effect
+exactly once, applies a pane change and independently observed X11
+minimize/restore, and records genuine renderer acknowledgements. Retired-owner
+and private-CLI denials, gateway capability redaction, exact source/policy
+preservation, no save IPC, App-only revocation and gateway revocation pass.
+The receipt `artifacts/native-mcp-hub/native-gateway-evidence.json` has SHA-256
+`063dabbfe4b4a8877fb7f18c80e9db63ac01c20bc59800258e50faa5712cf759`.
+The first registration attempt is preserved under `attempt01`; the runner now
+waits for the actual enabled Link control and records its native response.
+Only harness readiness/diagnostics changed, not product code or assertions.
+
+Verified attribution refresh covers 354 Rust and 27 JavaScript components, with
+four checksum-pinned clarifications preserving the actual AWS-LC/chrono texts
+and upstream rmcp Apache/MIT transition notice; its offline verification and
+regression test pass. These tests use isolated state, loopback peers and fake
+zrok; the installed user application and real manuscript remain untouched.
+Real zrok enrolment/credential handover and ChatGPT access across PCs are
+not verified; the source Secret Tunnel still requires its explicit Read/Write
+approval before a private transfer can be created.
+
+## Realtime editing and GitHub synchronization investigation, 2026-10-16
+
+[The synchronization analysis and phased design](BOARD/2026-10-16-realtime-github-sync.md)
+records the user's requirements for unobtrusive background GitHub sync and eventual
+simultaneous authors. The pinned Overleaf source, a read-only REA 6.5.0 browser
+scenario and exact shipped CDN byte ranges distinguish live OT operations from
+Overleaf's manual GitHub integration. Browser Evidence
+`ev_57015e337624d0a81d5a9bb5465b0a762d19c99ecb2afab25f30477f154aa78e`
+records editor/client loading and owned-browser cleanup; no WebSocket traffic or
+edit delivery was observed before its incomplete network window ended. Source
+and shipped-code settings are not measured latency or server qualification.
+Focused shipped-bundle REA parsing timed out at 60 s; retained partial Evidence
+`ev_597bd3210e35509abb816adb84bf2d97003b9c9701e1fd01e28d0a0a2c789001`
+does not establish a complete call graph.
+
+The dirty UnderTree source audit identifies 450 ms trailing saves, another 4 s
+trailing publication timer, no independent remote discovery/native sync worker,
+permanent transient-error pauses, incoming clean-editor conflict behavior and
+document-lock contention. Preserve existing byte/epoch/Git publication guards.
+The recommendation adds a bounded Rust coordinator and guarded editor changes
+first, then a separate authorized collaboration channel with one checkpoint
+publisher. Raw identities/captures live under ignored
+`artifacts/reverse-engineering/overleaf-github-sync-20261016/` and do not travel
+with a fresh clone. No product source was changed or live repository pushed;
+new native sync, latency and multiuser qualification remain NOT RUN.
+
+## Existing Secret Tunnel address, 2026-10-16
+
+The explicit imported-connector mode preserves the existing `/t/<token>/mcp`
+address and mounts only the three Review tools. Its private native profile and
+dedicated zrok child home are separate from public connection settings; no
+manuscript grants or tunnel startup are restored. See the
+[connection contract](PROTOCOLS/connections.md#explicit-secret-tunnel-connector-import).
+The maintenance export/import gate passes eight tests, covering minimal
+credential selection, private destination permissions, existing state,
+concurrent imports, required enrolment files, links/bounds and sanitized CLI
+errors. The rendered Overview/Pretext fixture passes its functional, imported
+mode and narrow/zoom checks (`artifacts/connection-controls-ui/report.json`).
+These are local fixtures. Cross-PC Wormhole transfer, real zrok handover and
+ChatGPT discovery of the changed catalogue remain unverified.
+
 ## Native Linux release and installed app, 2026-10-15
 
 [UnderTree v0.3.0](https://github.com/GeorgeFejer91/undertree_texstudio/releases/tag/v0.3.0)
@@ -634,3 +757,26 @@ groups and four actual Linux Tauri/WebKit groups. The separately corrected
 root/epoch-bound policy fixture passes six groups on unchanged v16 runtime
 inputs. This does not establish full hosted, paired Overleaf or new-installer
 acceptance; the linked report preserves the exact identities and failed runs.
+
+## Frontend work reduction, 2026-10-16
+
+The Ponytail performance pass defers PDF.js until an available PDF is displayed,
+retains tabs across already-dirty edits, skips identical PDF/save status and
+Review-position writes, and reuses fully painted PDF windows across small
+scrolls. PDF replacement, dimensions, zoom and pixel density still invalidate
+that window; partial, failed and superseded paints cannot populate it. Save,
+conflict, source-identity and explicit-build authority remain unchanged.
+
+Production entry/preload JavaScript falls from 1,252,749 to 826,834 bytes
+(34.0%); this measures deferred loading, not native cold-start or Typst speed.
+Focused Chromium checks with real Rust, CodeMirror and Pretext observe 61 → 0
+tab/save-label mutations for 20 already-dirty edits, and 1 → 0 PDF engines
+loaded during HTML startup. A real three-page Typst PDF loads on demand and a
+small scroll retains its painted canvas; the original HTML and policy bytes
+remain exact. These focused runners omit the broader Settings/layout gates.
+The 86 focused editor/session/position/format/PDF/workspace/window tests, build
+and architecture check pass. Raw snapshots and receipts are under ignored
+`artifacts/performance-2026-10-16/`. The broad Review UI attempt stops on a
+preserved source conflict during its early exact-save fixture. Rust tests and
+the native check encounter another task's Cargo build-directory lock; native
+WebView, full UI, compiler timing and installer qualification remain open.

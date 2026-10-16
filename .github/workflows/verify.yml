@@ -50,10 +50,17 @@ jobs:
       - run: npm run verify:architecture
       - run: node --test tests/native-release-paths.test.mjs tests/native-release-receipt.test.mjs tests/notices.test.mjs
       - name: Qualify menu navigation and protected Close
-        run: node --test tests/menu-navigation.test.mjs tests/window-close-auto-compile.test.mjs tests/window-chrome.test.mjs tests/manuscript-control-state.test.mjs tests/native-click.test.mjs tests/background-review-status.test.mjs
+        run: node --test tests/menu-navigation.test.mjs tests/window-close-auto-compile.test.mjs tests/window-chrome.test.mjs tests/manuscript-control-state.test.mjs tests/native-click.test.mjs tests/background-review-status.test.mjs tests/native-find-guards.test.mjs tests/native-find-registration.test.mjs tests/native-move-select-guards.test.mjs tests/review-save-observation.test.mjs tests/review-highlight-observation.test.mjs
+      - name: Qualify Move, Find, preview continuity and rooted editor observations
+        run: node --test tests/file-move.test.mjs tests/publication-preview.test.mjs tests/expected-root.test.mjs tests/source-epoch.test.mjs tests/editor-session-bridge.test.mjs tests/review-session.test.mjs tests/review-text-layout-search.test.mjs tests/manuscript-pdf-viewer.test.mjs tests/secret-tunnel-profile.test.mjs tests/compile-report-context.test.mjs tests/manuscript-tab-visibility.test.mjs tests/review-policy.test.mjs tests/native-find-click-geometry.test.mjs tests/native-find-source-pointer.test.mjs tests/native-word-count-frame-observer.test.mjs tests/text-details-focus.test.mjs tests/native-move-status-surface.test.mjs tests/native-move-window-observer.test.mjs
       - run: cargo fmt --all -- --check
       - run: cargo test --locked -p undertree-review
       - run: cargo build --locked -p undertree-review
+      - name: Qualify local gateway routing, imported addresses and review policy
+        run: |
+          npm run test:mcp-hub
+          node tests/mcp-imported-hub-smoke.mjs
+          node tests/mcp-review-policy-smoke.mjs
       - run: npm run test:typst-publishing
       - run: npm run build
       - run: npm run test:editor-save
@@ -66,6 +73,8 @@ jobs:
       - run: npm run test:review-policy
       - run: npm run test:word-count
       - run: npm run test:connections-ui
+      - run: npm run test:mcp-hub-ui
+      - run: npm run test:review-discard
       - run: npm run test:mcp-app-controls
       - run: node tests/connection-controls-ui-smoke.mjs
       - run: npm run test:review-text-layout
@@ -80,7 +89,12 @@ jobs:
           UNDERTREE_NATIVE_WORD_COUNT_ARTIFACTS="$PWD/artifacts/native-word-count" \
           UNDERTREE_NATIVE_WORD_COUNT_DENSE=1 \
           dbus-run-session -- npm run test:native-word-count
-      - run: dbus-run-session -- npm run test:native-ui
+      - name: Qualify native editor, Find and source Move
+        timeout-minutes: 10
+        run: dbus-run-session -- npm run test:native-ui
+      - name: Qualify native gateway linking, forwarding and revocation
+        timeout-minutes: 10
+        run: dbus-run-session -- npm run test:native-mcp-hub
       - name: Qualify native source and PDF downloads with private destination preflight
         run: dbus-run-session -- npm run test:native-publishing
       - name: Qualify actual native file selection and import acknowledgement recovery
@@ -142,6 +156,11 @@ jobs:
             artifacts/word-count-failure.png
             artifacts/connection-controls-ui/report.json
             artifacts/connection-controls-ui/*.png
+            artifacts/mcp-hub-ui-smoke.json
+            artifacts/mcp-imported-hub/
+            artifacts/review-discard-smoke.json
+            artifacts/review-discard-failure.png
+            artifacts/native-mcp-hub/
             !artifacts/**/private-provenance.json
           if-no-files-found: warn
       - name: Upload the qualified unsigned Rust/Tauri product installer

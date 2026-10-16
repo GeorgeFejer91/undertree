@@ -1,5 +1,333 @@
 # Verification report
 
+## Passive Review-submit and native SELECT diagnostics — 2026-10-16
+
+Both `432847c` Historical suites pass all 631 tests. The push passes native
+Word count, Find/history/Save/cleanup, raw Move, first narrow Move geometry,
+strict status-details focus and genuine Shift+Tab SELECT focus/outline. Its
+first Alt+Down popup gate fails with the same 31 before/after XIDs and no added
+ID. Existing-window map states were not observed. The PR twin separately stops
+at the earlier Review smoke: the Add highlight click returns, the modal remains
+open and the original 30-second Remove highlight wait times out. Neither
+receipt establishes the missing popup or submit/request cause.
+
+The Review fixture now records bounded passive click/submit/invalid form events
+and fixed-local mark/save/review request start/status/finished-or-failed metadata.
+Installation and failure observation reuse existing browser evaluations. The
+original click, wait, error and cleanup remain; no payload values, response body,
+headers, validation call, retry or new request is captured or produced.
+
+The SELECT fixture adds one bounded metadata pass before the original Alt+Down
+and one on its original popup-coverage failure, reusing existing inventories.
+It records existing and new IDs with PID/type/transient/map/geometry fields,
+fixed error categories and explicit incomplete/budget status. Each pass admits
+at most 128 IDs and an extra eight seconds of sampled inspection opportunity,
+reserving four seconds for each unchanged two-tool pair. The maximum 16 seconds
+of added diagnostic opportunity remains inside the unchanged whole-gate budget.
+The original new-ID/owned/type/viewable/positive-geometry predicate, keys, waits,
+remaining assertions and error are unchanged. Existing-window transitions do
+not satisfy that gate. No title or raw inspection output is retained.
+
+Integrated validation passes all 6 + 98 + 290 = 394 JavaScript checks,
+architecture validation, five syntax checks and diff validation.
+
+Root and independent source reviews accept both candidates. Fifteen actual
+Review observer models and 19 actual SELECT observer/wrapper models pass. The
+latter records a simulated existing unmapped-to-viewable popup while preserving
+the original failure. These checks establish fixture behavior; hosted native
+and installer qualification remains required, and both original failures remain
+failed. Product source, complete notice files and the qualified `432847c`
+frontend build inputs remain unchanged.
+
+## Live native source Move and GitHub Sync — 2026-10-16
+
+One isolated native qualification of the previously qualified `e8a1728` package
+passes actual Bind, Prepare, Close/reopen and one Move Commit. It preserves the
+58-byte CRLF/Unicode source, 223-byte review sidecar and five opaque report bytes
+at mode 0640, proves the old paths absent, and preserves the unrelated main
+buffer, original index and setup head before Sync. One Sync refuses unrelated
+staging without changing pending ownership. After restoring only that fixture
+staging, one Sync confirms exactly three deletions and three additions at remote
+head `70bcafd25c79494afd990689786903e7861770b5`; bytes/modes and cleared pending
+ownership pass. No source-save, compile or Open action occurs in the Move/Sync
+suffix.
+
+All five strictly admitted current CodeMirror logical selection observations
+pass the original equality checks (baseline document length 78, main range
+0–0). Passive outside-editor DOM selection changes after Close and is recorded
+without treating it as the editor selection. The 64-row driver tail drops 221
+rows; it does not establish a complete driver chronology. Cleanup proves the
+exact remote-tip lease deletion and subsequent absence, actual auth/stack-leader and
+three inner-leader waits, all three private roots absent and 83 recorded process
+identities absent. Root and independent QA close this finite E8 scenario green.
+It does not qualify the current PR7 SELECT popup, asset/folder Move, general
+selection states, visual parity or performance.
+
+## Status focus through measured details — 2026-10-16
+
+Both exact `17f8ef5` hosted runs pass 609 Historical checks, all three native
+Word count layouts/frame acknowledgements, the complete declared native Find,
+history, Save and cleanup Compile flow, and raw typed Move. The two visible
+pointer clicks pass. Both then fail the later SELECT helper's status-ID check
+after the first narrow Move geometry, before Shift+Tab/popup and the remaining
+seven geometries, UI Commit or installer. The status source has Pretext
+`fit=details` and zero geometry. An empty active ID does not identify the active
+element or prove the exact hosted callback order.
+
+The shared text-details helper now follows current source/descendant focus to
+its own visible details button when measurement hides the source, and restores
+focus on regrowth. It checks current document focus synchronously; unrelated,
+blurred and unchanged-representation updates do not refocus. The native fixture
+requires actual focus on the exact owning source or generated button, a positive
+finite body-exposed box and its full accessible value. Source mode retains the
+original status ID. Real keys, popup/focus-ring/full-value checks, all original
+Move assertions/eight geometries, budgets and cleanup remain.
+
+The same 13 actual production-callback tests reproduce four failures on the old
+helper and pass all 13 on the candidate. Nine strict fixed-node reader models
+also pass. Root and independent source reviews pass. Integrated checks pass
+6 + 83 + 271 = 360 tests, architecture validation, four syntax checks, diff
+validation and a fresh frontend build. Normal notice generation changes only
+the shared helper's source-input hash; full notice payloads, all other manifest
+fields and the 356 Rust/27 JavaScript attributions remain exact. Matching hosted
+native and installer qualification of this focus change remains required.
+
+## Native Find visible click and frame timing — 2026-10-16
+
+Both `924fd87` Historical suites pass all 590 tests and both Review UI
+checkpoints pass. The push run passes native Word count, then the original
+Find element-center click fails at 320 × 480 with 28px root text. Identical
+before/after samples show 274px content behind a 42px scroller: the viewport
+center hits a search-panel label, while the visible source-line point hits an
+editor descendant. The early narrow screenshot agrees; no atomic driver
+hitpoint trace is claimed. Later Move, SELECT and installer gates are unreached.
+
+The fixture now reads and validates a fresh visible source-line intersection,
+including strict interior integer viewport/clip/target/line bounds and an exact
+integer hit inside the current editor, then sends one genuine native pointer
+move/down/up sequence. This replaces each of the two original source clicks.
+No retry, JavaScript focus/scroll/events, product style or font change is added.
+The existing focus, keys, source, Undo/Redo, geometry and cleanup checks remain.
+Each click has one new existing-limit 20-second observation request; pointer
+actions replace its prior lookup/click requests. The outer budget stays fixed.
+The existing failure after-state and early screenshot remain.
+
+The PR twin separately gets only one of two intended RAF callbacks before the
+500ms timer at its first Word count layout, before any geometry observation.
+That failure gives no persistent overflow or scheduling-cause proof. Its same
+execute now records at most four passive monotonic timing, visibility and focus
+rows. The original four-field ACK/deepEqual, one 500ms timer, at most two
+sequential RAF requests and 30-second transport limit remain unchanged.
+
+All 27 Find and nine frame-observer models pass. Root and independent source
+reviews accept both changes. All 338 checks in the three integrated CI
+JavaScript groups, architecture validation, six module syntax checks and the
+diff check pass. Matching hosted qualification remains pending. Product source and the complete attribution manifest/payloads are
+unchanged from `924fd87`; the previous frontend build remains applicable.
+
+## Find click diagnostic and post-Reanchor observation — 2026-10-16
+
+Both `dcd99b9` Historical jobs pass all 571 tests. The push product job stops
+after Reanchor when its fixed Open request receives document-admission busy.
+The PR job passes Review and native Word count, then passes the fifth narrow
+Find geometry, including the active tab and a full source line. Its original
+editor click fails as not interactable. The target box and hit point were not
+recorded, and the later wide screenshot cannot establish the narrow cause.
+Later replacement, Move, SELECT and installer gates are not reached.
+
+The native fixture adds bounded structural target, clipping and hit metadata
+after its original geometry fields. It keeps the original single click. On
+failure only, it records an after-state and screenshot before restoring the
+window, then rethrows the original error even if diagnostics fail. Those two
+passive requests add up to 40 seconds of transport opportunity under their
+existing 20-second limits; outer and readiness budgets do not increase. This
+is a diagnostic, with no focus, scroll, font, CSS or assertion change.
+
+Local Open can recover and publish, so its observation helper now repeats only
+the exact HTTP 400 document-admission busy refusal before dispatch. Later
+History busy, other errors and uncertain outcomes remain fatal. The one fixed
+post-Reanchor checkpoint uses that existing helper with an explicitly new
+15-second allowance. The original Reanchor and marker/source assertions remain.
+
+All 17 diagnostic and 14 admission-helper models pass after source review.
+Root and independent reviews accept both reversible changes. Product source
+and the complete attribution manifest/payloads are unchanged from `dcd99b9`.
+All 319 checks in the three integrated CI JavaScript groups, architecture
+validation, five module syntax checks and the diff check pass. The previous
+frontend build remains applicable because product inputs are unchanged.
+Matching hosted browser/native and installer qualification remains required.
+
+## Active tab visibility after resizing — 2026-10-16
+
+Both `1988c14` hosted runs pass all three native Word count layouts with the
+required two frame acknowledgements. They later fail native Find at 320 × 480
+with 28px root text: the active label and Close fit their 315px viewport but
+remain horizontally outside it. The later Move, SELECT and installer checks
+are not reached. Both Historical jobs separately stop at the policy test's old
+single-line `task` extractor before executing its held callback.
+
+The workspace now reuses its conditional horizontal tab reveal when the tab
+viewport or selected wrapper changes size. One observer retains at most those
+two elements, retires the previous wrapper and reads the current selection.
+An oversized wrapper that already spans the viewport stays stable. Editor
+state, focus, page scrolling, fonts, Pretext and native assertions are unchanged.
+The policy test extracts the current multiline function using guarded existing
+delimiters; its assertions remain. The source-epoch test gains only the two fake
+DOM capabilities needed by the observer. CI adds the tab and policy units to
+its existing explicit list.
+
+The unchanged source reproduces the tab and extractor failures; all 52 focused
+candidate cases pass. Root and independent QA source reviews accept the change.
+All 300 checks in the three CI JavaScript groups, architecture validation and
+the production frontend build pass in the integrated branch.
+The normal attribution generator refreshes the frontend source hash while
+preserving the complete notice payloads and component inventories. A matching
+hosted native and installer pass remains required.
+
+## Native Word count frame acknowledgement — 2026-10-16
+
+Both `9bc53fc` hosted runs again fail the original narrow page-width assertion.
+The new diagnostic observes the document changing from 445px to 320px within
+one read sequence, then staying at 320px in both following frame samples. That
+snapshot is non-atomic and does not identify a persistent CSS culprit. Existing
+text measurement is scheduled through animation frames, and unchanged terminal
+fit labels do not acknowledge a fresh resize.
+
+The fixture now requires two animation-frame callbacks after its original
+resize/font/details setup and before the unchanged Pretext poll and first
+geometry assertion. A new cooperative 500ms prerequisite per original size
+fails on missing frames; it never waits for page fit or replays an action.
+The original 20s poll and 30s transport limits remain, with up to 1500ms nominal
+additional in-page timer allowance across three cases. All page/body/Close
+assertions and tolerances remain; persistent overflow still fails.
+
+Ten fake RAF/timer/assertion checks and syntax verification pass. Root and
+independent QA source reviews accept the three-line insertion. Product and
+attribution inputs are unchanged. Fresh hosted native and installer results
+remain pending; the earlier failures stay preserved.
+
+## Native Word count overflow diagnostic — 2026-10-16
+
+Both hosted runs of `e144e3f` pass the corrected JavaScript suites, Rust,
+browser and desktop build gates, then fail the native Word count page-boundary
+assertion at 320 × 900 with 28px root text. The document is 445px wide while
+the count dialog and its body fit. Later native and installer gates are not
+reached; this establishes whole-page overflow, without identifying its cause.
+
+The native fixture now records bounded structural geometry and two passive
+frame samples before retaining the original first-geometry assertion. Every
+original action, count, page/body/Close assertion and deadline remains. Eight
+fake-DOM boundary checks and syntax verification pass; independent source
+reviews accept the diagnostic. Product source and attribution inputs are
+unchanged. Fresh hosted native evidence is required before choosing a layout
+or fixture correction; this diagnostic does not fix or waive overflow.
+
+## Background Review fixture extraction — 2026-10-16
+
+Both hosted runs of `ca92e43` pass attribution verification, then stop before
+the five background Review cases because their fixture searches for the old
+exact `task` signature. The fixture now locates the unchanged function name
+and retains every callback and assertion, including explicit busy reporting.
+All 270 checks from both adjacent CI JavaScript suites pass locally. Product
+source is unchanged; hosted Rust, browser, native and installer gates remain
+pending for this correction.
+
+## Attribution manifest refresh — 2026-10-16
+
+Both hosted runs of `8f60155` stopped at attribution verification before
+Rust, browser, native or installer checks. The compile-reporting change had
+not refreshed the tracked frontend input hash. The normal notice generator
+now updates only the `src/manuscript.js` hash in the manifest; both complete
+notice payloads, component inventories and license texts remain byte-identical.
+The exact failing `tests/notices.test.mjs` check passes locally. The combined
+hosted runtime and installer gates still require a successful run of this head.
+
+## Compile error reporting and Connections keyboard candidate — 2026-10-16
+
+The two hosted runs of `b390b42` stopped at different browser checkpoints.
+The push passed Review, then exposed an old keyboard expectation in the
+Connections controls fixture. The PR run stopped while requiring a stale
+last-good PDF after deliberate disk reload. Its terminal UI showed a captured
+editor replacement refusal; the exact asynchronous interleaving was not logged.
+
+Source review and held actual-callback tests reproduce a reachable race:
+an older compile correctly refuses replaced inputs but reports its error into
+the newly loaded same-path preview. Compile error reporting now retains the
+original active session, editor and navigation context, including through the
+explicit queue. Obsolete requests still reject; their errors cannot overwrite
+the newer PDF label, log or status through the compile, scheduler or task
+catch. Ordinary Save/Escape reporting, all source checks and valid shared-main
+success delivery remain unchanged. Eleven focused tests and 78 regressions
+pass after the baseline failed six of eight reporting tests. Independent
+frontend and QA reviews accept the source change.
+
+The keyboard fixture now follows the actual Overview, zrok, Shared, Apps,
+App-controls order, skips disabled App controls and checks real focus. It
+supplies only the newly observed read-only Hub status. The complete local
+rendered fixture passes its request/grant/keyboard/focus checks and nine
+geometry cases. These local results do not qualify the combined hosted native
+or installer gates, which remain pending. Receipts and preserved failures are
+under ignored `artifacts/qualification/`.
+
+## Combined native Find and Move fixture candidate — 2026-10-16
+
+The earlier `6104cd4` combined hosted runs pass all 448 Rust library tests and the
+Review, Connections and Hub browser checkpoints. They stop at App controls:
+the fixture created a legacy share identity while the real editor retained its
+rooted identity. The positive setup now binds Palette, Share, revocation and
+re-sharing to the observed root and source epoch, checks the exact MCP share
+identity, and observes that identity in the actual UI heartbeat before issuing
+the original App actions. Legacy Open coverage, every previous effect and
+dirty-buffer assertion, and both zero-save counters remain. Independent source
+review accepts this fixture correction; its hosted runtime result is pending.
+
+The earlier Hub fixture read transient input immediately after Close. It now waits for the
+closed dialog and both cleared fields within fifteen seconds, retaining the
+original single click and URL assertion and adding a label assertion. The
+complete local rendered Hub fixture passes, including six geometry cases,
+200% text, text spacing, permission, linking/removal and catalogue checks.
+Both latest hosted runs also pass that corrected Hub fixture. Hosted native
+and installer gates remain pending.
+
+The earlier no-alias fixture used POST on a GET-only PDF route; its corrected GET
+still requires 404, with every MCP/API probe and production route unchanged.
+Connections now checks that End selects and focuses the new final enabled Apps
+tab while imported App controls stay disabled. The post-Save exact-source
+inspection and a separately failed post-navigation main-source checkpoint
+each observe only typed busy refusals within one fifteen-second deadline;
+one abort signal covers each observation's fetch and body. Save still executes
+once, every content/revision assertion remains, and other errors stop immediately.
+
+Native Find setup now requires its actual fresh-source registration START and
+typed acknowledgement alongside the original mount predicates within the same
+single fifteen-second wait. Registration remains forbidden during pure Find.
+Twelve Find helper models and twelve fixed-Open observation models pass.
+Actual native Find and installer results remain pending.
+
+The combined branch now includes real native Find query/history/replacement
+checks, one explicit local Save bound to its request start and acknowledgement,
+and a separately declared effective-main cleanup Compile. Narrow geometry keeps
+the actual titlebar and a full unchanged source line. The existing wide ChatGPT
+icon and narrow scrollable menu route receive their own full-value checks; real
+ArrowDown keys reach the menu item without activating Connections.
+
+The Move extension exercises native select focus, a separately observed X11
+popup, real option keys and unchanged From/To/request values. New read-only
+inspection calls have explicit two-second/64 KiB limits. Popup closure requires
+actual inventory absence or a successful unmapped observation. Every original
+76 native/37 Move assertion, eight geometry cases and existing deadline remains;
+the whole native step has a ten-minute outer bound.
+
+All 81 focused JavaScript model/helper checks, targeted syntax checks and
+architecture verification pass. Attribution inputs remain byte-exact to the
+previously verified combined candidate. The private historical double-toggle test
+remains evidence; its four portable actual-helper regressions are maintained.
+Those models do not qualify native Find, popup, persistence or complete
+installer behavior. The earlier four closed-maintenance native cases remain
+partial evidence from a different candidate. Full combined Rust/browser/native
+and installer qualification is pending. Receipts are under ignored
+`artifacts/qualification/connections-integration-20261016/`.
+
 ## Background Review status preservation candidate — 2026-10-16
 
 An ordinary busy reply from the automatic read-only Review refresh preserves
@@ -16,6 +344,83 @@ hosted Review UI busy message remains unknown. Full hosted/native qualification
 is still required. Receipts are under ignored
 `artifacts/qualification/connections-integration-20261016/`.
 
+## Combined Connections, Move, Find and preview source candidate — 2026-10-16
+
+A separate checkout combines the reviewed Connections/gateway, discard,
+rooted Review refresh and lazy PDF work with native Move, the bounded compiler
+dependency pipe, Find layout/focus and main-document preview continuity. The
+primary checkout is preserved. All 479 original dependency tuples/checksums
+remain in the 520-package lock; gateway dependencies retain general platform
+scope and Move retains its Linux GNU nix/fs dependency and Arc sync barrier.
+
+The combined source passes 202 focused JavaScript tests, architecture, Rust
+formatting, the frontend build and freshly generated notices. The complete
+JavaScript run passes 505 of 508 tests; three historical TeX layout/server tests
+fail because this environment lacks latexmk. Those failures remain recorded.
+The attribution union contains 356 Rust and 27 JavaScript components; nix and
+cfg_aliases are newly selected compared with the separate gateway snapshot.
+The original held-PDF-parse predicates remain, with an explicit asynchronous
+loader model and two additional stale-loader regressions. ChatGPT command
+normalization is limited to its exact focus/open clause, with its own test.
+
+This is source/build evidence only. Combined Rust tests, service/browser/native
+execution and hosted installer qualification remain pending. The inherited
+Move native gate remains open here. The experimental 648-package
+same-build source/PDF worker is outside this candidate. Raw source snapshots,
+merge resolutions and logs are under ignored
+`artifacts/qualification/connections-integration-20261016/`.
+
+## Main-document preview continuity candidate — 2026-10-16
+
+Selecting the current effective main document now preserves the loaded PDF,
+its pending render task and generation. A changed effective publication path
+still reloads the preview. The comparison uses the active document when the
+Set-main response arrives, preserving navigation and stale-session guards.
+
+Six actual-callback model tests pass, including delayed acknowledgements,
+navigation while awaiting a response, another active project, a replaced
+session and clearing an explicit main to the same fallback. The unchanged
+test source fails two redundant-preview-read cases before the fix and passes
+all six afterwards. These tests mock API, DOM and PDF boundaries; they do not
+qualify native rendering or the separate source/PDF inverse-navigation mount.
+The eight menu checks, 21 text-layout helper boundary cases, frontend build,
+architecture and current attribution verification also pass. Component lists
+and full license payloads remain unchanged at 331 Rust/27 JavaScript entries.
+Receipts are under ignored
+`artifacts/qualification/preview-continuity-integration-20261016/`.
+
+## Find focus and short-window layout candidate — 2026-10-16
+
+Opening Find from the menu now leaves focus in CodeMirror's real query input.
+Undo, Redo and Select all retain their existing editor-focus behavior. The
+supported search panel keeps its original DOM and handlers, with narrow-pane
+reflow and real Pretext checks for its buttons and checkbox labels. Search
+observers are removed on Close and ignore source typing and unrelated editor
+measurement-node removal. Narrow, short windows reclaim excess tab padding
+and mobile-view spacing without reducing user font sizes or removing controls.
+
+Eight command/menu checks and 21 actual-helper boundary cases pass. The
+isolated frontend build, architecture and attribution verification pass; the
+331 Rust/27 JavaScript component lists and complete license payloads remain
+unchanged. The final browser fixture passes all 14 contexts, nine complete
+Find/history flows, 222 checks, 213 geometry observations and 120 actual
+Tab/ShiftTab keys. It also covers source caret reach, close/unobserve,
+contraction/regrowth, pane breakpoints, German labels and search text spacing.
+With the actual static titlebar visible at 320×480/root28, source client height
+is 40px for an unchanged 38.4px source line. All 235 input guards match, all 52
+observed owned processes exit, no zombies remain and temporary files are
+empty/removed. Actual execution SHA-256 is
+`a017b2df50f1d0f5134c34aa889e509ae6901907e0b72f185522c3f0e0765f9a`.
+
+The earlier original attempt remains failed on its zero-height source viewport;
+frame04 remains failed with only 3px of source space. The final source05 run
+retains their evidence and all original predicates. It serves actual installed
+CodeMirror/Pretext and production command/layout code with synthetic document
+and session setup. These are static Chromium results; native WebKit effects,
+real Replace/Replace-all persistence, IME and paired Overleaf parity remain
+separate gates. The parent Move dialog's native width gate is still open.
+Raw receipts are under ignored
+`artifacts/qualification/menu-navigation-p1/continuation/find-focus/`.
 ## Native Move select containment candidate — 2026-10-16
 
 The requests selector now has a wrapper containing only the native control,
@@ -195,6 +600,40 @@ Independent verification checks archive digests, package/build/extracted
 receipts, packaged binaries/attribution and exact source/runner identities.
 No performance, crash-residue, public route, installation or release
 qualification is inferred from those bounded results.
+
+## Shared gateway and discard continuation — 2026-10-16
+
+The discard document harness passes 23 tests; an earlier session/source-binding
+suite passes 76 without a source snapshot. A later working-tree rerun passes
+74/76, with two unrelated lazy-PDF VM import fixtures failing. The real
+Rust/HTTP and Chromium discard gate passes all four
+groups, including pending suggestions without writes, rejection preserving the
+marked idea, and exact deletion/marker retirement only after local Accept.
+Its binary/assets and responsive observations are recorded in
+`artifacts/review-discard-smoke.json`. The gateway browser fixture is explicitly
+simulated native API evidence, not live routing. The
+[reference ledger](For-AI/reference-evidence.md#shared-mcp-gateway-and-discard-policies-2026-10-16)
+records identities, boundaries and outstanding public gates. No
+live ChatGPT/zrok or cross-PC credential transfer is claimed.
+The actual SDK-backed Hub module additionally passes 13 isolated runtime tests
+in 74.97 seconds, with its shim scope and exact inputs recorded in
+`artifacts/mcp-hub-unit-harness/observed-run.json`.
+The real service build, canonical Typst/HTML policy HTTP gate, multi-app
+JSON/stateful-SSE HTTP gate and four-group imported-URL HTTP gate subsequently
+pass against CLI `47ffbd9f…36a78`, then pass again against final-source CLI
+`5ba0dc92…065d0`, including the final initialization instructions. Current-source
+native type-checking and the bundled desktop build pass with immutable frontend
+`a483e8a9…6b62cb`. Actual Linux Tauri/WebKitGTK gateway execution passes four
+groups against desktop `8e89b602…630a4`: native enable/link, one combined catalogue,
+exactly-once forwarding, genuine pane/window effects and acknowledgements,
+owner/CLI denials, no source/policy writes or save IPC, and independent App/gateway
+revocation. The receipt is `artifacts/native-mcp-hub/native-gateway-evidence.json`,
+SHA-256 `063dabbfe4b4a8877fb7f18c80e9db63ac01c20bc59800258e50faa5712cf759`.
+All 63 captured build inputs remain exact; the earlier registration-runner
+failure is preserved and its enabled-control wait fixed without product changes.
+Attribution verification and its regression pass for 354 Rust/27 JavaScript
+components. These are isolated local tests with fake zrok, not a real account
+transfer, installed-app update or public ChatGPT qualification.
 
 ## Menu navigation and policy fixture continuation — 2026-10-16
 
