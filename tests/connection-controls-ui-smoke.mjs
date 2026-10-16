@@ -31,6 +31,7 @@ const reviewUrl = 'https://review.example.invalid/mcp/review-capability';
 const request = async operation => {
   calls.push(structuredClone(operation));
   if (operation.action === 'connection') return structuredClone(state);
+  if (operation.action === 'hub_status') return { enabled:false, endpoint:'', apps:[], tools:[] };
   if (operation.action === 'tunnel') {
     state.running = operation.enabled; state.endpoint = state.running ? reviewUrl : '';
     state.config = { reservation:operation.reservation, publicUrl:operation.public_url };
@@ -108,17 +109,18 @@ try {
   assert.equal(await page.locator('#connection-tab-mcp').getAttribute('aria-selected'), 'true', 'a restrictive status returns an open App panel to Overview');
   await page.locator('#connection-tab-shared').focus();
   await page.keyboard.press('ArrowRight');
-  assert.equal(await page.locator('#connection-tab-mcp').getAttribute('aria-selected'), 'true', 'keyboard skips unavailable App controls');
+  assert.equal(await page.locator('#connection-tab-apps').getAttribute('aria-selected'), 'true', 'keyboard skips unavailable App controls and selects Apps');
+  assert.equal(await page.locator('#connection-tab-apps').evaluate(element => document.activeElement === element), true, 'keyboard focuses the selected Apps tab');
   await open();
   assert.equal(await page.getByRole('tab', {name:'App controls',exact:true}).count(), 1, 'compact tabs retain complete accessible names');
   assert.equal(await page.getByRole('tab', {name:'Shared manuscripts',exact:true}).count(), 1);
   assert.equal(await page.getByRole('button', {name:'Stop tunnel and revoke all access',exact:true}).count(), 1);
   assert.equal(await page.locator('#connection-app-enabled').isDisabled(), true, 'a stopped tunnel cannot enable controls');
   await page.locator('#connection-tab-zrok').focus();
-  for (const [key, expected] of [['ArrowRight', 'shared'], ['ArrowRight', 'app'], ['Home', 'mcp'], ['ArrowRight', 'zrok'], ['ArrowLeft', 'mcp'], ['ArrowLeft', 'app']]) {
+  for (const [key, expected] of [['ArrowRight', 'shared'], ['ArrowRight', 'apps'], ['ArrowRight', 'app'], ['Home', 'mcp'], ['ArrowRight', 'zrok'], ['ArrowLeft', 'mcp'], ['ArrowLeft', 'app']]) {
     await page.keyboard.press(key);
-    assert.equal(await page.locator(`#connection-tab-${expected}`).getAttribute('aria-selected'), 'true');
-    assert.equal(await page.locator(`#connection-tab-${expected}`).evaluate(element => document.activeElement === element), true);
+    assert.equal(await page.locator(`#connection-tab-${expected}`).getAttribute('aria-selected'), 'true', `${key} selects ${expected}`);
+    assert.equal(await page.locator(`#connection-tab-${expected}`).evaluate(element => document.activeElement === element), true, `${key} focuses ${expected}`);
   }
   assert.equal(await page.evaluate(() => window.fixture.calls.some(call => call.action === 'tunnel' || call.action === 'control_enable')), false, 'opening and navigating never grants access');
   await page.locator('#connection-tab-zrok').click();

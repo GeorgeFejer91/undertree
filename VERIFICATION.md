@@ -1,8 +1,35 @@
 # Verification report
 
+## Compile error reporting and Connections keyboard candidate — 2026-10-16
+
+The two hosted runs of `b390b42` stopped at different browser checkpoints.
+The push passed Review, then exposed an old keyboard expectation in the
+Connections controls fixture. The PR run stopped while requiring a stale
+last-good PDF after deliberate disk reload. Its terminal UI showed a captured
+editor replacement refusal; the exact asynchronous interleaving was not logged.
+
+Source review and held actual-callback tests reproduce a reachable race:
+an older compile correctly refuses replaced inputs but reports its error into
+the newly loaded same-path preview. Compile error reporting now retains the
+original active session, editor and navigation context, including through the
+explicit queue. Obsolete requests still reject; their errors cannot overwrite
+the newer PDF label, log or status through the compile, scheduler or task
+catch. Ordinary Save/Escape reporting, all source checks and valid shared-main
+success delivery remain unchanged. Eleven focused tests and 78 regressions
+pass after the baseline failed six of eight reporting tests. Independent
+frontend and QA reviews accept the source change.
+
+The keyboard fixture now follows the actual Overview, zrok, Shared, Apps,
+App-controls order, skips disabled App controls and checks real focus. It
+supplies only the newly observed read-only Hub status. The complete local
+rendered fixture passes its request/grant/keyboard/focus checks and nine
+geometry cases. These local results do not qualify the combined hosted native
+or installer gates, which remain pending. Receipts and preserved failures are
+under ignored `artifacts/qualification/`.
+
 ## Combined native Find and Move fixture candidate — 2026-10-16
 
-Both latest combined hosted runs pass all 448 Rust library tests and the
+The earlier `6104cd4` combined hosted runs pass all 448 Rust library tests and the
 Review, Connections and Hub browser checkpoints. They stop at App controls:
 the fixture created a legacy share identity while the real editor retained its
 rooted identity. The positive setup now binds Palette, Share, revocation and

@@ -171,7 +171,8 @@ const windowEditing = new Compartment();
 const editorWrapping = new Compartment();
 const compileScheduler = new LatestCompileScheduler({delayMs:700,isBusy:()=>compiling,run:async key=>{
   const session = sessions.get(key);
-  if (session && session.project === active?.project) { try { await compileSession(active); } catch (error) { status(error.message,true); } }
+  const reportSession = active, reportEditor = view, reportNavigation = navigationIntent;
+  if (session && session.project === active?.project) { try { await compileSession(active); } catch (error) { if (active === reportSession && view === reportEditor && navigationIntent === reportNavigation) status(error.message,true); } }
 }});
 const reviewEffect = StateEffect.define();
 const reviewField = StateField.define({
@@ -211,7 +212,15 @@ function setWindowClosing(busy) {
   if (view) view.dispatch({ effects: windowEditing.reconfigure(windowEditorAccess()) });
   if (!busy) { if (windowFocus?.isConnected) windowFocus.focus(); windowFocus = null; }
 }
-function task(callback) { return async event => { const session = active; try { await callback(event); } catch (error) { if (session && active !== session && ['policy_missing','recovery_conflict','stale_document','stale_root'].includes(error.code)) return; status(error.message || String(error), true); } }; }
+function task(callback, compileReporting = false) { return async event => {
+  const session = active, editor = compileReporting ? view : null, navigation = compileReporting ? navigationIntent : null;
+  const reportCurrent = typeof compileReporting === 'function' ? compileReporting : compileReporting ? () => active === session && view === editor && navigationIntent === navigation : null;
+  try { await callback(event); } catch (error) {
+    if (reportCurrent && !reportCurrent()) return;
+    if (session && active !== session && ['policy_missing','recovery_conflict','stale_document','stale_root'].includes(error.code)) return;
+    status(error.message || String(error), true);
+  }
+}; }
 function closeDialogs() { for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close(); }
 function closeWorkspaceMenus(restoreFocus = false) {
   menuNavigation.close(restoreFocus);
@@ -833,6 +842,8 @@ async function loadPublicationPreview(session, intent = navigationIntent, read =
 }
 async function compileSession(session, explicit = false, path = publicationPath(session), admitted = null) {
   if (!path) return;
+  const errorSession = active, errorEditor = view, errorNavigation = navigationIntent;
+  const errorReportCurrent = admitted?.errorReportCurrent || (() => active === errorSession && view === errorEditor && navigationIntent === errorNavigation);
   const binding = admitted?.binding || captureSourceBinding(session), mainChoice = admitted?.mainChoice ?? path;
   assertSourceBinding(session, binding);
   const inputBindings = admitted?.inputBindings || [...sessions.values()].filter(input => input.project === binding.project).map(input => ({ session: input, binding: captureSourceBinding(input) }));
@@ -853,7 +864,7 @@ async function compileSession(session, explicit = false, path = publicationPath(
   }
   assertPublicationTarget(target, session, binding, mainChoice);
   checkInputs();
-  const capture = { binding, mainChoice, target, inputBindings };
+  const capture = { binding, mainChoice, target, inputBindings, errorReportCurrent };
   if (compiling) {
     if (explicit) {
       if (explicitCompiles.length >= 8) throw {message:'The compilation queue is full. Wait for a build to finish, then retry.'};
@@ -892,8 +903,11 @@ async function compileSession(session, explicit = false, path = publicationPath(
     setCompileLog(`Compiled ${path} successfully.\n${current ? 'PDF matches the saved project inputs.' : result.externalDependencyCount ? 'External package inputs are not fully verified.' : 'Source changes are newer than this PDF, inputs could not be verified, or require conflict resolution.'}${!result.compileReport && result.diagnostics ? `\n\n${result.diagnostics}` : ''}`, result.compileReport, current ? reportCurrent : null);
     status(current ? 'Typst PDF compiled locally.' : result.externalDependencyCount ? 'Compiled PDF retained; verify external package inputs.' : 'Compiled preview retained; recompile or verify project inputs.');
   } catch (error) {
-    if (active?.project === session.project && publicationPath(active) === path) pdfStatus(`${error.code === 'outcome_unknown' ? 'Build outcome unknown' : 'Compilation failed'}${pdfBytes ? ' · last good PDF retained' : ''}. Open the compilation log for details.`, 'error');
-    setCompileLog(error.message || String(error), error.compileReport, reportCurrent); status(error.message, true); throw error;
+    if (errorReportCurrent()) {
+      if (active?.project === session.project && publicationPath(active) === path) pdfStatus(`${error.code === 'outcome_unknown' ? 'Build outcome unknown' : 'Compilation failed'}${pdfBytes ? ' · last good PDF retained' : ''}. Open the compilation log for details.`, 'error');
+      setCompileLog(error.message || String(error), error.compileReport, reportCurrent); status(error.message, true);
+    }
+    throw error;
   } finally {
     compiling=false; $('typst-compile').textContent = 'Recompile';
     releaseCompileQueue();
@@ -906,7 +920,7 @@ function releaseCompileQueue() {
   void task(async () => {
     try { await compileSession(queued.session, true, queued.path, queued.capture); }
     finally { releaseCompileQueue(); }
-  })();
+  }, queued.capture.errorReportCurrent)();
 }
 function renderTabs() {
   $('manuscript-tabs').replaceChildren();
@@ -1615,7 +1629,8 @@ $('review-refresh').onclick = task(async () => {
 });
 $('export-buffer').onclick = downloadBuffer;
 $('export-manuscript').onclick = () => { closeWorkspaceMenus(); downloadBuffer(); };
-$('typst-compile').onclick = task(() => compileSession(active,true));
+const compileActive = task(() => compileSession(active,true), true);
+$('typst-compile').onclick = compileActive;
 $('tex-import').onclick = task(async () => {
   closeWorkspaceMenus();
   if (!active?.path.endsWith('.tex')) return;
@@ -1682,7 +1697,7 @@ $('git-form').onsubmit = task(async event => { event.preventDefault(); const pro
 $('github-sync-now').onclick = task(async () => { const project = githubProject; if (!project) return; const session = active; if ([...sessions.values()].some(input => input.project === project.id && input.identityProblem)) throw { message: 'Resolve the source identity before syncing this project.' }; if (session?.project === project.id) await saveSession(session); const result = await request({action:'sync',project:project.id}); pausedSync.delete(project.id); status(result.message); $('github-status').textContent = result.message; });
 document.addEventListener('keydown', task(async event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (active) await saveSession(active); }
-  if (event.key === 'F5' || ((event.ctrlKey || event.metaKey) && event.key === 'Enter')) { event.preventDefault(); await compileSession(active, true); }
+  if (event.key === 'F5' || ((event.ctrlKey || event.metaKey) && event.key === 'Enter')) { event.preventDefault(); await compileActive(event); }
   if (event.key === 'Escape') closeWorkspaceMenus(true);
 }));
 
