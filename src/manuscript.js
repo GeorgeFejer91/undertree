@@ -923,6 +923,7 @@ function releaseCompileQueue() {
   }, queued.capture.errorReportCurrent)();
 }
 function renderTabs() {
+  if (observedSelectedTab) tabGeometry.unobserve(observedSelectedTab);
   $('manuscript-tabs').replaceChildren();
   for (const session of sessions.values()) {
     if (session.project !== $('project-select').value) continue;
@@ -949,13 +950,20 @@ function renderTabs() {
     });
     close.setAttribute('aria-label',`Close ${session.path}`);tab.append(button,close);$('manuscript-tabs').append(tab);
   }
-  requestAnimationFrame(() => {
-    const tabs = $('manuscript-tabs'); const selected = tabs.querySelector('[aria-selected="true"]')?.parentElement;
-    if (!selected) return;
-    const item = selected.getBoundingClientRect(); const bounds = tabs.getBoundingClientRect();
-    if (item.left < bounds.left) tabs.scrollLeft -= bounds.left - item.left;
-    else if (item.right > bounds.right) tabs.scrollLeft += item.right - bounds.right;
-  });
+  observedSelectedTab = $('manuscript-tabs').querySelector('[aria-selected="true"]')?.parentElement;
+  if (observedSelectedTab) tabGeometry.observe(observedSelectedTab);
+  requestAnimationFrame(revealSelectedTab);
+}
+let observedSelectedTab = null;
+const tabGeometry = new ResizeObserver(revealSelectedTab);
+tabGeometry.observe($('manuscript-tabs'));
+function revealSelectedTab() {
+  const tabs = $('manuscript-tabs'); const selected = tabs.querySelector('[aria-selected="true"]')?.parentElement;
+  if (!selected) return;
+  const item = selected.getBoundingClientRect(); const bounds = tabs.getBoundingClientRect();
+  if (item.left <= bounds.left && item.right >= bounds.right) return;
+  if (item.left < bounds.left) tabs.scrollLeft -= bounds.left - item.left;
+  else if (item.right > bounds.right) tabs.scrollLeft += item.right - bounds.right;
 }
 function selectAnchor(anchor) {
   if (!view || anchor.stale || anchor.to > view.state.doc.length) return;

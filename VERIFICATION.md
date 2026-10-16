@@ -1,5 +1,32 @@
 # Verification report
 
+## Active tab visibility after resizing — 2026-10-16
+
+Both `1988c14` hosted runs pass all three native Word count layouts with the
+required two frame acknowledgements. They later fail native Find at 320 × 480
+with 28px root text: the active label and Close fit their 315px viewport but
+remain horizontally outside it. The later Move, SELECT and installer checks
+are not reached. Both Historical jobs separately stop at the policy test's old
+single-line `task` extractor before executing its held callback.
+
+The workspace now reuses its conditional horizontal tab reveal when the tab
+viewport or selected wrapper changes size. One observer retains at most those
+two elements, retires the previous wrapper and reads the current selection.
+An oversized wrapper that already spans the viewport stays stable. Editor
+state, focus, page scrolling, fonts, Pretext and native assertions are unchanged.
+The policy test extracts the current multiline function using guarded existing
+delimiters; its assertions remain. The source-epoch test gains only the two fake
+DOM capabilities needed by the observer. CI adds the tab and policy units to
+its existing explicit list.
+
+The unchanged source reproduces the tab and extractor failures; all 52 focused
+candidate cases pass. Root and independent QA source reviews accept the change.
+All 300 checks in the three CI JavaScript groups, architecture validation and
+the production frontend build pass in the integrated branch.
+The normal attribution generator refreshes the frontend source hash while
+preserving the complete notice payloads and component inventories. A matching
+hosted native and installer pass remains required.
+
 ## Native Word count frame acknowledgement — 2026-10-16
 
 Both `9bc53fc` hosted runs again fail the original narrow page-width assertion.

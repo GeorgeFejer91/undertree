@@ -245,9 +245,10 @@ test('actual transport error ownership never freezes a newer same-path binding f
 test('actual explicit clean retired tab Close permits later native no-clobber Create without old epoch or history', async () => {
   const old = make(3), sessions = new Map([['project:main.typ', old]]), operations = [], mounted = [];
   old.identityProblem = { code: 'stale_document', message: 'Known retired source.' }; old.editorState = { undo: 'old history' };
-  const node = () => ({ children: [], dataset: {}, setAttribute() {}, append(...children) { this.children.push(...children); }, replaceChildren() { this.children = []; } });
+  const node = () => ({ children: [], dataset: {}, setAttribute() {}, querySelector() { return null; }, append(...children) { this.children.push(...children); }, replaceChildren() { this.children = []; } });
   const tabs = node(), nodes = new Map([['manuscript-tabs', tabs], ['project-select', { value: 'project' }], ['new-path', { value: 'main.typ' }], ['new-dialog', { close() {} }]]);
   const environment = { ...identity, newFileContext: { project: 'project' }, inventoryRoot: () => ({}), sessions, active: null, navigationIntent: 0, keyFor: (p, path) => `${p}:${path}`, $: id => nodes.get(id), element: node, actionButton: (text, callback) => ({ text, onclick: callback, setAttribute() {} }), task: callback => callback, requestAnimationFrame() {},
+    ResizeObserver: class { observe() {} unobserve() {} },
     saveSession() { throw Error('Known clean retired Close must never Save'); }, editorBridge: { unwatch: async () => {}, watch() {} }, renderReview() {}, currentProject: () => ({ id: 'project' }), requireSessionCapacity() {}, navigationCurrent: () => true,
     request: async operation => { operations.push(operation); return snap(4); }, loadFiles: async () => {}, openSession: async session => { mounted.push(session); }, ReviewSession,
   };
