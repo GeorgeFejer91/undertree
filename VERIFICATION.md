@@ -3,13 +3,22 @@
 ## Combined native Find and Move fixture candidate — 2026-10-16
 
 Both latest combined hosted runs pass all 448 Rust library tests and the
-earlier Review/Connections browser checkpoints. They stop at a Hub fixture
-reading transient input immediately after Close. The fixture now waits for the
+Review, Connections and Hub browser checkpoints. They stop at App controls:
+the fixture created a legacy share identity while the real editor retained its
+rooted identity. The positive setup now binds Palette, Share, revocation and
+re-sharing to the observed root and source epoch, checks the exact MCP share
+identity, and observes that identity in the actual UI heartbeat before issuing
+the original App actions. Legacy Open coverage, every previous effect and
+dirty-buffer assertion, and both zero-save counters remain. Independent source
+review accepts this fixture correction; its hosted runtime result is pending.
+
+The earlier Hub fixture read transient input immediately after Close. It now waits for the
 closed dialog and both cleared fields within fifteen seconds, retaining the
 original single click and URL assertion and adding a label assertion. The
 complete local rendered Hub fixture passes, including six geometry cases,
 200% text, text spacing, permission, linking/removal and catalogue checks.
-Hosted native and installer gates remain pending.
+Both latest hosted runs also pass that corrected Hub fixture. Hosted native
+and installer gates remain pending.
 
 The earlier no-alias fixture used POST on a GET-only PDF route; its corrected GET
 still requires 404, with every MCP/API probe and production route unchanged.
