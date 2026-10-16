@@ -1362,11 +1362,22 @@ mod tests {
         for alias in [
             "/mcp/existing_private_token",
             "/mcp/control/existing_private_token",
-            "/artifacts/pdf/existing_private_token/document.pdf",
             "/api/review",
         ] {
             assert_eq!(request(address, alias, accept, init.clone()).await.0, 404);
         }
+        assert_eq!(
+            request_raw_method(
+                address,
+                "/artifacts/pdf/existing_private_token/document.pdf",
+                accept,
+                "",
+                "GET",
+            )
+            .await
+            .0,
+            404
+        );
         assert_eq!(
             request(address, "/t/wrong_token/mcp", accept, init.clone())
                 .await
@@ -1639,9 +1650,19 @@ mod tests {
         extra: &str,
         body: &str,
     ) -> (u16, Value) {
+        request_raw_method(address, path, extra, body, "POST").await
+    }
+
+    async fn request_raw_method(
+        address: std::net::SocketAddr,
+        path: &str,
+        extra: &str,
+        body: &str,
+        method: &str,
+    ) -> (u16, Value) {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
-        let raw = format!("POST {path} HTTP/1.1\r\nHost: {address}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{extra}\r\n{body}",body.len());
+        let raw = format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{extra}\r\n{body}",body.len());
         stream.write_all(raw.as_bytes()).await.unwrap();
         let mut response = Vec::new();
         tokio::time::timeout(

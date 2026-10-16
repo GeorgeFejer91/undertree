@@ -2,6 +2,13 @@
 
 ## Combined native Find and Move fixture candidate — 2026-10-16
 
+The first combined hosted runs stop at one Rust test: 447 of 448 library
+checks pass. The no-alias fixture sent POST to the GET-only PDF route and saw
+405 before its inactive-gateway handler. Its PDF probe now uses GET and retains
+the required 404; every existing MCP/API probe remains POST. Only test-module
+code changes, with its three-second/1 MiB bounds preserved. Rust formatting and
+independent source review pass; the corrected hosted test result is pending.
+
 The combined branch now includes real native Find query/history/replacement
 checks, one explicit local Save bound to its request start and acknowledgement,
 and a separately declared effective-main cleanup Compile. Narrow geometry keeps
