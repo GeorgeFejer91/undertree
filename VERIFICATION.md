@@ -2,10 +2,17 @@
 
 ## Combined native Find and Move fixture candidate — 2026-10-16
 
-Both corrected combined hosted runs pass all 448 Rust library tests. The
-earlier no-alias fixture used POST on a GET-only PDF route; its corrected GET
+Both latest combined hosted runs pass all 448 Rust library tests and the
+earlier Review/Connections browser checkpoints. They stop at a Hub fixture
+reading transient input immediately after Close. The fixture now waits for the
+closed dialog and both cleared fields within fifteen seconds, retaining the
+original single click and URL assertion and adding a label assertion. The
+complete local rendered Hub fixture passes, including six geometry cases,
+200% text, text spacing, permission, linking/removal and catalogue checks.
+Hosted native and installer gates remain pending.
+
+The earlier no-alias fixture used POST on a GET-only PDF route; its corrected GET
 still requires 404, with every MCP/API probe and production route unchanged.
-The new runs stop at two browser checkpoints before native/package execution.
 Connections now checks that End selects and focuses the new final enabled Apps
 tab while imported App controls stay disabled. The post-Save exact-source
 inspection and a separately failed post-navigation main-source checkpoint
@@ -16,8 +23,8 @@ once, every content/revision assertion remains, and other errors stop immediatel
 Native Find setup now requires its actual fresh-source registration START and
 typed acknowledgement alongside the original mount predicates within the same
 single fifteen-second wait. Registration remains forbidden during pure Find.
-Twelve Find helper models and twelve fixed-Open observation models pass. Real
-browser/native and installer results for these corrections remain pending.
+Twelve Find helper models and twelve fixed-Open observation models pass.
+Actual native Find and installer results remain pending.
 
 The combined branch now includes real native Find query/history/replacement
 checks, one explicit local Save bound to its request start and acknowledgement,
@@ -37,8 +44,8 @@ All 81 focused JavaScript model/helper checks, targeted syntax checks and
 architecture verification pass. Attribution inputs remain byte-exact to the
 previously verified combined candidate. The private historical double-toggle test
 remains evidence; its four portable actual-helper regressions are maintained.
-These are source/model checks, not native Find, popup, persistence or complete
-installer results. The earlier four closed-maintenance native cases remain
+Those models do not qualify native Find, popup, persistence or complete
+installer behavior. The earlier four closed-maintenance native cases remain
 partial evidence from a different candidate. Full combined Rust/browser/native
 and installer qualification is pending. Receipts are under ignored
 `artifacts/qualification/connections-integration-20261016/`.

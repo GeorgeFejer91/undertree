@@ -108,7 +108,10 @@ try {
   await page.locator('#connection-hub-label').fill('Unavailable app'); await page.locator('#connection-hub-upstream').fill(upstream); await page.locator('#connection-hub-link').click();
   await page.getByText('The app did not respond.', { exact: true }).waitFor();
   await page.locator('#connection-dialog [data-close]').click();
+  // The dialog queues its close event after the real Close click.
+  await page.waitForFunction(() => !document.querySelector('#connection-dialog').open && document.querySelector('#connection-hub-upstream').value === '' && document.querySelector('#connection-hub-label').value === '', null, { timeout: 15000 });
   assert.equal(await page.locator('#connection-hub-upstream').inputValue(), '');
+  assert.equal(await page.locator('#connection-hub-label').inputValue(), '');
   await page.locator('#connection-open').click(); await page.locator('#connection-tab-apps').click();
   await page.locator('#connection-hub-enabled').click(); await page.waitForFunction(() => !document.querySelector('#connection-hub-enabled').checked && !document.querySelector('#connection-dialog').getAttribute('aria-busy').includes('true'));
   await page.locator('#connection-tab-mcp').click();
