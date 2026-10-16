@@ -114,6 +114,20 @@ change was needed. Handoff
 The policy gate also passes in hosted run 38821000104; the full workflow
 remains unqualified beyond the App fixture stop described above.
 
+Hosted run 38830587957 passes fresh attribution, the focused menu checks,
+the full Rust suite and earlier publishing/editor/tree/HTML gates, then stops
+late in Review UI setup: registering the preferences project returns a busy
+document-admission refusal while editors are live. The exact lock holder is
+unproven. Registering both auxiliary fixture projects before browser startup
+removes that setup concurrency; the fixture explicitly selects the original
+project and adds one identity assertion. All original assertions and scenario
+deadlines remain. This fixture now starts with three projects; its former
+implicit single-project selection is covered separately by unchanged gates.
+Independent source review is
+`artifacts/qualification/review-ui-fixture-20261016/qa-source-review.json`,
+SHA-256 `cfc697c50912a0d698077d5b79f2aa5e1236979a17742ad24a96add0d3ddbb9d`.
+The corrected complete hosted Review UI gate remains required.
+
 Architecture and refreshed attribution verification pass; the actual Rust and
 JavaScript license payloads remain identical to v16. The broader initial
 `npm test` run is not green: three legacy compatibility cases require absent
