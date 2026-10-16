@@ -37,3 +37,8 @@ commands.allow = ["choose_import_files", "import_operation"]
 identifier = "allow-project-export"
 description = "Export an immutable saved project ZIP only to its owner-bound native-picked destination."
 commands.allow = ["prepare_project_export", "choose_project_export_destination", "project_export_operation"]
+
+[[permission]]
+identifier = "allow-file-move"
+description = "Coordinate bounded same-project source Move requests through the current local main-window owner."
+commands.allow = ["prepare_file_move", "file_move_operation"]

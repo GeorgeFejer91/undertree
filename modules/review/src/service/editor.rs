@@ -897,9 +897,47 @@ pub(super) struct EditorState {
     sessions: BTreeMap<String, Session>,
     requests: BTreeMap<String, Request>,
     import_paths: BTreeSet<(String, String)>,
+    move_paths: BTreeMap<String, (String, String, String)>,
 }
 
 impl EditorState {
+    pub(super) fn require_move_closed(&self, project: &str, from: &str, to: &str) -> Result<()> {
+        let affected = |p: &str, path: &str| p == project && (path == from || path == to);
+        if self
+            .sessions
+            .values()
+            .any(|s| affected(&s.project, &s.path))
+            || self
+                .requests
+                .values()
+                .any(|r| affected(&r.project, &r.path))
+            || self.import_paths.iter().any(|(p, path)| affected(p, path))
+        {
+            return Err(Error::new("busy","Close both source and destination tabs and finish their queued saves/imports before moving."));
+        }
+        Ok(())
+    }
+    pub(super) fn reserve_move(
+        &mut self,
+        id: &str,
+        project: &str,
+        from: &str,
+        to: &str,
+    ) -> Result<()> {
+        self.require_move_closed(project, from, to)?;
+        if self.move_paths.iter().any(|(other, (p, a, b))| {
+            other != id && p == project && [from, to].iter().any(|path| *path == a || *path == b)
+        }) {
+            return Err(Error::new("busy", "Another Move owns these paths."));
+        }
+        self.move_paths
+            .insert(id.into(), (project.into(), from.into(), to.into()));
+        Ok(())
+    }
+    pub(super) fn release_move(&mut self, id: &str) {
+        self.move_paths.remove(id);
+    }
+
     pub(super) fn has_source_binding(&self, project: &str, path: &str, epoch: u64) -> bool {
         self.sessions.values().any(|session| {
             session.project == project && session.path == path && session.source_epoch == epoch
@@ -941,7 +979,10 @@ impl EditorState {
     ) -> Result<()> {
         self.check_import_owner(owner)?;
         if paths.iter().any(|path| {
-            self.import_paths.contains(&(project.into(), path.clone()))
+            self.move_paths
+                .values()
+                .any(|(p, a, b)| p == project && (a == path || b == path))
+                || self.import_paths.contains(&(project.into(), path.clone()))
                 || self
                     .sessions
                     .values()
@@ -1065,6 +1106,7 @@ impl Service {
                 )?;
             }
             book.sessions.retain(|_, session| session.owner != owner);
+            self.retire_move_preparations(&owner)?;
         }
         let id = Uuid::new_v4().to_string();
         book.native_owners.insert(window_label.into(), id.clone());
@@ -2128,5 +2170,168 @@ impl Service {
             }
             tokio::time::sleep(Duration::from_millis(25)).await;
         }
+    }
+}
+
+#[derive(PartialEq)]
+struct MoveReceiptStamp {
+    identity: RootObservation,
+    bytes: u64,
+    modified: cap_std::time::SystemTime,
+    changed: (i64, i64),
+}
+pub(super) struct MoveReceiptProof {
+    directory: Option<RootObservation>,
+    entries: BTreeMap<String, MoveReceiptStamp>,
+}
+fn move_receipt_stamp(metadata: &cap_std::fs::Metadata) -> Result<MoveReceiptStamp> {
+    if !metadata.is_file() || metadata.nlink() != 1 {
+        return Err(history_receipt_error());
+    }
+    #[cfg(unix)]
+    let changed = {
+        use cap_std::fs::MetadataExt as Unix;
+        (Unix::ctime(metadata), Unix::ctime_nsec(metadata))
+    };
+    #[cfg(not(unix))]
+    let changed = (0, 0);
+    Ok(MoveReceiptStamp {
+        identity: RootObservation::new(metadata.dev(), metadata.ino()),
+        bytes: metadata.len(),
+        modified: metadata.modified()?,
+        changed,
+    })
+}
+impl Service {
+    // Full bounded receipt parsing happens before live editor/documents guards.
+    pub(super) fn capture_move_receipts(
+        &self,
+        project: &str,
+        from: &str,
+        to: &str,
+    ) -> Result<MoveReceiptProof> {
+        let (state, directory) = self.history_receipt_directories()?;
+        let mut entries = BTreeMap::new();
+        if let Some(directory) = directory.as_ref() {
+            for (index, entry) in directory.entries()?.enumerate() {
+                if index >= MAX_RECEIPTS {
+                    return Err(history_receipt_error());
+                }
+                let name = entry?
+                    .file_name()
+                    .into_string()
+                    .map_err(|_| history_receipt_error())?;
+                let before = move_receipt_stamp(&directory.symlink_metadata(&name)?)?;
+                let entry = history_read_receipt(directory, &name)?;
+                if move_receipt_stamp(&entry.file.metadata()?)? != before
+                    || move_receipt_stamp(&directory.symlink_metadata(&name)?)? != before
+                {
+                    return Err(history_receipt_error());
+                }
+                if entry.receipt.project == project
+                    && (entry.receipt.path == from || entry.receipt.path == to)
+                    && entry.receipt.status == "pending"
+                {
+                    return Err(Error::new(
+                        "busy",
+                        "Resolve this source's durable pending save before moving it.",
+                    ));
+                }
+                entries.insert(name, move_receipt_stamp(&entry.file.metadata()?)?);
+            }
+        }
+        self.history_check_receipt_directories(&state, directory.as_ref())?;
+        let directory = directory
+            .map(|dir| {
+                dir.dir_metadata()
+                    .map(|m| RootObservation::new(m.dev(), m.ino()))
+            })
+            .transpose()?;
+        Ok(MoveReceiptProof { directory, entries })
+    }
+    // At most1024 metadata checks; no receipt bytes or source hashes under live mutexes.
+    pub(super) fn verify_move_receipts(&self, proof: &MoveReceiptProof) -> Result<()> {
+        let (state, directory) = self.history_receipt_directories()?;
+        let identity = directory
+            .as_ref()
+            .map(|dir| {
+                dir.dir_metadata()
+                    .map(|m| RootObservation::new(m.dev(), m.ino()))
+            })
+            .transpose()?;
+        if identity != proof.directory {
+            return Err(history_receipt_error());
+        }
+        let mut count = 0;
+        if let Some(directory) = directory.as_ref() {
+            for entry in directory.entries()? {
+                count += 1;
+                if count > MAX_RECEIPTS {
+                    return Err(history_receipt_error());
+                }
+                let name = entry?
+                    .file_name()
+                    .into_string()
+                    .map_err(|_| history_receipt_error())?;
+                if proof.entries.get(&name)
+                    != Some(&move_receipt_stamp(&directory.symlink_metadata(&name)?)?)
+                {
+                    return Err(history_receipt_error());
+                }
+            }
+        }
+        if count != proof.entries.len() {
+            return Err(history_receipt_error());
+        }
+        self.history_check_receipt_directories(&state, directory.as_ref())
+    }
+}
+
+#[cfg(test)]
+mod file_move_reservation_tests {
+    use super::*;
+    #[test]
+    fn queued_request_without_session_and_import_reservations_each_refuse_move() {
+        let mut book = EditorState::default();
+        let id = Uuid::new_v4().to_string();
+        book.requests.insert(
+            id.clone(),
+            Request {
+                owner: "retained".into(),
+                ticket: Uuid::new_v4().to_string(),
+                session_id: Uuid::new_v4().to_string(),
+                project: "p".into(),
+                path: "from.typ".into(),
+                source_epoch: 0,
+                expected_root: None,
+                expires_at: 0,
+            },
+        );
+        assert!(book.sessions.is_empty());
+        assert_eq!(
+            book.reserve_move("move", "p", "from.typ", "to.typ")
+                .unwrap_err()
+                .code,
+            "busy"
+        );
+        book.requests.clear();
+        book.import_paths.insert(("p".into(), "to.typ".into()));
+        assert_eq!(
+            book.reserve_move("move", "p", "from.typ", "to.typ")
+                .unwrap_err()
+                .code,
+            "busy"
+        );
+        book.import_paths.clear();
+        book.reserve_move("move", "p", "from.typ", "to.typ")
+            .unwrap();
+        assert_eq!(
+            book.reserve_move("another", "p", "to.typ", "next.typ")
+                .unwrap_err()
+                .code,
+            "busy"
+        );
+        book.release_move("move");
+        assert!(book.move_paths.is_empty());
     }
 }

@@ -235,6 +235,7 @@ impl Service {
     }
 
     fn check_import_destination(&self, selection: &Selection) -> Result<()> {
+        self.move_project_available(&selection.project.id)?;
         let current = self.project(&selection.project.id)?;
         if current.root != selection.project.root {
             return Err(changed());
@@ -617,6 +618,7 @@ impl Service {
                             "This import belongs to another desktop page.",
                         ));
                     }
+                    self.move_project_available(&selection.project.id)?;
                     if selection.expires_at <= now() {
                         return Err(expired());
                     }
@@ -1064,3 +1066,38 @@ mod known_zero_tests;
 
 #[cfg(all(test, unix))]
 mod alias_tests;
+
+impl Service {
+    pub(super) fn move_imports_closed(&self, project: &str, from: &str, to: &str) -> Result<()> {
+        let imports = lock(&self.file_import)?;
+        fn parent(path: &str) -> &str {
+            path.rsplit_once('/').map_or("", |(parent, _)| parent)
+        }
+        let relevant = imports.selections.values().any(|selection| {
+            if selection.project.id != project
+                || (!selection.staging && selection.expires_at <= now())
+            {
+                return false;
+            }
+            match selection.staged.as_ref() {
+                Some((_, files)) => files.iter().any(|file| {
+                    let path = relative(&selection.parent_path, &file.name);
+                    path == from || path == to
+                }),
+                None => {
+                    selection.parent_path == parent(from) || selection.parent_path == parent(to)
+                }
+            }
+        }) || imports
+            .receipts
+            .values()
+            .any(|r| r.result["status"] == "pending" && r.result["project"] == project);
+        if relevant {
+            return Err(Error::new(
+                "busy",
+                "Finish or cancel the native import that can target these Move paths.",
+            ));
+        }
+        Ok(())
+    }
+}

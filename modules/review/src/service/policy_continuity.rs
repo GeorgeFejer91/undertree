@@ -177,6 +177,62 @@ impl Service {
     }
 }
 
+impl Service {
+    pub(super) fn finish_move_policy(
+        &self,
+        from: &Path,
+        to: &Path,
+        hash: Option<&str>,
+    ) -> Result<()> {
+        let from = key(from)?;
+        let to = key(to)?;
+        let mut book = lock(&self.policy_continuity)?;
+        if book
+            .witnessed
+            .get(&from)
+            .is_some_and(|w| w.missing || Some(w.hash.as_str()) != hash)
+            || book
+                .witnessed
+                .get(&to)
+                .is_some_and(|w| w.missing || Some(w.hash.as_str()) != hash)
+        {
+            return Err(conflict());
+        }
+        if let Some(hash) = hash {
+            if !book.witnessed.contains_key(&to) && book.witnessed.len() == MAX_WITNESSES {
+                return Err(Error::new(
+                    "limit",
+                    "The policy witness store is full; Move remains blocked.",
+                ));
+            }
+            book.witnessed.insert(
+                to,
+                Witness {
+                    hash: hash.into(),
+                    missing: false,
+                },
+            );
+        }
+        book.witnessed.remove(&from);
+        Ok(())
+    }
+}
+
+impl Service {
+    // Move is not a policy-refresh/adoption route. Exact restored bytes still require explicit Review first.
+    pub(super) fn require_move_policy(&self, path: &Path, raw: Option<&str>) -> Result<()> {
+        self.check_policy_continuity(path, raw)?;
+        if lock(&self.policy_continuity)?
+            .witnessed
+            .get(&key(path)?)
+            .is_some_and(|w| w.missing)
+        {
+            return Err(missing());
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

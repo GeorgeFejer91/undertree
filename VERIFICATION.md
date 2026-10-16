@@ -169,7 +169,24 @@ the parallel failure. A simplified real-markup/CSS/Pretext Chromium diagnostic
 without the app, editor or PDF does not reproduce the native overflow. The
 native fixture now captures capped geometry/style observations only after a
 failure, before and after two animation frames, while retaining every original
-assertion and deadline. No CSS cause or correction is established yet.
+assertion and deadline. The next failure records the document returning from
+458px to 320px after two animation frames, without a CSS change. A single
+existing two-frame prerequisite now follows resize/text enlargement before the
+unchanged geometry assertion, avoiding the previous fit state.
+
+Complete push run [38840439176](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38840439176)
+on `bb75ac2` passes both jobs, including all Rust/browser/native gates and the
+extracted Linux installer. Native publishing observes 320px document/body width
+at a 320px viewport and 28px text; receipt SHA-256 is
+`a783723db92693f4e2d7eca6ba3d306321360d436936f99ddd588e3eb7a2cf34`.
+Installer SHA-256 is
+`1c5ac957a41fb7e2b8e6f46a5e6df72736315799386d8018c9f491f0c1f25307`;
+extracted-package receipt SHA-256 is
+`f8857dd0e4fd63d73f49a44197ba97c97fa4a17ca967c4fc379cf8d2a21ec9bb`.
+Its archive was downloaded and matches that package digest locally. The parallel
+pull-request run 38840443332 also passes both jobs. This qualifies the menu
+branch and its extracted installer, without a new system installation, public
+ChatGPT route, pinned Overleaf runtime comparison or the separate Move candidate.
 
 Architecture and refreshed attribution verification pass; the actual Rust and
 JavaScript license payloads remain identical to v16. The broader initial
@@ -179,6 +196,81 @@ diff stalled. Its 408 passes and four failures remain in
 `artifacts/qualification/continuation-20261016/baseline-js-tests.log`.
 Rename/Move is still a private, unintegrated candidate under independent
 review. These results do not complete the final product acceptance rows.
+
+## Native source Move candidate — 2026-10-16
+
+An isolated draft adds the native-only closed-source transaction and bounded
+explicit terminal-receipt maintenance described in `modules/review/README.md`.
+Independent source reviews reconstruct the 14-file product patch and minimal
+original lock change, main-only native command/permission adapter, and later
+two-file generation/maintenance patch. The original full workspace remains
+intact; offline locked metadata resolves all 479 packages. The v6 source review
+receipt has SHA-256
+`07430182767c86596e469e7e752502782ebd626e11661c35126b5566bb4786ca`.
+At draft publication, the 42 expected focused tests had not executed on v6.
+Hosted push/PR runs 38840600528 and 38840788487 compile the full candidate and
+record 409 library passes and one failure: the dropped-waiter test expects an
+accepted `pending` receipt at hook 0, which precedes durable acceptance. Pure
+List correctly returns the persisted `prepared` phase there. The test now checks
+both hook 0 (`prepared`) and hook 1 (`pending`), verifies List/Status against the
+actual durable intent with byte-pure reads, preserves original source/epochs,
+and waits for real completion plus release of both exclusions within its
+unchanged finite loop. Runtime behavior and every other test remain unchanged.
+The corrected snapshot passes all 42 focused tests with exact source guards
+and clean worker/storage shutdown. Independent evidence review has SHA-256
+`4edb261e7ef1626ad42e3b1fd5f5e01a25c99ac865c4f8748dfc5b83878d3705`.
+Hosted push run 38843248578 on `4bd92f8` passes all 410 library tests, the
+integration suites and every preceding product browser gate. Its strict native
+Clippy step then refuses an immediately invoked closure after the test-only
+fault hook is compiled out. Extracting that exact body into a private helper
+preserves the fault boundary, Result-to-`outcome_unknown` handling and caller's
+exclusion lifetime without a lint allowance. Independent source review has
+SHA-256 `8eac0e2803ab883f03d3c09537ed84face79c17896c8d1508271016441bb3f1e`.
+Hosted PR run 38844695508 on `180a0ca` passes strict native/review Clippy,
+the full Rust and browser gates, native Word count and the preceding ten native
+UI groups. The new Move helper then fails before any Move invocation: it waits
+for a current PDF after the preceding deliberately failed build and explicit
+CLI save, but that save does not schedule a rebuild. Its fixture setup now
+clicks real Recompile once, retains the same current-PDF predicate and deadline,
+and verifies that cached PDF metadata matches the saved main source before
+capturing the Move/compiler/Save baselines. This is a test setup correction;
+fresh hosted qualification must establish actual Move effects.
+
+The corresponding push run 38844691775 stops earlier when the revoked-endpoint
+read-only catalogue probe receives 429 instead of its required 401. Source
+inspection establishes tunnel-mutex admission contention before authentication;
+the exact competing holder is unrecorded. Both revocation probes now retry only
+429 admission, using the existing ten-attempt/50-ms pattern, then assert the
+first non-429 status is exactly 401. A 200 or other denial fails immediately;
+no mutation is retried and product authentication is unchanged. Five extracted
+actual-helper checks cover those status sequences and budget exhaustion.
+These source checks do not replace the complete App-controls qualification.
+
+The maintained native UI gate also gains one helper on its existing disposable
+window. It exercises both actual typed Move commands, exact source/Review/opaque
+import-report bytes and modes, collision/non-current-owner/live-editor denial,
+epoch advance, pure receipt reads, completed replay and explicit generation
+retirement. It checks that the unrelated editor/source/policy and compiler/Save
+counters remain unchanged. This helper is source-reviewed; its native effect
+results remain pending. No browser mock is counted as native Move evidence.
+
+Fresh pinned cargo-about generation selects 331 Rust components, adding
+`nix` 0.31.3 and `cfg_aliases` 0.2.2 with their actual license/notice texts.
+All 27 JavaScript components and their notice payload remain unchanged.
+The first actual scan exceeds the generator's 600-second prerequisite budget;
+a separately recorded 1,800-second scan completes with all 306 source guards
+exact, then the original generator verifies the fresh cached output and builds
+the frontend. No product-test deadline changes. Attribution manifest SHA-256 is
+`42e0ec10d5bcd53c7eb0885ecae5757d8689bf4fa13de1707a724a2a6e0769ae`.
+Architecture, full-workspace format and current attribution checks run on the
+isolated integration; a green full Rust gate, real native effects and complete
+hosted acceptance remain required. The preceding v4 source's 27 focused checks
+and strict Clippy do not qualify v6. Its old full gate has recorded 11 failures
+and was stopped during its second lengthy quota case. Seven isolated diagnostics
+identify missing compiler-environment prerequisites; three others pass in
+isolation and one reaches its finite watchdog. The four original full-run
+causes remain unestablished; every failure/interruption is preserved separately. No new Move UI, merge, release or installation is
+claimed by this draft.
 
 ## Native Linux release and this-PC installation (2026-10-15)
 

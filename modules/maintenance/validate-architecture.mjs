@@ -77,7 +77,7 @@ export async function architectureErrors(root = repositoryRoot) {
   }
   const capability = JSON.parse(await readFile(join(root, "native/tauri/capabilities/main.json"), "utf8"));
   if (capability.remote || capability.windows?.join() !== "main") errors.push("Review capabilities must apply only to the local main window");
-  const allowedPermissions = ["core:default", "core:window:allow-close", "core:window:allow-minimize", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize", "allow-review-action", "allow-word-count", "allow-history-query", "allow-editor-operation", "allow-control-operation", "allow-choose-project", "allow-file-import", "allow-project-export", "core:window:allow-maximize", "core:window:allow-unmaximize", "core:window:allow-unminimize", "core:window:allow-set-focus"];
+  const allowedPermissions = ["core:default", "core:window:allow-close", "core:window:allow-minimize", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize", "allow-review-action", "allow-word-count", "allow-history-query", "allow-editor-operation", "allow-control-operation", "allow-choose-project", "allow-file-import", "allow-project-export", "allow-file-move", "core:window:allow-maximize", "core:window:allow-unmaximize", "core:window:allow-unminimize", "core:window:allow-set-focus"];
   if (capability.permissions?.some(permission => !allowedPermissions.includes(permission))) {
     errors.push("Tauri must not add generic shell, filesystem or remote review capabilities");
   }

@@ -7,6 +7,7 @@ import { resolve, join } from 'node:path';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { nativeFixtureContextScript } from './native-fixture-context.mjs';
+import { seedNativeFileMove, qualifyNativeFileMove } from './native-file-move-contract.mjs';
 import { createHash } from 'node:crypto';
 
 assert.equal(process.platform, 'linux', 'This qualification uses Linux WebKitGTK and X11.');
@@ -193,6 +194,7 @@ try {
   const crlfSource = join(project, 'windows.typ');
   const crlfOriginal = '= Windows manuscript\r\n\r\nSecond 😀 passage.\r\n';
   await writeFile(crlfSource, crlfOriginal);
+  await seedNativeFileMove(project);
   const data = join(fixture, 'data');
   const state = join(data, 'io.github.georgefejer91.UnderTree', 'review');
   const descriptor = join(state, 'cli', 'instance.json');
@@ -377,6 +379,7 @@ try {
   await qualifyChrome();
   assert.deepEqual(await execute('return window.__undertreeNativeErrors'), [], 'Native resize and text enlargement have no uncaught errors.');
   checks.push('Native 320 px reflow, 200% text, short-height finite controls and visible frame SVG ink centers pass without page scrolling.');
+  await qualifyNativeFileMove({execute,click,waitFor,project,state,projectId:'33333333-3333-4333-8333-333333333333',compilerCalls,evidence,checks});
   await screenshot('native-typst-workspace.png');
   const buffer = await execute('return document.querySelector(".cm-content").textContent');
   await click('#window-minimize');

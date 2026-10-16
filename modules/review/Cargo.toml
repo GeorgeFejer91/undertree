@@ -22,3 +22,6 @@ cap-std = "=4.0.3"
 cap-fs-ext = "=4.0.3"
 futures-core = "0.3"
 zip = { version = "=9.0.3", default-features = false }
+
+[target.'cfg(all(target_os = "linux", target_env = "gnu"))'.dependencies]
+nix = { version = "=0.31.3", default-features = false, features = ["fs"] }

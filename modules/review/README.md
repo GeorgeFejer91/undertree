@@ -3,8 +3,9 @@
 `undertree-review` owns approved project roots, manuscript/review persistence,
 color policies, scoped proposals, local acceptance, Typst compilation,
 best-effort TeX import and GitHub checkpoints. The Tauri desktop and local
-CLI/browser adapter dispatch the same typed `Operation`; the agent MCP
-catalogue is a separate closed subset.
+CLI/browser adapter dispatch the same typed `Operation`. Dedicated native
+commands retain their narrower caller boundaries; the agent MCP catalogue is
+a separate closed subset.
 
 ## Boundaries
 
@@ -59,6 +60,34 @@ and Git authority; `publishing.rs` owns Typst process/PDF handling;
 `transport.rs` owns MCP and loopback
 adapters. `native/tauri/` forwards local commands and supplies native folder
 selection. Browser save/review coordination lives in `modules/frontend/`.
+
+## Native closed-source Move
+
+The local main-window owner can prepare one `.typ` or `.html` rename/move,
+including its exact Review sidecar and import report, through the typed
+`prepare_file_move` and `file_move_operation` commands. Both endpoint editor
+sessions must be closed, including inactive tabs. Preparation binds the
+approved root, source epoch, source revision and nullable raw sidecar revision;
+it never saves, discards or closes a buffer. Commit is explicit and refuses
+overwrite. An accepted interrupted transaction fences its affected source
+operations until explicit roll-forward reconciliation. Source History keeps its
+old binding; moved sources receive a new epoch and affected grants are revoked.
+
+Native discovery returns an opaque decimal `generation` and historical
+receipts. Every stateful request must retain that generation and its original
+request UUID; an old generation cannot be relabelled or replayed automatically.
+Historical completion does not prove today's paths or main document. At most
+64 receipts are retained per generation. Explicit terminal-receipt retirement
+requires every move terminal and every owned Git deletion cleared by normal
+confirmed Sync; offline or failed Sync can therefore block capacity. Retirement
+never starts Sync or changes project files. Its bounded private journal and
+initialization witness preserve uncertain outcomes and refuse missing control
+state rather than resetting generation.
+
+The atomic no-overwrite source-move path currently supports Linux GNU only.
+There is no Move UI in this backend slice, or HTTP, generic `Operation`, CLI or
+MCP exposure. Folder/assets and recoverable deletion remain separate work.
+See the candidate's exact validation status in the root `VERIFICATION.md`.
 
 ## Run and verify
 
