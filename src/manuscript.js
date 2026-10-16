@@ -1836,6 +1836,6 @@ setInterval(async () => {
     await session.refresh();
     if (active === session && (before !== JSON.stringify(session.snapshot.review) || session.conflict)) { renderReview(); decorations(); queueSync(session.project); }
     if (session.conflict && active?.project === session.project && publicationPath(active)) pdfStatus('Project input conflict · last good PDF retained');
-  } catch (error) { if (active === session) { if (session.identityProblem) { clearTimeout(saveTimers.get(session)); saveTimers.delete(session); compileScheduler.cancel(); renderReview(); pdfStatus('Source identity changed · last good PDF retained'); } status(error.message, true); } }
+  } catch (error) { if (active === session) { if (session.identityProblem) { clearTimeout(saveTimers.get(session)); saveTimers.delete(session); compileScheduler.cancel(); renderReview(); pdfStatus('Source identity changed · last good PDF retained'); } if (error.code !== 'busy') status(error.message, true); } }
   finally { refreshing = false; }
 }, 2000);

@@ -1,5 +1,21 @@
 # Verification report
 
+## Background Review status preservation candidate — 2026-10-16
+
+An ordinary busy reply from the automatic read-only Review refresh preserves
+an existing compile/status receipt. Identity changes still freeze the source,
+cancel pending Save/compile work and retain the last good PDF. Other failures
+and busy errors from explicit user actions remain visible; no action is replayed.
+
+The same five extracted production-callback tests pass after failing three
+cases before the change. The frontend build, architecture and attribution
+verification pass; component lists and full license payloads remain unchanged
+at 331 Rust and 27 JavaScript entries. Independent source review accepted the
+one-condition change. This is model/source evidence; the exact producer of the
+hosted Review UI busy message remains unknown. Full hosted/native qualification
+is still required. Receipts are under ignored
+`artifacts/qualification/connections-integration-20261016/`.
+
 ## Native Move select containment candidate — 2026-10-16
 
 The requests selector now has a wrapper containing only the native control,
