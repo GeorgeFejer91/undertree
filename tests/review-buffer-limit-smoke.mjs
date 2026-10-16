@@ -35,7 +35,7 @@ async function chooseFile(page, path) {
 async function menuAction(page, command) {
   const menu = await page.locator('#workspace-menu summary').isVisible() ? '#workspace-menu' : '#menu-file';
   await page.locator(`${menu} summary`).click();
-  await page.locator(menu).getByRole('button', { name: command, exact: true }).click();
+  await page.locator(menu).getByRole('menuitem', { name: command, exact: true }).or(page.locator(menu).getByRole('button', { name: command, exact: true })).click();
 }
 async function closeTab(page, path) {
   await page.getByRole('button', { name: `Close ${path}`, exact: true }).click();

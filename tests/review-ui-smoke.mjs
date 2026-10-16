@@ -70,7 +70,7 @@ async function assertChrome(page, label) {
 async function menuAction(page, menu, label) {
   const id=await page.locator('#workspace-menu summary').isVisible()?'workspace-menu':`menu-${menu}`;
   await page.locator(`#${id} summary`).click();
-  await page.locator(`#${id}`).getByRole('button',{name:label,exact:true}).click();
+  await page.locator(`#${id}`).getByRole('menuitem',{name:label,exact:true}).or(page.locator(`#${id}`).getByRole('button',{name:label,exact:true})).click();
 }
 async function waitForSource(page, path) {
   await page.waitForFunction(path => {
@@ -110,11 +110,19 @@ let browser, failurePage, failureStage='main';
 try {
   assert.equal((await fetch(base+'/api/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'projects'})})).status,401);
   const project=await call({action:'add_project',root:projectRoot});
+  // Register fixture projects before live editor operations can hold document admission.
+  const secondRoot=join(root,'other-project');await mkdir(secondRoot);await writeFile(join(secondRoot,'other.html'),'<p>Only B may own this new highlight.</p>\n');
+  const secondProject=await call({action:'add_project',root:secondRoot});
+  const preferenceRoot=join(root,'preferences-project');await mkdir(preferenceRoot);
+  const preferenceSource='<p>'+ 'An editable sentence. '.repeat(25)+'</p>\n';await writeFile(join(preferenceRoot,'settings.html'),preferenceSource);
+  const preferenceProject=await call({action:'add_project',root:preferenceRoot});
   const denied=await call({action:'open',project:project.id,path:'../main.html'},true);assert.equal(denied.code,'path');
   browser=await chromium.launch({executablePath:process.env.UNDERTREE_CHROME || '/usr/bin/google-chrome',headless:true,args:['--no-sandbox']});
   const context=await browser.newContext({viewport:{width:1600,height:1000}});
   const page=failurePage=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.goto(base+`/manuscript.html#session=${token}`);
+  await page.locator('#project-select').selectOption(project.id);
+  assert.equal(await page.locator('#project-select').inputValue(),project.id,'the scenario starts in the intended registered project');
   assert.equal(await page.locator('#window-titlebar').isVisible(), false, 'native controls stay hidden in browser mode');
   assert.equal(await page.locator('#review-app').evaluate(root => root.classList.contains('native-window')), false, 'browser keeps its own window frame');
   await page.getByLabel('Folder chapters', {exact:true}).click();
@@ -634,6 +642,8 @@ try {
   assert.equal(await page.locator('#workspace-menu [data-command="clear-main-document"]').evaluate(button=>button.scrollWidth<=button.clientWidth+1&&button.scrollHeight<=button.clientHeight+2),true,'main document controls remain measured and readable at 320px with enlarged text');
   await page.keyboard.press('Escape');await page.evaluate(()=>{document.documentElement.style.fontSize='';});await page.setViewportSize({width:1600,height:1000});
   await page.reload();
+  await page.locator('#project-select').selectOption(project.id);
+  assert.equal(await page.locator('#project-select').inputValue(),project.id,'the reloaded bibliography scenario selects its original project explicitly');
   await page.getByRole('button',{name:'references.bib',exact:true}).click();await waitForSource(page,'references.bib');
   assert.equal(await page.locator('#typst-compile').isVisible(),true,'a configured main remains compilable while a bibliography is selected');
   assert.equal(await page.locator('#typst-compile').getAttribute('title'),'Compile book.typ');
@@ -758,8 +768,6 @@ try {
   await page.locator('#compile-log-toggle').click();await assertChrome(page,'preview failure status and controls preserve finite chrome');
   await call({action:'tunnel',enabled:false,reservation:'',public_url:''});
   assert.notEqual((await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list'})}).catch(()=>({status:0}))).status,200);
-  const secondRoot=join(root,'other-project');await mkdir(secondRoot);await writeFile(join(secondRoot,'other.html'),'<p>Only B may own this new highlight.</p>\n');
-  const secondProject=await call({action:'add_project',root:secondRoot});
   for (const fixture of [project,secondProject]) await call({action:'bind_github',project:fixture.id,repository:'qualification/undertree-fixture',auto_sync:true});
   const syncProjects=[];let metadataAction;let releaseMetadata;let metadataHeld;
   const routeMetadata=async route=>{
@@ -836,9 +844,6 @@ try {
   await page.waitForFunction(()=>document.getElementById('review-conflict').hidden);
   assert.equal((await page.locator('.cm-content').textContent()).trim(),'<p>An external author changed the disk source.</p>','an unchanged explicit retry loads the selected disk version');
   assert.equal(await readFile(join(projectRoot,'main.html'),'utf8'),'<p>An external author changed the disk source.</p>\n','recovery never overwrites the external source');
-  const preferenceRoot=join(root,'preferences-project');await mkdir(preferenceRoot);
-  const preferenceSource='<p>'+ 'An editable sentence. '.repeat(25)+'</p>\n';await writeFile(join(preferenceRoot,'settings.html'),preferenceSource);
-  const preferenceProject=await call({action:'add_project',root:preferenceRoot});
   const preferenceContext=await browser.newContext({viewport:{width:1600,height:1000}});const preferencePage=failurePage=await preferenceContext.newPage();failureStage='preferences';
   preferencePage.on('pageerror',error=>errors.push(error.message));
   await preferencePage.goto(base+`/manuscript.html#session=${token}`);

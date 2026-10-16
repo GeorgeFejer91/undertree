@@ -59,8 +59,11 @@ try {
   for (const stream of [service.stdout, service.stderr]) stream.on('data', bytes => { log = (log + bytes).slice(-16_000); port = Number(log.match(/127\.0\.0\.1:(\d+)/)?.[1]); });
   await until(() => !!port, 'The isolated policy service did not start.'); base = `http://127.0.0.1:${port}`;
   const project = await call({ action: 'add_project', root: projectRoot });
-  const initial = await call({ action: 'open', project: project.id, path: 'main.html' });
-  await call({ action: 'mark', project: project.id, path: 'main.html', revision: initial.review.revision, from: source.indexOf('target'), to: source.indexOf('target') + 6, rule: 'protect', prompt: 'Keep the approved target.' });
+  const observed = await call({ action: 'open', project: project.id, path: 'main.html' });
+  const binding = Object.freeze({ sourceEpoch: observed.sourceEpoch, expectedRoot: Object.freeze({ ...observed.expectedRoot }) });
+  const initial = await call({ action: 'open', project: project.id, path: 'main.html', ...binding });
+  assert.deepEqual(initial.expectedRoot, binding.expectedRoot); assert.equal(initial.sourceEpoch, binding.sourceEpoch);
+  await call({ action: 'mark', project: project.id, path: 'main.html', ...binding, revision: initial.review.revision, from: source.indexOf('target'), to: source.indexOf('target') + 6, rule: 'protect', prompt: 'Keep the approved target.' });
   const policy = await readFile(sidecar);
   browser = await chromium.launch({ executablePath: process.env.UNDERTREE_CHROME || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
   page = await browser.newPage({ viewport: { width: 1440, height: 900 } }); page.on('pageerror', error => errors.push(error.message));
