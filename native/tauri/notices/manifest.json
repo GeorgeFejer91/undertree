@@ -27,7 +27,7 @@
     "modules/frontend/review-text-layout.js": "02c52aa7ab0c9e94c01387f5ab980cbb51c7b0e61779262d2ef376801aa4cd30",
     "modules/frontend/sidebar-splitter.js": "c97680567a948ceffe3e1a8276a4645adcd9379a08b1a93b3c2db175a92595cc",
     "modules/frontend/source-format.js": "9aa3db53b6f049ded67457fe19335309ca88931291cf2a6ec1cdcc86926c8016",
-    "modules/frontend/text-details.js": "c50053477b2bfee948a26323b1394d69a4acba099cfc12fe838d2677ec444ae4",
+    "modules/frontend/text-details.js": "09e58b034234660ca758e41a2156c7edf7d72b1672c7e4a4d58e709dba7af0b3",
     "modules/frontend/typst-insertion.js": "e8f10553edbeb16c3d15699f0ba7f26b47f1553934e5c4eadb8cf27ec52fd21a",
     "modules/frontend/typst-language.js": "5ff4529c70eb2c9d130b64f1d9326e7cbacd3f4c23914f6d1e5d63d7ffcf405f",
     "modules/frontend/window-chrome.js": "793d29ebe00e08f4488562bc89a1bebb432ff58b70701aff9e99b0fdf1ca4f7c",

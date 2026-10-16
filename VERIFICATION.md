@@ -1,5 +1,34 @@
 # Verification report
 
+## Status focus through measured details — 2026-10-16
+
+Both exact `17f8ef5` hosted runs pass 609 Historical checks, all three native
+Word count layouts/frame acknowledgements, the complete declared native Find,
+history, Save and cleanup Compile flow, and raw typed Move. The two visible
+pointer clicks pass. Both then fail the later SELECT helper's status-ID check
+after the first narrow Move geometry, before Shift+Tab/popup and the remaining
+seven geometries, UI Commit or installer. The status source has Pretext
+`fit=details` and zero geometry. An empty active ID does not identify the active
+element or prove the exact hosted callback order.
+
+The shared text-details helper now follows current source/descendant focus to
+its own visible details button when measurement hides the source, and restores
+focus on regrowth. It checks current document focus synchronously; unrelated,
+blurred and unchanged-representation updates do not refocus. The native fixture
+requires actual focus on the exact owning source or generated button, a positive
+finite body-exposed box and its full accessible value. Source mode retains the
+original status ID. Real keys, popup/focus-ring/full-value checks, all original
+Move assertions/eight geometries, budgets and cleanup remain.
+
+The same 13 actual production-callback tests reproduce four failures on the old
+helper and pass all 13 on the candidate. Nine strict fixed-node reader models
+also pass. Root and independent source reviews pass. Integrated checks pass
+6 + 83 + 271 = 360 tests, architecture validation, four syntax checks, diff
+validation and a fresh frontend build. Normal notice generation changes only
+the shared helper's source-input hash; full notice payloads, all other manifest
+fields and the 356 Rust/27 JavaScript attributions remain exact. Matching hosted
+native and installer qualification of this focus change remains required.
+
 ## Native Find visible click and frame timing — 2026-10-16
 
 Both `924fd87` Historical suites pass all 590 tests and both Review UI

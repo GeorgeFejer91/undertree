@@ -7,11 +7,31 @@ export function readMoveSelect() {
   const rect=node=>{const box=node.getBoundingClientRect();return {left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width,height:box.height};};
   const style=getComputedStyle(wrapper),control=getComputedStyle(select);
   const value=id=>{const node=document.getElementById(id),range=document.createRange();range.selectNodeContents(node);return {id,text:node.textContent,box:rect(node),glyph:rect(range),font:parseFloat(getComputedStyle(node).fontSize),fit:node.dataset.textFit,clientWidth:node.clientWidth,scrollWidth:node.scrollWidth};};
+  const status=document.getElementById('file-move-status'),slot=status.parentElement,details=slot?.classList.contains('text-details-slot')&&slot.classList.contains('text-details-active');
+  const button=details&&slot.children.length===2&&slot.firstElementChild===status&&slot.lastElementChild.matches('.text-details-button')?slot.lastElementChild:null;
+  const surface=details?button:status,surfaceStyle=surface?getComputedStyle(surface):null;
   return {viewport:{width:innerWidth,height:innerHeight},documentFocused:document.hasFocus(),activeId:document.activeElement?.id,dialogOpen:dialog.open,modal:dialog.matches(':modal'),dialog:rect(dialog),title:rect(dialog.querySelector('h2')),footer:rect(dialog.querySelector(':scope > .dialog-actions')),body:rect(body),bodyClientWidth:body.clientWidth,bodyScrollWidth:body.scrollWidth,bodyScrollTop:body.scrollTop,bodyScrollHeight:body.scrollHeight,bodyClientHeight:body.clientHeight,dialogClientHeight:dialog.clientHeight,dialogScrollHeight:dialog.scrollHeight,
     rootFont:parseFloat(getComputedStyle(document.documentElement).fontSize),select:rect(select),selected:select.value,index:select.selectedIndex,options:[...select.options].map(option=>({value:option.value,text:option.textContent})),appearance:control.appearance,
     associated:select.labels.length===1&&select.labels[0].control===select,wrapper:rect(wrapper),onlySelect:wrapper.children.length===1&&wrapper.firstElementChild===select,wrapperClass:wrapper.className,focusWithin:wrapper.matches(':focus-within'),outline:{style:style.outlineStyle,width:parseFloat(style.outlineWidth),offset:parseFloat(style.outlineOffset),color:style.outlineColor},contain:style.contain,overflowX:style.overflowX,overflowY:style.overflowY,
     detailOpen:document.getElementById('file-move-request-detail').open,draftHidden:document.getElementById('file-move-draft').hidden,
-    from:value('file-move-from'),to:value('file-move-to'),identity:value('file-move-identity'),status:value('file-move-status'),commit:{hidden:document.getElementById('file-move-commit').hidden,disabled:document.getElementById('file-move-commit').disabled}};
+    from:value('file-move-from'),to:value('file-move-to'),identity:value('file-move-identity'),status:value('file-move-status'),commit:{hidden:document.getElementById('file-move-commit').hidden,disabled:document.getElementById('file-move-commit').disabled},
+    statusSurface:{mode:details?'details':'source',sourceId:status.id,sourceRole:status.getAttribute('role'),sourceDisplay:getComputedStyle(status).display,title:status.dataset.textDetails,tag:surface?.tagName,id:surface?.id||'',focused:!!surface&&document.activeElement===surface,connected:!!surface?.isConnected,hidden:surface?.hidden??true,disabled:surface?.disabled??false,display:surfaceStyle?.display,visibility:surfaceStyle?.visibility,box:surface?rect(surface):null,label:surface?.textContent,accessibleName:surface?.getAttribute('aria-label'),hasPopup:surface?.getAttribute('aria-haspopup')}};
+}
+
+export function assertMoveStatusFocus(value) {
+  const surface=value.statusSurface;
+  assert.equal(value.documentFocused,true);
+  assert.equal(surface.sourceId,'file-move-status');assert.equal(surface.focused,true,'Production focus follows the actual accessible status surface without synthetic fixture focus.');
+  assert.equal(surface.connected,true);assert.equal(surface.hidden,false);assert.equal(surface.disabled,false);
+  assert.notEqual(surface.display,'none');assert.equal(surface.visibility,'visible');
+  assert.ok(surface.box&&['left','right','top','bottom','width','height'].every(name=>Number.isFinite(surface.box[name]))&&surface.box.width>0&&surface.box.height>0,'The focused status surface has a real positive finite box.');
+  assert.ok(surface.box.left>=value.body.left-1&&surface.box.right<=value.body.right+1&&surface.box.top>=value.body.top-1&&surface.box.bottom<=value.body.bottom+1,'The actual focused status surface is exposed inside the Move body.');
+  if(surface.mode==='details') {
+    assert.equal(value.status.fit,'details');assert.equal(surface.sourceDisplay,'none');assert.equal(surface.tag,'BUTTON');assert.equal(surface.hasPopup,'dialog');
+    assert.equal(surface.label,surface.sourceRole==='alert'?'Error details':surface.title);assert.equal(surface.accessibleName,`${surface.label}: ${value.status.text}`);
+  } else {
+    assert.equal(surface.mode,'source');assert.notEqual(value.status.fit,'details');assert.equal(surface.id,'file-move-status');assert.equal(value.activeId,'file-move-status');
+  }
 }
 
 function assertShell(value) {
@@ -36,7 +56,7 @@ export async function qualifyNativeMoveSelect({execute,command,click,waitFor,nat
     const app=properties(String(nativeWindow));assert.ok(app.pid,'The existing native window exposes its app PID.');
     const before=await read(),dispatchStart=await execute('return window.__nativeMoveUiDispatch.length;');
     const identity=before.identity.text,selected=before.selected,option=before.options.find(row=>row.value===selected);
-    assert.equal(before.activeId,'file-move-status','Original production post-Prepare focus reaches its intended status without synthetic focus.');
+    assertMoveStatusFocus(before);
     assert.equal(before.documentFocused,true);assert.equal(before.options.length,2);assert.match(selected,/^1:[0-9a-f-]{36}$/);
     assert.equal(option?.text,'z-ui-source.typ → moves/z-ui-moved.typ · prepared');assert.equal(option.text.length,49);
     assert.equal(before.detailOpen,false);assert.equal(before.draftHidden,true);
