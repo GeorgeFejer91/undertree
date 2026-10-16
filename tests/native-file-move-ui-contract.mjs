@@ -143,9 +143,24 @@ async function qualifyMoveDialogGeometry({execute, command, click, waitFor, evid
               id:node.id,tag:node.tagName,fit:node.dataset.textFit,clientWidth:node.clientWidth,scrollWidth:node.scrollWidth,
               fontSize:parseFloat(getComputedStyle(node).fontSize),rootFont:parseFloat(getComputedStyle(document.documentElement).fontSize)
             }));
+            const nodes=[...dialog.querySelectorAll('*')];
+            const descendants=nodes.slice(0,128).map(node=>{
+              const style=getComputedStyle(node),closedDetails=[];
+              for(let parent=node;parent&&parent!==dialog;parent=parent.parentElement) {
+                if(parent.tagName==='DETAILS'&&!parent.open&&!parent.querySelector(':scope > summary')?.contains(node)) closedDetails.push(parent.id);
+              }
+              return {tag:node.tagName,id:node.id,parent:node.parentElement?.id||node.parentElement?.className||node.parentElement?.tagName,
+                visible:visible(node),hidden:node.hidden,closedDetails,box:rect(node),clientWidth:node.clientWidth,scrollWidth:node.scrollWidth,
+                textLength:node.textContent.length,optionCount:node.options?.length,selectedIndex:node.selectedIndex,
+                computed:{display:style.display,width:style.width,minWidth:style.minWidth,maxWidth:style.maxWidth,
+                  overflowX:style.overflowX,whiteSpace:style.whiteSpace,overflowWrap:style.overflowWrap}};
+            });
+            const bodyRect=rect(body);
+            const overflowNodes=descendants.filter(node=>node.scrollWidth>node.clientWidth+1||node.box.left<bodyRect.left-1||node.box.right>bodyRect.right+1).slice(0,64);
             return {rootFont:parseFloat(getComputedStyle(document.documentElement).fontSize),viewport:{width:innerWidth,height:innerHeight},dialog:rect(dialog),title:rect(title),body:rect(body),footer:rect(footer),
               dialogClientHeight:dialog.clientHeight,dialogScrollHeight:dialog.scrollHeight,bodyClientWidth:body.clientWidth,bodyScrollWidth:body.scrollWidth,
-              maintenanceOpen:document.getElementById('file-move-maintenance').open,measured};
+              maintenanceOpen:document.getElementById('file-move-maintenance').open,measured,
+              descendantCount:nodes.length,descendantsTruncated:nodes.length>128,descendants,overflowNodes};
           `);
           evidence.nativeFileMoveUiLayoutPending={requested:{width,height,maintenance},...value};
         return value.measured.length && value.measured.every(node=>node.fit && !['deferred','no-fit'].includes(node.fit)) ? value : false;

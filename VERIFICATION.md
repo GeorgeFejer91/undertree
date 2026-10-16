@@ -71,7 +71,18 @@ The complete local Node suite records 482 passes and three failures requiring
 unavailable legacy `latexmk`; those failures remain recorded and the hosted
 workflow is the pending complete gate. Runtime source, locks and workflow
 remain byte-identical to the initial UI candidate.
-Integrated native UI/installer results remain pending. No release, installation,
+The corrected hosted push/PR runs 38850502580 and 38850507062 pass the early
+fixture gate, all 418 Rust library tests and browser gates. Both reach the real
+native Move layout check, then fail its original horizontal-overflow assertion
+at 320×480 with 28px root text: body client width 222px versus scroll width
+681px. Individually measured labels fit; the saved evidence does not identify
+the overflowing control or ancestor. The preceding raw typed-command Move
+passes, but the new dialog Commit and installer are not reached. These remain
+failed runs. A test-only passive capture now records up to 128 descendant boxes
+and computed width policies, including native selects and closed-details
+ancestry, plus up to 64 overflow observations before the same assertions.
+No runtime source, action, assertion or deadline changes accompany this capture.
+Integrated native UI/installer qualification remains open. No release, installation,
 IME or paired Overleaf parity is inferred from the build or mocked native wire.
 
 
