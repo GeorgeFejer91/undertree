@@ -90,7 +90,7 @@ export async function architectureErrors(root = repositoryRoot) {
     errors.push("The agent MCP catalogue must contain exactly list/read/suggest tools");
   }
   const reviewPolicy = await readFile(join(root, "modules/review/src/document.rs"), "utf8");
-  if (!reviewPolicy.includes("pub fn policy") || [...reviewPolicy.matchAll(/self\.policy\(/g)].length < 2) {
+  if (!reviewPolicy.includes("pub fn policy") || !reviewPolicy.includes("self.policy(from, to)?") || [...reviewPolicy.matchAll(/self\.suggestion_policy\(/g)].length < 2) {
     errors.push("Rust must recheck review policy at proposal submission and acceptance");
   }
   return errors;

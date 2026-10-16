@@ -4,24 +4,25 @@
   "cargoAboutBinarySha256": "67e8e0134a88ab25194f2d3b3ab157d5a6467fc091df3af93e63f355a111828f",
   "target": "x86_64-unknown-linux-gnu",
   "inputs": {
-    "Cargo.lock": "0f7d79fb18bbd4e16e22fdca2f569a724dfcc50cec5649aae654c79b5b0008c7",
-    "Cargo.toml": "7d7664114335d2407ce20baa755c38b841ffce6467cb2c305fd56c51c2c2b3b3",
+    "Cargo.lock": "f4eeacdee235bc951f14a77d6a80271f102a8fae2c59c6247f2bde72650faff7",
+    "Cargo.toml": "ffb06f9cb215a2afd93b0d87311ee6b31f0603d303839f52be0ae1cc1af0144c",
     "index.html": "5b51c9843f12350952806eb6baac1db2ebb753168716a65b5cdf31f50ccbdeef",
     "layout/compiler.mjs": "f3c8d7238be5041c1f8d1b5177e469eb15d05a2286050288a53f302055978e15",
-    "manuscript.html": "07113890e589dab6992429ac324b2098f8e2d864c26b7dfa4d58df99fb2e7092",
+    "manuscript.html": "bffab02e50b66d8674c48177b32dfa5d3773e46d8581c19755751a0aa599ea2e",
     "modules/frontend/compile-report.js": "845068bfbcf4da0b6fa0eaaa85518c77d44899d06d369fce64479647302d5482",
     "modules/frontend/editor-session-bridge.js": "e4262f0a4433b1d32bbe23fe7eb1683643d86174816848748d8ac029e6e38250",
     "modules/frontend/file-import.js": "2372cfd9f8751a572f69bb0f61d88afca098ef2463ba8c9cf571cd95859c0798",
     "modules/frontend/history-controller.js": "eade0bbc4b7a9e18fcac4103922a797865c204a82a83207c49610916d2b157d9",
     "modules/frontend/latest-compile-scheduler.js": "9eb3e5b270f841c7458d6e873f5a2c2850f2f0d7ea98f05c154de03a99dc6007",
     "modules/frontend/manuscript-control-state.js": "16abac3b78d26e3c1c94337db66432ed2d64f6315701d5689fa175eb24765a2c",
-    "modules/frontend/manuscript-pdf-viewer.js": "d5d9f50dae2d6c5b385d5ee5a5f46380dac556820c2876a7c6077e327d9727b5",
+    "modules/frontend/manuscript-pdf-viewer.js": "4752caa0e1df677132e84eacdd6aca0dd70368f8e6cc0f81a73a1374dcc2760b",
     "modules/frontend/manuscript-workspace.js": "fa4e7a65375c74a1f3a50e29b5177487365a72243bd9aac00bc462b358edb4c5",
+    "modules/frontend/menu-navigation.js": "d4082939fe6014a985a396f7d64327b5f19a5d80eaf3a586688ca7bea370dd95",
     "modules/frontend/pretext-runtime.js": "0eae01496c1d8eff597b62940e6797e13aca3d7dd282cc225d9910871bc3cf75",
     "modules/frontend/project-export.js": "d035216507aad6acc18790203e9fff37b0ea46fe35395a94b15db4d321e8e870",
     "modules/frontend/review-api.js": "4327730b950fb6bdfd863e811413613b59d24b566447663de62fea3d9c74e520",
     "modules/frontend/review-position.js": "d35bd5db4ac7e012a66b6f2491168145083cfd65075cf6cf5d97298bc3225c92",
-    "modules/frontend/review-session.js": "dd0c828a3c123559c369c71dd7c878e58f4513f1b6649adaad8cd4373fb6fb5b",
+    "modules/frontend/review-session.js": "9d24d949058bb1ab43b8980dfe08b35b7c847bd45e83c6ff262b585c480a41ae",
     "modules/frontend/review-text-layout.js": "b3318d1e6b2e6157658908adc5f9307d5905d437a2a57b681b4167cd5bbdddde",
     "modules/frontend/sidebar-splitter.js": "c97680567a948ceffe3e1a8276a4645adcd9379a08b1a93b3c2db175a92595cc",
     "modules/frontend/source-format.js": "9aa3db53b6f049ded67457fe19335309ca88931291cf2a6ec1cdcc86926c8016",
@@ -33,17 +34,18 @@
     "modules/frontend/word-count-worker.js": "7ceac8b7bcdcf4defa36d19c7e0479225666e6d0a3096b05d3c97504be46f224",
     "modules/frontend/word-count.js": "05e891b7718acd413cddd62172f05264ad754e0b2fe8fdb932ebd25f8cdb4fad",
     "modules/maintenance/generate-notices.mjs": "2dabccc83efa977d944bf6b4e147362e464eb607e87563de85a86ce3cd42e3a5",
-    "modules/review/Cargo.toml": "6e862b855c8f7f8535d0bd4c22d45b86251b46738bbd8828bcc19173d6d1e6e3",
+    "modules/review/Cargo.toml": "7e2bfe920aa2de042b03fc4a88bd3dd39a78289faf2578ced5d8b6151d52b77c",
     "native/tauri/Cargo.toml": "d934f1392b37a85004f825435dbd60665ed3062fd4aa5609223119bda4baa601",
     "package-lock.json": "fc8d2e5c5197ac4c0339e935fbdb756b8a55025226a8452a26512c8ee29de16a",
-    "package.json": "3449fbb5e3c13582d70a8e629481a7d2c45a4ee96e2f33cb0a04e8875dfae212",
-    "packaging/licenses/about.toml": "eca34091195b076af1474dfe05ae477b8362ea6e2361dfe0a730804f87440f9d",
+    "package.json": "1162c4686d9043d1736f2ec7d1fb7483dd8e0228e80415769138d08ce26b6ea4",
+    "packaging/licenses/about.toml": "bbfac09b49b8e5c01d1192c54ed915f6fe0a1def6bdd632394c5e0e39583a57a",
     "packaging/licenses/upstream/alloc-stdlib-LICENSE": "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae",
     "packaging/licenses/upstream/dlopen2-LICENSE": "39fa265207450e77c62e90c5594a06c085b655d8374c7ced4bf7894b6bd95dd2",
-    "packaging/licenses/upstream/provenance.json": "19ea04d71f25fa59aa97941552941d73770aa9432c31827ac38cf08807d48fdf",
+    "packaging/licenses/upstream/provenance.json": "77d459c4160d717b7ccbf016bc190b8c9abda79c2698a2fa83898fed3e0ab8cc",
+    "packaging/licenses/upstream/rmcp-LICENSE": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a",
     "packaging/licenses/upstream/tauri-plugin-LICENSE-MIT": "9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d",
     "packaging/licenses/upstream/typst-LICENSE": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
-    "src/connection-manager.js": "3ab30fd94f1bedcf736a4495624ed4d88c94e41b4902ca393207882eebf73f1c",
+    "src/connection-manager.js": "b48220f0667188ca1fcd157b560ffd2b541c358fb40f949042a89ff0d10121c6",
     "src/file-tree-actions.js": "dba091734fcb8c7d126bb14ffc8648ddeecbc63ff2ace3907dec7358646211f9",
     "src/file-tree-filter.js": "507494144dc981327aa5f497099dd2f6ebaa308c0a3de144860619da1323a43e",
     "src/history-panel.css": "fb73532aa14225b1f91c1c96e7a73a54129872fc95641a9315a18f6405dcda71",
@@ -54,9 +56,10 @@
     "src/html-tex-export.js": "02b2eb758298eb5b3095bf6648cbd02d48d5848bbafb9cf219c098f6bfc5b948",
     "src/html-visual-layout.js": "840c05e0f9306da1722e08ecf0a9fd42222d510ead4bc216480563961070f99d",
     "src/main.js": "b19ea1f927250305cdbb2da63b9cb29b14648f533ff9837739baa6513cf17775",
-    "src/manuscript.css": "d29f816998b73eeb6aec107422e3e3befd8e251c82c93ba23a5878e9ea97928a",
-    "src/manuscript.js": "961de8277a881dd106b5f21ab89b8b1da637d0d52d1b6932d3f29a11dec473b6",
+    "src/manuscript.css": "80611b468d97ac0fbbc35288a124ba812a2f708aa95b4f22c6d6c695db15f339",
+    "src/manuscript.js": "443f40a0b876705ddbc107ed1086d4a47511dbfcf3d12ba51eea5209b3b5c6cd",
     "src/mcp-control.js": "0d905cce833e08f256577ce74ae536f9c73f3cbfa739f9413113674a1223432e",
+    "src/mcp-hub.js": "f3d36911fa8a3b71330ee310547b0375f3f0df0837122d759dab09c688689ffe",
     "src/outline.js": "6fd74b48248bfb03ae785456f5db7f8d496ca716fc70cb642b70c1f963d6d073",
     "src/pdf-export-consent.js": "de83eda507f42e62c4b03425a5100074163b078f887cd4fb285ffa19028e5f23",
     "src/pdf-preview-cache.js": "ab9c1a1af982b3f8d1822f75675a62921b70ed3593638b53bb24fe3f1ce698aa",
@@ -71,7 +74,7 @@
     "vite.config.js": "0ed5260235a9c79fb9534163d1e67c0ee749082156fa5fd04dd78496d3674f61"
   },
   "outputs": {
-    "THIRD-PARTY-RUST.md": "e6236e945c68945f880b2911c60b4b7f8ab8e2a43d3e92239a260874154ea2b9",
+    "THIRD-PARTY-RUST.md": "a790b772f5a3e40c1adca682917d07d7cade1186938c9a6e803bc64f1bdaabd2",
     "THIRD-PARTY-JAVASCRIPT.md": "d87b37d0ef9f018a2f4d62f08eb93177b64c8f464f33dab1a778a648cf671316"
   },
   "rustComponents": [
@@ -114,6 +117,14 @@
     [
       "autocfg",
       "1.5.1"
+    ],
+    [
+      "aws-lc-rs",
+      "1.18.2"
+    ],
+    [
+      "aws-lc-sys",
+      "0.46.0"
     ],
     [
       "axum",
@@ -218,6 +229,14 @@
     [
       "cfg-if",
       "1.0.5"
+    ],
+    [
+      "chrono",
+      "0.4.45"
+    ],
+    [
+      "cmake",
+      "0.1.58"
     ],
     [
       "cookie",
@@ -396,8 +415,16 @@
       "1.2.2"
     ],
     [
+      "fs_extra",
+      "1.3.0"
+    ],
+    [
       "fs-set-times",
       "0.20.3"
+    ],
+    [
+      "futures",
+      "0.3.34"
     ],
     [
       "futures-channel",
@@ -560,6 +587,10 @@
       "1.12.0"
     ],
     [
+      "hyper-rustls",
+      "0.27.10"
+    ],
+    [
       "hyper-util",
       "0.1.21"
     ],
@@ -646,6 +677,10 @@
     [
       "javascriptcore-rs-sys",
       "1.1.1"
+    ],
+    [
+      "jobserver",
+      "0.1.35"
     ],
     [
       "json-patch",
@@ -740,8 +775,16 @@
       "0.2.2"
     ],
     [
+      "num-traits",
+      "0.2.19"
+    ],
+    [
       "once_cell",
       "1.21.4"
+    ],
+    [
+      "openssl-probe",
+      "0.2.1"
     ],
     [
       "option-ext",
@@ -876,8 +919,16 @@
       "0.8.11"
     ],
     [
+      "reqwest",
+      "0.13.5"
+    ],
+    [
       "rfd",
       "0.16.0"
+    ],
+    [
+      "rmcp",
+      "3.5.1"
     ],
     [
       "rustc_version",
@@ -894,6 +945,26 @@
     [
       "rustix-linux-procfs",
       "0.1.1"
+    ],
+    [
+      "rustls",
+      "0.23.46"
+    ],
+    [
+      "rustls-native-certs",
+      "0.8.5"
+    ],
+    [
+      "rustls-pki-types",
+      "1.15.1"
+    ],
+    [
+      "rustls-platform-verifier",
+      "0.7.1"
+    ],
+    [
+      "rustls-webpki",
+      "0.103.15"
     ],
     [
       "ryu",
@@ -1026,6 +1097,10 @@
     [
       "soup3-sys",
       "0.5.0"
+    ],
+    [
+      "sse-stream",
+      "0.2.6"
     ],
     [
       "stable_deref_trait",
@@ -1180,6 +1255,14 @@
       "2.7.2"
     ],
     [
+      "tokio-rustls",
+      "0.26.6"
+    ],
+    [
+      "tokio-stream",
+      "0.1.19"
+    ],
+    [
       "tokio-util",
       "0.7.20"
     ],
@@ -1236,8 +1319,16 @@
       "0.1.44"
     ],
     [
+      "tracing-attributes",
+      "0.1.31"
+    ],
+    [
       "tracing-core",
       "0.1.36"
+    ],
+    [
+      "try-lock",
+      "0.2.5"
     ],
     [
       "typed-path",
@@ -1288,6 +1379,10 @@
       "0.1.0"
     ],
     [
+      "untrusted",
+      "0.9.0"
+    ],
+    [
       "url",
       "2.5.8"
     ],
@@ -1314,6 +1409,10 @@
     [
       "walkdir",
       "2.5.0"
+    ],
+    [
+      "want",
+      "0.3.2"
     ],
     [
       "web_atoms",
@@ -1370,6 +1469,10 @@
     [
       "zerofrom-derive",
       "0.1.8"
+    ],
+    [
+      "zeroize",
+      "1.9.1"
     ],
     [
       "zerotrie",
@@ -1679,10 +1782,31 @@
     },
     {
       "id": "Apache-2.0",
+      "sha256": "728536b4160e051f86d7c9c388f704866b3d512cd7df97ac3516c65279523c4e",
+      "components": [
+        "aws-lc-sys@0.46.0"
+      ]
+    },
+    {
+      "id": "Apache-2.0",
       "sha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a",
       "components": [
         "dpi@0.1.2",
         "tao@0.37.1"
+      ]
+    },
+    {
+      "id": "Apache-2.0",
+      "sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a",
+      "components": [
+        "rmcp@3.5.1"
+      ]
+    },
+    {
+      "id": "BSD-3-Clause",
+      "sha256": "728536b4160e051f86d7c9c388f704866b3d512cd7df97ac3516c65279523c4e",
+      "components": [
+        "aws-lc-sys@0.46.0"
       ]
     },
     {
@@ -1717,6 +1841,34 @@
       ]
     },
     {
+      "id": "ISC",
+      "sha256": "7abd9b6960dcf7d4d0a48606a5b71bfe37d472db68d70637f3a58a56785f1621",
+      "components": [
+        "untrusted@0.9.0"
+      ]
+    },
+    {
+      "id": "ISC",
+      "sha256": "728536b4160e051f86d7c9c388f704866b3d512cd7df97ac3516c65279523c4e",
+      "components": [
+        "aws-lc-sys@0.46.0"
+      ]
+    },
+    {
+      "id": "ISC",
+      "sha256": "5b698ca13897be3afdb7174256fa1574f8c6892b8bea1a66dd6469d3fe27885a",
+      "components": [
+        "rustls-webpki@0.103.15"
+      ]
+    },
+    {
+      "id": "ISC",
+      "sha256": "b50b376e7d24a0598488b730c3034ffcd0b58dd36c0913a24b9903a3cfd04bf7",
+      "components": [
+        "aws-lc-rs@1.18.2"
+      ]
+    },
+    {
       "id": "MIT",
       "sha256": "ea417315dc653b10a03911cbc3a724fafa75d3ed6381b358e3bed8ed2b50ffea",
       "components": [
@@ -1728,6 +1880,13 @@
       "sha256": "6226d0632e2e1a80c23597e964da9812ae193c535fe058154afb034e94167aa5",
       "components": [
         "atomic-waker@1.1.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "728536b4160e051f86d7c9c388f704866b3d512cd7df97ac3516c65279523c4e",
+      "components": [
+        "aws-lc-sys@0.46.0"
       ]
     },
     {
@@ -1782,7 +1941,10 @@
       "components": [
         "cc@1.8.0",
         "cfg-if@1.0.5",
+        "cmake@0.1.58",
         "find-msvc-tools@0.1.14",
+        "jobserver@0.1.35",
+        "openssl-probe@0.2.1",
         "pkg-config@0.3.34",
         "socket2@0.6.5",
         "toml_datetime@0.6.3"
@@ -1817,6 +1979,7 @@
         "bitflags@2.13.2",
         "glob@0.3.4",
         "log@0.4.34",
+        "num-traits@0.2.19",
         "regex-automata@0.4.18",
         "regex-syntax@0.8.11",
         "regex@1.13.1"
@@ -1939,7 +2102,8 @@
         "futures-macro@0.3.34",
         "futures-sink@0.3.34",
         "futures-task@0.3.34",
-        "futures-util@0.3.34"
+        "futures-util@0.3.34",
+        "futures@0.3.34"
       ]
     },
     {
@@ -1969,6 +2133,15 @@
       "sha256": "3f39c032be4639be635da96d77c4d0f4393c3595a164450ffd86f3d17701ec10",
       "components": [
         "webkit2gtk@2.0.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "709e3175b4212f7b13aa93971c9f62ff8c69ec45ad8c6532a7e0c41d7a7d6f8c",
+      "components": [
+        "hyper-rustls@0.27.10",
+        "rustls-native-certs@0.8.5",
+        "rustls@0.23.46"
       ]
     },
     {
@@ -2015,6 +2188,13 @@
       "sha256": "fb77f0a9c53e473abe5103c8632ef9f0f2874d4fb3f17cb2d8c661aab9cee9d7",
       "components": [
         "scopeguard@1.2.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "dd87e27dfbaa888cb77ea34592648a7743636b8dce07e49543bddda0fcfc73bc",
+      "components": [
+        "reqwest@0.13.5"
       ]
     },
     {
@@ -2075,6 +2255,13 @@
     },
     {
       "id": "MIT",
+      "sha256": "e20fa2b8e0a2565f24a792b94b4bf4b6c2b9d36f781d8a9516e218a036e6677a",
+      "components": [
+        "tokio-rustls@0.26.6"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "503558bfefe66ca15e4e3f7955b3cb0ec87fd52f29bf24b336af7bd00e946d5c",
       "components": [
         "signal-hook-registry@1.4.8"
@@ -2103,6 +2290,13 @@
     },
     {
       "id": "MIT",
+      "sha256": "a65f5d0a945d267751344c95665945b90c030ea107faf5c85d518929886187da",
+      "components": [
+        "want@0.3.2"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "d5c22aa3118d240e877ad41c5d9fa232f9c77d757d4aac0c2f943afc0a95e0ef",
       "components": [
         "block-buffer@0.10.4"
@@ -2118,9 +2312,23 @@
     },
     {
       "id": "MIT",
+      "sha256": "c816a0749cdc6bf062a5111c159723de51b2bfac66a1dac2655abd9e6b1583eb",
+      "components": [
+        "try-lock@0.2.5"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "29e9fe5074bd27e0e5d5d110394fbbcd841baee2651a3c4b4560a632702cede4",
       "components": [
         "getrandom@0.3.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "8c7516d4b27b1e495be5e38b612298b63de48d05f49cdac94f70f3cd70f8864b",
+      "components": [
+        "zeroize@1.9.1"
       ]
     },
     {
@@ -2148,6 +2356,7 @@
       "id": "MIT",
       "sha256": "898b1ae9821e98daf8964c8d6c7f61641f5f5aa78ad500020771c0939ee0dea1",
       "components": [
+        "tracing-attributes@0.1.31",
         "tracing-core@0.1.36",
         "tracing@0.1.44"
       ]
@@ -2195,6 +2404,13 @@
       "sha256": "3521672491a3479422d5fe1aca6645dd2984090f85da6e5205abfb18fb7a6897",
       "components": [
         "crypto-common@0.1.7"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "9117d922e667125508dde62b02c1f57ed22f5ad21eb536aa2e2d99e1c796e639",
+      "components": [
+        "rustls-pki-types@1.15.1"
       ]
     },
     {
@@ -2319,6 +2535,13 @@
         "tauri-runtime@2.12.2",
         "tauri-utils@2.10.2",
         "tauri@2.12.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "251ea8ccb1205ce5fa847d6e264d6b6753af62de2cecf2fd9abc0eb02c7c83fc",
+      "components": [
+        "fs_extra@1.3.0"
       ]
     },
     {
@@ -2455,6 +2678,13 @@
     },
     {
       "id": "MIT",
+      "sha256": "1c7cf76689c837a68ed8d704994e52a0f2940c087958f860d17f3186afbdcc0c",
+      "components": [
+        "rustls-platform-verifier@0.7.1"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "65fc947f4bac882a2cd104ef73c246b1b037059df9f2b3a58b7f77f0b9e56071",
       "components": [
         "rfd@0.16.0"
@@ -2497,8 +2727,16 @@
     },
     {
       "id": "MIT",
+      "sha256": "049d23c7810a0723f186a193f841378dbc307f62be89bdba21c73126b0df2c52",
+      "components": [
+        "sse-stream@0.2.6"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "253cd04c6714889df2d32f3f64d669179a1c95c76ac43c40882c52eb06bc3552",
       "components": [
+        "tokio-stream@0.1.19",
         "tokio-util@0.7.20",
         "tokio@1.53.3"
       ]
@@ -2666,6 +2904,20 @@
       "sha256": "bccaa8b6c09f94e81f06696e179dbe058464bbdfbc823b6d49cada1d71e84ac3",
       "components": [
         "ctor@1.0.13"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "946c9835d8034d24404f8cfec5f4654cee5dad17e944afc3d06d742cf2882831",
+      "components": [
+        "chrono@0.4.45"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a",
+      "components": [
+        "rmcp@3.5.1"
       ]
     },
     {

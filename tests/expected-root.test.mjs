@@ -64,7 +64,8 @@ test('pure Review cannot silently adopt changed, added or missing root authority
     await assert.rejects(session.refresh(), error => error.code === 'stale_root');
     assert.equal(session.snapshot, original); assert.equal(session.editorState.undo, 'retained'); assert.equal(session.identityProblem.code, 'stale_root'); assert.equal(session.reviewProblem, null); assert.equal(session.conflict, null);
     await assert.rejects(session.flush(), error => error.code === 'stale_root'); await assert.rejects(session.refresh({ retryProblem: true }), error => error.code === 'stale_root');
-    assert.deepEqual(calls.map(operation => operation.action), ['review']); assert.equal(Object.hasOwn(calls[0], 'expectedRoot'), false);
+    assert.deepEqual(calls.map(operation => operation.action), ['review']); assert.equal(Object.hasOwn(calls[0], 'expectedRoot'), Boolean(oldRoot));
+    if (oldRoot) assert.deepEqual(calls[0].expectedRoot, oldRoot);
   }
 });
 
@@ -76,6 +77,20 @@ test('native stale_root latches without repair reads; a late old-root error cann
   const fresh = make(), gate = deferred(); fresh.request = async () => { await gate.promise; throw { code: 'stale_root', message: 'Late old refusal.' }; };
   const refreshing = fresh.refresh(); await turn(); rebind(fresh, root1); gate.resolve(); await assert.rejects(refreshing);
   assert.equal(fresh.identityProblem, null); assert.deepEqual(fresh.expectedRoot, root1);
+});
+
+test('conflict observations keep their original root and latch native retirement without adopting another source', async () => {
+  for (const mode of ['save', 'editor']) {
+    const operations = [], original = snap(root0), session = new ReviewSession(original, 'project', async operation => {
+      operations.push(operation);
+      throw operation.action === 'save' ? { code: 'conflict', message: 'Saved source changed.' } : { code: 'stale_root', message: 'Captured project root retired.' };
+    });
+    session.edit('retained draft');
+    const work = mode === 'save' ? session.flush() : session.saveEditorSnapshot({ isCurrent: () => true, isBusy: () => false, publish: async () => {}, commit: async () => { throw { code: 'conflict', message: 'Saved source changed.' }; } });
+    await assert.rejects(work, error => error.code === 'stale_root');
+    assert.equal(session.snapshot, original); assert.equal(session.content, 'retained draft'); assert.equal(session.dirty, true); assert.equal(session.identityProblem.code, 'stale_root');
+    assert.deepEqual(operations.at(-1), { action: 'review', project: 'project', path: 'main.typ', sourceEpoch: 2, expectedRoot: root0 });
+  }
 });
 
 test('Register digest, stale-owner retry and late reply retain the immutable root and never add it to closed Update inputs', async t => {

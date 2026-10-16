@@ -1,8 +1,222 @@
 # Verification report
 
+## Shared gateway and discard continuation — 2026-10-16
+
+The discard document harness passes 23 tests; an earlier session/source-binding
+suite passes 76 without a source snapshot. A later working-tree rerun passes
+74/76, with two unrelated lazy-PDF VM import fixtures failing. The real
+Rust/HTTP and Chromium discard gate passes all four
+groups, including pending suggestions without writes, rejection preserving the
+marked idea, and exact deletion/marker retirement only after local Accept.
+Its binary/assets and responsive observations are recorded in
+`artifacts/review-discard-smoke.json`. The gateway browser fixture is explicitly
+simulated native API evidence, not live routing. The
+[reference ledger](For-AI/reference-evidence.md#shared-mcp-gateway-and-discard-policies-2026-10-16)
+records identities, boundaries and outstanding public gates. No
+live ChatGPT/zrok or cross-PC credential transfer is claimed.
+The actual SDK-backed Hub module additionally passes 13 isolated runtime tests
+in 74.97 seconds, with its shim scope and exact inputs recorded in
+`artifacts/mcp-hub-unit-harness/observed-run.json`.
+The real service build, canonical Typst/HTML policy HTTP gate, multi-app
+JSON/stateful-SSE HTTP gate and four-group imported-URL HTTP gate subsequently
+pass against CLI `47ffbd9f…36a78`, then pass again against final-source CLI
+`5ba0dc92…065d0`, including the final initialization instructions. Current-source
+native type-checking and the bundled desktop build pass with immutable frontend
+`a483e8a9…6b62cb`. Actual Linux Tauri/WebKitGTK gateway execution passes four
+groups against desktop `8e89b602…630a4`: native enable/link, one combined catalogue,
+exactly-once forwarding, genuine pane/window effects and acknowledgements,
+owner/CLI denials, no source/policy writes or save IPC, and independent App/gateway
+revocation. The receipt is `artifacts/native-mcp-hub/native-gateway-evidence.json`,
+SHA-256 `063dabbfe4b4a8877fb7f18c80e9db63ac01c20bc59800258e50faa5712cf759`.
+All 63 captured build inputs remain exact; the earlier registration-runner
+failure is preserved and its enabled-control wait fixed without product changes.
+Attribution verification and its regression pass for 354 Rust/27 JavaScript
+components. These are isolated local tests with fake zrok, not a real account
+transfer, installed-app update or public ChatGPT qualification.
+
+## Menu navigation and policy fixture continuation — 2026-10-16
+
+The qualified review snapshot connects the existing menu-navigation helper to the
+actual File/Edit/Insert/View/Highlight/Help and mobile disclosures. Keyboard
+traversal rechecks visible, enabled commands, preserves native form controls,
+and returns focus on Escape. Existing command and protected-Close handlers
+remain byte-identical. Four browser fixture helpers now accept the actual
+menuitem or native-button roles.
+
+All seven production-hook regressions fail against the saved old adapter;
+the integrated adapter passes 37 focused checks. A fresh 65-input/15-asset
+frontend build and the unchanged installed v16 CLI pass six actual Chromium
+groups, including desktop/mobile traversal, fixture command activation,
+320 CSS px/200% text, breakpoint/regrowth checks, and preservation of dirty
+source, selection, Undo/Redo and exact saved protection bytes without
+menu-triggered writes. Receipt
+`artifacts/qualification/menu-navigation-p1/continuation/browser-attempt02/receipt.json`
+has SHA-256 `b7b18d56fb3d98863b7253e0bc75b7ce52e4d66a5b73e196c119c207680b4866`.
+The initial missing-sidecar fixture failure is preserved; corrected setup
+creates a real root/epoch-bound protection before taking its byte baseline.
+The matching Linux Tauri/WebKit binary passes four native groups covering all
+six desktop menus, native form controls, narrow/enlarged/short/regrown layouts,
+and dirty selection/Undo/Redo with exact source and policy preservation.
+Native receipt `continuation/native-attempt01/receipt.json` under the same menu
+qualification directory has SHA-256
+`9e3576a143b95031ab3169ac3c93b3cd454901c2389555312fcddd9584b280a9`.
+Desktop SHA-256 is
+`8cf8df01466a136cc5c7ccd465afd6514474181dcf6d2a297cd5767f85e0aca1`.
+The first successful build's strict input wrapper rejected a concurrent notice
+manifest refresh. That failure is retained; a separate same-config build with
+the declared metadata update produces the identical binary and passes the
+complete input checks. All owned runtime processes exit and private test
+storage is removed. CI now runs the same focused 37-check regression suite.
+Paired Overleaf comparison and new installer qualification remain separate.
+
+Pinned original `@restart/ui` 1.9.4 source establishes that ArrowUp/ArrowDown
+stay at the enabled-item endpoints. The helper now follows that behavior;
+the 37 focused checks pass with the endpoint assertions corrected. A new
+65-input/15-asset frontend build passes its complete input checks. Its build
+receipt `continuation/clamp/build-receipt.json` has SHA-256
+`cdc084c62e09a4668203a7b040df937bb8eeb8cefc060a6304ef6fd5b5594f6b`.
+The matching native build also passes its input checks, producing desktop
+SHA-256 `4c994ca3a337defce70b38a18ac72336dc30065443551c78853176460d4dde4b`.
+The endpoint-corrected build passes all six browser groups again, with exact
+65 frontend/62 backend/15 asset guards and source/policy preservation. Receipt
+`continuation/menu-gate-attempt-browser-clamp/evidence/receipt.json` has SHA-256
+`e819c81eb724bd41a4157903fddb988ca4b89b06f42b1689021f5aa982c5083e`.
+The new native attempt stops at private window-manager readiness before an
+application or driver starts; it supplies no menu observations. Its input
+guards pass and owned processes/storage are cleaned up. Earlier native
+receipts above identify the preceding implementation, so native qualification
+of the endpoint correction remains open.
+
+Hosted runs 38828861357 and 38828855791 stop earlier at attribution verification:
+the notice manifest still records the preceding menu-helper input hash.
+Fresh generation corrects that metadata, retaining byte-identical Rust and
+JavaScript license payloads for 329 and 27 components respectively. All
+65 frontend/62 backend inputs remain exact, and its 15 regenerated assets
+match the tested endpoint-corrected build. Receipt
+`artifacts/qualification/continuation-20261016/notices-clamp-refresh.json`
+has SHA-256 `54b719967e1ab3d19db28c50eb273b7a053de7a4bd36d59bc893d620f8862353`.
+This metadata correction requires a fresh hosted run.
+
+Hosted run 38819332811 passes the menu/Close regression step and historical
+compatibility job, then stops in the App-controls fixture at its File-menu
+button locator. Accepting the actual menuitem role lets run 38821000104 reach
+the dirty/inactive-buffer assertion. That run also passes the Rust tests,
+Typst publishing, editor-save, tree, HTML, Review, workspace, settings,
+selection, policy, word-count and Connections gates; its later native and
+installer gates remain skipped.
+
+Separate actual frozen-v16 observations reproduce two App fixture defects.
+An automatic Save can take the response gate before the delayed tree click;
+navigation then correctly refuses the fixture-blocked Save of newer content.
+Activating the real tree command in the dirty-tab mutation microtask makes
+the intended navigation-first scenario deterministic, preserving actual
+CodeMirror typing, native Save and the held-response/newer-edit race. A second
+failure then proves that the fixture's unrooted private document ID differs
+from the UI's rooted identity. Capturing and reopening with the private root
+and epoch repairs that expected identity while retaining shared-document
+legacy compatibility. Neither correction changes product save behavior.
+
+The corrected complete fixture passes all 87 assertions on the released v16
+binary and frozen assets: all 84 original assertions and scenario deadlines
+are retained, with three additional prerequisite checks. Both Save and
+editor_commit attempt counts and exact source/policy byte checks remain.
+All 325 input guards match, owned processes exit and temporary storage is
+removed. Summary
+`artifacts/qualification/app-ci-continuation-20261016/full-frozen-v16-green.json`
+has SHA-256 `00e53f2887c290757c606439ee827b35e838df2302bb148a9748c43f8e32e1bd`.
+This qualifies the intended navigation-first fixture; it does not qualify
+every automatic-save ordering. A matched corrected-menu run and a new full
+hosted run remain required.
+
+The same 87-assertion fixture against the new endpoint-corrected build stops
+at the first private-file PDF canvas, before the later App scenarios. Its
+inputs remain exact and owned processes/storage are cleaned up. The same
+symptom occurred in an earlier frozen-v16 attempt; its cause is unproven.
+The frozen-v16 success is not qualification of the new combined build. A
+stronger compile-target prerequisite and passive trace remain private,
+unqualified diagnostic work.
+
+Hosted runs 38760615456 and 38760604395 stop before any policy scenario because
+their fixture compares an unrooted setup document ID with the UI's rooted
+share. The exact old runner reproduces that refusal locally. Capturing the
+root/epoch and reopening with that binding passes all six real-service policy
+groups on the same v16 binary/assets, retaining all 44 original assertions and
+scenario deadlines and adding two setup identity assertions. No product policy
+change was needed. Handoff
+`artifacts/qualification/policy-ci-continuation-20261016/handoff.json` has SHA-256
+`44c45d5b3ffb70a93ee39c0afe178ed540763d1aa0c3ba55f458a39c1f4771a5`.
+The policy gate also passes in hosted run 38821000104; the full workflow
+remains unqualified beyond the App fixture stop described above.
+
+Hosted run 38830587957 passes fresh attribution, the focused menu checks,
+the full Rust suite and earlier publishing/editor/tree/HTML gates, then stops
+late in Review UI setup: registering the preferences project returns a busy
+document-admission refusal while editors are live. The exact lock holder is
+unproven. Registering both auxiliary fixture projects before browser startup
+removes that setup concurrency; the fixture explicitly selects the original
+project and adds one identity assertion. All original assertions and scenario
+deadlines remain. This fixture now starts with three projects; its former
+implicit single-project selection is covered separately by unchanged gates.
+Independent source review is
+`artifacts/qualification/review-ui-fixture-20261016/qa-source-review.json`,
+SHA-256 `cfc697c50912a0d698077d5b79f2aa5e1236979a17742ad24a96add0d3ddbb9d`.
+The corrected complete hosted Review UI gate remains required.
+
+Hosted run 38833742961 reaches the later bibliography scenario, where reload
+also requires explicit project selection now that setup has three projects.
+The fixture selects the original project UUID after reload and asserts it;
+all original assertions and scenario deadlines remain. The audit covers all
+six document-entry boundaries, each now followed by its intended project
+selection. Independent source review is
+`artifacts/qualification/review-ui-fixture-20261016/qa-reload-entry-review.json`,
+SHA-256 `31884087a70268db6afd4d9c5a4f39cad6fe3fa8ac2c447b131021f50c656059`.
+This correction still requires the complete hosted Review gate.
+
+The maintained native UI fixture now exercises ArrowDown/ArrowUp and endpoint
+clamping in all six desktop menus with actual OS key events, then checks
+Escape focus restoration and unchanged dirty buffer, disk bytes, dirty label,
+and Save/editor_commit attempt counts. All 64 existing assertions remain;
+12 menu assertions are added after the existing denied-save/compile settlement.
+Independent source review accepts the extension; its runtime qualification is
+pending the existing hosted native gate, rather than inferred from older
+native receipts.
+
+
+Hosted push run 38835853642 on `824008d` passes the complete corrected Review
+and 87-assertion App fixtures, all preceding product browser gates, strict
+Rust/native Clippy, native Word count and the maintained native UI fixture.
+The latter performs all six menus' real OS-key traversal, endpoint clamps,
+Escape focus and dirty-state preservation checks on desktop SHA-256
+`9a12d06dfa28a72e887f747dd53199ae6072e549eefd89a7fb2565d859983699`.
+Receipt `artifacts/qualification/continuation-20261016/hosted-38835853642-evidence/native-ui-evidence.json`
+has SHA-256 `618aeef8d8658635eb455880f912a8adc1ce3901f7fb82cf4b0fe4e8d6579d4d`.
+This closes native endpoint qualification for that exact hosted build; it
+does not qualify paired Overleaf behavior or a new installer.
+
+The workflow then fails native publishing's existing 320px/enlarged-text
+page-overflow assertion: document width is 458px for a 320px viewport, while
+the consent root itself fits its allocated width. The parallel pull-request
+run 38835858502 stops earlier waiting for the imported Typst tab; its status
+reports a busy document operation. Which import/refresh operation refused
+is not established. Preserve both outcomes; the push success does not erase
+the parallel failure. A simplified real-markup/CSS/Pretext Chromium diagnostic
+without the app, editor or PDF does not reproduce the native overflow. The
+native fixture now captures capped geometry/style observations only after a
+failure, before and after two animation frames, while retaining every original
+assertion and deadline. No CSS cause or correction is established yet.
+
+Architecture and refreshed attribution verification pass; the actual Rust and
+JavaScript license payloads remain identical to v16. The broader initial
+`npm test` run is not green: three legacy compatibility cases require absent
+`latexmk`, and the old menu fixture was stopped after its cyclic assertion
+diff stalled. Its 408 passes and four failures remain in
+`artifacts/qualification/continuation-20261016/baseline-js-tests.log`.
+Rename/Move is still a private, unintegrated candidate under independent
+review. These results do not complete the final product acceptance rows.
+
 ## Native Linux release and this-PC installation (2026-10-15)
 
-[UnderTree v0.3.0](https://github.com/GeorgeFejer91/undertree_texstudio/releases/tag/v0.3.0)
+[UnderTree v0.3.0](https://github.com/GeorgeFejer91/undertree/releases/tag/v0.3.0)
 is a publicly available Rust/Tauri Linux preview. The exact 10,178,958-byte
 `UnderTree_0.3.0_amd64.deb` has SHA-256
 `6e20cd825eca2212225fd5a3bd6816a48c45fbe11f22c2c036f1fd9c7db57fd2`.
@@ -431,8 +645,8 @@ handoff `artifacts/hosted-7a9aa26-triage/app-readiness-handoff.json` has SHA-256
 This changes verification only; no source operation is retried. Refreshed hosted,
 newer combined native and complete installer qualification remain pending.
 
-Both hosted runs at `02ada71` ([PR](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38710508511),
-[push](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38710502425))
+Both hosted runs at `02ada71` ([PR](https://github.com/GeorgeFejer91/undertree/actions/runs/38710508511),
+[push](https://github.com/GeorgeFejer91/undertree/actions/runs/38710502425))
 pass Rust, real Typst, the complete Review UI, Word count, Connections, the full
 App browser gate and the historical compatibility archive smoke. Both then
 fail `connection-controls-ui-smoke.mjs` at 320 CSS px with 200% text; later native

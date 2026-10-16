@@ -23,7 +23,7 @@ export class ManuscriptPdfViewer {
     this.observer.observe(scroller);
   }
   async setDocument(pdf) {
-    this.cancel(); this.pdf = pdf; this.ready = false; this.page = 1; this.targetPage = null; this.scale = null; this.heights.clear(); this.renderDeferred = false;
+    this.cancel(); this.pdf = pdf; this.ready = false; this.page = 1; this.targetPage = null; this.scale = null; this.heights.clear(); this.renderDeferred = false; this.paintedWindow = null;
     const generation = this.generation;
     let first;
     try { first = await pdf.getPage(1); }
@@ -37,7 +37,7 @@ export class ManuscriptPdfViewer {
   cancel() { this.generation += 1; this.rendering = false; this.renderAgain = false; for (const task of this.tasks) task.cancel(); this.tasks.clear(); clearTimeout(this.pending); this.pending = 0; }
   visible() { return this.scroller.clientWidth > 0 && this.scroller.clientHeight > 0; }
   releaseCanvases() { for (const canvas of this.pages.querySelectorAll('canvas')) { canvas.width = 0; canvas.height = 0; } }
-  clear() { this.cancel(); this.pdf = null; this.ready = false; this.targetPage = null; this.releaseCanvases(); this.pages.replaceChildren(); }
+  clear() { this.cancel(); this.pdf = null; this.ready = false; this.targetPage = null; this.paintedWindow = null; this.releaseCanvases(); this.pages.replaceChildren(); }
   schedule() {
     if (this.rendering) this.renderAgain = true;
     clearTimeout(this.pending);
@@ -89,6 +89,13 @@ export class ManuscriptPdfViewer {
       covered = offset(number + 1) >= targetScrollTop() + this.scroller.clientHeight;
     }
     const last = prepared.at(-1).number;
+    const window = `${first}:${last}:${scale}:${clientWidth}:${clientHeight}:${devicePixelRatio}`;
+    if (this.paintedWindow === window) {
+      this.renderDeferred = false;
+      this.scroller.scrollTop = targetScrollTop(); this.renderScrollTop = this.scroller.scrollTop; this.targetPage = null;
+      this.onChange({ page: this.page, total: pdf.numPages, scale, fit: this.scale === null });
+      return;
+    }
     const top = document.createElement('div'); top.className = 'pdf-page-spacer'; top.style.height = `${offset(first)}px`;
     const bottom = document.createElement('div'); bottom.className = 'pdf-page-spacer'; bottom.style.height = `${offset(pdf.numPages + 1) - offset(last + 1)}px`;
     const slots = [];
@@ -99,6 +106,7 @@ export class ManuscriptPdfViewer {
     }
     this.currentScale = scale; this.pageHeight = pageHeight; this.height = pageHeight; this.heights = heights;
     this.renderedWidth = clientWidth; this.renderedHeight = clientHeight; this.renderDeferred = false;
+    this.paintedWindow = null;
     this.releaseCanvases(); this.pages.replaceChildren(top, ...slots, bottom);
     // Install the new full-document height before the browser clamps the intended position.
     this.scroller.scrollTop = targetScrollTop(); this.renderScrollTop = this.scroller.scrollTop; this.targetPage = null;
@@ -119,6 +127,7 @@ export class ManuscriptPdfViewer {
       page.cleanup();
       if (this.renderAgain) return;
     }
+    this.paintedWindow = window;
     } finally {
       if (generation === this.generation) {
         this.rendering = false;

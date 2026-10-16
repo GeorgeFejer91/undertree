@@ -16,6 +16,7 @@ import { McpControlBridge } from './mcp-control.js';
 import { captureControlState, assertControlState, assertControlPassage, controlPreviewIdentity, assertControlPreview } from '../modules/frontend/manuscript-control-state.js';
 import { observeReviewText } from '../modules/frontend/review-text-layout.js';
 import { setupWindowChrome } from '../modules/frontend/window-chrome.js';
+import { setupMenuNavigation } from '../modules/frontend/menu-navigation.js';
 import { setupConnectionManager } from './connection-manager.js';
 import { LatestCompileScheduler } from '../modules/frontend/latest-compile-scheduler.js';
 import { manuscriptTree, clampPaneWidth, capturePublicationInputs, publicationPreviewCurrent, editorLineHeights, normalizeWorkspacePreferences, readWorkspacePreferences, writeWorkspacePreferences } from '../modules/frontend/manuscript-workspace.js';
@@ -26,9 +27,7 @@ import { typstInsertion } from '../modules/frontend/typst-insertion.js';
 import { typstLanguage } from '../modules/frontend/typst-language.js';
 import { undo, redo, selectAll, isolateHistory } from '@codemirror/commands';
 import { openSearchPanel } from '@codemirror/search';
-import * as pdfjs from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 const $ = id => document.getElementById(id);
 const sessions = new Map();
@@ -191,7 +190,9 @@ function saveLabel(session) {
   return saved + (session.snapshot.historyMaintenancePending === true ? ' · saved History needs attention' : '');
 }
 function pdfStatus(message, state = 'stale') {
-  const node = $('typst-preview-status'); node.textContent = message; node.dataset.state = state;
+  const node = $('typst-preview-status');
+  if (node.textContent !== message) node.textContent = message;
+  if (node.dataset.state !== state) node.dataset.state = state;
   node.classList.toggle('sr-only', state === 'current');
 }
 function windowEditorAccess() { return [EditorState.readOnly.of(windowClosing), EditorView.editable.of(!windowClosing)]; }
@@ -210,7 +211,7 @@ function setWindowClosing(busy) {
 function task(callback) { return async event => { const session = active; try { await callback(event); } catch (error) { if (session && active !== session && ['policy_missing','recovery_conflict','stale_document','stale_root'].includes(error.code)) return; status(error.message || String(error), true); } }; }
 function closeDialogs() { for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close(); }
 function closeWorkspaceMenus(restoreFocus = false) {
-  for (const menu of workspaceMenus) if (menu.open) { menu.open = false; if (restoreFocus) menu.querySelector('summary').focus(); }
+  menuNavigation.close(restoreFocus);
 }
 function formatSource(command) {
   if (!view || !active) return;
@@ -374,8 +375,15 @@ function scheduleReviewPositions(alignSource = false) {
       if (revealed) targetScroll = passages.offsetTop + revealed.top;
     }
     let bottom = -8;
-    for (const item of positions) { item.card.style.marginTop = `${Math.max(0, item.top - bottom - 8)}px`; bottom = item.top + item.height; }
-    if (scrollSpace) scrollSpace.style.height = `${Math.max(0, targetScroll + list.clientHeight - passages.offsetTop - Math.max(0, bottom) - trailingHeight)}px`;
+    for (const item of positions) {
+      const margin = `${Math.max(0, item.top - bottom - 8)}px`;
+      if (item.card.style.marginTop !== margin) item.card.style.marginTop = margin;
+      bottom = item.top + item.height;
+    }
+    if (scrollSpace) {
+      const height = `${Math.max(0, targetScroll + list.clientHeight - passages.offsetTop - Math.max(0, bottom) - trailingHeight)}px`;
+      if (scrollSpace.style.height !== height) scrollSpace.style.height = height;
+    }
     list.scrollTop = Math.max(0, targetScroll);
     restoreReviewScroll = null; revealReviewId = null; alignReviewSource = false;
   });
@@ -777,6 +785,9 @@ async function showPdf(result, session, path = publicationPath(session), inputs)
   };
   if (!valid()) throw { code: 'stale', message: 'The captured main editor changed before this PDF could be displayed. Your previous preview is kept.' };
   const generation = ++pdfGeneration;
+  const pdfjs = await import('pdfjs-dist');
+  if (generation !== pdfGeneration || !valid() || session !== active || publicationPath(session) !== path) return;
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
   const bytes = Uint8Array.from(atob(result.base64),c=>c.charCodeAt(0));
   const loadingTask = pdfjs.getDocument({data:bytes.slice(),isEvalSupported:false,useSystemFonts:true});
   const pdf = await loadingTask.promise;
@@ -950,7 +961,7 @@ function renderReview() {
   $('manuscript-share').disabled = !active || !/\.(html?|typ)$/i.test(active.path) || (reviewBlocked && !active.snapshot.shared);
   if (sharingSession !== active) $('manuscript-share').checked = Boolean(active?.snapshot.shared);
   $('review-conflict').hidden = !active?.conflict;
-  if (active) $('save-label').textContent = saveLabel(active);
+  if (active && $('save-label').textContent !== saveLabel(active)) $('save-label').textContent = saveLabel(active);
   for (const id of ['manuscript-save','highlight-selection','palette-open','export-manuscript','highlight-rule']) $(id).disabled = !active;
   for (const id of ['manuscript-save','highlight-selection','palette-open','highlight-rule']) if (reviewBlocked) $(id).disabled = true;
   for (const button of document.querySelectorAll('[data-command]')) {
@@ -1007,8 +1018,10 @@ function renderReview() {
     const card = element('article', '', 'review-card suggestion-card'); card.style.setProperty('--review-color', suggestion.color);
     card.dataset.reviewId = suggestion.id; card.dataset.sourcePosition = String(suggestion.anchor.from);
     card.dataset.stale = String(suggestion.anchor.stale);
-    const heading = element('h3', 'Proposed wording'); heading.dataset.measure = ''; card.append(heading);
-    card.append(element('blockquote', suggestion.anchor.quote), element('p', suggestion.replacement, 'replacement'), element('p', suggestion.rationale, 'rationale'));
+    const heading = element('h3', suggestion.replacement === '' ? 'Proposed deletion' : 'Proposed wording'); heading.dataset.measure = ''; card.append(heading);
+    const replacement = element('p', suggestion.replacement === '' ? 'Delete the quoted passage. Your text changes only when you accept.' : suggestion.replacement, 'replacement');
+    if (suggestion.replacement === '') replacement.dataset.measure = '';
+    card.append(element('blockquote', suggestion.anchor.quote), replacement, element('p', suggestion.rationale, 'rationale'));
     if (suggestion.prompt) card.append(element('p', suggestion.prompt, 'rationale'));
     if (suggestion.anchor.stale) card.append(element('p', 'The original passage changed. Ask for a new suggestion.', 'stale-note'));
     const actions = element('div', '', 'card-actions');
@@ -1049,7 +1062,7 @@ function renderReview() {
   if (decided.length) {
     const details = element('details'); details.append(element('summary', `Reviewed (${decided.length})`));
     details.open = historyOpen;
-    for (const s of decided) details.append(element('p', `${s.status === 'accepted' ? 'Accepted' : 'Rejected'}: ${s.replacement}`, 'rationale'));
+    for (const s of decided) details.append(element('p', `${s.status === 'accepted' ? 'Accepted' : 'Rejected'}: ${s.replacement === '' ? `Delete “${s.anchor.quote}”` : s.replacement}`, 'rationale'));
     list.append(details);
   }
   const scrollSpace = element('div', '', 'review-scroll-space'); scrollSpace.id = 'review-scroll-space'; scrollSpace.setAttribute('aria-hidden', 'true'); list.append(scrollSpace);
@@ -1094,9 +1107,10 @@ async function mountSession(session, intent, read = request, binding = captureSo
       if (item) { markSelectedReview(item.id); scheduleReviewPositions(true); }
     }
     if (!update.docChanged || update.transactions.some(t => t.annotation(authoritative))) return;
+    const wasDirty = session.dirty;
     session.edit(update.state.doc.toString());
     noteProjectEdit(session.project);
-    if (active === session) { $('save-label').textContent = 'Unsaved changes'; renderTabs(); }
+    if (active === session && !wasDirty) { $('save-label').textContent = 'Unsaved changes'; renderTabs(); }
     clearTimeout(saveTimers.get(session));
     if (!session.reviewProblem && !session.identityProblem) saveTimers.set(session, setTimeout(() => { saveTimers.delete(session); void task(() => saveSession(session))(); }, 450));
     clearTimeout(previewTimer); previewTimer = setTimeout(() => { preview(); renderOutline(); }, 250);
@@ -1313,7 +1327,7 @@ function paletteRows() {
     const color = element('input'); color.type = 'color'; color.value = rule.color; color.setAttribute('aria-label', `${rule.label} color`); color.oninput = () => { rule.color = color.value; };
     const label = element('input'); label.value = rule.label; label.maxLength = 100; label.required = true; label.setAttribute('aria-label', 'Rule name'); label.oninput = () => { rule.label = label.value; };
     const action = element('select'); action.setAttribute('aria-label', 'Rule action');
-    for (const [value, name] of [['protect', 'No agent changes allowed'], ['prompt', 'Follow custom prompt'], ['reject', 'Reject agent changes']]) { const option = element('option', name); option.value = value; action.append(option); }
+    for (const [value, name] of [['protect', 'No agent changes allowed'], ['prompt', 'Follow custom prompt'], ['discard', 'Discard idea'], ['reject', 'Reject agent changes']]) { const option = element('option', name); option.value = value; action.append(option); }
     action.value = rule.action; action.onchange = () => { rule.action = action.value; };
     const prompt = element('textarea'); prompt.value = rule.prompt; prompt.rows = 2; prompt.maxLength = 4000; prompt.setAttribute('aria-label', 'Fixed reviewer prompt'); prompt.oninput = () => { rule.prompt = prompt.value; };
     row.append(color, label, action, prompt); $('palette-rules').append(row);
@@ -1566,7 +1580,8 @@ $('compile-log-toggle').onclick = () => {
 for (const button of document.querySelectorAll('[data-command]')) button.onclick = task(async () => {
   const command = button.dataset.command; closeWorkspaceMenus();
   const triggers = { 'open-project': 'project-open', 'new-file': 'file-new', github: 'git-open', connections: 'connection-open', download: 'export-manuscript', save: 'manuscript-save', highlight: 'highlight-selection', palette: 'palette-open', import: 'tex-import', logs: 'compile-log-toggle' };
-  if (triggers[command]) $(triggers[command]).click();
+  if (command === 'chatgpt') { $('workspace-menu-toggle').focus(); $('chatgpt-open').click(); }
+  else if (triggers[command]) $(triggers[command]).click();
   else if (command === 'new-folder') openNewFolder();
   else if (command === 'import-files') openFileImport();
   else if (command === 'download-project') await downloadSavedProject();
@@ -1593,18 +1608,10 @@ for (const button of document.querySelectorAll('[data-command]')) button.onclick
   else if (insertionCommands.has(command) || ['bold','italic','heading','bullet-list','numbered-list'].includes(command)) formatSource(command);
   else if (view) { showPane('editor'); ({ undo, redo, 'select-all': selectAll, find: openSearchPanel })[command]?.(view); view.focus(); }
 });
-for (const menu of workspaceMenus) {
-  menu.addEventListener('toggle', () => { if (menu.open) for (const other of workspaceMenus) if (other !== menu) other.open = false; });
-  menu.querySelector('summary').addEventListener('keydown', event => {
-    if (event.key === 'ArrowDown') { event.preventDefault(); menu.open = true; menu.querySelector('button:not(:disabled):not([hidden])')?.focus(); }
-    else if (['ArrowLeft','ArrowRight'].includes(event.key) && menu.classList.contains('editor-menu')) {
-      event.preventDefault(); const siblings = workspaceMenus.filter(item => item.classList.contains('editor-menu'));
-      const next = siblings[(siblings.indexOf(menu) + (event.key === 'ArrowRight' ? 1 : siblings.length - 1)) % siblings.length];
-      closeWorkspaceMenus(); next.querySelector('summary').focus();
-    }
-  });
-}
-document.addEventListener('pointerdown', event => { for (const menu of workspaceMenus) if (!menu.contains(event.target)) menu.open = false; });
+const menuNavigation = setupMenuNavigation(workspaceMenus, {
+  isComposing: () => !!view?.compositionStarted,
+  isClosing: () => windowClosing,
+});
 
 function resizeFiles(width, persist = true) {
   if (getComputedStyle(workspace).display !== 'grid') return;

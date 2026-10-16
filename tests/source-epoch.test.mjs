@@ -32,7 +32,20 @@ test('same-byte pure Review retirement preserves snapshot/history and cannot hea
   assert.equal(session.snapshot, original); assert.equal(session.sourceEpoch, 0); assert.equal(session.editorState.undo, 'retained'); assert.equal(session.conflict, null);
   await assert.rejects(session.flush(), error => error.code === 'stale_document');
   await assert.rejects(session.refresh({ retryProblem: true }), error => error.code === 'stale_document');
-  assert.deepEqual(actions.map(operation => operation.action), ['review']); assert.equal(Object.hasOwn(actions[0], 'sourceEpoch'), false);
+  assert.deepEqual(actions.map(operation => operation.action), ['review']); assert.equal(actions[0].sourceEpoch, 0);
+});
+
+test('Review refresh preserves the rooted native document identity used by Share', async () => {
+  const root = { dev: '7', ino: '19' }, operations = [];
+  const original = { ...snap(3), expectedRoot: root, documentId: 'rooted-document' };
+  const session = new ReviewSession(original, 'project', async operation => {
+    operations.push(operation);
+    return { ...original, documentId: operation.expectedRoot ? 'rooted-document' : 'legacy-document' };
+  });
+  assert.equal(await session.refresh(), true);
+  assert.deepEqual(operations, [{ action: 'review', project: 'project', path: 'main.typ', sourceEpoch: 3, expectedRoot: root }]);
+  assert.equal(session.snapshot.documentId, original.documentId);
+  assert.equal(session.snapshot.shared, true);
 });
 
 test('queued Save and every policy intent capture identity before earlier work, even with unchanged bytes/version', async () => {

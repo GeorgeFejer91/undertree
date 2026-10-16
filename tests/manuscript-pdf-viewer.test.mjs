@@ -49,6 +49,36 @@ function pdfFixture(numPages = 1, sizes = {}) {
   return { numPages, getPage: async number => page(number), page, renders };
 }
 
+test('scrolling within the painted page window retains canvases and updates navigation without raster work', async t => {
+  const { viewer, pages, scroller, changes } = viewerFixture(t, 832, 1000);
+  const pdf = pdfFixture(30);
+  await viewer.setDocument(pdf);
+  scroller.scrollTop = 700; viewer.scroll(); await viewer.render();
+  const canvases = pages.querySelectorAll('canvas');
+  const renders = pdf.renders.length;
+  for (let offset = 710; offset <= 850; offset += 10) {
+    scroller.scrollTop = offset; viewer.scroll(); await viewer.render();
+    assert.deepEqual(pages.querySelectorAll('canvas'), canvases, 'small scrolls reuse the installed pixels');
+  }
+  assert.equal(pdf.renders.length, renders, 'the unchanged window performs no more PDF raster work');
+  assert.equal(changes.at(-1).page, 2, 'toolbar navigation still follows the viewport');
+  scroller.scrollTop = viewer.offset(10); viewer.scroll(); await viewer.render();
+  assert.ok(pdf.renders.length > renders, 'newly visible pages are painted');
+  assert.ok(pages.children.some(node => node.dataset.page === '10'));
+});
+
+test('changed pixel density and a replacement PDF repaint an otherwise identical window', async t => {
+  const { viewer, pages } = viewerFixture(t);
+  const pdf = pdfFixture(); await viewer.setDocument(pdf);
+  const canvas = pages.querySelectorAll('canvas')[0];
+  globalThis.devicePixelRatio = 1;
+  await viewer.render();
+  assert.notEqual(pages.querySelectorAll('canvas')[0], canvas);
+  assert.equal(pdf.renders.length, 2);
+  const replacement = pdfFixture(); await viewer.setDocument(replacement);
+  assert.equal(replacement.renders.length, 1);
+});
+
 test('100% PDF zoom displays points at 96 CSS pixels per inch', async t => {
   const { viewer, pages, changes, scroller } = viewerFixture(t);
   await viewer.setDocument(pdfFixture());

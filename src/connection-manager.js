@@ -1,5 +1,6 @@
 // Rust owns the process and grants. The dialog holds only a transient status snapshot.
 import { setupPdfExportConsent } from './pdf-export-consent.js';
+import { setupMcpHub } from './mcp-hub.js';
 export function setupConnectionManager({ request, controlRequest, onRevoked, onShares, status }) {
   const $ = id => document.getElementById(id);
   const dialog = $('connection-dialog');
@@ -17,11 +18,12 @@ export function setupConnectionManager({ request, controlRequest, onRevoked, onS
         <summary data-measure>URL</summary>
         <label><span data-measure>App controls URL</span><textarea id="connection-app-url" readonly rows="2" spellcheck="false"></textarea></label>
         <button id="connection-app-copy" type="button" data-measure>Copy app controls URL</button>
-        <p data-measure>Add this separate URL in ChatGPT. Keep it private. Turning off app controls revokes it; the Review URL keeps its three suggestion tools. Client identity and the public route are unverified.</p>
+        <p id="connection-app-url-help" data-measure>Add this separate URL in ChatGPT. Keep it private. Turning off app controls revokes it; the Review URL keeps its three suggestion tools. Client identity and the public route are unverified.</p>
       </details>
       <details><summary data-measure>Help</summary><p data-measure>Enable after starting the tunnel. Control views, selection and preview. Navigation, builds and closing leave local buffers untouched. File editing and suggestion acceptance stay in UnderTree. Access ends when you turn this off or stop the tunnel.</p></details>
     </section>`);
   const pdfExport = setupPdfExportConsent({ container: $('connection-panel-app'), request: controlRequest, run });
+  const hub = setupMcpHub({ dialog, request, run, copyUrl });
   const tabs = [...dialog.querySelectorAll('[data-connection-tab]')];
   let snapshot = null;
   let busy = false;
@@ -33,23 +35,31 @@ export function setupConnectionManager({ request, controlRequest, onRevoked, onS
 
   function selectTab(name, focus = false) {
     for (const tab of tabs) {
-      const selected = tab.dataset.connectionTab === name;
+      const selected = !tab.disabled && tab.dataset.connectionTab === name;
       tab.setAttribute('aria-selected', String(selected));
       tab.tabIndex = selected ? 0 : -1;
       $(tab.getAttribute('aria-controls')).hidden = !selected;
       if (selected && focus) tab.focus();
     }
+    if (name === 'apps' && dialog.open) refresh().catch(failure => error(failure.message || String(failure)));
   }
   function controls() {
     pdfExport.setBusy(busy);
+    hub.setBusy(busy);
     const running = Boolean(snapshot?.running);
+    const textOnly = snapshot?.textOnlyConnector && !snapshot?.gateway?.enabled;
+    $('connection-tab-app').disabled = Boolean(textOnly);
+    $('connection-tab-app').title = textOnly ? 'Enable the shared app gateway to allow App controls through this connector.' : '';
+    if (textOnly && $('connection-tab-app').getAttribute('aria-selected') === 'true') selectTab('mcp');
     $('tunnel-start').disabled = busy || running || !snapshot;
+    $('connection-start').disabled = busy || running || !snapshot;
     $('tunnel-stop').disabled = busy || !snapshot || !(running || snapshot.sharedCount || snapshot.lastError);
     $('connection-refresh').disabled = busy;
     $('zrok-name').disabled = busy || running;
     $('zrok-origin').disabled = busy || running;
-    $('connection-app-enabled').disabled = busy || !running || !controlRequest || !snapshot?.appControls;
+    $('connection-app-enabled').disabled = busy || !running || !controlRequest || !snapshot?.appControls || textOnly;
     $('connection-app-copy').disabled = busy || !snapshot?.appControls?.enabled;
+    $('connection-copy').disabled = busy || !running;
     for (const button of $('connection-shares').querySelectorAll('button')) button.disabled = busy;
     dialog.setAttribute('aria-busy', String(busy));
   }
@@ -59,16 +69,24 @@ export function setupConnectionManager({ request, controlRequest, onRevoked, onS
   }
   function render(result) {
     snapshot = result;
+    hub.update(result);
+    const gateway = result.gateway?.enabled ? result.gateway : null;
+    const initialized = gateway ? Boolean(gateway.mcpInitialized) : Boolean(result.mcpInitialized);
     onShares(result.shared || []);
     const state = result.lastError || (result.running ? 'zrok running' : 'Tunnel stopped');
     $('connection-status').textContent = state;
-    $('tunnel-label').textContent = result.running ? (result.mcpInitialized ? 'MCP client initialized' : 'zrok running · waiting for MCP client') : 'ChatGPT disconnected';
-    $('connection-mcp-status').textContent = result.mcpInitialized
+    $('connection-overview-tunnel').textContent = result.running ? 'zrok running' : 'Stopped';
+    $('connection-overview-mcp').textContent = initialized ? 'Initialized · public route unverified' : 'No initialization observed';
+    $('tunnel-label').textContent = result.running ? (initialized ? 'MCP client initialized' : 'zrok running · waiting for MCP client') : 'ChatGPT disconnected';
+    $('connection-mcp-status').textContent = initialized
       ? `MCP client initialized · ${result.toolCalls} tool calls · last request ${new Date(result.lastActivityMs).toLocaleTimeString()}. Client identity and public route are unverified.`
       : 'No MCP initialization received in this session. Connect and test the endpoint in ChatGPT.';
     $('connection-result').hidden = !result.running;
     // Keep selection intact while the user copies the capability URL.
-    if ($('connection-url').value !== result.endpoint) $('connection-url').value = result.endpoint || '';
+    const endpoint = gateway ? gateway.endpoint || '' : result.endpoint || '';
+    if ($('connection-url').value !== endpoint) $('connection-url').value = endpoint;
+    $('connection-review-address').hidden = !gateway || !result.endpoint || gateway.endpoint === result.endpoint;
+    if ($('connection-review-url').value !== (result.endpoint || '')) $('connection-review-url').value = result.endpoint || '';
     const appControls = result.appControls;
     pdfExport.update(appControls);
     $('connection-app-enabled').checked = Boolean(appControls?.enabled);
@@ -78,13 +96,16 @@ export function setupConnectionManager({ request, controlRequest, onRevoked, onS
     $('connection-app-status').textContent = !controlRequest || !appControls
       ? 'Unavailable'
       : appControls.enabled ? 'Enabled' : 'Off';
+    $('connection-app-url-help').textContent = gateway
+      ? 'Use the shared gateway address in ChatGPT. App controls are included while this local permission is enabled. File editing stays local. The public route is unverified.'
+      : 'Add this separate URL in ChatGPT. Keep it private. Turning off app controls revokes it; the Review URL keeps its three suggestion tools. Client identity and the public route are unverified.';
     if (!configured || result.running) {
       $('zrok-name').value = result.config?.reservation || '';
       $('zrok-origin').value = result.config?.publicUrl || '';
       configured = true;
     }
     $('connection-protocol').textContent = `Streamable HTTP · MCP ${result.protocolVersion}`;
-    const tools = result.tools || [];
+    const tools = gateway ? gateway.tools || [] : result.tools || [];
     if (JSON.stringify(tools) !== toolsKey) $('connection-tools').replaceChildren(...tools.map(tool => {
       const item = document.createElement('li'); item.textContent = tool.name; item.dataset.measure = ''; return item;
     }));
@@ -108,7 +129,7 @@ export function setupConnectionManager({ request, controlRequest, onRevoked, onS
   }
   async function refresh() {
     if (pending) return pending;
-    pending = request({ action: 'connection' }).then(render);
+    pending = request({ action: 'connection' }).then(async result => { render(result); await hub.refresh(); });
     try { await pending; } finally { pending = null; }
   }
   async function run(action) {
@@ -125,32 +146,43 @@ export function setupConnectionManager({ request, controlRequest, onRevoked, onS
   for (const tab of tabs) {
     tab.onclick = () => selectTab(tab.dataset.connectionTab);
     tab.onkeydown = event => {
-      let index = tabs.indexOf(tab);
-      if (event.key === 'ArrowRight') index = (index + 1) % tabs.length;
-      else if (event.key === 'ArrowLeft') index = (index + tabs.length - 1) % tabs.length;
+      const enabled = tabs.filter(tab => !tab.disabled);
+      let index = enabled.indexOf(tab);
+      if (event.key === 'ArrowRight') index = (index + 1) % enabled.length;
+      else if (event.key === 'ArrowLeft') index = (index + enabled.length - 1) % enabled.length;
       else if (event.key === 'Home') index = 0;
-      else if (event.key === 'End') index = tabs.length - 1;
+      else if (event.key === 'End') index = enabled.length - 1;
       else return;
-      event.preventDefault(); selectTab(tabs[index].dataset.connectionTab, true);
+      event.preventDefault(); selectTab(enabled[index].dataset.connectionTab, true);
     };
   }
-  $('connection-open').onclick = async () => {
+  async function open(tab) {
     if (dialog.open) return;
+    selectTab(tab || 'mcp');
     dialog.showModal();
     timer = setInterval(() => {
       if (!busy && !document.hidden) refresh().catch(failure => error(failure.message || String(failure)));
     }, 2000);
     try { await refresh(); error(); } catch (failure) { error(failure.message || String(failure)); }
-  };
+  }
+  $('connection-open').onclick = () => open();
+  $('chatgpt-open').onclick = () => open('mcp');
+  $('connection-configure').onclick = () => selectTab('zrok', true);
   dialog.addEventListener('close', () => { clearInterval(timer); timer = null; });
   $('connection-refresh').onclick = () => run(async () => {});
-  $('connection-form').onsubmit = event => {
-    event.preventDefault();
-    run(async () => {
+  function startTunnel() {
+    if (!$('connection-form').checkValidity()) {
+      selectTab('zrok');
+      $('connection-form').reportValidity();
+      return;
+    }
+    return run(async () => {
       await request({ action: 'tunnel', enabled: true, reservation: $('zrok-name').value.trim(), public_url: $('zrok-origin').value.trim() });
       selectTab('mcp');
     });
-  };
+  }
+  $('connection-start').onclick = startTunnel;
+  $('connection-form').onsubmit = event => { event.preventDefault(); startTunnel(); };
   $('tunnel-stop').onclick = () => run(async () => {
     await request({ action: 'tunnel', enabled: false, reservation: '', public_url: '' });
     onRevoked();

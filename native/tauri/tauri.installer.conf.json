@@ -1,7 +1,7 @@
 {
   "bundle": {
     "publisher": "GeorgeFejer91",
-    "homepage": "https://github.com/GeorgeFejer91/undertree_texstudio",
+    "homepage": "https://github.com/GeorgeFejer91/undertree",
     "category": "Productivity",
     "shortDescription": "Offline Typst manuscript and review workspace",
     "longDescription": "UnderTree edits ordinary Typst and HTML manuscripts with local review policies and PDF preview. Typst compilation requires the separately installed Typst CLI. Optional Git synchronization uses your existing Git installation and credentials.",

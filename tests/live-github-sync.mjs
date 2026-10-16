@@ -9,7 +9,7 @@ import { chromium } from 'playwright-core';
 
 // This opt-in gate publishes synthetic files on one disposable branch, then deletes that exact branch conditionally.
 assert.equal(process.env.UNDERTREE_LIVE_GITHUB_TEST, '1', 'Set UNDERTREE_LIVE_GITHUB_TEST=1 to authorize the disposable live GitHub fixture.');
-const repository = 'GeorgeFejer91/undertree_texstudio';
+const repository = 'GeorgeFejer91/undertree';
 const remote = `https://github.com/${repository}.git`;
 const nonce = randomBytes(8).toString('hex');
 const branch = `codex/qualification/github-sync-${nonce}`;
