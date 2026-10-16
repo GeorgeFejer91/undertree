@@ -1,5 +1,31 @@
 # Verification report
 
+## Combined Connections, Move, Find and preview source candidate — 2026-10-16
+
+A separate checkout combines the reviewed Connections/gateway, discard,
+rooted Review refresh and lazy PDF work with native Move, the bounded compiler
+dependency pipe, Find layout/focus and main-document preview continuity. The
+primary checkout is preserved. All 479 original dependency tuples/checksums
+remain in the 520-package lock; gateway dependencies retain general platform
+scope and Move retains its Linux GNU nix/fs dependency and Arc sync barrier.
+
+The combined source passes 202 focused JavaScript tests, architecture, Rust
+formatting, the frontend build and freshly generated notices. The complete
+JavaScript run passes 505 of 508 tests; three historical TeX layout/server tests
+fail because this environment lacks latexmk. Those failures remain recorded.
+The attribution union contains 356 Rust and 27 JavaScript components; nix and
+cfg_aliases are newly selected compared with the separate gateway snapshot.
+The original held-PDF-parse predicates remain, with an explicit asynchronous
+loader model and two additional stale-loader regressions. ChatGPT command
+normalization is limited to its exact focus/open clause, with its own test.
+
+This is source/build evidence only. Combined Rust tests, service/browser/native
+execution and hosted installer qualification remain pending. The inherited
+Move native width failure remains open here. The experimental 648-package
+same-build source/PDF worker is outside this candidate. Raw source snapshots,
+merge resolutions and logs are under ignored
+`artifacts/qualification/connections-integration-20261016/`.
+
 ## Main-document preview continuity candidate — 2026-10-16
 
 Selecting the current effective main document now preserves the loaded PDF,
@@ -192,6 +218,40 @@ Independent verification checks archive digests, package/build/extracted
 receipts, packaged binaries/attribution and exact source/runner identities.
 No performance, crash-residue, public route, installation or release
 qualification is inferred from those bounded results.
+
+## Shared gateway and discard continuation — 2026-10-16
+
+The discard document harness passes 23 tests; an earlier session/source-binding
+suite passes 76 without a source snapshot. A later working-tree rerun passes
+74/76, with two unrelated lazy-PDF VM import fixtures failing. The real
+Rust/HTTP and Chromium discard gate passes all four
+groups, including pending suggestions without writes, rejection preserving the
+marked idea, and exact deletion/marker retirement only after local Accept.
+Its binary/assets and responsive observations are recorded in
+`artifacts/review-discard-smoke.json`. The gateway browser fixture is explicitly
+simulated native API evidence, not live routing. The
+[reference ledger](For-AI/reference-evidence.md#shared-mcp-gateway-and-discard-policies-2026-10-16)
+records identities, boundaries and outstanding public gates. No
+live ChatGPT/zrok or cross-PC credential transfer is claimed.
+The actual SDK-backed Hub module additionally passes 13 isolated runtime tests
+in 74.97 seconds, with its shim scope and exact inputs recorded in
+`artifacts/mcp-hub-unit-harness/observed-run.json`.
+The real service build, canonical Typst/HTML policy HTTP gate, multi-app
+JSON/stateful-SSE HTTP gate and four-group imported-URL HTTP gate subsequently
+pass against CLI `47ffbd9f…36a78`, then pass again against final-source CLI
+`5ba0dc92…065d0`, including the final initialization instructions. Current-source
+native type-checking and the bundled desktop build pass with immutable frontend
+`a483e8a9…6b62cb`. Actual Linux Tauri/WebKitGTK gateway execution passes four
+groups against desktop `8e89b602…630a4`: native enable/link, one combined catalogue,
+exactly-once forwarding, genuine pane/window effects and acknowledgements,
+owner/CLI denials, no source/policy writes or save IPC, and independent App/gateway
+revocation. The receipt is `artifacts/native-mcp-hub/native-gateway-evidence.json`,
+SHA-256 `063dabbfe4b4a8877fb7f18c80e9db63ac01c20bc59800258e50faa5712cf759`.
+All 63 captured build inputs remain exact; the earlier registration-runner
+failure is preserved and its enabled-control wait fixed without product changes.
+Attribution verification and its regression pass for 354 Rust/27 JavaScript
+components. These are isolated local tests with fake zrok, not a real account
+transfer, installed-app update or public ChatGPT qualification.
 
 ## Menu navigation and policy fixture continuation — 2026-10-16
 

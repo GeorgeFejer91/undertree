@@ -48,6 +48,7 @@
           <button data-command="new-file">New file</button><button data-command="new-folder">New folder</button><button data-command="import-files">Import files…</button><button data-command="move-source" data-measure>Rename or move source…</button><button data-command="refresh-files">Refresh file tree</button>
           <button data-command="github">GitHub storage</button>
           <button data-command="connections">ChatGPT connections</button>
+          <button data-command="chatgpt">ChatGPT MCP setup</button>
           <button data-command="review">Show manuscript review</button>
           <h3>Editor</h3>
           <button data-command="save">Save</button>
@@ -70,6 +71,10 @@
         <button id="review-toggle" aria-label="Toggle review panel" aria-pressed="false" data-measure>Review <span id="review-toggle-count" class="review-count" hidden></span></button>
         <button id="git-open" data-measure>GitHub</button>
         <button id="connection-open" aria-haspopup="dialog" data-measure>Connections</button>
+        <button id="chatgpt-open" type="button" aria-label="ChatGPT MCP setup" title="ChatGPT MCP setup" aria-haspopup="dialog" aria-controls="connection-dialog">
+          <!-- OpenAI mark: Simple Icons 14.13.0, CC0-1.0, https://github.com/simple-icons/simple-icons/blob/14.13.0/icons/openai.svg -->
+          <svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false" fill="currentColor"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>
+        </button>
       </div>
     </header>
     <nav class="mobile-views" aria-label="Workspace views">
@@ -169,7 +174,7 @@
     <div class="dialog-actions"><button id="file-move-close" type="button" data-measure>Close</button></div>
   </dialog>
   <dialog id="file-import-dialog" aria-labelledby="file-import-title"><h2 id="file-import-title" data-measure>Import files</h2><p id="file-import-project" data-measure></p><label><span data-measure>Existing folder in this project</span><input id="file-import-parent" maxlength="4096" placeholder="Project root" autocomplete="off" spellcheck="false" aria-describedby="file-import-help"></label><p id="file-import-help" data-measure>Original names are kept. Existing files are never replaced. Import adds files without saving or opening your editor buffer.</p><button id="file-import-choose" type="button" data-measure>Choose files…</button><ul id="file-import-list" aria-label="Staged files"></ul><p id="file-import-status" role="status" data-measure data-text-details="Import result details"></p><div class="dialog-actions"><button id="file-import-close" type="button" data-measure>Close</button><button id="file-import-clear" type="button" data-measure>Clear selection</button><button id="file-import-check" type="button" data-measure hidden>Check import</button><button id="file-import-dismiss" type="button" data-measure hidden>I checked the files</button><button id="file-import-submit" type="button" data-measure>Import files</button></div></dialog>
-  <dialog id="highlight-dialog"><form id="highlight-form"><h2>Highlight passage</h2><blockquote id="highlight-quote"></blockquote><label>Color rule<select id="highlight-dialog-rule"></select></label><label>Additional prompt for this passage<textarea id="highlight-prompt" rows="3" maxlength="4000" placeholder="Keep the content, but make the wording snappier."></textarea></label><p>Protection and rejection rules take precedence over prompts.</p><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Add highlight</button></div></form></dialog>
+  <dialog id="highlight-dialog"><form id="highlight-form"><h2>Highlight passage</h2><blockquote id="highlight-quote"></blockquote><label>Color rule<select id="highlight-dialog-rule"></select></label><label>Additional prompt for this passage<textarea id="highlight-prompt" rows="3" maxlength="4000" placeholder="Keep the content, but make the wording snappier."></textarea></label><p data-measure>Keep unchanged preserves the passage. A custom prompt requests revised wording. Discard idea requests a deletion suggestion; only your local acceptance removes text. Protection and rejection rules take precedence.</p><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Add highlight</button></div></form></dialog>
   <dialog id="reanchor-dialog" aria-labelledby="reanchor-title"><form id="reanchor-form"><h2 id="reanchor-title">Reanchor highlight</h2><p id="reanchor-rule"></p><p>Previous passage</p><blockquote id="reanchor-old"></blockquote><p>Current selected passage</p><blockquote id="reanchor-new"></blockquote><p>This moves the existing highlight to your current selection. Its color, action and prompts stay the same.</p><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Reanchor highlight</button></div></form></dialog>
   <dialog id="palette-dialog"><form id="palette-form"><h2>Color rules</h2><p>Assign each color a fixed action or an instruction for the reviewer.</p><div id="palette-rules"></div><button id="rule-add" type="button">Add color rule</button><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Save rules</button></div></form></dialog>
   <dialog id="connection-dialog" aria-labelledby="connection-title">
@@ -177,11 +182,11 @@
     <p id="connection-status" role="status" data-measure>Reading local connection status…</p>
     <p id="connection-error" role="alert" data-measure hidden></p>
     <div class="connection-tabs" role="tablist" aria-label="Connection settings">
-      <button id="connection-tab-zrok" role="tab" aria-controls="connection-panel-zrok" aria-selected="true" data-connection-tab="zrok" data-measure>zrok</button>
-      <button id="connection-tab-mcp" role="tab" aria-controls="connection-panel-mcp" aria-selected="false" tabindex="-1" data-connection-tab="mcp" data-measure>MCP</button>
+      <button id="connection-tab-mcp" role="tab" aria-controls="connection-panel-mcp" aria-selected="true" data-connection-tab="mcp" data-measure>Overview</button>
+      <button id="connection-tab-zrok" role="tab" aria-controls="connection-panel-zrok" aria-selected="false" tabindex="-1" data-connection-tab="zrok" data-measure>zrok</button>
       <button id="connection-tab-shared" role="tab" aria-controls="connection-panel-shared" aria-selected="false" tabindex="-1" data-connection-tab="shared" data-measure>Manuscripts</button>
     </div>
-    <section id="connection-panel-zrok" role="tabpanel" aria-labelledby="connection-tab-zrok">
+    <section id="connection-panel-zrok" role="tabpanel" aria-labelledby="connection-tab-zrok" hidden>
       <form id="connection-form">
         <label><span data-measure>zrok2 public name</span><input id="zrok-name" required maxlength="100" pattern="[A-Za-z0-9-]+" placeholder="my-undertree" autocomplete="off" spellcheck="false"></label>
         <label><span data-measure>Public HTTPS origin</span><input id="zrok-origin" type="url" required maxlength="2048" placeholder="https://your-public-origin" autocomplete="off" spellcheck="false"></label>
@@ -190,16 +195,37 @@
         <div class="dialog-actions"><button id="tunnel-start" type="submit" data-measure>Start tunnel</button></div>
       </form>
     </section>
-    <section id="connection-panel-mcp" role="tabpanel" aria-labelledby="connection-tab-mcp" hidden>
-      <p id="connection-mcp-status" data-measure>Start zrok to make the review endpoint available.</p>
+    <section id="connection-panel-mcp" role="tabpanel" aria-labelledby="connection-tab-mcp">
       <div id="connection-result" hidden>
-        <label>Private MCP connection URL<textarea id="connection-url" readonly rows="3" spellcheck="false"></textarea></label>
-        <button id="connection-copy" type="button" data-measure>Copy URL</button>
-        <p data-measure>In ChatGPT Plugins, choose Add custom MCP server, paste this URL, and select no additional authentication. Install the plugin and select it in a new chat. This URL grants access to shared manuscripts; keep it private.</p>
+        <label><span data-measure>MCP address</span><textarea id="connection-url" readonly rows="3" spellcheck="false"></textarea></label>
+        <button id="connection-copy" type="button" data-measure>Copy MCP address</button>
+        <p data-measure>This private URL grants access to shared manuscripts. Keep it private.</p>
       </div>
-      <p id="connection-protocol" data-measure></p>
-      <ul id="connection-tools" aria-label="Available MCP tools"></ul>
-      <p data-measure>ChatGPT can read shared text and submit suggestions. You accept or reject them in UnderTree.</p>
+      <div class="connection-mcp-setup">
+        <div class="connection-access-actions">
+          <button id="connection-start" type="button" data-measure>Start access</button>
+          <button id="connection-configure" type="button" data-measure>Configure zrok tunnel</button>
+        </div>
+        <dl class="connection-overview-status" aria-label="Observed connection status">
+          <div><dt data-measure>Tunnel</dt><dd id="connection-overview-tunnel" data-measure>Reading status…</dd></div>
+          <div><dt data-measure>MCP client</dt><dd id="connection-overview-mcp" data-measure>Reading status…</dd></div>
+        </dl>
+        <p data-measure>Share manuscripts from Review. ChatGPT can read shared text and suggest changes; you accept or reject suggestions in UnderTree.</p>
+      </div>
+      <details class="connection-chatgpt-setup">
+        <summary data-measure>Add to ChatGPT</summary>
+        <ol>
+          <li data-measure>Configure and start the zrok tunnel, then copy the MCP address above.</li>
+          <li data-measure>In ChatGPT Plugins, choose Add custom MCP server. Enter a name, paste the address as the Server URL, and choose No authentication.</li>
+          <li data-measure>Create and install the plugin. Start a new Work chat, type @ and select it.</li>
+        </ol>
+      </details>
+      <details class="connection-mcp-details">
+        <summary data-measure>Connection activity and tools</summary>
+        <p id="connection-mcp-status" role="status" data-measure>Start zrok to make the review endpoint available.</p>
+        <p id="connection-protocol" data-measure></p>
+        <ul id="connection-tools" aria-label="Available MCP tools"></ul>
+      </details>
     </section>
     <section id="connection-panel-shared" role="tabpanel" aria-labelledby="connection-tab-shared" hidden>
       <p id="connection-share-summary" tabindex="-1" data-measure>No manuscripts shared.</p>

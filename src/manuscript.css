@@ -161,14 +161,31 @@ dialog blockquote { margin: .8rem 0; padding: .65rem; border-left: 3px solid #9a
 .connection-heading h2 { flex: 1 1 12rem; margin: .25rem 0; min-width: 0; }
 .connection-heading button { flex: none; }
 .connection-tabs { display: flex; flex-wrap: wrap; gap: .4rem; padding: .6rem 0; border-bottom: 1px solid #d6dcd8; margin-bottom: .7rem; }
-.connection-tabs button { flex: 1 1 3.5rem; padding: .25rem .35rem; }
+.connection-tabs button { flex: 1 0 3.5rem; padding: .25rem .35rem; }
 .connection-tabs [aria-selected="true"] { background: #e0eee3; border-color: #73937c; }
 #connection-error { color: #a33828; }
 #connection-tools { padding-inline-start: 1.4rem; font-family: Consolas, 'Liberation Mono', monospace; }
-#connection-shares { list-style: none; padding: 0; margin: .8rem 0; }
-#connection-shares li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .65rem; padding: .6rem 0; border-bottom: 1px solid #d6dcd8; }
-#connection-shares span { min-width: 0; }
+#connection-shares,#connection-hub-apps { list-style: none; padding: 0; margin: .8rem 0; }
+#connection-shares li,#connection-hub-apps li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .65rem; padding: .6rem 0; border-bottom: 1px solid #d6dcd8; }
+#connection-shares span,#connection-hub-apps span { min-width: 0; }
+#connection-hub-url,#connection-review-url { resize: vertical; width: 100%; }
 #connection-url { resize: vertical; width: 100%; }
+#connection-panel-mcp { --connection-gap: clamp(.5rem, min(2vw, 2vh), 1rem); }
+#connection-panel-mcp:not([hidden]) { display: grid; gap: var(--connection-gap); }
+#connection-panel-mcp h3,#connection-panel-mcp p { margin: 0; }
+.connection-mcp-setup,.connection-chatgpt-setup { display: grid; gap: var(--connection-gap); min-inline-size: 0; }
+.connection-access-actions { display: flex; flex-wrap: wrap; gap: var(--connection-gap); }
+.connection-access-actions button { flex: 1 1 9rem; }
+.connection-overview-status { display: grid; gap: .4rem; margin: 0; }
+.connection-overview-status > div { display: grid; grid-template-columns: minmax(5rem, 1fr) minmax(0, 2fr); gap: .5rem; }
+.connection-overview-status dt,.connection-overview-status dd { min-inline-size: 0; margin: 0; }
+.connection-overview-status dd { font-weight: 600; }
+.connection-chatgpt-setup summary { cursor: pointer; }
+.connection-chatgpt-setup[open] ol { margin-block-start: var(--connection-gap); }
+.connection-chatgpt-setup ol { margin: 0; padding-inline-start: 1.5rem; display: grid; gap: .5rem; }
+.connection-mcp-details { border-top: 1px solid #d6dcd8; padding-top: var(--connection-gap); }
+.connection-mcp-details summary { cursor: pointer; }
+.connection-mcp-details[open] p { margin-block: var(--connection-gap); }
 #connection-panel-app > details { margin-block: .5rem; }
 #connection-panel-app summary { cursor: pointer; }
 #connection-pdf-export { border-top: 1px solid #d6dcd8; padding-top: .5rem; }
@@ -185,8 +202,10 @@ dialog blockquote { margin: .8rem 0; padding: .65rem; border-left: 3px solid #9a
   #connection-dialog .connection-heading { gap: var(--connection-gap); }
   #connection-dialog .connection-tabs { gap: var(--connection-gap); padding-block: var(--connection-gap); margin-block-end: var(--connection-gap); }
   #connection-dialog .connection-actions { margin-block-start: var(--connection-gap); }
-  #connection-shares li { grid-template-columns: minmax(0, 1fr); }
-  #connection-shares button { justify-self: start; }
+  #connection-tab-mcp { flex-basis: 100%; }
+  #connection-dialog .connection-tabs button { padding-inline: .1rem; }
+  #connection-shares li,#connection-hub-apps li { grid-template-columns: minmax(0, 1fr); }
+  #connection-shares button,#connection-hub-apps button { justify-self: start; }
 }
 .checkbox-label { flex-direction: row; align-items: flex-start; }
 .palette-row { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: .4rem; padding: .7rem 0; border-bottom: 1px solid #dce3de; }
@@ -214,6 +233,8 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflo
 .menu-rule { padding: .5rem .4rem; display: flex; flex-direction: column; gap: .3rem; }
 .menu-rule select { width: 100%; max-width: 100%; font-size: 1rem; }
 .review-topbar button,.workspace-menu summary { min-height: 28px; padding: .1429rem .65rem; }
+#chatgpt-open { display: grid; place-items: center; inline-size: 2rem; block-size: 2rem; padding: .3rem; flex: none; }
+#chatgpt-open svg { display: block; inline-size: 100%; block-size: 100%; }
 .review-topbar select { background: transparent; border-color: transparent; color: var(--light); padding: .1429rem .5rem; }
 .review-topbar select option { color: var(--ink); background: var(--canvas); }
 .review-topbar select,.manuscript-toolbar select {

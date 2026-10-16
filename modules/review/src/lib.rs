@@ -2,6 +2,7 @@ pub mod capabilities;
 pub mod control;
 pub mod document;
 pub mod instance;
+pub mod mcp_hub;
 pub mod publishing;
 mod root_observation;
 pub use root_observation::RootObservation;
@@ -128,7 +129,10 @@ impl<'de> Deserialize<'de> for SourceRequest {
                     serde_json::from_str(&operation).map_err(M::Error::custom)?;
                 if matches!(
                     operation,
-                    Operation::Capabilities | Operation::Projects | Operation::Connection
+                    Operation::Capabilities
+                        | Operation::Projects
+                        | Operation::Connection
+                        | Operation::HubStatus
                 ) && names.len() != 1
                 {
                     return Err(M::Error::custom("This operation takes no extra fields."));
@@ -237,6 +241,17 @@ operations! {
         project: String,
         path: String,
     } => ("review", "review", false),
+    HubStatus => ("hub_status", "connections", false),
+    HubEnable {
+        enabled: bool,
+    } => ("hub_enable", "connections", true),
+    HubLink {
+        label: String,
+        url: String,
+    } => ("hub_link", "connections", true),
+    HubUnlink {
+        id: String,
+    } => ("hub_unlink", "connections", true),
     Palette {
         project: String,
         path: String,

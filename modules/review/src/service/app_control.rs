@@ -159,10 +159,22 @@ impl Service {
                         "Start the Review connection before enabling session App controls.",
                     )
                 })?;
+                if active.text_only_connector()
+                    && !crate::transport::gateway_active(self, &active.secret)
+                {
+                    return Err(Error::new(
+                        "scope",
+                        "Enable the app gateway before allowing controls through this imported connection.",
+                    ));
+                }
                 let origin = active
                     .endpoint
-                    .rsplit_once("/mcp/")
-                    .map(|(origin, _)| origin)
+                    .parse::<axum::http::Uri>()
+                    .ok()
+                    .and_then(|url| {
+                        url.authority()
+                            .map(|authority| format!("https://{authority}"))
+                    })
                     .ok_or_else(|| {
                         Error::new("state", "The active public origin is unavailable.")
                     })?;

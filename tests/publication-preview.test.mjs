@@ -13,6 +13,9 @@ const callbacks = Object.fromEntries(names.map(name => {
   assert.ok(next >= 0, name);
   return [name, tail.slice(0, next + 1).trimEnd()];
 }));
+// Only the module loader is mocked; preserve its await and every production ownership check.
+assert.equal(callbacks.showPdf.split("await import('pdfjs-dist')").length, 2);
+callbacks.showPdf = callbacks.showPdf.replace("await import('pdfjs-dist')", 'await loadPdfjs()');
 function deferred() {
   let resolve, reject;
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
@@ -32,7 +35,7 @@ function harness() {
     Uint8Array, atob, console,
     projects: [{ id: 'p', mainDocument: null }, { id: 'q', mainDocument: 'other.typ' }],
     sessions, active: privateSession, pdfGeneration: 0, pdfLoadingTask: null,
-    pdfBytes: null, pdfPath: '', pdfSourceEpoch: null, pdfRoot: {}, pdfProject: '',
+    pdfBytes: null, pdfPath: '', pdfSourceEpoch: null, pdfRoot: {}, pdfProject: '', pdfWorker: 'model-worker',
     showingLogs: false, compiling: false, navigationIntent: {}, keyFor,
     $: id => {
       if (!nodes.has(id)) nodes.set(id, { hidden: false, title: '' });
@@ -66,8 +69,10 @@ function harness() {
       async setDocument(pdf) { this.pdf = pdf; events.push({ event: 'viewer-set', label: pdf.label }); },
     },
     pdfjs: {
+      GlobalWorkerOptions: {},
       getDocument({ data }) {
         const label = String.fromCharCode(...data);
+        events.push({ event: 'parse', label });
         return { promise: Promise.resolve({ numPages: 1, label }), async destroy() { events.push({ event: 'destroy-task', label }); } };
       },
     },
@@ -79,6 +84,7 @@ function harness() {
       return gate.promise;
     },
   };
+  context.loadPdfjs = async () => context.pdfjs;
   const setMain = callbacks.setMainDocument;
   vm.createContext(context);
   vm.runInContext(names.map(name => name === 'setMainDocument' ? setMain : callbacks[name]).join('\n\n'), context);
@@ -180,4 +186,29 @@ test('replaced target sessions are rejected before applying the main selection',
   await assert.rejects(chosen, error => error.code === 'stale_document');
   assert.equal(h.context.projects[0].mainDocument, null);
   assert.equal(h.pending.length, 0);
+});
+
+test('a held PDF module load cannot parse after the source binding changes', async () => {
+  const h = harness();
+  await h.context.showPdf(h.result('previous'), h.privateSession);
+  const previous = h.context.pdfViewer.pdf, loader = deferred();
+  h.context.loadPdfjs = () => loader.promise;
+  const held = h.context.showPdf(h.result('stale'), h.privateSession);
+  h.privateSession.expectedRoot = { dev: 'replacement', ino: 'folder' };
+  loader.resolve(h.context.pdfjs); await held;
+  assert.equal(h.context.pdfViewer.pdf, previous);
+  assert.deepEqual(h.events.filter(event => event.event === 'parse').map(event => event.label), ['previous']);
+});
+
+test('a newer PDF wins over an older held module load', async () => {
+  const h = harness(), loader = deferred();
+  h.context.loadPdfjs = () => loader.promise;
+  const held = h.context.showPdf(h.result('older'), h.privateSession);
+  h.context.loadPdfjs = async () => h.context.pdfjs;
+  await h.context.showPdf(h.result('newer'), h.privateSession);
+  const newer = h.context.pdfViewer.pdf, generation = h.context.pdfGeneration;
+  loader.resolve(h.context.pdfjs); await held;
+  assert.equal(h.context.pdfViewer.pdf, newer);
+  assert.equal(h.context.pdfGeneration, generation);
+  assert.deepEqual(h.events.filter(event => event.event === 'parse').map(event => event.label), ['newer']);
 });
