@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { chmod, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { qualifyNativeMoveSelect } from './native-move-select-contract.mjs';
+import { directSummaryClick } from './native-move-select-guards.mjs';
 
 const from = 'z-ui-source.typ', to = 'moves/z-ui-moved.typ';
 const members = ['', '.undertree-review.json', '.import-report.json'];
@@ -17,7 +19,7 @@ export async function seedNativeFileMoveUi(project) {
   }
 }
 
-export async function qualifyNativeFileMoveUi({execute, command, click, waitFor, native, nativeWindow, project, state, projectId, compilerCalls, evidence, checks}) {
+export async function qualifyNativeFileMoveUi({execute, command, click, waitFor, native, nativeWindow, project, state, projectId, compilerCalls, evidence, checks, screenshot, inspectNative}) {
   const editor = () => execute('return {text:document.querySelector(".cm-content").textContent,label:document.getElementById("save-label").textContent,probe:{saved:window.__cliProbe.saved,committed:window.__cliProbe.committed,fallback:window.__cliProbe.fallback,errors:[...window.__cliProbe.errors]}};');
   const group = path => Promise.all(members.map(async suffix => {
     const file = join(project, path + suffix), bytes = await readFile(file), info = await stat(file);
@@ -75,7 +77,7 @@ export async function qualifyNativeFileMoveUi({execute, command, click, waitFor,
     await waitFor(() => execute('const button=document.getElementById("file-move-commit");return !button.hidden && !button.disabled && document.getElementById("file-move-identity").textContent.startsWith("Generation 1 · request ");'), 'The actual native dialog did not prepare its retained generation-1 request.');
     await unchanged();
     assert.equal(await execute('return document.getElementById("file-move-dialog").contains(document.activeElement) && document.activeElement!==document.getElementById("file-move-prepare");'), true, 'Preparing preserves useful focus after its button disappears.');
-    const layouts = await qualifyMoveDialogGeometry({execute,command,click,waitFor,evidence});
+    const layouts = await qualifyMoveDialogGeometry({execute,command,click,waitFor,evidence,native,nativeWindow,screenshot,inspectNative,checks});
     const identity = await execute('return document.getElementById("file-move-identity").textContent;');
     await click('#file-move-close');
     assert.equal(await execute('return document.getElementById("file-move-dialog").open;'), false);
@@ -115,14 +117,14 @@ export async function qualifyNativeFileMoveUi({execute, command, click, waitFor,
 }
 
 
-async function qualifyMoveDialogGeometry({execute, command, click, waitFor, evidence}) {
+async function qualifyMoveDialogGeometry({execute, command, click, waitFor, evidence, native, nativeWindow, screenshot, inspectNative, checks}) {
   const previousFont = await execute('return document.documentElement.style.fontSize;');
   const previousRect = await command('/window/rect',undefined,'GET');
   await execute('document.documentElement.style.fontSize="28px";');
   try {
     const layouts = evidence.nativeFileMoveUiLayouts = [];
     for (const maintenance of [false, true]) {
-      if (maintenance) await click('#file-move-maintenance > summary');
+      if (maintenance) await directSummaryClick(command,'#file-move-maintenance > summary');
       for (const [width,height] of [[320,480],[1100,480],[320,900],[1100,480]]) {
         await command('/window/rect',{width,height});
         await execute('return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(true))));');
@@ -176,8 +178,9 @@ async function qualifyMoveDialogGeometry({execute, command, click, waitFor, evid
         assert.ok(value.dialogScrollHeight<=value.dialogClientHeight+1,'The dialog itself does not scroll.');
         assert.ok(value.bodyScrollWidth<=value.bodyClientWidth+1,'Native Move body has no horizontal overflow.');
         assert.ok(value.measured.every(node=>node.scrollWidth<=node.clientWidth+1&&node.fontSize>=node.rootFont-.5),'Measured native labels retain full user text scale without horizontal overflow.');
+        if (!maintenance && layouts.length === 1) await qualifyNativeMoveSelect({execute,command,click,waitFor,native,nativeWindow,screenshot,inspectNative,evidence,checks});
       }
-      if (maintenance) await click('#file-move-maintenance > summary');
+      if (maintenance) await directSummaryClick(command,'#file-move-maintenance > summary');
     }
     return layouts;
   } finally {

@@ -10,6 +10,8 @@ import { nativeFixtureContextScript } from './native-fixture-context.mjs';
 import { seedNativeFileMove, qualifyNativeFileMove } from './native-file-move-contract.mjs';
 import { seedNativeFileMoveUi, qualifyNativeFileMoveUi } from './native-file-move-ui-contract.mjs';
 import { createHash } from 'node:crypto';
+import { seedNativeFind, qualifyNativeFindDirtyQuery, qualifyNativeFindReplace } from './native-find-contract.mjs';
+import { inspectNativeMoveWindow } from './native-move-select-inspection.mjs';
 
 assert.equal(process.platform, 'linux', 'This qualification uses Linux WebKitGTK and X11.');
 assert.notEqual(process.getuid(), 0, 'Run the native save-denial check as a regular user.');
@@ -107,6 +109,7 @@ async function screenshot(name) {
 }
 
 let displayEnv;
+const inspectNative = (executable,args) => inspectNativeMoveWindow(executable,args,{...process.env,...displayEnv});
 const native = (executable, args) => execFileSync(executable, args.map(String), { env: { ...process.env, ...displayEnv }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
 async function qualifyMenuKeyboard() {
@@ -199,6 +202,7 @@ try {
   await writeFile(crlfSource, crlfOriginal);
   await seedNativeFileMove(project);
   await seedNativeFileMoveUi(project);
+  await seedNativeFind(project);
   const data = join(fixture, 'data');
   const state = join(data, 'io.github.georgefejer91.UnderTree', 'review');
   const descriptor = join(state, 'cli', 'instance.json');
@@ -356,6 +360,7 @@ try {
   assert.equal(afterMenus.saved, beforeExplicit.saved, 'Native menu keys dispatch no ordinary Save.');
   assert.equal(afterMenus.committed, beforeExplicit.committed, 'Native menu keys dispatch no registered-editor commit.');
   checks.push('Real native six-menu ArrowDown/Up traversal clamps both endpoints and Escape restores trigger focus without saving or changing the dirty buffer.');
+  await qualifyNativeFindDirtyQuery({execute,click,waitFor,native,nativeWindow,project,compilerCalls,evidence,checks});
   await chmod(project, 0o755);
   const editorSaved = runCli(['save', '33333333-3333-4333-8333-333333333333', 'main.typ']);
   assert.equal(editorSaved.status, 0, 'The named CLI save reaches the registered native editor through editor_connect and editor_operation.');
@@ -383,8 +388,9 @@ try {
   await qualifyChrome();
   assert.deepEqual(await execute('return window.__undertreeNativeErrors'), [], 'Native resize and text enlargement have no uncaught errors.');
   checks.push('Native 320 px reflow, 200% text, short-height finite controls and visible frame SVG ink centers pass without page scrolling.');
+  await qualifyNativeFindReplace({execute,command,click,waitFor,native,nativeWindow,project,state,projectId:'33333333-3333-4333-8333-333333333333',compilerCalls,evidence,checks,screenshot});
   await qualifyNativeFileMove({execute,click,waitFor,project,state,projectId:'33333333-3333-4333-8333-333333333333',compilerCalls,evidence,checks});
-  await qualifyNativeFileMoveUi({execute,command,click,waitFor,native,nativeWindow,project,state,projectId:'33333333-3333-4333-8333-333333333333',compilerCalls,evidence,checks});
+  await qualifyNativeFileMoveUi({execute,command,click,waitFor,native,nativeWindow,project,state,projectId:'33333333-3333-4333-8333-333333333333',compilerCalls,evidence,checks,screenshot,inspectNative});
   await screenshot('native-typst-workspace.png');
   const buffer = await execute('return document.querySelector(".cm-content").textContent');
   await click('#window-minimize');

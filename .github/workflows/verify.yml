@@ -50,7 +50,7 @@ jobs:
       - run: npm run verify:architecture
       - run: node --test tests/native-release-paths.test.mjs tests/native-release-receipt.test.mjs tests/notices.test.mjs
       - name: Qualify menu navigation and protected Close
-        run: node --test tests/menu-navigation.test.mjs tests/window-close-auto-compile.test.mjs tests/window-chrome.test.mjs tests/manuscript-control-state.test.mjs tests/native-click.test.mjs tests/background-review-status.test.mjs
+        run: node --test tests/menu-navigation.test.mjs tests/window-close-auto-compile.test.mjs tests/window-chrome.test.mjs tests/manuscript-control-state.test.mjs tests/native-click.test.mjs tests/background-review-status.test.mjs tests/native-find-guards.test.mjs tests/native-move-select-guards.test.mjs
       - name: Qualify Move, Find, preview continuity and rooted editor observations
         run: node --test tests/file-move.test.mjs tests/publication-preview.test.mjs tests/expected-root.test.mjs tests/source-epoch.test.mjs tests/editor-session-bridge.test.mjs tests/review-session.test.mjs tests/review-text-layout-search.test.mjs tests/manuscript-pdf-viewer.test.mjs tests/secret-tunnel-profile.test.mjs
       - run: cargo fmt --all -- --check
@@ -89,7 +89,9 @@ jobs:
           UNDERTREE_NATIVE_WORD_COUNT_ARTIFACTS="$PWD/artifacts/native-word-count" \
           UNDERTREE_NATIVE_WORD_COUNT_DENSE=1 \
           dbus-run-session -- npm run test:native-word-count
-      - run: dbus-run-session -- npm run test:native-ui
+      - name: Qualify native editor, Find and source Move
+        timeout-minutes: 10
+        run: dbus-run-session -- npm run test:native-ui
       - name: Qualify native gateway linking, forwarding and revocation
         timeout-minutes: 10
         run: dbus-run-session -- npm run test:native-mcp-hub

@@ -1,5 +1,30 @@
 # Verification report
 
+## Combined native Find and Move fixture candidate — 2026-10-16
+
+The combined branch now includes real native Find query/history/replacement
+checks, one explicit local Save bound to its request start and acknowledgement,
+and a separately declared effective-main cleanup Compile. Narrow geometry keeps
+the actual titlebar and a full unchanged source line. The existing wide ChatGPT
+icon and narrow scrollable menu route receive their own full-value checks; real
+ArrowDown keys reach the menu item without activating Connections.
+
+The Move extension exercises native select focus, a separately observed X11
+popup, real option keys and unchanged From/To/request values. New read-only
+inspection calls have explicit two-second/64 KiB limits. Popup closure requires
+actual inventory absence or a successful unmapped observation. Every original
+76 native/37 Move assertion, eight geometry cases and existing deadline remains;
+the whole native step has a ten-minute outer bound.
+
+All 43 focused JavaScript model/helper checks, eleven syntax checks, architecture
+and attribution verification pass. The private historical double-toggle test
+remains evidence; its four portable actual-helper regressions are maintained.
+These are source/model checks, not native Find, popup, persistence or complete
+installer results. The earlier four closed-maintenance native cases remain
+partial evidence from a different candidate. Full combined Rust/browser/native
+and installer qualification is pending. Receipts are under ignored
+`artifacts/qualification/connections-integration-20261016/`.
+
 ## Background Review status preservation candidate — 2026-10-16
 
 An ordinary busy reply from the automatic read-only Review refresh preserves
