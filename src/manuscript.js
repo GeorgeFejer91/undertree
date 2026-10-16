@@ -1728,7 +1728,7 @@ for (const button of document.querySelectorAll('[data-command]')) button.onclick
   else if (command === 'set-main-document') await setMainDocument(active.path);
   else if (command === 'clear-main-document') await setMainDocument('');
   else if (insertionCommands.has(command) || ['bold','italic','heading','bullet-list','numbered-list'].includes(command)) formatSource(command);
-  else if (view) { showPane('editor'); ({ undo, redo, 'select-all': selectAll, find: openSearchPanel })[command]?.(view); view.focus(); }
+  else if (view) { showPane('editor'); ({ undo, redo, 'select-all': selectAll, find: openSearchPanel })[command]?.(view); if (command !== 'find') view.focus(); }
 });
 const menuNavigation = setupMenuNavigation(workspaceMenus, {
   isComposing: () => !!view?.compositionStarted,

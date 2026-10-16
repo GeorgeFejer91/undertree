@@ -1,5 +1,38 @@
 # Verification report
 
+## Find focus and short-window layout candidate — 2026-10-16
+
+Opening Find from the menu now leaves focus in CodeMirror's real query input.
+Undo, Redo and Select all retain their existing editor-focus behavior. The
+supported search panel keeps its original DOM and handlers, with narrow-pane
+reflow and real Pretext checks for its buttons and checkbox labels. Search
+observers are removed on Close and ignore source typing and unrelated editor
+measurement-node removal. Narrow, short windows reclaim excess tab padding
+and mobile-view spacing without reducing user font sizes or removing controls.
+
+Eight command/menu checks and 21 actual-helper boundary cases pass. The
+isolated frontend build, architecture and attribution verification pass; the
+331 Rust/27 JavaScript component lists and complete license payloads remain
+unchanged. The final browser fixture passes all 14 contexts, nine complete
+Find/history flows, 222 checks, 213 geometry observations and 120 actual
+Tab/ShiftTab keys. It also covers source caret reach, close/unobserve,
+contraction/regrowth, pane breakpoints, German labels and search text spacing.
+With the actual static titlebar visible at 320×480/root28, source client height
+is 40px for an unchanged 38.4px source line. All 235 input guards match, all 52
+observed owned processes exit, no zombies remain and temporary files are
+empty/removed. Actual execution SHA-256 is
+`a017b2df50f1d0f5134c34aa889e509ae6901907e0b72f185522c3f0e0765f9a`.
+
+The earlier original attempt remains failed on its zero-height source viewport;
+frame04 remains failed with only 3px of source space. The final source05 run
+retains their evidence and all original predicates. It serves actual installed
+CodeMirror/Pretext and production command/layout code with synthetic document
+and session setup. These are static Chromium results; native WebKit effects,
+real Replace/Replace-all persistence, IME and paired Overleaf parity remain
+separate gates. The parent Move dialog's native width gate is still open.
+Raw receipts are under ignored
+`artifacts/qualification/menu-navigation-p1/continuation/find-focus/`.
+
 ## Native source Move interface candidate — 2026-10-16
 
 The desktop File menu now provides a native-only dialog for one closed `.typ`
