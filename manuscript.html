@@ -26,7 +26,7 @@
       <strong class="wordmark" data-measure>UnderTree</strong>
       <nav class="workspace-menus" aria-label="Editor menus">
         <details id="menu-file" class="editor-menu"><summary id="menu-file-toggle" aria-haspopup="true" data-measure>File</summary><div class="workspace-menu-panel">
-          <button data-command="open-project">Open project folder</button><button data-command="new-file">New file</button><button data-command="new-folder">New folder</button><button data-command="import-files">Import files…</button><button data-command="refresh-files">Refresh file tree</button>
+          <button data-command="open-project">Open project folder</button><button data-command="new-file">New file</button><button data-command="new-folder">New folder</button><button data-command="import-files">Import files…</button><button data-command="move-source" data-measure>Rename or move source…</button><button data-command="refresh-files">Refresh file tree</button>
           <button id="manuscript-save" data-measure>Save</button><button id="export-manuscript" data-measure>Download source</button>
           <button data-command="history" data-measure aria-describedby="history-desktop-help">History</button><span id="history-desktop-help" class="history-desktop-help" hidden>Saved History requires the desktop app.</span>
           <button data-command="word-count" data-measure>Word count</button>
@@ -45,7 +45,7 @@
         <div class="workspace-menu-panel">
           <h3>Project</h3>
           <button data-command="open-project">Open project folder</button>
-          <button data-command="new-file">New file</button><button data-command="new-folder">New folder</button><button data-command="import-files">Import files…</button><button data-command="refresh-files">Refresh file tree</button>
+          <button data-command="new-file">New file</button><button data-command="new-folder">New folder</button><button data-command="import-files">Import files…</button><button data-command="move-source" data-measure>Rename or move source…</button><button data-command="refresh-files">Refresh file tree</button>
           <button data-command="github">GitHub storage</button>
           <button data-command="connections">ChatGPT connections</button>
           <button data-command="review">Show manuscript review</button>
@@ -142,6 +142,32 @@
   <dialog id="project-dialog"><form id="project-form"><h2>Open local project</h2><label>Folder path<input id="project-root" required placeholder="/path/to/project"></label><p>This approves only that folder for UnderTree.</p><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Open folder</button></div></form></dialog>
   <dialog id="new-dialog"><form id="new-form"><h2>New file</h2><label>Filename<input id="new-path" value="manuscript.typ" required maxlength="4096" placeholder="manuscript.typ, page.html, references.bib"></label><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Create</button></div></form></dialog>
   <dialog id="new-folder-dialog" aria-labelledby="new-folder-title"><form id="new-folder-form"><h2 id="new-folder-title" data-measure>New folder</h2><p id="new-folder-project" data-measure></p><label><span data-measure>Folder path</span><input id="new-folder-path" required maxlength="4096" placeholder="chapters/drafts" aria-describedby="new-folder-help" autocomplete="off" spellcheck="false"></label><p id="new-folder-help" data-measure>Enter a project-relative path. Its parent folder must already exist.</p><p id="new-folder-error" role="alert" data-measure hidden></p><div class="dialog-actions"><button type="button" data-close data-measure>Cancel</button><button id="new-folder-submit" type="submit" data-measure>Create folder</button></div></form></dialog>
+  <dialog id="file-move-dialog" aria-labelledby="file-move-title" aria-describedby="file-move-help">
+    <h2 id="file-move-title" data-measure>Rename or move source</h2>
+    <div class="file-move-body">
+      <p id="file-move-help" data-measure>Move one saved .typ or .html source within this project. Keep its extension. Both file tabs must already be closed, including inactive tabs. No editor buffers are saved, discarded or opened.</p>
+      <label><span data-measure>Move requests</span><span class="file-move-request-select"><select id="file-move-requests"></select></span></label>
+      <p id="file-move-project" data-measure></p>
+      <div id="file-move-draft">
+        <label><span data-measure>Source in the current file tree</span><select id="file-move-source" aria-describedby="file-move-help"></select></label>
+        <label><span data-measure>Destination path</span><input id="file-move-destination" maxlength="4096" autocomplete="off" spellcheck="false" aria-describedby="file-move-destination-help"></label>
+        <p id="file-move-destination-help" data-measure>Use a project-relative path under an existing folder. Existing destinations are never replaced.</p>
+      </div>
+      <dl id="file-move-paths"><div><dt data-measure>From</dt><dd id="file-move-from" data-measure></dd></div><div><dt data-measure>To</dt><dd id="file-move-to" data-measure></dd></div></dl>
+      <p id="file-move-status" tabindex="-1" role="status" aria-live="polite" data-measure data-text-details="Move result details"></p>
+      <details id="file-move-request-detail" hidden><summary data-measure>Move request details</summary><p id="file-move-identity" data-measure></p></details>
+      <div class="file-move-operations" role="group" aria-label="Move actions"><button id="file-move-list" type="button" data-measure>Check requests</button><button id="file-move-status-check" type="button" data-measure hidden>Check this Move</button><button id="file-move-cancel" type="button" data-measure hidden>Cancel preparation</button><button id="file-move-reconcile" type="button" data-measure hidden>Reconcile Move</button><button id="file-move-commit" type="button" data-measure hidden>Move source</button><button id="file-move-prepare" type="button" data-measure>Prepare Move</button></div>
+      <button id="file-move-new" type="button" data-measure>Choose another source</button>
+      <details id="file-move-maintenance"><summary data-measure>Receipt maintenance</summary>
+        <p id="file-move-capacity" data-measure></p>
+        <p data-measure>Retire only completed or cancelled Move receipts. An unfinished preparation or Move blocks maintenance. Tracked Git deletions can require a normal successful Sync first; failed or offline Sync can keep capacity full.</p>
+        <p data-measure>This removes private receipt history and prevents old requests from starting. Unconfirmed historical outcomes may no longer be available. Check the current file tree yourself; maintenance does not prove whether an earlier Move completed, restore sharing, move files or run Sync.</p>
+        <label class="file-move-confirm"><input id="file-move-retire-confirm" type="checkbox"><span data-measure>I want to retire this receipt history, including any unconfirmed request identities.</span></label>
+        <button id="file-move-retire" type="button" data-measure>Retire completed receipts</button>
+      </details>
+    </div>
+    <div class="dialog-actions"><button id="file-move-close" type="button" data-measure>Close</button></div>
+  </dialog>
   <dialog id="file-import-dialog" aria-labelledby="file-import-title"><h2 id="file-import-title" data-measure>Import files</h2><p id="file-import-project" data-measure></p><label><span data-measure>Existing folder in this project</span><input id="file-import-parent" maxlength="4096" placeholder="Project root" autocomplete="off" spellcheck="false" aria-describedby="file-import-help"></label><p id="file-import-help" data-measure>Original names are kept. Existing files are never replaced. Import adds files without saving or opening your editor buffer.</p><button id="file-import-choose" type="button" data-measure>Choose files…</button><ul id="file-import-list" aria-label="Staged files"></ul><p id="file-import-status" role="status" data-measure data-text-details="Import result details"></p><div class="dialog-actions"><button id="file-import-close" type="button" data-measure>Close</button><button id="file-import-clear" type="button" data-measure>Clear selection</button><button id="file-import-check" type="button" data-measure hidden>Check import</button><button id="file-import-dismiss" type="button" data-measure hidden>I checked the files</button><button id="file-import-submit" type="button" data-measure>Import files</button></div></dialog>
   <dialog id="highlight-dialog"><form id="highlight-form"><h2>Highlight passage</h2><blockquote id="highlight-quote"></blockquote><label>Color rule<select id="highlight-dialog-rule"></select></label><label>Additional prompt for this passage<textarea id="highlight-prompt" rows="3" maxlength="4000" placeholder="Keep the content, but make the wording snappier."></textarea></label><p>Protection and rejection rules take precedence over prompts.</p><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Add highlight</button></div></form></dialog>
   <dialog id="reanchor-dialog" aria-labelledby="reanchor-title"><form id="reanchor-form"><h2 id="reanchor-title">Reanchor highlight</h2><p id="reanchor-rule"></p><p>Previous passage</p><blockquote id="reanchor-old"></blockquote><p>Current selected passage</p><blockquote id="reanchor-new"></blockquote><p>This moves the existing highlight to your current selection. Its color, action and prompts stay the same.</p><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit">Reanchor highlight</button></div></form></dialog>

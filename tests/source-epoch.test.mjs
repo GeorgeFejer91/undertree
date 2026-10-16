@@ -150,7 +150,7 @@ test('actual Share-on cannot cross a held save identity change; restrictive Shar
 test('actual cached tree Open refuses a new occupant and stale project callback without replacing retained history', async () => {
   const code = manuscript.slice(manuscript.indexOf('async function openFile('), manuscript.indexOf('async function loadFiles('));
   const session = make(2), operations = [], sessions = new Map([['project:main.typ', session]]); session.editorState = { undo: 'kept' };
-  const environment = { ...identity, inventoryRoot: () => ({}), sessions, active: session, navigationIntent: 1, $: () => ({ value: 'project' }), keyFor: (p, path) => `${p}:${path}`, renderReview() {}, requireSessionCapacity() {}, request: async op => { operations.push(op); return snap(3); }, navigationCurrent: () => true, trackSession() { throw Error('Do not replace old buffer'); }, openSession() { throw Error('No implicit reopen'); } };
+  const environment = { ...identity, fileMove: null, inventoryRoot: () => ({}), sessions, active: session, navigationIntent: 1, $: () => ({ value: 'project' }), keyFor: (p, path) => `${p}:${path}`, renderReview() {}, requireSessionCapacity() {}, request: async op => { operations.push(op); return snap(3); }, navigationCurrent: () => true, trackSession() { throw Error('Do not replace old buffer'); }, openSession() { throw Error('No implicit reopen'); } };
   const open = runInNewContext(code + '\nopenFile;', environment);
   await assert.rejects(open('main.typ', 'project', 3), error => error.code === 'stale_document'); assert.equal(session.editorState.undo, 'kept'); assert.equal(session.sourceEpoch, 2); assert.equal(operations.length, 0);
   await assert.rejects(open('main.typ', 'other', 3)); assert.equal(operations.length, 0);

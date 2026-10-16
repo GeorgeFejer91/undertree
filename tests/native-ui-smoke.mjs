@@ -8,6 +8,7 @@ import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { nativeFixtureContextScript } from './native-fixture-context.mjs';
 import { seedNativeFileMove, qualifyNativeFileMove } from './native-file-move-contract.mjs';
+import { seedNativeFileMoveUi, qualifyNativeFileMoveUi } from './native-file-move-ui-contract.mjs';
 import { createHash } from 'node:crypto';
 
 assert.equal(process.platform, 'linux', 'This qualification uses Linux WebKitGTK and X11.');
@@ -80,7 +81,9 @@ const execute = (script, args = []) => command('/execute/sync', { script, args }
 const find = async selector => (await command('/element', { using: 'css selector', value: selector }))['element-6066-11e4-a52e-4f735466cecf'];
 async function click(selector) {
   const menu = await execute(`
-    const parent = document.querySelector(arguments[0])?.closest('details:not([open])');
+    const target = document.querySelector(arguments[0]);
+    const parent = target?.closest('details:not([open])');
+    if (parent?.querySelector(':scope > summary')?.contains(target)) return null;
     return parent?.id ? '#' + CSS.escape(parent.id) + ' > summary' : null;
   `, [selector]);
   if (menu) await command(`/element/${await find(menu)}/click`, {});
@@ -195,6 +198,7 @@ try {
   const crlfOriginal = '= Windows manuscript\r\n\r\nSecond 😀 passage.\r\n';
   await writeFile(crlfSource, crlfOriginal);
   await seedNativeFileMove(project);
+  await seedNativeFileMoveUi(project);
   const data = join(fixture, 'data');
   const state = join(data, 'io.github.georgefejer91.UnderTree', 'review');
   const descriptor = join(state, 'cli', 'instance.json');
@@ -296,6 +300,15 @@ try {
   assert.equal(crlfOriginal.slice(crlfAnchor.from, crlfAnchor.to), selectedQuote);
   assert.equal(crlfAnchor.quote, selectedQuote);
   assert.equal(await readFile(crlfSource, 'utf8'), crlfOriginal, 'Highlighting leaves the original CRLF source bytes unchanged.');
+  evidence.nativeReviewCloseReady = await waitFor(() => execute(`
+    const node=document.getElementById('review-close'),box=node.getBoundingClientRect();
+    const state={highlightOpen:document.getElementById('highlight-dialog').open,reviewOpen:document.querySelector('.review-workspace').dataset.reviewOpen,
+      modal:document.querySelector('dialog:modal')?.id||null,disabled:node.disabled,inert:!!node.closest('[hidden],[inert]'),visibility:getComputedStyle(node).visibility,
+      box:{left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width,height:box.height}};
+    const hit=document.elementFromPoint(box.left+box.width/2,box.top+box.height/2);
+    return !state.highlightOpen&&state.reviewOpen==='true'&&!state.modal&&!state.disabled&&!state.inert&&state.visibility==='visible'
+      &&box.width>0&&box.height>0&&box.left>=0&&box.right<=innerWidth&&box.top>=0&&box.bottom<=innerHeight&&node.contains(hit)?state:false;
+  `), 'Highlight acknowledgement did not expose the actual Review Close control.');
   await click('#review-close');
   await click('.file-button[data-path="main.typ"]');
   await waitFor(() => execute('return document.querySelector(".cm-content")?.textContent.includes("Hello from the real Tauri WebView.")'), 'Main Typst manuscript did not reopen.');
@@ -380,6 +393,7 @@ try {
   assert.deepEqual(await execute('return window.__undertreeNativeErrors'), [], 'Native resize and text enlargement have no uncaught errors.');
   checks.push('Native 320 px reflow, 200% text, short-height finite controls and visible frame SVG ink centers pass without page scrolling.');
   await qualifyNativeFileMove({execute,click,waitFor,project,state,projectId:'33333333-3333-4333-8333-333333333333',compilerCalls,evidence,checks});
+  await qualifyNativeFileMoveUi({execute,command,click,waitFor,native,nativeWindow,project,state,projectId:'33333333-3333-4333-8333-333333333333',compilerCalls,evidence,checks});
   await screenshot('native-typst-workspace.png');
   const buffer = await execute('return document.querySelector(".cm-content").textContent');
   await click('#window-minimize');

@@ -30,8 +30,16 @@ excluded from both Local CLI discovery/access and MCP; the older `files` string
 list remains compatible. Explicit directory entries retain empty folders;
 partial inventories report their limits and omitted non-Unicode names.
 The manuscript DOM adapter renders that inventory without opening asset bytes
-or flushing editor buffers. Rename, deletion and project export are separate
-file-lifecycle work.
+or flushing editor buffers. Source moves and project export use their separate
+native lifecycles below; deletion remains separate work.
+
+`service/file_move.rs` owns the closed-source transaction, exact metadata group,
+durable forward recovery, source epochs, owned Git deletions and explicit bounded
+receipt maintenance. `modules/frontend/file-move.js` owns persisted request
+coordination and endpoint-session guards; the manuscript adapter owns its dialog
+and current metadata/tree refresh. `native/tauri/` exposes only two typed main-window
+commands. The controller never adopts a retained receipt as permission to replay
+a producer. Generic operations, browser/CLI access and MCP gain no Move authority.
 
 `service/file_import.rs` owns native-picker file staging, bounded owner-bound
 selections, import receipts and exact raw-byte Git ownership. `native/tauri/`

@@ -37,7 +37,7 @@ async function fixture(t) {
     ...review, sessions: new Map(), active: null, windowClosing: false, windowFocus: null,
     compiling: false, explicitCompiles: [], localRequests: 0, localRequestsVersion: 0,
     navigationIntent: 0, saveTimers: new Map(), pdfBytes: null, windowChrome: null,
-    fileImport: { pendingCount: 0 }, projectExport: { pendingCount: 0 },
+    fileImport: { pendingCount: 0 }, projectExport: { pendingCount: 0 }, fileMove: null,
     keyFor: (project, path) => `${project}:${path}`,
     view: { compositionStarted: false, dispatch: () => {} },
     document: { activeElement: { isConnected: true, focus: () => {} }, querySelectorAll: () => regions },

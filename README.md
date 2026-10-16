@@ -161,6 +161,19 @@ If import fails after publishing files, it keeps those files and reports an
 uncertain outcome. Inspect the destination before retrying; it does not delete
 partially imported files to undo the operation.
 
+**File → Rename or move source…** moves one saved `.typ` or `.html` file and
+its Review/import metadata within the current project. Close both endpoint
+tabs first, including inactive tabs. Choose an existing destination folder,
+keep the extension, then use **Prepare Move**, review both paths and choose
+**Move source**. Existing destinations are preserved; the dialog does not save,
+discard or open editor buffers.
+
+Closing the dialog retains its request. After a missing response, use
+**Check requests** or **Check this Move** before taking another action.
+An accepted unfinished Move has an explicit **Reconcile Move** action.
+The dialog shows its 64 retained-receipt limit; explicit receipt maintenance
+can require a successful normal Git Sync for tracked deletions.
+
 **File → Download saved project (.zip)** exports saved sources, assets, empty
 folders and adjacent review/import metadata. Unsaved editor changes are excluded.
 Choose a new destination outside the source project; existing files are preserved.

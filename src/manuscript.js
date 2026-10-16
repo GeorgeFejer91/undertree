@@ -1,10 +1,12 @@
 import './manuscript.css';
+import { invoke } from '@tauri-apps/api/core';
 import { basicSetup } from 'codemirror';
 import { EditorView, Decoration, highlightSpecialChars } from '@codemirror/view';
 import { EditorState, StateEffect, StateField, Compartment, Transaction } from '@codemirror/state';
 import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
 import { ReviewSession, sourceEpoch, sourceRoot, sourceRootsEqual, captureSourceBinding, sourceBindingCurrent, assertSourceBinding, assertSourceSnapshot, localNoSaveClose } from '../modules/frontend/review-session.js';
+import { NativeFileMove, nativeFileMoveCommands } from '../modules/frontend/file-move.js';
 import { NativeFileImport } from '../modules/frontend/file-import.js';
 import { navigateCompileDiagnostic } from '../modules/frontend/compile-report.js';
 import { NativeProjectExport } from '../modules/frontend/project-export.js';
@@ -94,6 +96,7 @@ let windowChrome = null;
 let sharedManuscripts = [];
 let pendingRemoteClose = null;
 let appControls = null;
+let fileMove = null;
 const editorBridge = new EditorSessionBridge({
   request: editorRequest,
   state: session => ({ current: sessions.get(keyFor(session.project, session.path)) === session, composing: active === session && !!view?.compositionStarted, closing: windowClosing }),
@@ -464,7 +467,7 @@ async function selectProject(intent, project) {
 }
 function currentProject() { return projects.find(p => p.id === $('project-select').value); }
 function controlContext() {
-  return { sessions: sessions.values(), active, navigation: navigationIntent, composing: !!view?.compositionStarted, closing: windowClosing, pending: localRequests + fileImport.pendingCount + projectExport.pendingCount, requestsVersion: localRequestsVersion };
+  return { sessions: sessions.values(), active, navigation: navigationIntent, composing: !!view?.compositionStarted, closing: windowClosing, pending: localRequests + fileImport.pendingCount + projectExport.pendingCount + (fileMove?.pendingCount || 0), requestsVersion: localRequestsVersion };
 }
 function controlPreparation(guard, clean = false) {
   const captured = captureControlState(controlContext());
@@ -1130,6 +1133,7 @@ function requireSessionCapacity(project, path) {
 }
 async function openFile(path, project = $('project-select').value, expectedEpoch = 0, root = {}) {
   if (project !== $('project-select').value) throw { message: 'The project changed. Refresh its file tree before opening this source.' };
+  if (fileMove?.blocks(project, path)) throw { code: 'busy', message: 'Check or resolve the pending Move before opening either file path. Your buffers are kept.' };
   const binding = captureSourceBinding({ project, path, sourceEpoch: expectedEpoch, ...root });
   if (!sourceRootsEqual(binding, inventoryRoot(project))) throw { code: 'stale_root', message: 'The project folder changed. Open the file from its refreshed tree.' };
   const intent = ++navigationIntent;
@@ -1208,6 +1212,137 @@ function openNewFolder() {
   $('new-folder-error').hidden = true; $('new-folder-submit').disabled = false;
   $('new-folder-dialog').showModal(); $('new-folder-path').select();
 }
+let moveReturnFocus = null, moveDraft = null;
+const moveSources = new Map();
+function assertMoveTree(binding) {
+  if (windowClosing || view?.compositionStarted) throw { code: 'busy', message: 'Finish the current text composition or window operation before moving a source. Your buffer is kept.' };
+  if (binding.project !== $('project-select').value || !sourceRootsEqual(binding, inventoryRoot(binding.project))) throw { code: 'stale_root', message: 'The selected project folder changed. Refresh its tree and choose the source again.' };
+  const row = [...$('manuscript-files').querySelectorAll('.file-button')].find(node => node.dataset.path === binding.from);
+  if (!row || sourceEpoch({ sourceEpoch: Number(row.dataset.sourceEpoch) }) !== binding.sourceEpoch) throw { code: 'stale_document', message: 'The source changed in the file tree. Refresh and choose it again.' };
+  const parent = binding.to.includes('/') ? binding.to.slice(0, binding.to.lastIndexOf('/')) : '';
+  if (parent && ![...$('manuscript-files').querySelectorAll('.file-folder')].some(folder => folder.dataset.path === parent)) throw { message: 'Choose a destination under an existing folder in this project.' };
+}
+async function refreshMoveMetadata() {
+  // Only current observations are used. A historical receipt never supplies project state or navigation.
+  const selected = $('project-select').value, intent = navigationIntent, observedProjects = projects;
+  const response = await request({ action: 'projects' });
+  if (!navigationCurrent(intent, selected)) return;
+  if (projects !== observedProjects) {
+    if (projects.some(project => project.id === selected)) await loadFiles(intent);
+    return;
+  }
+  const displayed = active, previousPath = publicationPath(displayed);
+  const previous = currentProject(); projects = response;
+  const select = $('project-select'); select.replaceChildren(element('option', 'Choose a project')); select.firstChild.value = '';
+  for (const project of projects) { const option = element('option', project.name); option.value = project.id; select.append(option); }
+  if (selected && !projects.some(project => project.id === selected)) { const option = element('option', `${previous?.name || 'Selected project'} (unavailable)`); option.value = selected; option.disabled = true; select.append(option); }
+  select.value = selected;
+  const path = publicationPath(active);
+  if (active && active === displayed && path !== previousPath) {
+    $('typst-compile').title = path ? `Compile ${path}` : ''; $('typst-compile').hidden = !path;
+    retireCompileNavigation();
+    if (pdfBytes && pdfProject === active.project && sourceRootsEqual(active, pdfRoot) && pdfPath !== path) pdfStatus('Main document changed · last good PDF retained');
+  }
+  renderProjectExport(); renderReview();
+  if (projects.some(project => project.id === selected)) await loadFiles(intent);
+  else { fileInventoryGeneration += 1; $('manuscript-files').replaceChildren(); delete $('manuscript-files').dataset.project; }
+}
+// Native Move admission is separate from generic Review/browser/App operations.
+if (nativeReview) {
+  const commands = nativeFileMoveCommands(invoke, editorOwnerId, nativeReview);
+  fileMove = new NativeFileMove({
+    prepare: value => fileActivity(() => commands.prepare(value)),
+    request: operation => fileActivity(() => commands.request(operation)),
+    observe: binding => request({ action: 'review', project: binding.project, path: binding.from, sourceEpoch: binding.sourceEpoch, expectedRoot: binding.expectedRoot }),
+    sessions: () => sessions.values(), canStart: assertMoveTree, refresh: refreshMoveMetadata,
+    onChange: () => { localRequestsVersion += 1; renderFileMove(); },
+  });
+}
+function chooseMoveSource() {
+  const source = moveSources.get($('file-move-source').value);
+  moveDraft = source ? { ...source, to: source.from } : null;
+  $('file-move-destination').value = moveDraft?.to || '';
+  renderFileMove();
+}
+function startMoveDraft() {
+  if (!fileMove || fileMove.busy) return;
+  const project = currentProject(); moveSources.clear();
+  const select = $('file-move-source'); select.replaceChildren();
+  let root = null;
+  if (project) { try { root = inventoryRoot(project.id); } catch (error) { fileMove.message = error.message; } }
+  if (root) {
+    for (const row of $('manuscript-files').querySelectorAll('.file-button')) if (/\.(typ|html)$/.test(row.dataset.path)) {
+      const source = { project: project.id, from: row.dataset.path, sourceEpoch: sourceEpoch({ sourceEpoch: Number(row.dataset.sourceEpoch) }), ...root };
+      moveSources.set(source.from, source); const option = element('option', source.from); option.value = source.from; select.append(option);
+    }
+  }
+  if (!moveSources.size) { const option = element('option', 'No .typ or .html sources in the current tree'); option.value = ''; select.append(option); }
+  if (active?.project === project?.id && moveSources.has(active.path)) select.value = active.path;
+  fileMove.select(null); chooseMoveSource();
+}
+function renderFileMove() {
+  if (!fileMove) return;
+  const prepare = $('file-move-prepare'), dialog = $('file-move-dialog');
+  const prepareHadFocus = document.activeElement === prepare && document.hasFocus();
+  const context = fileMove.current, captured = !!context?.request.requestId && context.status !== 'not_submitted';
+  const binding = captured ? context.request : moveDraft;
+  const requestSelect = $('file-move-requests'); requestSelect.replaceChildren(element('option', 'New source Move')); requestSelect.firstChild.value = '';
+  for (const [id, record] of fileMove.records) {
+    const option = element('option', `${record.request.from} → ${record.request.to} · ${record.status}`); option.value = id; requestSelect.append(option);
+  }
+  requestSelect.value = captured ? `${binding.generation}:${binding.requestId}` : ''; requestSelect.disabled = fileMove.busy;
+  $('file-move-project').textContent = binding ? `Project: ${projects.find(project => project.id === binding.project)?.name || binding.project}` : 'Choose a project and refresh its file tree before preparing a Move.';
+  $('file-move-paths').hidden = !binding;
+  $('file-move-from').textContent = binding?.from || ''; $('file-move-to').textContent = captured ? binding.to : $('file-move-destination').value;
+  $('file-move-draft').hidden = captured;
+  $('file-move-source').disabled = fileMove.busy || !fileMove.canPrepare;
+  $('file-move-destination').disabled = fileMove.busy || !fileMove.canPrepare;
+  $('file-move-prepare').hidden = captured; $('file-move-prepare').disabled = !moveDraft || !fileMove.canPrepare;
+  $('file-move-commit').hidden = !captured || context.phase !== 'prepared' || !context.owned || context.commitSubmitted;
+  $('file-move-commit').disabled = fileMove.busy || !fileMove.ready || !!fileMove.storageProblem;
+  $('file-move-cancel').hidden = !captured || !context.owned || !context.moveId || !['prepared', 'unknown'].includes(context.status); $('file-move-cancel').disabled = fileMove.busy;
+  $('file-move-status-check').hidden = !captured; $('file-move-status-check').disabled = fileMove.busy;
+  $('file-move-reconcile').hidden = !captured || !['pending', 'recovery_required'].includes(context.status); $('file-move-reconcile').disabled = fileMove.busy;
+  $('file-move-list').disabled = fileMove.busy; $('file-move-new').disabled = fileMove.busy || !fileMove.canPrepare;
+  const capacity = fileMove.retainedCount >= 64 ? 'All 64 Move receipt slots are full. Completed or cancelled receipts still use a slot. Receipt maintenance is explicit and can require a successful Git sync; offline capacity is limited.' : '';
+  const message = [context?.message, fileMove.message, capacity, fileMove.storageProblem].filter((value, index, values) => value && values.indexOf(value) === index).join(' ');
+  $('file-move-status').textContent = message || 'Both source and destination tabs must already be closed, including inactive tabs. No buffers will be saved or discarded.';
+  $('file-move-status').setAttribute('role', context?.phase === 'unconfirmed' || fileMove.storageProblem ? 'alert' : 'status');
+  $('file-move-capacity').textContent = `${fileMove.retainedCount} of 64 Move receipts retained in this generation. Completing or checking a Move does not free a slot.`;
+  $('file-move-request-detail').hidden = !captured;
+  $('file-move-identity').textContent = captured ? `Generation ${binding.generation} · request ${binding.requestId}` : '';
+  $('file-move-retire').disabled = fileMove.busy || !fileMove.ready || !$('file-move-retire-confirm').checked || !!fileMove.storageProblem || [...fileMove.records.values()].some(record => record.native && !['moved', 'cancelled'].includes(record.status));
+  $('file-move-retire-confirm').disabled = fileMove.busy;
+  $('file-move-dialog').setAttribute('aria-busy', String(fileMove.busy));
+  if (prepareHadFocus && dialog.open && dialog.matches(':modal') && document.hasFocus() && (prepare.hidden || prepare.disabled) && [prepare, document.body].includes(document.activeElement)) $('file-move-status').focus();
+}
+function openFileMove(trigger) {
+  if (!fileMove) throw { code: 'desktop_required', message: 'Moving sources requires the UnderTree desktop app.' };
+  if ($('file-move-dialog').open) return;
+  moveReturnFocus = trigger?.closest('details')?.querySelector('summary') || trigger;
+  $('file-move-retire-confirm').checked = false;
+  const captured = !!fileMove.current?.request.requestId && fileMove.current.status !== 'not_submitted';
+  if (!captured) startMoveDraft();
+  renderFileMove(); $('file-move-dialog').showModal();
+  (captured ? $('file-move-status-check') : $('file-move-source').disabled ? $('file-move-list') : $('file-move-source')).focus();
+}
+$('file-move-source').onchange = chooseMoveSource;
+$('file-move-destination').oninput = () => { if (moveDraft) moveDraft.to = $('file-move-destination').value; $('file-move-to').textContent = $('file-move-destination').value; };
+$('file-move-requests').onchange = () => { if ($('file-move-requests').value) fileMove?.select($('file-move-requests').value); else startMoveDraft(); };
+function moveAction(callback) { return task(async event => { try { await callback(event); } catch (error) { if (fileMove) { fileMove.message = error.message || 'The Move action is unavailable.'; renderFileMove(); } } }); }
+$('file-move-new').onclick = moveAction(() => startMoveDraft());
+$('file-move-prepare').onclick = moveAction(() => fileMove?.prepare(moveDraft));
+for (const [id, action] of [['commit', 'move_commit'], ['cancel', 'move_cancel'], ['status-check', 'move_status'], ['reconcile', 'move_reconcile']]) $('file-move-' + id).onclick = moveAction(() => fileMove?.act(action));
+$('file-move-list').onclick = moveAction(() => fileMove?.discover());
+$('file-move-retire-confirm').onchange = renderFileMove;
+$('file-move-retire').onclick = moveAction(async () => { const confirmed = $('file-move-retire-confirm').checked; $('file-move-retire-confirm').checked = false; await fileMove?.retire(confirmed); });
+$('file-move-close').onclick = () => $('file-move-dialog').close();
+$('file-move-dialog').addEventListener('cancel', event => { event.preventDefault(); $('file-move-dialog').close(); });
+$('file-move-dialog').addEventListener('close', () => {
+  const target = [moveReturnFocus, $('menu-file-toggle'), $('workspace-menu').querySelector('summary')].find(node => node?.getClientRects().length);
+  target?.focus({ preventScroll: true }); moveReturnFocus = null;
+});
+for (const button of document.querySelectorAll('[data-command="move-source"]')) if (!nativeReview) { button.disabled = true; button.textContent = 'Rename or move source · desktop only'; button.title = 'Moving sources requires the UnderTree desktop app.'; }
 let renderedImportContext = null, renderedImportSelection = null, closingImportContext = null;
 const fileImport = new NativeFileImport({
   choose: (project, parent, expectedRoot) => fileActivity(() => chooseImportFiles(project, parent, expectedRoot)),
@@ -1570,6 +1705,7 @@ for (const button of document.querySelectorAll('[data-command]')) button.onclick
   if (triggers[command]) $(triggers[command]).click();
   else if (command === 'new-folder') openNewFolder();
   else if (command === 'import-files') openFileImport();
+  else if (command === 'move-source') openFileMove(button);
   else if (command === 'download-project') await downloadSavedProject();
   else if (command === 'check-project-download') await projectExport.check();
   else if (command === 'inspect-project-download') await projectExport.dismiss();
@@ -1657,7 +1793,7 @@ const workspaceGeometry = new ResizeObserver(() => {
 });
 workspaceGeometry.observe(workspace);
 workspaceGeometry.observe(document.querySelector('.manuscript-review'));
-window.addEventListener('beforeunload', event => { if ([...sessions.values()].some(s => s.dirty || s.conflict || s.pending || s.uncertainMutation || s.unresolvedMove || (s.identityProblem && !localNoSaveClose(s)))) { event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', event => { if (fileMove?.pendingCount || [...sessions.values()].some(s => s.dirty || s.conflict || s.pending || s.uncertainMutation || s.unresolvedMove || (s.identityProblem && !localNoSaveClose(s)))) { event.preventDefault(); event.returnValue = ''; } });
 restoreWorkspacePreferences();
 windowChrome = await setupWindowChrome({
   status,
@@ -1678,6 +1814,7 @@ editorBridge.start();
 window.addEventListener('pagehide', () => { historyPanel.back(); wordCount.close(); appControls?.stop(); editorBridge.stop(); for (const session of sessions.values()) void editorBridge.unwatch(session); });
 window.addEventListener('pageshow', event => { if (event.persisted) { for (const session of sessions.values()) editorBridge.watch(session); editorBridge.start(); appControls?.start(); } });
 await task(async () => { await loadProjects(); renderReview(); await connections.refresh(); })();
+if (fileMove) await fileMove.discover();
 appControls = new McpControlBridge({
   request: controlRequest, snapshot: controlWorkspaceSnapshot, effects: controlEffects,
   onError: (error, command) => { if (command?.kind === 'set_window_state' && command.state === 'close') pendingRemoteClose = null; },
@@ -1699,6 +1836,6 @@ setInterval(async () => {
     await session.refresh();
     if (active === session && (before !== JSON.stringify(session.snapshot.review) || session.conflict)) { renderReview(); decorations(); queueSync(session.project); }
     if (session.conflict && active?.project === session.project && publicationPath(active)) pdfStatus('Project input conflict · last good PDF retained');
-  } catch (error) { if (active === session) { if (session.identityProblem) { clearTimeout(saveTimers.get(session)); saveTimers.delete(session); compileScheduler.cancel(); renderReview(); pdfStatus('Source identity changed · last good PDF retained'); } status(error.message, true); } }
+  } catch (error) { if (active === session) { if (session.identityProblem) { clearTimeout(saveTimers.get(session)); saveTimers.delete(session); compileScheduler.cancel(); renderReview(); pdfStatus('Source identity changed · last good PDF retained'); } if (error.code !== 'busy') status(error.message, true); } }
   finally { refreshing = false; }
 }, 2000);

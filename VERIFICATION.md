@@ -1,5 +1,157 @@
 # Verification report
 
+## Background Review status preservation candidate — 2026-10-16
+
+An ordinary busy reply from the automatic read-only Review refresh preserves
+an existing compile/status receipt. Identity changes still freeze the source,
+cancel pending Save/compile work and retain the last good PDF. Other failures
+and busy errors from explicit user actions remain visible; no action is replayed.
+
+The same five extracted production-callback tests pass after failing three
+cases before the change. The frontend build, architecture and attribution
+verification pass; component lists and full license payloads remain unchanged
+at 331 Rust and 27 JavaScript entries. Independent source review accepted the
+one-condition change. This is model/source evidence; the exact producer of the
+hosted Review UI busy message remains unknown. Full hosted/native qualification
+is still required. Receipts are under ignored
+`artifacts/qualification/connections-integration-20261016/`.
+
+## Native Move select containment candidate — 2026-10-16
+
+The requests selector now has a wrapper containing only the native control,
+with paint/overflow containment and an inset keyboard-focus outline. Full
+option labels, native appearance and handlers, From/To and request identity
+remain unchanged. The body and its text labels are not clipped.
+
+A private actual WebKitGTK 2.54 reduction reproduces the original 222px body
+with 681px scroll width; horizontal scrolling moves its visible siblings off
+screen. The selector wrapper yields 222/222 with the native arrow retained.
+All four cases, twelve screenshots and 272 before/after input guards complete;
+all eleven observed process identities exit and cleanup passes. This local
+reduction does not qualify hosted WebKitGTK 2.52.6, native popup usability,
+keyboard focus, full-value selection or actual Move effects. The original
+min-inline and grid native failures remain failed. The exact candidate passes
+89 focused tests, architecture, the frontend build and current 331 Rust/27
+JavaScript attribution verification. Full license payloads remain unchanged.
+The hosted 791d5ed candidate passed four closed-maintenance geometry cases
+with 222/222 body width at 320px. The next case failed because the native
+fixture auto-opened the requested summary and clicked it again. The shared
+click helper now excludes its own summary from auto-opening; closed menu
+children keep their existing two-click setup. Four extracted-helper models
+pass after the unchanged tests failed two cases before the correction. All
+original native assertions, matrix cases and deadlines remain. Open-maintenance
+geometry, the complete native workflow and installer still require a fresh run.
+
+The later 3b2cde4 native run stopped before menus/Move because Review Close
+was not interactable after a durable CRLF highlight. Its terminal screenshot
+shows Close, without the Highlight modal; the state at the failed click was
+not captured. The fixture now additionally waits for the actual Highlight
+acknowledgement, open Review sidebar and enabled, visible, non-inert Close
+control with a bounded box and successful center hit test. The same one Close
+click and all 76 original assertions remain. This adds one default 15-second
+observational prerequisite; it does not replay any action. Independent source
+review accepts the correction; its native execution remains pending.
+Evidence is under ignored
+`artifacts/reverse-engineering/move-select-webkitgtk-20261016/` and
+`artifacts/qualification/native-move-ui-integration-20261016/`.
+
+## Native source Move interface candidate — 2026-10-16
+
+The desktop File menu now provides a native-only dialog for one closed `.typ`
+or `.html` source and its Review/import group. The controller persists and
+reads back each request identity before native submission, retains uncertain
+outcomes, and exposes explicit preparation, commit, inspection, cancellation,
+forward reconciliation and terminal maintenance. It guards both endpoint
+sessions, composition, current rooted tree/epochs and pending native/App Close
+without saving or discarding buffers. Current Projects observations refresh
+metadata/tree; a changed main path marks the retained old PDF stale without
+clearing its bytes, opening a source or rebuilding it. A newer local main
+selection wins over a held old Projects reply.
+
+Independent source review accepts the five-file implementation and V5 width
+correction with 67 focused checks, including actual adapter callbacks and eight
+focus cases.
+An earlier rendered candidate records a real 320px/28px-text layout failure;
+putting operation buttons in the scrollable body gives Close a bounded footer.
+The V3 run passes thirteen geometry groups but fails unconditional DOM
+Tab containment. A separate passive trace records focused Prepare becoming
+hidden and dropping to BODY, then a later window blur at the browser boundary.
+V4 moves only the just-invalidated Prepare focus to its status, preserving any
+newer user focus. Its reviewed browser assertion requires no background-page
+focus, classifies only observed unfocused browser boundaries and demands one
+real key return into the modal. Earlier failed receipts remain failed.
+
+The isolated integration passes all 67 checks, architecture, the frontend build
+and current attribution verification. Its fifteen assets and source guards are
+recorded in `artifacts/qualification/native-move-ui-integration-20261016/`;
+current V5 build receipt SHA-256 is
+`1dbf8a27a8996df4e54d039b2570b4be2b706ed81466db476607bef96dc1adec`.
+Rust and JavaScript license texts remain byte-identical for 331 and 27
+components; only current input metadata changes.
+
+A source-reviewed native fixture extension retains all 76 original assertions
+and adds a distinct prelaunch source group. After the typed-command helper's
+generation retirement, it will exercise actual dialog buttons, destination
+key input, Prepare without a move, Close/reopen identity retention, explicit
+Commit, exact group bytes/modes/epochs and tree refresh. Unrelated source,
+policy, editor and Save/compiler counters must stay unchanged. The native test
+also checks actual 28px root text and eight short/tall,
+320/wide, maintenance-open/closed dialog geometries in WebKitGTK, restores
+prior font/window geometry, and retains failed measurements before restoration.
+Final source review SHA-256 is
+`4e571edeebabe3f3e510d46ab187934e896f10b1ce1440864af35c11c04834ea`.
+The complete V4 rendered run passes the twelve original layouts, intended
+Prepare status focus, original keyboard/regrowth/Escape sequence and browser
+boundary return, then exposes a maintenance button wider than its body. Its
+36 input guards and strict cleanup pass; the failure remains recorded. V5
+extends the existing maximum-width rule to that button, retaining all labels,
+fonts, actions and assertions. The full V5 rendered run then passes 657 checks
+and 654 geometry observations,
+including the original layouts, five maintenance sizes and eighteen operation
+state/size cases. All nineteen observed browser boundaries have successful
+single-key returns, with no outside focus or dropped observations. All 36
+inputs remain exact; seventy owned processes exit, no zombies remain and
+private temporary storage is empty and removed. Independent actual-result
+review SHA-256 is
+`7fbc1c7542fcb1bf24cccabe4e537a1216623c53aa92b7558dc656ac49de09c6`.
+Initial hosted push/PR runs 38849858472 and 38849907904 stop in extracted
+callback fixtures before native execution. Five existing test files lacked the
+new neutral `fileMove` binding or compared the dispatcher against its preceding
+hash. The correction supplies `fileMove: null` to those isolated environments
+and requires exactly one added Move command before comparing every original
+dispatcher byte against the original hash. All existing assertions, Close
+hash and deadlines remain. Independent review accepts this test-only change;
+the six focused files pass all 139 checks, including the 67 Move cases.
+The complete local Node suite records 482 passes and three failures requiring
+unavailable legacy `latexmk`; those failures remain recorded and the hosted
+workflow is the pending complete gate. Runtime source, locks and workflow
+remain byte-identical to the initial UI candidate.
+The corrected hosted push/PR runs 38850502580 and 38850507062 pass the early
+fixture gate, all 418 Rust library tests and browser gates. Both reach the real
+native Move layout check, then fail its original horizontal-overflow assertion
+at 320×480 with 28px root text: body client width 222px versus scroll width
+681px. Individually measured labels fit; the saved evidence does not identify
+the overflowing control or ancestor. The preceding raw typed-command Move
+passes, but the new dialog Commit and installer are not reached. These remain
+failed runs. A test-only passive capture now records up to 128 descendant boxes
+and computed width policies, including native selects and closed-details
+ancestry, plus up to 64 overflow observations before the same assertions.
+No runtime source, action, assertion or deadline changes accompany this capture.
+Both diagnostic runs 38851954244 and 38851958900 reproduce the same overflow.
+Their 54 descendant observations identify the visible Move requests label:
+its rectangle is 216.8125px wide and client width 217px, but scroll width is
+681px. The nested native select's rectangle and scroll width fit. Closed
+details do not explain the observed width. Push run 38853414385 on `69c0567`
+reproduces the same 222px/681px overflow with the label's computed minimum
+already 0px. The minimum-size rule alone therefore does not fix this case.
+The next candidate gives only the direct Move requests label a one-column grid
+with `minmax(0, 1fr)`. Its native-select formatting effect remains a hypothesis;
+full overflow checks, fonts, semantic controls, handlers and deadlines remain
+unchanged. The rule affects one existing label and adds no wrapper or clipping.
+Integrated native UI/installer qualification remains open. No release, installation,
+IME or paired Overleaf parity is inferred from the build or mocked native wire.
+
+
 ## Linux dependency-report bound candidate — 2026-10-16
 
 The isolated compiler candidate drains dependency JSON concurrently with PDF
@@ -34,9 +186,15 @@ native/review Clippy. Both stop at the parent native Move fixture setup before
 any Move operation: the prior deliberately failed build has no successful
 rebuild after CLI save. The parent now supplies that real Recompile setup and
 a saved-revision check, while retaining the original predicate and deadline.
-The corrected source and actual native publication still require complete
-hosted qualification. No performance, crash-residue, public route,
-installation or release qualification is inferred from these source results.
+Following the fixture corrections, complete push run 38846680784 and PR run
+38846688124 on `635e4af` pass all 418 library tests, integration/browser checks,
+strict native/review Clippy, every native gate and extracted installer
+qualification. Downloaded push package SHA-256 is
+`c264919b77aaf6ad9727b0ebb897b70d0232b7b5d1b8aca1ec44f18459295857`.
+Independent verification checks archive digests, package/build/extracted
+receipts, packaged binaries/attribution and exact source/runner identities.
+No performance, crash-residue, public route, installation or release
+qualification is inferred from those bounded results.
 
 ## Menu navigation and policy fixture continuation — 2026-10-16
 
@@ -291,6 +449,16 @@ epoch advance, pure receipt reads, completed replay and explicit generation
 retirement. It checks that the unrelated editor/source/policy and compiler/Save
 counters remain unchanged. This helper is source-reviewed; its native effect
 results remain pending. No browser mock is counted as native Move evidence.
+
+Complete push run 38846620822 and PR run 38846628481 on `f8f0511` now pass
+all 410 library tests, integration/browser checks, strict native/review Clippy,
+every native gate and extracted installer qualification. The actual typed
+Move helper passes in both debug and extracted release binaries. Downloaded
+push package SHA-256 is
+`ed6c335a00c46242c47ec7c8bae820634ee8b2ed05279e28b9d5049fbbcc9616`.
+The independently verified four-run Move/compiler summary has SHA-256
+`ea49a7486e8af7a4ac87c1c06f96896bd5ba9581cb9180e4f3c6799d52cf8b85`.
+This qualifies the backend and compiler slices, not the newer frontend UI.
 
 Fresh pinned cargo-about generation selects 331 Rust components, adding
 `nix` 0.31.3 and `cfg_aliases` 0.2.2 with their actual license/notice texts.
