@@ -1,5 +1,37 @@
 # Verification report
 
+## Linux dependency-report bound candidate — 2026-10-16
+
+The isolated compiler candidate drains dependency JSON concurrently with PDF
+and diagnostic output. On Linux, the compiler writes an inherited private pipe;
+Rust writes at most 256 KiB into the original held temporary report file. A
+cap-plus-one observation refuses overflow without persisting that extra byte;
+true EOF and flush remain prerequisites. Timeout, failure and caller-drop paths
+retain the output handles until actual child reap, then close them before the
+stage and compile lease. No new dependency, unsafe/pre-exec hook or renderer
+privilege is added. Non-Linux retains its preceding postcompile file check;
+this is not an all-platform disk bound or general process sandbox.
+
+Actual old production records the 262,145-byte report and a still-running
+producer at the 262,144-byte limit, then fails the unchanged bounded test.
+The initial candidate's 89 publishing tests record 88 passes and one failure.
+All eight new bound tests pass, covering overflow, EOF/cancellation and
+concurrent three-stream cases. Existing real pinned Typst/native/currentness
+cases also pass. An existing capture fixture
+hangs rereading the now-streamed report; its test-only correction observes the
+real pinned child's report once in an owned temporary file and forwards those
+same bytes before its original held-child assertions. Every original assertion
+and 20/30/15-second budget remains. The original wrapper's exit 143 and missing
+Cargo exit observation remain recorded; the local full gate is not green.
+
+The integrated five-file source is independently reviewed against frozen v3,
+retaining both existing Move admission/currentness fences. Review receipt
+SHA-256 is `57687ebe23f8b457ee89c2ccde7d8d3603c9db09140d4f15b7c783e2d1a40a94`.
+Full workspace manifests and the locked 479-package graph remain unchanged.
+Corrected-v3 Rust, strict native Clippy and actual native publication results
+require fresh hosted qualification. No performance, crash-residue, public route,
+installation or release qualification is inferred from these source results.
+
 ## Menu navigation and policy fixture continuation — 2026-10-16
 
 The qualified review snapshot connects the existing menu-navigation helper to the

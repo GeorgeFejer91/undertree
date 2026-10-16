@@ -15,6 +15,8 @@ use std::process::Stdio;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 mod compiler_capture;
+#[cfg(target_os = "linux")]
+mod dependency_spool;
 pub(crate) mod diagnostics;
 mod pdf_spool;
 
@@ -1129,6 +1131,7 @@ impl Service {
             temporary,
             pdf_output,
             dependency_list,
+            dependency_output,
             legacy_pdf,
             info,
             previous,
@@ -1164,6 +1167,7 @@ impl Service {
             let temporary = tempfile::NamedTempFile::new_in(service.publishing_root())?;
             let pdf_output = temporary.as_file().try_clone()?;
             let dependency_list = tempfile::NamedTempFile::new_in(service.publishing_root())?;
+            let dependency_output = dependency_list.as_file().try_clone()?;
             let native = if native_report {
                 if stage_owner.is_none() || expected_root.is_none() {
                     return Err(Error::new(
@@ -1207,6 +1211,7 @@ impl Service {
                 temporary,
                 pdf_output,
                 dependency_list,
+                dependency_output,
                 legacy_pdf,
                 info,
                 previous,
@@ -1218,6 +1223,19 @@ impl Service {
         })
         .await
         .map_err(|_| Error::new("state", "Typst input preparation stopped unexpectedly."))??;
+        // Linux sends reports through unused stdin; Rust bounds writes to the held report file.
+        #[cfg(target_os = "linux")]
+        let (dependency_sender, mut dependency_receiver) = tokio::net::unix::pipe::pipe()?;
+        #[cfg(target_os = "linux")]
+        compiler.stdin(Stdio::from(dependency_sender.into_blocking_fd()?));
+        #[cfg(not(target_os = "linux"))]
+        compiler.stdin(Stdio::null());
+        let dependency_target = if cfg!(target_os = "linux") {
+            Path::new("/proc/self/fd/0")
+        } else {
+            // Other platforms retain post-compile admission until their stream route is qualified.
+            dependency_list.path()
+        };
         let staged_source = snapshot.root.path().join(path);
         if native.as_ref().is_some_and(|build| build.qualified) {
             compiler.arg("--color").arg("never");
@@ -1231,7 +1249,7 @@ impl Service {
             .arg("--format")
             .arg("pdf")
             .arg("--deps")
-            .arg(dependency_list.path())
+            .arg(dependency_target)
             .arg("--deps-format")
             .arg("json")
             .arg("--font-path")
@@ -1252,11 +1270,12 @@ impl Service {
                 ("no_proxy", ""),
             ])
             .current_dir(snapshot.root.path())
-            .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn();
+        // A retained custom Stdio writer in Command would prevent dependency EOF.
+        drop(compiler);
         let mut child = match spawned {
             Ok(child) => child,
             Err(_) => {
@@ -1276,6 +1295,9 @@ impl Service {
             }
         };
         let mut pdf_output = tokio::fs::File::from_std(pdf_output);
+        let dependency_output = tokio::fs::File::from_std(dependency_output);
+        #[cfg(target_os = "linux")]
+        let mut dependency_output = dependency_output;
         let mut capture = compiler_capture::StderrCapture::new();
         let mut normal_wait = false;
         let work =
@@ -1288,7 +1310,13 @@ impl Service {
                 })?;
                 tokio::try_join!(
                     pdf_spool::spool(&mut stdout, &mut pdf_output),
-                    capture.read(&mut stderr)
+                    capture.read(&mut stderr),
+                    async {
+                        #[cfg(target_os = "linux")]
+                        dependency_spool::spool(&mut dependency_receiver, &mut dependency_output)
+                            .await?;
+                        Ok::<_, Error>(())
+                    }
                 )?;
                 let status = child.wait().await?;
                 normal_wait = status.code().is_some();
@@ -1306,6 +1334,8 @@ impl Service {
                     "Typst took too long. The last good PDF is preserved.",
                 ))
             });
+        #[cfg(target_os = "linux")]
+        drop(dependency_receiver);
         let complete = normal_wait && capture.eof() && !capture.clipped() && !capture.read_failed();
         match result {
             Ok(()) => (),
@@ -1323,6 +1353,7 @@ impl Service {
                     let _compile = compile_guard;
                     let _files = (snapshot, temporary, dependency_list);
                     let mut pdf_output = pdf_output;
+                    let mut dependency_output = dependency_output;
                     let _ = child.start_kill();
                     // The earlier wait may have failed after consuming platform wait state.
                     // Poll directly; never release ownership without a confirmed exit/reap.
@@ -1335,7 +1366,8 @@ impl Service {
                     }
                     // A cancelled Tokio file write may still be running; keep files/lease owned.
                     let _ = pdf_output.flush().await;
-                    drop(pdf_output);
+                    let _ = dependency_output.flush().await;
+                    drop((pdf_output, dependency_output));
                 });
                 // No diagnostics formatting precedes the owned reaper's admission.
                 let error = if error.code == "typst" && error.message.is_empty() {
@@ -1377,7 +1409,7 @@ impl Service {
                 return reply;
             }
         }
-        drop(pdf_output);
+        drop((pdf_output, dependency_output));
         let diagnostics = diagnostics(
             capture.bytes(),
             &staged_source,

@@ -130,6 +130,286 @@ fn publishing_entries(service: &Service) -> Vec<PathBuf> {
     entries
 }
 
+#[cfg(target_os = "linux")]
+struct HeldDependencies {
+    marker: PathBuf,
+    overflow: PathBuf,
+    stop: PathBuf,
+}
+
+#[cfg(target_os = "linux")]
+impl HeldDependencies {
+    fn new(root: &Path) -> Self {
+        Self {
+            marker: root.join("dependency-ready"),
+            overflow: root.join("dependency-overflow"),
+            stop: root.join("dependency-stop"),
+        }
+    }
+
+    fn command(&self, length: usize) -> Command {
+        let prefix = r#"{"inputs":["main.typ"]}"#;
+        assert!(length >= prefix.len());
+        // Only shell builtins: the announced process is the producer, with no descendant.
+        let script = format!(
+            r#"marker="$1"; overflow="$2"; stop="$3"; shift 3
+while [ "$#" -gt 1 ] && [ "$1" != --deps ]; do shift; done
+[ "$1" = --deps ] || exit 77
+exec 3>"$2"
+printf '%s' '{prefix}' >&3
+printf '%{padding}s' '' >&3
+exec 1>&- 2>&-
+printf '%s\n%s\n' "$$" "$PWD" > "$marker"
+while [ ! -f "$overflow" ]; do :; done
+printf '!' >&3
+while [ ! -f "$stop" ]; do :; done
+exit 19
+"#,
+            padding = length - prefix.len()
+        );
+        let mut command = Command::new("/bin/sh");
+        command
+            .arg("-c")
+            .arg(script)
+            .arg("undertree-owned-dependency-producer")
+            .arg(&self.marker)
+            .arg(&self.overflow)
+            .arg(&self.stop);
+        command
+    }
+
+    async fn ready(&self, service: &Service, length: usize) -> (u32, PathBuf, PathBuf) {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        loop {
+            if let Ok(text) = fs::read_to_string(&self.marker) {
+                let mut lines = text.lines();
+                if let (Some(pid), Some(stage)) = (lines.next(), lines.next()) {
+                    if let Ok(pid) = pid.parse::<u32>() {
+                        let output =
+                            fs::read_dir(service.publishing_root())
+                                .unwrap()
+                                .find_map(|entry| {
+                                    let entry = entry.unwrap();
+                                    (entry.file_type().unwrap().is_file()
+                                        && entry.metadata().unwrap().len() == length as u64)
+                                        .then(|| entry.path())
+                                });
+                        if text.ends_with('\n') {
+                            if let Some(output) = output {
+                                assert!(process_exists(pid));
+                                return (pid, PathBuf::from(stage), output);
+                            }
+                        }
+                    }
+                }
+            }
+            assert!(tokio::time::Instant::now() < deadline, "the real dependency producer must fill the held private output before its overflow is released");
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for HeldDependencies {
+    fn drop(&mut self) {
+        // A failed assertion must not leave this synthetic producer waiting forever.
+        let _ = fs::write(&self.stop, b"stop");
+        let _ = fs::write(&self.overflow, b"continue");
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn dependency_overflow_from_live_writer_and_dropped_caller_remains_owned_until_reaped() {
+    let compiler = real_compiler();
+    for dropped_caller in [false, true] {
+        let (temporary, service, project, source) = fixture();
+        let baseline = initial_preview(&service, &project, &compiler).await;
+        let (_, info) = service.pdf_paths(&project, "main.typ").unwrap();
+        let metadata = fs::read(&info).unwrap();
+        let old: Preview = serde_json::from_slice(&metadata).unwrap();
+        let pdf = info.with_file_name(old.pdf);
+        let pdf_bytes = fs::read(&pdf).unwrap();
+        let entries = publishing_entries(&service);
+        let held = HeldDependencies::new(temporary.path());
+        let command = held.command(MAX_DEPENDENCY_LIST);
+        let worker = service.clone();
+        let target = project.clone();
+        let caller = tokio::spawn(async move {
+            worker
+                .compile_typst_with_command(
+                    &target,
+                    "main.typ",
+                    &digest(INITIAL),
+                    command,
+                    Duration::from_secs(30),
+                )
+                .await
+        });
+        let (pid, stage, output) = held.ready(&service, MAX_DEPENDENCY_LIST).await;
+        assert!(service.compile_lock.try_lock().is_err());
+        assert!(stage.join("main.typ").is_file());
+        assert_eq!(
+            fs::metadata(&output).unwrap().len(),
+            MAX_DEPENDENCY_LIST as u64
+        );
+        assert_eq!(fs::read(&info).unwrap(), metadata);
+        assert_eq!(fs::read(&pdf).unwrap(), pdf_bytes);
+        if dropped_caller {
+            caller.abort();
+            assert!(caller.await.unwrap_err().is_cancelled());
+            assert!(process_exists(pid));
+            assert!(service.compile_lock.try_lock().is_err());
+            assert!(output.exists() && stage.exists());
+            fs::write(&held.overflow, b"one excess byte").unwrap();
+        } else {
+            fs::write(&held.overflow, b"one excess byte").unwrap();
+            let error = tokio::time::timeout(Duration::from_secs(10), caller)
+                .await
+                .expect("overflow must stop the live producer before its long compiler timeout")
+                .unwrap()
+                .unwrap_err();
+            assert_eq!(error.code, "limit");
+            assert!(error.message.contains("dependency report"));
+        }
+        released_after_cleanup(&service, pid, &stage).await;
+        assert!(!output.exists());
+        assert_eq!(fs::read(&info).unwrap(), metadata);
+        assert_eq!(fs::read(&pdf).unwrap(), pdf_bytes);
+        assert_eq!(
+            service.preview_pdf(&project, "main.typ").unwrap()["base64"],
+            baseline["base64"]
+        );
+        assert_eq!(publishing_entries(&service), entries);
+        assert_eq!(fs::read(source).unwrap(), INITIAL.as_bytes());
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn partial_and_exact_dependency_report_without_eof_times_out_without_publication() {
+    let compiler = real_compiler();
+    for length in [32768, MAX_DEPENDENCY_LIST] {
+        let (temporary, service, project, source) = fixture();
+        initial_preview(&service, &project, &compiler).await;
+        let (_, info) = service.pdf_paths(&project, "main.typ").unwrap();
+        let metadata = fs::read(&info).unwrap();
+        let old: Preview = serde_json::from_slice(&metadata).unwrap();
+        let pdf = info.with_file_name(old.pdf);
+        let pdf_bytes = fs::read(&pdf).unwrap();
+        let entries = publishing_entries(&service);
+        let held = HeldDependencies::new(temporary.path());
+        let command = held.command(length);
+        let worker = service.clone();
+        let target = project.clone();
+        let caller = tokio::spawn(async move {
+            worker
+                .compile_typst_with_command(
+                    &target,
+                    "main.typ",
+                    &digest(INITIAL),
+                    command,
+                    Duration::from_secs(10),
+                )
+                .await
+        });
+        let (pid, stage, output) = held.ready(&service, length).await;
+        assert!(service.compile_lock.try_lock().is_err());
+        assert_eq!(fs::read(&info).unwrap(), metadata);
+        let error = caller.await.unwrap().unwrap_err();
+        assert_eq!(error.code, "timeout");
+        released_after_cleanup(&service, pid, &stage).await;
+        assert!(!output.exists());
+        assert_eq!(fs::read(&info).unwrap(), metadata);
+        assert_eq!(fs::read(&pdf).unwrap(), pdf_bytes);
+        assert_eq!(publishing_entries(&service), entries);
+        assert_eq!(fs::read(source).unwrap(), INITIAL.as_bytes());
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn dependency_pdf_and_stderr_backpressure_are_drained_concurrently_before_eof() {
+    const DEPENDENCY_BYTES: usize = 192 * 1024;
+    const PDF_BYTES: usize = 128 * 1024;
+    const DIAGNOSTIC_LINE: &str = "three-stream-drain-sentinel\n";
+    let compiler = real_compiler();
+    let (temporary, service, project, source) = fixture();
+    initial_preview(&service, &project, &compiler).await;
+    let (_, info) = service.pdf_paths(&project, "main.typ").unwrap();
+    let metadata = fs::read(&info).unwrap();
+    let old: Preview = serde_json::from_slice(&metadata).unwrap();
+    let old_pdf = info.with_file_name(old.pdf);
+    let old_pdf_bytes = fs::read(&old_pdf).unwrap();
+    let held = HeldDependencies::new(temporary.path());
+    let mut command = Command::new("python3");
+    command
+        .arg("-c")
+        .arg(
+            r#"import fcntl, os, sys, time
+marker, release, stop = sys.argv[1:4]
+# Force each real pipe below every output size, without changing production limits.
+for fd in (0, 1, 2):
+    assert fcntl.fcntl(fd, fcntl.F_SETPIPE_SZ, 4096) <= 4096
+dependencies = os.open(sys.argv[sys.argv.index('--deps') + 1],
+                       os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+def write_all(fd, data):
+    while data:
+        data = data[os.write(fd, data):]
+prefix = b'{"inputs":["main.typ"]}'
+# Opposite the supervisor's PDF/stderr/dependency order: sequential drains deadlock.
+write_all(dependencies, prefix + b' ' * (192 * 1024 - len(prefix)))
+write_all(2, b'three-stream-drain-sentinel\n' * 1024)
+write_all(1, b'%PDF-' + b'P' * (128 * 1024 - 5))
+with open(marker, 'w') as output:
+    output.write(str(os.getpid()) + '\n' + os.getcwd() + '\n')
+while not os.path.exists(release) and not os.path.exists(stop):
+    time.sleep(0.005)
+if os.path.exists(stop):
+    sys.exit(19)
+os.close(dependencies)
+"#,
+        )
+        .arg(&held.marker)
+        .arg(&held.overflow)
+        .arg(&held.stop);
+    let worker = service.clone();
+    let target = project.clone();
+    let caller = tokio::spawn(async move {
+        worker
+            .compile_typst_with_command(
+                &target,
+                "main.typ",
+                &digest(INITIAL),
+                command,
+                Duration::from_secs(30),
+            )
+            .await
+    });
+    let (pid, stage, dependencies) = held.ready(&service, DEPENDENCY_BYTES).await;
+    assert!(service.compile_lock.try_lock().is_err());
+    assert!(!caller.is_finished(), "all three streams remain open");
+    assert!(stage.join("main.typ").is_file());
+    assert_eq!(fs::read(&info).unwrap(), metadata);
+    assert_eq!(fs::read(&old_pdf).unwrap(), old_pdf_bytes);
+    fs::write(&held.overflow, b"allow actual EOF").unwrap();
+    let preview = tokio::time::timeout(Duration::from_secs(15), caller)
+        .await
+        .expect("three bounded streams must finish after the producer's actual EOF")
+        .unwrap()
+        .unwrap();
+    released_after_cleanup(&service, pid, &stage).await;
+    assert!(!dependencies.exists());
+    assert_eq!(preview["current"], true);
+    let pdf = base64::engine::general_purpose::STANDARD
+        .decode(preview["base64"].as_str().unwrap())
+        .unwrap();
+    assert_eq!(pdf.len(), PDF_BYTES);
+    assert!(pdf.starts_with(b"%PDF-"));
+    assert_eq!(preview["diagnostics"], DIAGNOSTIC_LINE.repeat(1024));
+    assert_eq!(fs::read(source).unwrap(), INITIAL.as_bytes());
+}
+
 async fn released_after_cleanup(service: &Arc<Service>, pid: u32, staging: &Path) {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
     loop {
