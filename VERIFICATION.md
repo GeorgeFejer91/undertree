@@ -59,6 +59,18 @@ inputs remain exact; seventy owned processes exit, no zombies remain and
 private temporary storage is empty and removed. Independent actual-result
 review SHA-256 is
 `7fbc1c7542fcb1bf24cccabe4e537a1216623c53aa92b7558dc656ac49de09c6`.
+Initial hosted push/PR runs 38849858472 and 38849907904 stop in extracted
+callback fixtures before native execution. Five existing test files lacked the
+new neutral `fileMove` binding or compared the dispatcher against its preceding
+hash. The correction supplies `fileMove: null` to those isolated environments
+and requires exactly one added Move command before comparing every original
+dispatcher byte against the original hash. All existing assertions, Close
+hash and deadlines remain. Independent review accepts this test-only change;
+the six focused files pass all 139 checks, including the 67 Move cases.
+The complete local Node suite records 482 passes and three failures requiring
+unavailable legacy `latexmk`; those failures remain recorded and the hosted
+workflow is the pending complete gate. Runtime source, locks and workflow
+remain byte-identical to the initial UI candidate.
 Integrated native UI/installer results remain pending. No release, installation,
 IME or paired Overleaf parity is inferred from the build or mocked native wire.
 

@@ -199,5 +199,7 @@ test('menu buttons retain their native Enter/Space action and the frozen Close a
   assert.equal(f.key(buttons(menu)[0], ' ').defaultPrevented, false); f.unchanged();
   const hash = value => createHash('sha256').update(value).digest('hex');
   assert.equal(hash(source.slice(source.indexOf('function setWindowClosing('), source.indexOf('function task('))), '64e7a22dc7cc49b76def339c241311733a016c828f31db06919e28e102f6e89a');
-  assert.equal(hash(source.slice(commandStart, setupStart)), '2ad1b1841ec4a0c780841ed0c15cb4e572f33442846c49153f76323d8b126560');
+  const commands = source.slice(commandStart, setupStart), moveCommand = "  else if (command === 'move-source') openFileMove(button);\n";
+  assert.equal(commands.split(moveCommand).length, 2, 'Exactly one native Move command extends the frozen dispatcher');
+  assert.equal(hash(commands.replace(moveCommand, '')), '2ad1b1841ec4a0c780841ed0c15cb4e572f33442846c49153f76323d8b126560');
 });

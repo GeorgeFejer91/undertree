@@ -94,7 +94,7 @@ test('actual controlContext remains busy after a lost import RPC and pending sta
   const source = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
   const accounting = source.slice(source.indexOf('let localRequests ='), source.indexOf('const insertionCommands ='));
   const contextFunction = source.slice(source.indexOf('function controlContext()'), source.indexOf('function controlPreparation('));
-  const active = session(), environment = { nativeRequest: async () => {}, sessions: new Map([['active', active]]), active, view: null, navigationIntent: 1, windowClosing: false, fileImport: null, projectExport: { pendingCount: 0 } };
+  const active = session(), environment = { nativeRequest: async () => {}, sessions: new Map([['active', active]]), active, view: null, navigationIntent: 1, windowClosing: false, fileImport: null, projectExport: { pendingCount: 0 }, fileMove: null };
   const adapter = runInNewContext(accounting + contextFunction + '\n({fileActivity, context:controlContext, rpcPending:()=>localRequests});', environment);
   let checks = 0;
   const importer = new NativeFileImport({ choose: async () => ({ selectionId: 'staged', project: 'project', parent: '', expectedRoot, files: [{ name: 'new.typ', kind: 'source', editable: true, bytes: 4, sha256: 'hash' }] }), canStart: () => {}, requestId: () => 'request', request: operation => adapter.fileActivity(async () => {
@@ -121,7 +121,7 @@ test('actual controlContext blocks prepared App effects during ZIP preparation a
   const source = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
   const accounting = source.slice(source.indexOf('let localRequests ='), source.indexOf('const insertionCommands ='));
   const contextFunction = source.slice(source.indexOf('function controlContext()'), source.indexOf('function controlPreparation('));
-  const active = session(), environment = { nativeRequest: async () => {}, sessions: new Map([['active', active]]), active, view: null, navigationIntent: 1, windowClosing: false, fileImport: { pendingCount: 0 }, projectExport: null };
+  const active = session(), environment = { nativeRequest: async () => {}, sessions: new Map([['active', active]]), active, view: null, navigationIntent: 1, windowClosing: false, fileImport: { pendingCount: 0 }, projectExport: null, fileMove: null };
   const adapter = runInNewContext(accounting + contextFunction + '\n({fileActivity, context:controlContext, rpcPending:()=>localRequests});', environment);
   let preparedReady, checks = 0;
   const prepared = { exportId: 'archive', project: 'project', expectedRoot, policy: 'saved-only', snapshotId: 'snapshot', sha256: 'a'.repeat(64), bytes: 400, entries: 2, mainDocument: 'main.typ', fileName: 'project.zip' };
