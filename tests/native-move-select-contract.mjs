@@ -1,6 +1,7 @@
 // Source preparation only: real keys and passive native-window evidence in the existing disposable app.
 import assert from 'node:assert/strict';
 import { privateRootTree,popupProperties,windowGeometry,assertPopup,assertObservationalDispatch,popupDismissed,directSummaryClick } from './native-move-select-guards.mjs';
+import { observeNativeMoveWindows } from './native-move-window-observer.mjs';
 
 export function readMoveSelect() {
   const dialog=document.getElementById('file-move-dialog'),body=dialog.querySelector('.file-move-body'),select=document.getElementById('file-move-requests'),wrapper=select.parentElement;
@@ -54,6 +55,7 @@ export async function qualifyNativeMoveSelect({execute,command,click,waitFor,nat
   const report=evidence.nativeMoveSelect={result:'running',geometry:[],popup:{result:'not observed'},fullValueScope:'Actual full text, readable glyph bounds, and physical body reach only; no OS text-selection or clipboard claim.'};
   try {
     const app=properties(String(nativeWindow));assert.ok(app.pid,'The existing native window exposes its app PID.');
+    report.popup.appPid=app.pid;
     const before=await read(),dispatchStart=await execute('return window.__nativeMoveUiDispatch.length;');
     const identity=before.identity.text,selected=before.selected,option=before.options.find(row=>row.value===selected);
     assertMoveStatusFocus(before);
@@ -69,6 +71,8 @@ export async function qualifyNativeMoveSelect({execute,command,click,waitFor,nat
     assert.ok(focused.wrapper.left>=focused.body.left-1&&focused.wrapper.right<=focused.body.right+1&&focused.wrapper.top>=focused.body.top-1&&focused.wrapper.bottom<=focused.body.bottom+1,'Inset wrapper focus outline is inside the visible body.');
     await screenshot?.('native-move-request-select-focus.png');
     const beforeWindows=tree();report.popup.before=beforeWindows;
+    report.popup.windowMetadata={before:null,failure:null};
+    try {report.popup.windowMetadata.before=observeNativeMoveWindows(beforeWindows,{phase:'before-first-popup',appPid:app.pid,inspectNative});}catch {report.popup.windowMetadata.before={unavailable:'observer',complete:false};}
     const observePopup=async label=>{
       const popup=await waitFor(()=>{
         const after=tree(),added=after.filter(id=>!beforeWindows.includes(id));report.popup.latest={label,after,added};
@@ -107,7 +111,12 @@ export async function qualifyNativeMoveSelect({execute,command,click,waitFor,nat
     const dispatch=await execute('return window.__nativeMoveUiDispatch.slice(arguments[0]);',[dispatchStart]);assertObservationalDispatch(dispatch);report.dispatch=dispatch;
     value=await record('restored-prepared-state');assert.equal(value.selected,selected);assert.equal(value.identity.text,identity);assert.equal(value.from.text,before.from.text);assert.equal(value.to.text,before.to.text);assert.equal(value.status.text,before.status.text);assert.equal(value.draftHidden,true);assert.equal(value.commit.hidden,false);assert.equal(value.commit.disabled,false);
     report.result='passed';checks.push('Native request SELECT preserves appearance and inset focus ring, exposes an independently observed X11 popup, uses real option keys without producer effects, and keeps full From/To/identity values readable through existing body-scroll routes.');
-  } catch(error) {report.result='failed';report.error=error.message;report.terminal=await read().catch(()=>null);await screenshot?.('native-move-request-select-failure.png').catch(()=>{});throw error;}
+  } catch(error) {
+    if(typeof error?.message==='string'&&error.message.startsWith('Native request popup was not observable as a new viewable same-app X11 popup; popup coverage remains unqualified.')&&report.popup.latest) {
+      report.popup.windowMetadata ||= {before:null,failure:null};
+      try {report.popup.windowMetadata.failure=observeNativeMoveWindows(report.popup.latest.after,{phase:'popup-failure',appPid:report.popup.appPid,inspectNative});}catch {report.popup.windowMetadata.failure={unavailable:'observer',complete:false};}
+    }
+    report.result='failed';report.error=error.message;report.terminal=await read().catch(()=>null);await screenshot?.('native-move-request-select-failure.png').catch(()=>{});throw error;}
 
   async function reach(id,text) {
     for(const block of ['start','end']) {

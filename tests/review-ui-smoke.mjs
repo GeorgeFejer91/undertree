@@ -85,6 +85,37 @@ async function call(operation, expectError=false) {
   if(expectError) {assert.equal(value.ok,false);return value.error;}
   assert.equal(value.ok,true,value.error?.message);return value.result;
 }
+function observeHighlightRequests(page, reviewUrl) {
+  const rows = [], pending = new WeakMap(), start = performance.now();
+  let dropped = 0, sequence = 0, stopped = false;
+  const elapsed = () => Math.round((performance.now() - start) * 1000) / 1000;
+  const request = value => {
+    if (stopped || value.url() !== reviewUrl || value.method() !== 'POST') return;
+    let action;
+    try { action = value.postDataJSON()?.action; } catch { return; }
+    if (!['mark', 'save', 'review'].includes(action)) return;
+    sequence++;
+    if (rows.length === 64) { dropped++; return; }
+    const row = { sequence, action, startedMs: elapsed(), httpStatus: null, terminal: null, endedMs: null };
+    rows.push(row); pending.set(value, row);
+  };
+  const response = value => {
+    const row = pending.get(value.request());
+    if (row && row.terminal === null) { const status = value.status(); row.httpStatus = Number.isInteger(status) && status >= 100 && status <= 599 ? status : null; }
+  };
+  const terminal = (value, kind) => {
+    const row = pending.get(value);
+    if (row && row.terminal === null) { row.terminal = kind; row.endedMs = elapsed(); }
+  };
+  const finished = value => terminal(value, 'requestfinished');
+  const failed = value => terminal(value, 'requestfailed');
+  const listeners = [['request', request], ['response', response], ['requestfinished', finished], ['requestfailed', failed]];
+  for (const [event, listener] of listeners) page.on(event, listener);
+  return {
+    stop() { if (!stopped) { stopped = true; for (const [event, listener] of listeners) page.off(event, listener); } },
+    snapshot() { return { rows: rows.map(row => ({ ...row })), dropped, matchedStarts: sequence, stopped }; },
+  };
+}
 async function observeSource(project, path) {
   const deadline=performance.now()+15000;
   const signal=AbortSignal.timeout(15000);
@@ -124,7 +155,7 @@ async function saveExactSource(page, project, path, expected) {
     return saved;
   } finally { page.off('response',observe); }
 }
-let browser, failurePage, failureStage='main';
+let browser, failurePage, highlightRequestObservation, failureStage='main';
 try {
   assert.equal((await fetch(base+'/api/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'projects'})})).status,401);
   const project=await call({action:'add_project',root:projectRoot});
@@ -138,6 +169,7 @@ try {
   browser=await chromium.launch({executablePath:process.env.UNDERTREE_CHROME || '/usr/bin/google-chrome',headless:true,args:['--no-sandbox']});
   const context=await browser.newContext({viewport:{width:1600,height:1000}});
   const page=failurePage=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  highlightRequestObservation = observeHighlightRequests(page, base+'/api/review');
   await page.goto(base+`/manuscript.html#session=${token}`);
   await page.locator('#project-select').selectOption(project.id);
   assert.equal(await page.locator('#project-select').inputValue(),project.id,'the scenario starts in the intended registered project');
@@ -148,6 +180,31 @@ try {
   await waitForSource(page,'chapters/part.typ');
   assert.deepEqual(await page.locator('.workspace-menus summary').allTextContents(),['File','Edit','Insert','View','Format','Help'],'desktop keeps the six familiar menus');
   const geometry=await page.evaluate(()=>{
+    // Passive first-highlight diagnostic; no additional browser transport or form validation event.
+    const highlightForm = document.getElementById('highlight-form'), highlightDialog = document.getElementById('highlight-dialog');
+    const highlightRows = [], highlightStart = performance.now(); let highlightDropped = 0, highlightDetached = false;
+    const highlightTag = node => ['BUTTON', 'FORM', 'SELECT', 'TEXTAREA'].includes(node?.tagName) ? node.tagName : 'OTHER';
+    const highlightId = node => ['highlight-form', 'highlight-dialog', 'highlight-dialog-rule', 'highlight-prompt'].includes(node?.id) ? node.id : '';
+    const detachHighlight = () => { if (!highlightDetached) { highlightDetached = true; for (const type of ['click', 'submit', 'invalid']) highlightForm.removeEventListener(type, observeHighlight, true); } };
+    const observeHighlight = event => {
+      if (highlightRows.length === 64) highlightDropped++;
+      else highlightRows.push({ kind: event.type, atMs: Math.round((performance.now()-highlightStart)*1000)/1000,
+        tag: highlightTag(event.target), id: highlightId(event.target), trusted: event.isTrusted === true,
+        defaultPrevented: event.defaultPrevented === true, validity: typeof event.target?.validity?.valid === 'boolean' ? event.target.validity.valid : null });
+      if (event.type === 'submit') detachHighlight();
+    };
+    for (const type of ['click', 'submit', 'invalid']) highlightForm.addEventListener(type, observeHighlight, { capture: true, passive: true });
+    window.__undertreeReviewHighlightSubmit01 = () => {
+      detachHighlight();
+      const submit = highlightForm.querySelector('button[type="submit"]');
+      const rect = node => { if (!node) return null; const r=node.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}; };
+      return { rows: highlightRows.map(row=>({...row})), dropped: highlightDropped, detached: highlightDetached,
+        dialogOpen: highlightDialog.open, dialogModal: highlightDialog.matches(':modal'), documentFocused: document.hasFocus(),
+        activeTag: highlightTag(document.activeElement), activeId: highlightId(document.activeElement),
+        formConnected: highlightForm.isConnected, formInvalid: highlightForm.matches(':invalid'), submitDisabled: submit?.disabled ?? null,
+        dialogRect: rect(highlightDialog), formRect: rect(highlightForm), submitRect: rect(submit) };
+    };
+    // End passive first-highlight diagnostic.
     const rect=selector=>document.querySelector(selector).getBoundingClientRect(),header=rect('.review-topbar'),project=rect('#project-select');
     const source=getComputedStyle(document.querySelector('.cm-content')),gutter=getComputedStyle(document.querySelector('.cm-gutters'));
     return {header:header.height,projectCenter:project.left+project.width/2,headerCenter:header.left+header.width/2,projectAlignment:getComputedStyle(document.querySelector('#project-select')).textAlignLast,toolbar:rect('.manuscript-toolbar').height,toolbarColor:getComputedStyle(document.querySelector('.manuscript-toolbar')).backgroundColor,tabs:rect('#manuscript-tabs').height,sidebar:rect('.manuscript-files').width,tree:rect('#manuscript-files').height,outline:rect('#outline-panel').height,sourceFont:source.fontSize,sourceLine:source.lineHeight,gutterWidth:rect('.cm-gutters').width,gutterColor:gutter.color,gutterBackground:gutter.backgroundColor,gutterLine:gutter.lineHeight};
@@ -217,7 +274,9 @@ try {
   await page.locator('.cm-content').click();await page.keyboard.press('Control+Home');await page.keyboard.press('ArrowDown');await page.keyboard.press('Home');
   for(let index=0;index<'Second passage.'.length;index++) await page.keyboard.press('Shift+ArrowRight');
   await menuAction(page,'format','Highlight selection');assert.equal(await page.locator('#highlight-quote').textContent(),'Second passage.');
+  try {
   await page.getByRole('button',{name:'Add highlight',exact:true}).click();await page.getByRole('button',{name:'Remove highlight',exact:true}).waitFor();
+  } finally { highlightRequestObservation.stop(); }
   const crlfMarked=await call({action:'open',project:project.id,path:'crlf.html'});
   assert.equal(crlfMarked.review.markers[0].anchor.from,crlfSource.indexOf('Second passage.'));
   assert.equal(crlfMarked.review.markers[0].anchor.quote,'Second passage.');assert.equal(crlfMarked.content,crlfSource,'clean metadata operations preserve CRLF source bytes');
@@ -917,16 +976,19 @@ try {
       conflictHidden:document.getElementById('review-conflict')?.hidden,
       conflictVisible:Boolean(document.getElementById('review-conflict')?.getClientRects().length),
       source:document.querySelector('.cm-content')?.textContent,
+      highlightSubmit:window.__undertreeReviewHighlightSubmit01?.() || null,
     })).catch(()=>null);
     const {source,...ui}=observed||{};
     await writeFile(join(output,`${basename(root)}.json`),JSON.stringify({
       snapshotReceipt,snapshotSha256,pageStage:failureStage,error:{name:error.name,message:error.message},ui,
+      highlightRequests:highlightRequestObservation?.snapshot() || null,
       sourceSha256:typeof source==='string'?createHash('sha256').update(source).digest('hex'):null,
     },null,2)+'\n');
     await failurePage?.screenshot({path:join(output,`${basename(root)}.png`)});
   })().catch(()=>{});
   throw error;
 } finally {
+  highlightRequestObservation?.stop();
   await browser?.close();child.kill('SIGINT');
   await new Promise(r=>{if(child.exitCode!==null) r();else {child.once('exit',r);setTimeout(r,3000).unref();}});
   await rm(root,{recursive:true,force:true});

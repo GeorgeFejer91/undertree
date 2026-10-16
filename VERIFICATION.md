@@ -1,5 +1,68 @@
 # Verification report
 
+## Passive Review-submit and native SELECT diagnostics — 2026-10-16
+
+Both `432847c` Historical suites pass all 631 tests. The push passes native
+Word count, Find/history/Save/cleanup, raw Move, first narrow Move geometry,
+strict status-details focus and genuine Shift+Tab SELECT focus/outline. Its
+first Alt+Down popup gate fails with the same 31 before/after XIDs and no added
+ID. Existing-window map states were not observed. The PR twin separately stops
+at the earlier Review smoke: the Add highlight click returns, the modal remains
+open and the original 30-second Remove highlight wait times out. Neither
+receipt establishes the missing popup or submit/request cause.
+
+The Review fixture now records bounded passive click/submit/invalid form events
+and fixed-local mark/save/review request start/status/finished-or-failed metadata.
+Installation and failure observation reuse existing browser evaluations. The
+original click, wait, error and cleanup remain; no payload values, response body,
+headers, validation call, retry or new request is captured or produced.
+
+The SELECT fixture adds one bounded metadata pass before the original Alt+Down
+and one on its original popup-coverage failure, reusing existing inventories.
+It records existing and new IDs with PID/type/transient/map/geometry fields,
+fixed error categories and explicit incomplete/budget status. Each pass admits
+at most 128 IDs and an extra eight seconds of sampled inspection opportunity,
+reserving four seconds for each unchanged two-tool pair. The maximum 16 seconds
+of added diagnostic opportunity remains inside the unchanged whole-gate budget.
+The original new-ID/owned/type/viewable/positive-geometry predicate, keys, waits,
+remaining assertions and error are unchanged. Existing-window transitions do
+not satisfy that gate. No title or raw inspection output is retained.
+
+Integrated validation passes all 6 + 98 + 290 = 394 JavaScript checks,
+architecture validation, five syntax checks and diff validation.
+
+Root and independent source reviews accept both candidates. Fifteen actual
+Review observer models and 19 actual SELECT observer/wrapper models pass. The
+latter records a simulated existing unmapped-to-viewable popup while preserving
+the original failure. These checks establish fixture behavior; hosted native
+and installer qualification remains required, and both original failures remain
+failed. Product source, complete notice files and the qualified `432847c`
+frontend build inputs remain unchanged.
+
+## Live native source Move and GitHub Sync — 2026-10-16
+
+One isolated native qualification of the previously qualified `e8a1728` package
+passes actual Bind, Prepare, Close/reopen and one Move Commit. It preserves the
+58-byte CRLF/Unicode source, 223-byte review sidecar and five opaque report bytes
+at mode 0640, proves the old paths absent, and preserves the unrelated main
+buffer, original index and setup head before Sync. One Sync refuses unrelated
+staging without changing pending ownership. After restoring only that fixture
+staging, one Sync confirms exactly three deletions and three additions at remote
+head `70bcafd25c79494afd990689786903e7861770b5`; bytes/modes and cleared pending
+ownership pass. No source-save, compile or Open action occurs in the Move/Sync
+suffix.
+
+All five strictly admitted current CodeMirror logical selection observations
+pass the original equality checks (baseline document length 78, main range
+0–0). Passive outside-editor DOM selection changes after Close and is recorded
+without treating it as the editor selection. The 64-row driver tail drops 221
+rows; it does not establish a complete driver chronology. Cleanup proves the
+exact remote-tip lease deletion and subsequent absence, actual auth/stack-leader and
+three inner-leader waits, all three private roots absent and 83 recorded process
+identities absent. Root and independent QA close this finite E8 scenario green.
+It does not qualify the current PR7 SELECT popup, asset/folder Move, general
+selection states, visual parity or performance.
+
 ## Status focus through measured details — 2026-10-16
 
 Both exact `17f8ef5` hosted runs pass 609 Historical checks, all three native
