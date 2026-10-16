@@ -105,6 +105,39 @@ async function screenshot(name) {
 let displayEnv;
 const native = (executable, args) => execFileSync(executable, args.map(String), { env: { ...process.env, ...displayEnv }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
+async function qualifyMenuKeyboard() {
+  const key = value => native('xdotool', ['windowactivate', '--sync', nativeWindow, 'key', '--clearmodifiers', value]);
+  const focused = () => execute('return document.activeElement?.id || document.activeElement?.dataset.command;');
+  evidence.menuKeyboard = [];
+  for (const id of ['menu-file', 'menu-edit', 'menu-insert', 'menu-view', 'menu-format', 'menu-help']) {
+    await execute('document.querySelector(arguments[0] + " > summary").focus();', ['#' + id]);
+    key('Down');
+    await waitFor(() => execute('return document.getElementById(arguments[0]).open;', [id]), 'Native menu did not open: ' + id);
+    const items = await execute(`
+      return [...document.querySelectorAll('#' + arguments[0] + ' .workspace-menu-panel button')]
+        .filter(node => !node.disabled && node.getAttribute('aria-disabled') !== 'true' && !node.closest('[hidden],[inert]') && node.getClientRects().length && getComputedStyle(node).visibility === 'visible')
+        .map(node => node.id || node.dataset.command);
+    `, [id]);
+    assert.ok(items.length, 'Native menu has enabled actions: ' + id);
+    for (let index = 0; index < items.length; index++) {
+      assert.equal(await focused(), items[index], 'Native ArrowDown focus in ' + id);
+      if (index < items.length - 1) key('Down');
+    }
+    key('Down');
+    assert.equal(await focused(), items.at(-1), 'Native last ArrowDown stays at the menu endpoint: ' + id);
+    for (let index = items.length - 1; index >= 0; index--) {
+      assert.equal(await focused(), items[index], 'Native ArrowUp focus in ' + id);
+      if (index > 0) key('Up');
+    }
+    key('Up');
+    assert.equal(await focused(), items[0], 'Native first ArrowUp stays at the menu endpoint: ' + id);
+    key('Escape');
+    assert.equal(await execute('return document.getElementById(arguments[0]).open;', [id]), false, 'Native Escape closes ' + id);
+    assert.equal(await execute('return document.activeElement === document.querySelector(arguments[0] + " > summary");', ['#' + id]), true, 'Native Escape restores trigger focus: ' + id);
+    evidence.menuKeyboard.push({ menu: id, enabledItems: items, endpointsClamped: true, escapeTriggerFocus: true });
+  }
+}
+
 async function chromeGeometry() {
   return execute(`
     const rect = element => element.getBoundingClientRect();
@@ -308,6 +341,15 @@ try {
   assert.equal(await readFile(source, 'utf8'), beforeCliSave, 'A failed autosave cannot satisfy the explicit CLI save assertion.');
   await waitFor(() => execute('return window.__cliProbe.saved>0&&performance.now()-window.__cliProbe.last>1100&&document.getElementById("save-label").textContent==="Unsaved changes"&&document.getElementById("typst-compile").textContent==="Recompile"'), 'Ordinary autosave and automatic compile must settle under denied writes before explicit CLI save.');
   const beforeExplicit=await execute('return {...window.__cliProbe}');
+  const menuBuffer = await execute('return document.querySelector(".cm-content").textContent');
+  await qualifyMenuKeyboard();
+  assert.equal(await execute('return document.querySelector(".cm-content").textContent'), menuBuffer, 'Native menu keys preserve the dirty buffer.');
+  assert.equal(await execute('return document.getElementById("save-label").textContent'), 'Unsaved changes', 'Native menu keys preserve dirty state.');
+  assert.equal(await readFile(source, 'utf8'), beforeCliSave, 'Native menu keys leave saved source bytes unchanged.');
+  const afterMenus = await execute('return {...window.__cliProbe}');
+  assert.equal(afterMenus.saved, beforeExplicit.saved, 'Native menu keys dispatch no ordinary Save.');
+  assert.equal(afterMenus.committed, beforeExplicit.committed, 'Native menu keys dispatch no registered-editor commit.');
+  checks.push('Real native six-menu ArrowDown/Up traversal clamps both endpoints and Escape restores trigger focus without saving or changing the dirty buffer.');
   await chmod(project, 0o755);
   const editorSaved = runCli(['save', '33333333-3333-4333-8333-333333333333', 'main.typ']);
   assert.equal(editorSaved.status, 0, 'The named CLI save reaches the registered native editor through editor_connect and editor_operation.');

@@ -642,6 +642,8 @@ try {
   assert.equal(await page.locator('#workspace-menu [data-command="clear-main-document"]').evaluate(button=>button.scrollWidth<=button.clientWidth+1&&button.scrollHeight<=button.clientHeight+2),true,'main document controls remain measured and readable at 320px with enlarged text');
   await page.keyboard.press('Escape');await page.evaluate(()=>{document.documentElement.style.fontSize='';});await page.setViewportSize({width:1600,height:1000});
   await page.reload();
+  await page.locator('#project-select').selectOption(project.id);
+  assert.equal(await page.locator('#project-select').inputValue(),project.id,'the reloaded bibliography scenario selects its original project explicitly');
   await page.getByRole('button',{name:'references.bib',exact:true}).click();await waitForSource(page,'references.bib');
   assert.equal(await page.locator('#typst-compile').isVisible(),true,'a configured main remains compilable while a bibliography is selected');
   assert.equal(await page.locator('#typst-compile').getAttribute('title'),'Compile book.typ');

@@ -128,6 +128,25 @@ Independent source review is
 SHA-256 `cfc697c50912a0d698077d5b79f2aa5e1236979a17742ad24a96add0d3ddbb9d`.
 The corrected complete hosted Review UI gate remains required.
 
+Hosted run 38833742961 reaches the later bibliography scenario, where reload
+also requires explicit project selection now that setup has three projects.
+The fixture selects the original project UUID after reload and asserts it;
+all original assertions and scenario deadlines remain. The audit covers all
+six document-entry boundaries, each now followed by its intended project
+selection. Independent source review is
+`artifacts/qualification/review-ui-fixture-20261016/qa-reload-entry-review.json`,
+SHA-256 `31884087a70268db6afd4d9c5a4f39cad6fe3fa8ac2c447b131021f50c656059`.
+This correction still requires the complete hosted Review gate.
+
+The maintained native UI fixture now exercises ArrowDown/ArrowUp and endpoint
+clamping in all six desktop menus with actual OS key events, then checks
+Escape focus restoration and unchanged dirty buffer, disk bytes, dirty label,
+and Save/editor_commit attempt counts. All 64 existing assertions remain;
+12 menu assertions are added after the existing denied-save/compile settlement.
+Independent source review accepts the extension; its runtime qualification is
+pending the existing hosted native gate, rather than inferred from older
+native receipts.
+
 Architecture and refreshed attribution verification pass; the actual Rust and
 JavaScript license payloads remain identical to v16. The broader initial
 `npm test` run is not green: three legacy compatibility cases require absent
