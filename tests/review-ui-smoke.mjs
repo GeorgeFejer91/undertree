@@ -85,6 +85,23 @@ async function call(operation, expectError=false) {
   if(expectError) {assert.equal(value.ok,false);return value.error;}
   assert.equal(value.ok,true,value.error?.message);return value.result;
 }
+async function observeSource(project, path) {
+  const deadline=performance.now()+15000;
+  const signal=AbortSignal.timeout(15000);
+  let lastBusy;
+  while(performance.now()<deadline) {
+    const response=await fetch(base+'/api/review',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({action:'open',project,path}),signal});
+    const value=await response.json();
+    assert.ok(performance.now()<deadline,'source observation exceeded its 15s deadline');
+    if(value.ok===true) {assert.equal(response.status,200,'successful source observation uses HTTP200');return value.result;}
+    assert.equal(value.ok,false,'source observation requires a typed response');
+    assert.equal(response.status,400,'only a typed service refusal may be observed again');
+    assert.equal(value.error?.code,'busy',value.error?.message);
+    lastBusy=value.error.message;
+    await new Promise(resolve=>setTimeout(resolve,Math.min(50,Math.max(0,deadline-performance.now()))));
+  }
+  assert.fail(`source observation remained busy for 15s: ${lastBusy}`);
+}
 async function saveExactSource(page, project, path, expected) {
   const responses=[];
   const observe=response=>{
@@ -96,7 +113,7 @@ async function saveExactSource(page, project, path, expected) {
   try {
     await menuAction(page,'file','Save');
     await page.waitForFunction(path=>document.getElementById('save-label').textContent==='Saved locally'&&document.querySelector('#manuscript-tabs [role="tab"][aria-selected="true"]')?.textContent===path,path);
-    const saved=await call({action:'open',project,path});
+    const saved=await observeSource(project,path);
     assert.equal(saved.content,expected,`native saved source for ${path} preserves the exact expected bytes`);
     for(const response of responses) {
       const receipt=await response.json();assert.equal(receipt.ok,true,receipt.error?.message);
@@ -744,7 +761,7 @@ try {
   assert.equal(await page.locator('#typst-compile').isVisible(),false,'a bibliography has no compile action without a configured main');
   await page.getByRole('button',{name:'main.typ',exact:true}).click();await waitForSource(page,'main.typ');
   const mainBeforeExternalChange=await page.locator('.cm-content').textContent();
-  const checkpoint=await call({action:'open',project:project.id,path:'main.typ'});
+  const checkpoint=await observeSource(project.id,'main.typ');
   await call({action:'save',project:project.id,path:'main.typ',revision:checkpoint.review.revision,content:'#unknown-function()'});
   const invalid=await call({action:'open',project:project.id,path:'main.typ'});
   await call({action:'compile',project:project.id,path:'main.typ',revision:invalid.review.revision},true);

@@ -4,7 +4,7 @@ import { chmod,readFile,readdir,lstat,stat,writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { installNativeFindObserver } from './native-find-observer.mjs';
 import { readNativeFindGeometry } from './native-find-geometry.mjs';
-import { assertObserved,assertPureQuery,assertProducerQuiet,assertSaveBoundary,matchOffsets,isProducer } from './native-find-guards.mjs';
+import { assertObserved,assertPureQuery,assertProducerQuiet,assertSaveBoundary,matchOffsets,isProducer,assertFreshRegistrationSetup } from './native-find-guards.mjs';
 
 export const findPath='z-native-find.typ';
 export const findSource='= Native Find fixture\r\n\r\n😀 needle one.\r\nneedle two; needle three.\r\n';
@@ -124,11 +124,16 @@ export async function qualifyNativeFindReplace(context) {
   await execute('('+installNativeFindObserver.toString()+')();');
   try {
     await click('.file-button[data-path="'+findPath+'"]');
-    await waitFor(async()=>{const value=await h.snapshot();return value.activePath===findPath&&value.project===projectId&&value.doc===findSource&&value.saved==='Saved locally'&&value.compileVisible;},'Explicit owned source Open did not mount its exact saved CRLF/emoji document.');
+    const setup=await waitFor(async()=>{
+      const {current,probe}=await execute('return {current:(function(){'+stateScript+'})(),probe:window.__nativeFindProbe.snapshot()};');
+      if(current.activePath!==findPath||current.project!==projectId||current.doc!==findSource||current.saved!=='Saved locally'||!current.compileVisible)return false;
+      return {probe,receipt:assertFreshRegistrationSetup(probe,{project:projectId,path:findPath,expectedRoot:root,revision:hash(findSource)})};
+    },'Explicit owned source Open and registration did not settle its exact saved CRLF/emoji document before pure Find.');
     await execute('window.__nativeFindProbe.watchSource();');
-    const opened=(await h.probe()).events.find(row=>row.kind==='start'&&row.name==='review_action'&&row.action==='open'&&row.path===findPath);
+    const opened=setup.receipt.opened.start;
     assert.ok(opened);assert.deepEqual(opened.expectedRoot,root);
-    const pure=(await h.probe()).sequence,positions=matchOffsets(findSource,'needle');assert.equal(positions.length,3);
+    report.setupRegistration=setup.receipt;
+    const pure=setup.probe.sequence,positions=matchOffsets(findSource,'needle');assert.equal(positions.length,3);
     await h.command('find');await h.query('needle');
     for(const [key,index] of [['Return',0],['F3',1],['F3',2],['F3',0],['shift+F3',2]]) {
       h.key(key);const value=await h.expectMatch(positions[index],positions[index]+6);assert.deepEqual(value.selection.ranges,[{anchor:positions[index],head:positions[index]+6}]);assert.equal(value.queryFocused,true);assert.equal(value.doc,findSource);

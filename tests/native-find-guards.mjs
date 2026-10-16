@@ -44,3 +44,25 @@ export function matchOffsets(source,needle) {
   for(let at=source.indexOf(needle);at>=0;at=source.indexOf(needle,at+needle.length))positions.push(at);
   return positions;
 }
+export function assertFreshRegistrationSetup(probe,{project,path,expectedRoot,revision}) {
+  assertObserved(probe);
+  const target=row=>row.project===project&&row.path===path;
+  const opened=probe.events.find(row=>row.kind==='start'&&row.name==='review_action'&&row.action==='open'&&target(row));
+  const openAck=opened&&probe.events.find(row=>row.kind==='ack'&&row.request===opened.request&&row.ok);
+  assert.ok(openAck,'Actual explicit Open has a successful terminal response before pure Find.');
+  assert.deepEqual(opened.expectedRoot,expectedRoot);assert.deepEqual(openAck.expectedRoot,expectedRoot);
+  assert.equal(openAck.revision,revision,'Open ACK describes the exact saved fixture revision.');
+  assert.ok(Number.isSafeInteger(openAck.sourceEpoch)&&openAck.sourceEpoch>=0,'Open reports the actual owned source epoch.');
+  const attempts=probe.events.filter(row=>row.kind==='start'&&row.name==='editor_operation'&&row.action==='editor_register'&&target(row)&&row.sequence>opened.sequence);
+  const accepted=attempts.map(start=>({start,ack:probe.events.find(row=>row.kind==='ack'&&row.request===start.request&&row.ok)})).filter(row=>row.ack);
+  assert.equal(accepted.length,1,'One actual successful fresh-source registration supplies setup readiness.');
+  const {start,ack}=accepted[0];
+  assert.equal(start.generation,0);assert.equal(start.revision,revision);assert.equal(start.contentDigest,revision);
+  assert.equal(start.dirty,false);assert.equal(start.composing,false);assert.equal(start.conflict,false);
+  assert.deepEqual(start.expectedRoot,expectedRoot);assert.equal(start.sourceEpoch,openAck.sourceEpoch);
+  assert.equal(ack.protocolVersion,1);assert.equal(ack.registrationIdentityPresent,true);
+  assert.deepEqual(ack.expectedRoot,expectedRoot);assert.equal(ack.sourceEpoch,openAck.sourceEpoch);
+  assert.ok(ack.sequence>start.sequence&&ack.at>=start.at,'The same registration START reaches its actual successful ACK.');
+  assert.deepEqual(probe.pending.filter(row=>isProducer(row)||(row.name==='editor_operation'&&row.action==='editor_register')||(row.name==='review_action'&&row.action==='open')),[],'No registration/Open or source-producing setup request remains pending before pure Find.');
+  return {opened:{start:opened,ack:openAck},registration:{start,ack},attempts};
+}

@@ -255,7 +255,11 @@ try {
   assert.equal(await page.locator('#connection-app-enabled').isDisabled(), true);
   await page.locator('#connection-tab-mcp').focus();
   await page.keyboard.press('End');
-  assert.equal(await page.locator('#connection-tab-shared').getAttribute('aria-selected'), 'true', 'imported-mode keyboard navigation skips App controls');
+  assert.equal(await page.locator('#connection-tab-apps').isEnabled(), true, 'Apps remains available for the imported connector');
+  assert.equal(await page.locator('#connection-tab-apps').getAttribute('aria-selected'), 'true', 'End selects the final enabled Apps tab');
+  assert.equal(await page.locator('#connection-tab-apps').evaluate(element => document.activeElement === element), true, 'End focuses the selected Apps tab');
+  assert.equal(await page.locator('#connection-tab-app').isDisabled(), true, 'End keeps imported App controls disabled');
+  assert.equal(await page.locator('#connection-tab-app').getAttribute('aria-selected'), 'false', 'End never selects disabled App controls');
   const importedLocal = await readFile(targetFile, 'utf8');
   const importedEndpoint = importedLocal + new URL(imported.endpoint).pathname;
   async function importedRpc(method, params = {}) {

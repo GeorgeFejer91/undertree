@@ -19,6 +19,7 @@ export function installNativeFindObserver() {
         const body=JSON.parse(typeof init?.body==='string'?init.body:new TextDecoder().decode(init.body));
         const operation=body.operation||{};
         row={request:++request,name:decodeURIComponent(url.pathname.slice(1)),action:operation.action||null,project:operation.project||null,path:operation.path||null,sourceEpoch:operation.sourceEpoch??null,expectedRoot:operation.expectedRoot?{dev:operation.expectedRoot.dev,ino:operation.expectedRoot.ino}:null};
+        if(row.name==='editor_operation'&&row.action==='editor_register')Object.assign(row,{generation:operation.generation??null,revision:operation.revision??null,contentDigest:operation.contentDigest??null,dirty:operation.dirty??null,composing:operation.composing??null,conflict:operation.conflict??null});
         record({kind:'start',...row});if(pending.size<64)pending.set(row.request,row);else {fail();dropped++;}
         if(producer(row))lastProducerStart=performance.now();
       }
@@ -29,8 +30,9 @@ export function installNativeFindObserver() {
     if(row)Promise.resolve(response).then(async value=>{
       try {
         const header=value.headers.get('Tauri-Response');
-        // Only owned Save/compile replies are cloned; source/PDF bytes are never retained in evidence.
-        const body=producer(row)||(row.name==='review_action'&&row.action==='open')?await value.clone().json():null;
+        // Clone setup registration/Open and producer replies for metadata only; no source/PDF bytes or session IDs are retained.
+        const registration=row.name==='editor_operation'&&row.action==='editor_register';
+        const body=producer(row)||registration||(row.name==='review_action'&&row.action==='open')?await value.clone().json():null;
         const preview=body?.preview||body;
         const ok=value.ok&&header!=='error'&&body?.ok!==false&&!body?.code&&(!body?.compileDiagnosticsVersion||body.status==='succeeded');
         record({kind:'ack',request:row.request,ok,status:value.status,tauriResponse:header,
@@ -42,7 +44,8 @@ export function installNativeFindObserver() {
           replyProject:body?.report?.provenance?.project||null,
           sourceEpoch:preview?.sourceEpoch??null,
           expectedRoot:preview?.expectedRoot?{dev:preview.expectedRoot.dev,ino:preview.expectedRoot.ino}:null,
-          compileStatus:typeof body?.compileDiagnosticsVersion==='number'?body.status:null});
+          compileStatus:typeof body?.compileDiagnosticsVersion==='number'?body.status:null,
+          ...(registration?{protocolVersion:body?.protocolVersion??null,registrationIdentityPresent:typeof body?.sessionId==='string'&&body.sessionId.length>0}:{})});
       } catch {fail();record({kind:'ack',request:row.request,ok:false,observationFailed:true});}
       finally {pending.delete(row.request);}
     },()=>{record({kind:'ack',request:row.request,ok:false,rejected:true});pending.delete(row.request);});

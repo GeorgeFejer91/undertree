@@ -2,12 +2,22 @@
 
 ## Combined native Find and Move fixture candidate — 2026-10-16
 
-The first combined hosted runs stop at one Rust test: 447 of 448 library
-checks pass. The no-alias fixture sent POST to the GET-only PDF route and saw
-405 before its inactive-gateway handler. Its PDF probe now uses GET and retains
-the required 404; every existing MCP/API probe remains POST. Only test-module
-code changes, with its three-second/1 MiB bounds preserved. Rust formatting and
-independent source review pass; the corrected hosted test result is pending.
+Both corrected combined hosted runs pass all 448 Rust library tests. The
+earlier no-alias fixture used POST on a GET-only PDF route; its corrected GET
+still requires 404, with every MCP/API probe and production route unchanged.
+The new runs stop at two browser checkpoints before native/package execution.
+Connections now checks that End selects and focuses the new final enabled Apps
+tab while imported App controls stay disabled. The post-Save exact-source
+inspection and a separately failed post-navigation main-source checkpoint
+each observe only typed busy refusals within one fifteen-second deadline;
+one abort signal covers each observation's fetch and body. Save still executes
+once, every content/revision assertion remains, and other errors stop immediately.
+
+Native Find setup now requires its actual fresh-source registration START and
+typed acknowledgement alongside the original mount predicates within the same
+single fifteen-second wait. Registration remains forbidden during pure Find.
+Twelve Find helper models and twelve fixed-Open observation models pass. Real
+browser/native and installer results for these corrections remain pending.
 
 The combined branch now includes real native Find query/history/replacement
 checks, one explicit local Save bound to its request start and acknowledgement,
@@ -23,8 +33,9 @@ actual inventory absence or a successful unmapped observation. Every original
 76 native/37 Move assertion, eight geometry cases and existing deadline remains;
 the whole native step has a ten-minute outer bound.
 
-All 43 focused JavaScript model/helper checks, eleven syntax checks, architecture
-and attribution verification pass. The private historical double-toggle test
+All 81 focused JavaScript model/helper checks, targeted syntax checks and
+architecture verification pass. Attribution inputs remain byte-exact to the
+previously verified combined candidate. The private historical double-toggle test
 remains evidence; its four portable actual-helper regressions are maintained.
 These are source/model checks, not native Find, popup, persistence or complete
 installer results. The earlier four closed-maintenance native cases remain
