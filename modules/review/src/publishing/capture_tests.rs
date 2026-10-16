@@ -60,17 +60,24 @@ async fn first_held_native_build_records_zero_and_blocks_reuse_until_stale_pdf_i
     let _release_on_drop = ReleaseOnDrop(release.clone());
     // No synthetic output: assert durable capture BEFORE the real compiler, then hold its wrapper.
     let script = r#"
-import os, sys, json, subprocess, time
+import os, sys, json, subprocess, time, tempfile
 with open(os.environ['REGISTRY']) as f:
     before = json.load(f)['sourceEpochs'][os.environ['PROJECT']]['main.typ']
 assert before == 0
 assert not os.path.exists(os.environ['INFO'])
-result = subprocess.run([os.environ['REAL_TYPST']] + sys.argv[1:])
-if result.returncode:
-    sys.exit(result.returncode)
-with open(sys.argv[9]) as f:
-    dependencies = json.load(f)['inputs']
-assert any(path.endswith('main.typ') for path in dependencies)
+# Inspect the real report once, then forward its unchanged bytes to the native sink.
+with tempfile.NamedTemporaryFile() as report:
+    arguments = sys.argv[1:]
+    arguments[arguments.index('--deps') + 1] = report.name
+    result = subprocess.run([os.environ['REAL_TYPST']] + arguments)
+    if result.returncode:
+        sys.exit(result.returncode)
+    report.seek(0)
+    raw = report.read()
+    dependencies = json.loads(raw)['inputs']
+    assert any(path.endswith('main.typ') for path in dependencies)
+    with open(sys.argv[9], 'wb') as output:
+        output.write(raw)
 with open(os.environ['READY'], 'w') as f:
     json.dump({'beforeChildEpoch': before, 'stage': os.getcwd(), 'compilerFinished': True}, f)
 while not os.path.exists(os.environ['RELEASE']):

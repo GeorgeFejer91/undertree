@@ -321,6 +321,65 @@ async fn synthetic_overflow_returns_bounded_incomplete_report_and_reaps_real_wri
     assert!(fixture.service.compile_lock.try_lock().is_ok());
 }
 
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn dependency_report_overflow_is_incomplete_native_failure_and_keeps_last_good() {
+    let fixture = Fixture::new("= Dependency production bound\n");
+    fixture
+        .synthetic(SYNTHETIC_PDF, Duration::from_secs(5))
+        .await
+        .unwrap();
+    let (_, info) = fixture
+        .service
+        .pdf_paths(&fixture.project, "main.typ")
+        .unwrap();
+    let metadata = fs::read(&info).unwrap();
+    let previous: Preview = serde_json::from_slice(&metadata).unwrap();
+    let pdf = info.with_file_name(previous.pdf);
+    let previous_pdf = fs::read(&pdf).unwrap();
+    let entries = fs::read_dir(fixture.service.publishing_root())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect::<BTreeSet<_>>();
+    let prefix = r#"{"inputs":["main.typ"]}"#;
+    // The child remains running after the excess byte; only the owned supervisor stops it.
+    let script = format!(
+        "printf '%s\\n' '%PDF-owned synthetic fixture'; exec 3>\"$9\"; printf '%s' '{prefix}' >&3; printf '%{padding}s' '' >&3; while :; do :; done",
+        padding = MAX_DEPENDENCY_LIST + 1 - prefix.len()
+    );
+    let reply = fixture
+        .synthetic(&script, Duration::from_secs(20))
+        .await
+        .unwrap();
+    assert_eq!(reply["status"], "failed");
+    assert_eq!(reply["error"]["code"], "limit");
+    assert!(reply["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("dependency report"));
+    assert_eq!(reply["report"]["captureComplete"], false);
+    assert_eq!(reply["report"]["rows"], json!([]));
+    assert!(reply.get("preview").is_none());
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    loop {
+        if let Ok(guard) = fixture.service.compile_lock.try_lock() {
+            assert_eq!(fs::read(&info).unwrap(), metadata);
+            assert_eq!(fs::read(&pdf).unwrap(), previous_pdf);
+            assert_eq!(
+                fs::read_dir(fixture.service.publishing_root())
+                    .unwrap()
+                    .map(|entry| entry.unwrap().file_name())
+                    .collect::<BTreeSet<_>>(),
+                entries
+            );
+            drop(guard);
+            break;
+        }
+        assert!(tokio::time::Instant::now() < deadline);
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+}
+
 #[cfg(unix)]
 const SYNTHETIC_PDF: &str = "[ \"$5\" = - ] || exit 77; printf '%s\\n' '%PDF-owned synthetic fixture'; printf '%s' '{\"inputs\":[\"main.typ\"]}' > \"$9\"";
 
