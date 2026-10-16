@@ -376,6 +376,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflo
 #file-move-dialog h2,#file-move-dialog .dialog-actions,#file-move-dialog p,#file-move-dialog label { margin: 0; }
 #file-move-dialog label { min-inline-size: 0; }
 .file-move-body { min-block-size: 0; overflow: auto; display: grid; grid-template-columns: minmax(0, 1fr); align-content: space-between; gap: var(--move-gap); padding-inline-end: .2rem; }
+#file-move-dialog .file-move-body > label { display: grid; grid-template-columns: minmax(0, 1fr); }
 #file-move-draft { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--move-gap); min-inline-size: 0; }
 #file-move-dialog select,#file-move-dialog input { min-inline-size: 0; max-inline-size: 100%; inline-size: 100%; font: inherit; }
 #file-move-paths { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--move-gap); margin: 0; }

@@ -86,11 +86,13 @@ Both diagnostic runs 38851954244 and 38851958900 reproduce the same overflow.
 Their 54 descendant observations identify the visible Move requests label:
 its rectangle is 216.8125px wide and client width 217px, but scroll width is
 681px. The nested native select's rectangle and scroll width fit. Closed
-details do not explain the observed width. A candidate now explicitly permits
-Move labels to shrink with `min-inline-size: 0`, completing the wrapper sizing
-policy without clipping, changing type or relaxing the scroll assertion. The
-label rectangle already fit, so whether this changes WebKit's internal
-overflow contribution remains a hypothesis pending the exact native run.
+details do not explain the observed width. Push run 38853414385 on `69c0567`
+reproduces the same 222px/681px overflow with the label's computed minimum
+already 0px. The minimum-size rule alone therefore does not fix this case.
+The next candidate gives only the direct Move requests label a one-column grid
+with `minmax(0, 1fr)`. Its native-select formatting effect remains a hypothesis;
+full overflow checks, fonts, semantic controls, handlers and deadlines remain
+unchanged. The rule affects one existing label and adds no wrapper or clipping.
 Integrated native UI/installer qualification remains open. No release, installation,
 IME or paired Overleaf parity is inferred from the build or mocked native wire.
 
