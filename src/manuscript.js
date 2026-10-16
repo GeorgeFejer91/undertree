@@ -708,9 +708,10 @@ async function setMainDocument(path) {
     if (sessions.get(keyFor(target.project, target.path)) !== target.session) throw { code: 'stale_document', message: 'The chosen main editor was closed or replaced while setting the main document.' };
     assertSourceBinding(target.session, target);
   } else if (target && !sourceRootsEqual(target, inventoryRoot(project.id))) throw { code: 'stale_root', message: 'The project file tree changed while setting the main document.' };
+  const previousPublicationPath = publicationPath(active);
   projects = projects.map(existing => existing.id === updated.id ? updated : existing);
   renderReview();
-  if (active?.project === updated.id && !active.identityProblem) await loadPublicationPreview(active);
+  if (active?.project === updated.id && !active.identityProblem && publicationPath(active) !== previousPublicationPath) await loadPublicationPreview(active);
   status(updated.mainDocument ? `Main document: ${updated.mainDocument}` : 'Recompile now uses the selected Typst source.');
 }
 function queueSync(project, expectedRoot) {

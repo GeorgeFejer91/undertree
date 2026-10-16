@@ -1,5 +1,24 @@
 # Verification report
 
+## Main-document preview continuity candidate — 2026-10-16
+
+Selecting the current effective main document now preserves the loaded PDF,
+its pending render task and generation. A changed effective publication path
+still reloads the preview. The comparison uses the active document when the
+Set-main response arrives, preserving navigation and stale-session guards.
+
+Six actual-callback model tests pass, including delayed acknowledgements,
+navigation while awaiting a response, another active project, a replaced
+session and clearing an explicit main to the same fallback. The unchanged
+test source fails two redundant-preview-read cases before the fix and passes
+all six afterwards. These tests mock API, DOM and PDF boundaries; they do not
+qualify native rendering or the separate source/PDF inverse-navigation mount.
+The eight menu checks, 21 text-layout helper boundary cases, frontend build,
+architecture and current attribution verification also pass. Component lists
+and full license payloads remain unchanged at 331 Rust/27 JavaScript entries.
+Receipts are under ignored
+`artifacts/qualification/preview-continuity-integration-20261016/`.
+
 ## Find focus and short-window layout candidate — 2026-10-16
 
 Opening Find from the menu now leaves focus in CodeMirror's real query input.
