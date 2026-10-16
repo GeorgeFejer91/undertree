@@ -114,6 +114,7 @@ pub struct Service {
 }
 
 pub struct Tunnel {
+    pub(crate) session_id: Uuid,
     pub endpoint: String,
     pub secret: String,
     pub child: Child,
@@ -2022,8 +2023,7 @@ impl Service {
                 crate::transport::gateway_enable(self, enabled).await
             }
             Operation::HubLink { label, url } => {
-                self.hub.link(&label, &url).await?;
-                crate::transport::gateway_status(self).await
+                crate::transport::gateway_link(self, &label, &url).await
             }
             Operation::HubUnlink { id } => {
                 self.hub.unlink(&id).await?;

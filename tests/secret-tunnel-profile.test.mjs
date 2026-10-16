@@ -2,13 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { link, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { exportSecretTunnel, importSecretTunnel } from '../modules/maintenance/secret-tunnel-profile.mjs';
 
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), 'undertree-connector-'));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'undertree-connector-')));
   t.after(() => rm(root, { force: true, recursive: true }));
   const settings = join(root, 'settings.json'), zrokHome = join(root, 'source-home');
   const output = join(root, 'package'), state = join(root, 'state');
@@ -41,6 +41,26 @@ test('export/import preserves connector identity privately and copies only zrok 
   if (process.platform !== 'win32') {
     assert.equal((await lstat(join(f.state, 'secret-tunnel-connector.json'))).mode & 0o777, 0o600);
     assert.equal((await lstat(connector.zrokHome)).mode & 0o777, 0o700);
+  } else {
+    const run = promisify(execFile);
+    const inspect = '$ErrorActionPreference = "Stop"; $path = $env:UNDERTREE_ACL_FIXTURE; '
+      + '$acl = if ([System.IO.Directory]::Exists($path)) { [System.IO.Directory]::GetAccessControl($path) } '
+      + 'else { [System.IO.File]::GetAccessControl($path) }; '
+      + '@{protected=$acl.AreAccessRulesProtected; rules=@($acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier]) | '
+      + 'ForEach-Object { @{sid=$_.IdentityReference.Value; type=$_.AccessControlType.ToString()} }); '
+      + 'user=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value} | ConvertTo-Json -Depth 5 -Compress';
+    for (const [path, protectedRoot] of [[f.output, true], [connector.zrokHome, true],
+      [join(f.state, 'secret-tunnel-connector.json'), false],
+      [join(connector.zrokHome, '.zrok2', 'identities', 'environment.json'), false]]) {
+      const { stdout } = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', inspect], {
+        env: { ...process.env, UNDERTREE_ACL_FIXTURE: path }, windowsHide: true, timeout: 10_000,
+      });
+      const acl = JSON.parse(stdout);
+      if (protectedRoot) assert.equal(acl.protected, true, JSON.stringify(acl));
+      const allowed = new Set([acl.user, 'S-1-5-18', 'S-1-5-32-544']);
+      assert.ok(acl.rules.length >= 3);
+      assert.ok(acl.rules.every(rule => allowed.has(rule.sid) && rule.type === 'Allow'));
+    }
   }
   await assert.rejects(importSecretTunnel({ input: f.output, state: f.state }), /already exists/);
 });
@@ -89,13 +109,33 @@ test('the zrok version and environment identity must be usable together', async 
   await assert.rejects(exportSecretTunnel(f), /Invalid/);
 });
 
-test('symlink enrolment and oversized credentials fail before creating the transfer package', async t => {
+test('symlink enrolment fails before creating the transfer package', async t => {
   const f = await fixture(t);
   const identity = join(f.zrokHome, 'identities', 'environment.json');
   await rm(identity);
-  await symlink(f.settings, identity);
+  try { await symlink(f.settings, identity); }
+  catch (error) {
+    if (process.platform === 'win32' && error.code === 'EPERM') {
+      t.skip('Windows does not grant this process file-symlink creation privileges.');
+      return;
+    }
+    throw error;
+  }
   await assert.rejects(exportSecretTunnel(f), /Invalid/);
-  await rm(identity); await writeFile(identity, Buffer.alloc(1024 * 1024 + 1));
+  await assert.rejects(lstat(f.output), { code: 'ENOENT' });
+});
+
+test('hardlinked enrolment fails before creating the transfer package', async t => {
+  const f = await fixture(t);
+  const identity = join(f.zrokHome, 'identities', 'environment.json');
+  await rm(identity); await link(f.settings, identity);
+  await assert.rejects(exportSecretTunnel(f), /Invalid/);
+  await assert.rejects(lstat(f.output), { code: 'ENOENT' });
+});
+
+test('oversized credentials fail before creating the transfer package', async t => {
+  const f = await fixture(t);
+  await writeFile(join(f.zrokHome, 'identities', 'environment.json'), Buffer.alloc(1024 * 1024 + 1));
   await assert.rejects(exportSecretTunnel(f), /Invalid/);
   await assert.rejects(lstat(f.output), { code: 'ENOENT' });
 });

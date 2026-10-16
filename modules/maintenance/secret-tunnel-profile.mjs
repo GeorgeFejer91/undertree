@@ -2,10 +2,27 @@ import { constants } from 'node:fs';
 import { chmod, link, lstat, mkdir, mkdtemp, open, readdir, realpath, rm, unlink, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, parse, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 const MAX_FILE = 1024 * 1024, MAX_TOTAL = 8 * MAX_FILE, MAX_FILES = 128;
 const ROOT_FILES = new Set(['environment.json', 'metadata.json', 'config.json']);
 const fail = () => { throw new Error('Invalid or unsupported Secret Tunnel profile.'); };
+const runFile = promisify(execFile);
+
+// POSIX modes do not restrict Windows ACLs. Protect each newly owned tree before
+// writing credentials; its files inherit only the current user and OS admins.
+async function privateDirectory(path) {
+  if (process.platform !== 'win32') return chmod(path, 0o700);
+  const system = join(process.env.SystemRoot || 'C:\\Windows', 'System32');
+  const { stdout } = await runFile(join(system, 'whoami.exe'), ['/user', '/fo', 'csv', '/nh'],
+    { windowsHide: true, timeout: 10_000, maxBuffer: 4096 });
+  const sid = stdout.match(/S-1-5-\d+(?:-\d+)+/)?.[0];
+  if (!sid) fail();
+  await runFile(join(system, 'icacls.exe'), [path, '/inheritance:r', '/grant:r',
+    `*${sid}:(OI)(CI)F`, '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F'],
+  { windowsHide: true, timeout: 10_000, maxBuffer: 4096 });
+}
 
 async function plainPath(path, directory = false) {
   const absolute = resolve(path), root = parse(absolute).root;
@@ -88,6 +105,7 @@ export async function exportSecretTunnel({ settings, zrokHome, output }) {
   await plainPath(parse(output).dir, true);
   await mkdir(output, { mode: 0o700 });
   try {
+    await privateDirectory(output);
     await writeFile(join(output, 'settings.json'), JSON.stringify(selected), { flag: 'wx', mode: 0o600 });
     await writeHome(join(output, 'zrok-home'), files);
   } catch (error) { await rm(output, { recursive: true, force: true }); throw error; }
@@ -121,10 +139,10 @@ async function installSecretTunnel(input, state) {
       throw new Error('Existing zrok setup differs; review it locally before importing.');
   } catch (error) { if (error.code === 'ENOENT') createConfig = true; else throw error; }
   const home = await mkdtemp(join(state, 'zrok-home-'));
-  await chmod(home, 0o700);
   const temporary = join(home, 'connector.tmp');
   let configCreated = false, published = false;
   try {
+    await privateDirectory(home);
     // zrok v2 resolves .zrok2 from the child process's user home; no ZROK2_HOME override exists.
     await writeHome(join(home, '.zrok2'), files);
     const connector = { version: 1, ...publicSettings, publicPathToken: selected.publicPathToken, zrokHome: home };

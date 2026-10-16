@@ -390,6 +390,17 @@ fn main() {
             let state = app.path().app_data_dir()?.join("review");
             let service = Service::new(state)?;
             let instance = tauri::async_runtime::block_on(LocalInstance::start(service.clone()))?;
+            let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+            // Explicit local launch consent runs before renderer commands can race setup.
+            if let Err(error) = tauri::async_runtime::block_on(
+                undertree_review::transport::connect_secret_tunnel_on_startup(&service, &arguments),
+            ) {
+                eprintln!("UnderTree connection setup failed: {}", error.code);
+                app.dialog()
+                    .message(error.message)
+                    .title("UnderTree connection")
+                    .show(|_| {});
+            }
             app.manage(instance);
             app.manage(service);
             app.manage(WordCountWorker::default());

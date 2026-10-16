@@ -105,9 +105,34 @@ pub(super) fn load(state: &Path, settings: &ConnectionSettings) -> Result<Option
     }
     if let Some(home) = &connector.zrok_home {
         // Imported activation lives in a dedicated native-state child, never the source CLI store.
-        if !home.is_absolute() || home.parent() != Some(state) {
+        if !home.is_absolute() {
             return Err(invalid());
         }
+        #[cfg(not(windows))]
+        if home.parent() != Some(state) {
+            return Err(invalid());
+        }
+        #[cfg(windows)]
+        let canonical_state = {
+            if home.components().any(|part| {
+                matches!(
+                    part,
+                    std::path::Component::CurDir | std::path::Component::ParentDir
+                )
+            }) {
+                return Err(invalid());
+            }
+            let native_state = state.canonicalize().map_err(|_| invalid())?;
+            let parent = home
+                .parent()
+                .ok_or_else(invalid)?
+                .canonicalize()
+                .map_err(|_| invalid())?;
+            if parent != native_state {
+                return Err(invalid());
+            }
+            native_state
+        };
         let name = home.file_name().ok_or_else(invalid)?;
         let home = directory.open_dir_nofollow(name).map_err(|_| invalid())?;
         if !private(&home.dir_metadata().map_err(|_| invalid())?) {
@@ -116,6 +141,34 @@ pub(super) fn load(state: &Path, settings: &ConnectionSettings) -> Result<Option
         let activation = home.open_dir_nofollow(".zrok2").map_err(|_| invalid())?;
         if !private(&activation.dir_metadata().map_err(|_| invalid())?) {
             return Err(invalid());
+        }
+        #[cfg(windows)]
+        {
+            let canonical_home = canonical_state
+                .join(name)
+                .canonicalize()
+                .map_err(|_| invalid())?;
+            if canonical_home.parent() != Some(canonical_state.as_path()) {
+                return Err(invalid());
+            }
+            let named_state = Dir::open_ambient_dir(&canonical_state, cap_std::ambient_authority())
+                .map_err(|_| invalid())?;
+            let named_home = named_state
+                .open_dir_nofollow(canonical_home.file_name().ok_or_else(invalid)?)
+                .map_err(|_| invalid())?;
+            let identity = |dir: &Dir| -> Result<(u64, u64)> {
+                let metadata = dir.dir_metadata().map_err(|_| invalid())?;
+                Ok((metadata.dev(), metadata.ino()))
+            };
+            if identity(&directory)? != identity(&named_state)?
+                || identity(&home)? != identity(&named_home)?
+            {
+                return Err(invalid());
+            }
+            return Ok(Some(Connector {
+                zrok_home: Some(canonical_home),
+                ..connector
+            }));
         }
     }
     Ok(Some(connector))
@@ -140,6 +193,80 @@ mod tests {
     }
     fn settings() -> ConnectionSettings {
         validate_settings("existing-name", "https://existing-name.shares.zrok.io").unwrap()
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_import_accepts_normal_home_with_canonical_native_state() {
+        let temp = tempfile::tempdir().unwrap();
+        let state = temp.path().canonicalize().unwrap();
+        let home = temp.path().join("zrok-home-fixture");
+        std::fs::create_dir_all(home.join(".zrok2")).unwrap();
+        assert_ne!(home.parent(), Some(state.as_path()));
+        let mut value = profile();
+        value["zrokHome"] = json!(home);
+        write(&state, &serde_json::to_vec(&value).unwrap());
+        let connector = load(&state, &settings()).unwrap().unwrap();
+        let canonical_home = home.canonicalize().unwrap();
+        assert_eq!(connector.zrok_home.as_ref(), Some(&canonical_home));
+        let parent_profile = std::env::var_os("USERPROFILE");
+        let mut command = tokio::process::Command::new("synthetic-zrok.exe");
+        connector.configure_command(&mut command);
+        assert_eq!(
+            command
+                .as_std()
+                .get_envs()
+                .find(|(key, _)| *key == "USERPROFILE")
+                .unwrap()
+                .1,
+            Some(canonical_home.as_os_str())
+        );
+        assert_eq!(std::env::var_os("USERPROFILE"), parent_profile);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_import_refuses_nested_outside_and_linked_homes() {
+        let temp = tempfile::tempdir().unwrap();
+        let state_path = temp.path().join("state");
+        std::fs::create_dir(&state_path).unwrap();
+        let state = state_path.canonicalize().unwrap();
+        let home = state_path.join("zrok-home-fixture");
+        let outside = temp.path().join("outside");
+        let nested = home.join("nested");
+        for path in [&home, &outside, &nested] {
+            std::fs::create_dir_all(path.join(".zrok2")).unwrap();
+        }
+        let mut value = profile();
+        for path in [&outside, &nested, &home.join("nested/../")] {
+            value["zrokHome"] = json!(path);
+            write(&state, &serde_json::to_vec(&value).unwrap());
+            assert!(load(&state, &settings()).is_err());
+        }
+        let linked = state_path.join("linked-home");
+        assert!(std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(&linked)
+            .arg(&outside)
+            .output()
+            .unwrap()
+            .status
+            .success());
+        value["zrokHome"] = json!(linked);
+        write(&state, &serde_json::to_vec(&value).unwrap());
+        assert!(load(&state, &settings()).is_err());
+        std::fs::remove_dir(home.join(".zrok2")).unwrap();
+        assert!(std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(home.join(".zrok2"))
+            .arg(&outside)
+            .output()
+            .unwrap()
+            .status
+            .success());
+        value["zrokHome"] = json!(home);
+        write(&state, &serde_json::to_vec(&value).unwrap());
+        assert!(load(&state, &settings()).is_err());
     }
     #[test]
     fn private_profile_requires_exact_setup_and_bounded_strict_content() {
@@ -241,5 +368,29 @@ mod tests {
         assert!(result.status.success());
         assert_eq!(result.stdout, b"fixture-activation");
         assert_eq!(std::env::var_os("HOME"), parent_home);
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn imported_activation_uses_only_the_windows_childs_profile() {
+        let temp = tempfile::tempdir().unwrap();
+        let home = temp.path().join("zrok-home-fixture");
+        std::fs::create_dir_all(home.join(".zrok2")).unwrap();
+        let mut value = profile();
+        value["zrokHome"] = json!(home);
+        write(temp.path(), &serde_json::to_vec(&value).unwrap());
+        let connector = load(temp.path(), &settings()).unwrap().unwrap();
+        let parent_profile = std::env::var_os("USERPROFILE");
+        let mut command = tokio::process::Command::new("cmd.exe");
+        command.args(["/d", "/c", "set USERPROFILE"]);
+        command.creation_flags(0x08000000);
+        connector.configure_command(&mut command);
+        let result = command.output().await.unwrap();
+        assert!(result.status.success());
+        assert_eq!(
+            String::from_utf8(result.stdout).unwrap().trim(),
+            format!("USERPROFILE={}", home.canonicalize().unwrap().display())
+        );
+        assert_eq!(std::env::var_os("USERPROFILE"), parent_profile);
     }
 }

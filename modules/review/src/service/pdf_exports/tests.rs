@@ -48,6 +48,7 @@ impl Fixture {
             .unwrap();
         let (shutdown, _) = tokio::sync::oneshot::channel();
         *service.tunnel.lock().await = Some(Tunnel {
+            session_id: uuid::Uuid::new_v4(),
             endpoint: "https://review.example.org/mcp/test-review".into(),
             secret: "test-review".into(),
             child,

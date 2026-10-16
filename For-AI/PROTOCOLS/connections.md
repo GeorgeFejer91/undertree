@@ -175,7 +175,7 @@ current discovered tool catalogue. The gateway freezes it and assigns distinct
 a gateway `requestId` for replay protection. The model selects an advertised
 alias; it cannot register a URL, change grants, choose arbitrary upstream headers
 or invoke an undiscovered tool. Each target app still enforces its own access.
-An upstream tool-list change invalidates that link's catalogue, suppresses its
+An upstream tool/resource-list change or resource-update notification invalidates that link's catalogue, suppresses its
 aliases and in-flight results, and requires a fresh local Link action. It cannot
 silently expand an existing grant or replay a previously recorded result.
 The gateway also provides local Review tools and, only under the existing local
@@ -184,8 +184,30 @@ It retains bounded upstream initialization instructions as app-scoped,
 untrusted context rather than merging them into the gateway's own instructions.
 Oversized aggregate app-context responses fail explicitly instead of truncating
 those instructions.
-The gateway aggregates tools, not upstream resource/prompt APIs or hosted app
-interfaces. Its request/result/time bounds still apply to linked tools.
+The gateway also supports the reviewed Secret Tunnel `chat-control-v1` MCP Apps
+card. A local Link freezes only the tool-referenced
+`ui://secret-tunnel/chat-control-v1.html` resource and requires its exact reviewed
+HTML SHA-256, `7e35bfaad18493b22beaf10653863c1548082d03507dda8f29f3aa19bf06f78d`,
+before adapting it. Unsupported resource identities, changed HTML, binary
+contents and resources above 512 KiB fail the link. Updating this pin requires
+deliberate source/license/bridge review. The licensed static reference and
+provenance are [test-only fixtures](../../tests/fixtures/mcp-apps/README.md), not
+runtime or installer resources.
+
+Tool UI references and frozen resource URIs receive distinct per-app aliases.
+Gateway-only `resources/list` and `resources/read` serve these frozen payloads;
+they cannot fetch an arbitrary upstream URI, file, template or prompt. The card's
+two reviewed `window.parent.postMessage` call sites use an explicit bridge:
+only the declared app-only `mcp_chat_decide` and `mcp_chat_receipt` aliases and
+the card's existing UI handshake/context messages are forwarded. Each page
+request ID keeps one bounded stable gateway call ID, preserving the existing
+argument wrapper and replay checks. Unknown widget requests fail locally.
+The card's private approval metadata, app-only tool visibility and resource CSP
+are preserved; Secret Tunnel continues to authorize approval/receipt operations.
+The bridge adds no Tauri capability or new folder/control grant. Host sandbox,
+MCP Apps rendering and visibility enforcement remain the host's responsibility.
+This is scoped card compatibility, not a generic hosted-app/resource API or
+evidence of a live public ChatGPT card interaction.
 
 The normal gateway has a separate `/mcp/hub/<secret>` capability. An explicitly
 imported Secret Tunnel identity can reuse its original URL while the local
@@ -207,7 +229,8 @@ URLs; linking an app authorizes conveying that app's context. Links and grants
 clear on disable, tunnel
 death/stop and process restart; there is no background service or auto-grant.
 
-Bounds include 64 linked apps, 512 upstream tools, 128 remembered call IDs,
+Bounds include 64 linked apps, 512 upstream tools, at most 32 frozen cards within
+the existing 2 MiB aggregate catalogue budget, 128 remembered call IDs,
 2 MiB per result, 8 MiB cached results and finite discovery/call timeouts. JSON,
 SSE and error bodies are bounded before parsing. Identical call IDs reuse the
 recorded result; changed arguments are denied. Lost replies remain uncertain,

@@ -6,12 +6,16 @@ use axum::{routing::post, Json, Router};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::Semaphore;
 
+const WIDGET_HTML: &str =
+    include_str!("../../../../tests/fixtures/mcp-apps/secret-tunnel-chat-control-v1.html");
+
 struct Fixture {
     label: String,
     instructions: Option<String>,
     calls: AtomicUsize,
     initializations: AtomicUsize,
     listings: AtomicUsize,
+    resource_reads: AtomicUsize,
     mode: AtomicUsize,
     started: Semaphore,
     finish: Semaphore,
@@ -44,6 +48,23 @@ async fn response(
         "notifications/initialized" => return StatusCode::ACCEPTED.into_response(),
         "tools/list" => {
             state.listings.fetch_add(1, Ordering::SeqCst);
+            if state.mode.load(Ordering::SeqCst) >= 9 {
+                let uri = if state.mode.load(Ordering::SeqCst) == 12 {
+                    "ui://unsupported/private-view"
+                } else {
+                    "ui://secret-tunnel/chat-control-v1.html"
+                };
+                let visibility = if state.mode.load(Ordering::SeqCst) == 15 {
+                    json!(["model"])
+                } else {
+                    json!(["app"])
+                };
+                return Json(json!({"jsonrpc":"2.0","id":id,"result":{"tools":[
+                    {"name":"mcp_request_access","inputSchema":{"type":"object"},"_meta":{"ui":{"resourceUri":uri},"ui/resourceUri":uri,"fixture":"preserved"}},
+                    {"name":"mcp_chat_decide","inputSchema":{"type":"object"},"_meta":{"ui":{"visibility":visibility}}},
+                    {"name":"mcp_chat_receipt","inputSchema":{"type":"object"},"_meta":{"ui":{"visibility":["app"]}}}
+                ]}})).into_response();
+            }
             if state.mode.load(Ordering::SeqCst) == 6 && state.listings.load(Ordering::SeqCst) == 1
             {
                 state.started.add_permits(1);
@@ -100,6 +121,32 @@ async fn response(
                 "_meta":{"fixture":"result-preserved"},
             })
         }
+        "resources/read" => {
+            state.resource_reads.fetch_add(1, Ordering::SeqCst);
+            if state.mode.load(Ordering::SeqCst) == 16 {
+                state.started.add_permits(1);
+                state.finish.acquire().await.unwrap().forget();
+            }
+            let uri = if state.mode.load(Ordering::SeqCst) == 11 {
+                "file:///private-source"
+            } else {
+                "ui://secret-tunnel/chat-control-v1.html"
+            };
+            let text = if state.mode.load(Ordering::SeqCst) == 10 {
+                "x".repeat(512 * 1024 + 1)
+            } else if state.mode.load(Ordering::SeqCst) == 17 {
+                format!("{WIDGET_HTML}<script>parent.postMessage({{}},'*')</script>")
+            } else {
+                WIDGET_HTML.to_owned()
+            };
+            let mut content = json!({"uri":uri,"mimeType":"text/html;profile=mcp-app","text":text,
+                "_meta":{"ui":{"csp":{"connectDomains":[],"resourceDomains":[]},"prefersBorder":true},"fixture":"resource-preserved"}});
+            if state.mode.load(Ordering::SeqCst) == 13 {
+                content.as_object_mut().unwrap().remove("text");
+                content["blob"] = json!("cHJpdmF0ZQ==");
+            }
+            json!({"contents":[content],"_meta":{"fixture":"result-resource-preserved"}})
+        }
         _ => return StatusCode::ACCEPTED.into_response(),
     };
     let message = json!({"jsonrpc":"2.0","id":id,"result":result});
@@ -129,13 +176,20 @@ async fn response(
 }
 
 async fn events(State(state): State<Arc<Fixture>>) -> Response {
-    if state.mode.load(Ordering::SeqCst) != 8 {
+    if !matches!(state.mode.load(Ordering::SeqCst), 8 | 14) {
         return StatusCode::METHOD_NOT_ALLOWED.into_response();
     }
     state.started.add_permits(1);
     let notification = futures_util::stream::once(async move {
         state.finish.acquire().await.unwrap().forget();
-        Ok::<_, io::Error>("event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/tools/list_changed\"}\n\n".to_owned())
+        let method = if state.mode.load(Ordering::SeqCst) == 14 {
+            "notifications/resources/list_changed"
+        } else {
+            "notifications/tools/list_changed"
+        };
+        Ok::<_, io::Error>(format!(
+            "event: message\ndata: {{\"jsonrpc\":\"2.0\",\"method\":\"{method}\"}}\n\n"
+        ))
     });
     (
         [("content-type", "text/event-stream")],
@@ -161,6 +215,7 @@ async fn fixture_with_instructions(
         calls: AtomicUsize::new(0),
         initializations: AtomicUsize::new(0),
         listings: AtomicUsize::new(0),
+        resource_reads: AtomicUsize::new(0),
         mode: AtomicUsize::new(mode),
         started: Semaphore::new(0),
         finish: Semaphore::new(0),
@@ -171,6 +226,10 @@ async fn fixture_with_instructions(
             post(response)
                 .get(events)
                 .delete(|| async { StatusCode::NO_CONTENT }),
+        )
+        .route(
+            "/mcp/private-fixture-token/{id}",
+            post(response).get(events),
         )
         .with_state(state.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -194,6 +253,9 @@ fn alias(hub: &Hub, app: &str, name: &str) -> String {
         .unwrap()
         .into()
 }
+
+#[path = "apps_tests.rs"]
+mod apps_tests;
 
 async fn wait_for_catalogue_change(hub: &Hub, app: &str) {
     tokio::time::timeout(Duration::from_secs(5), async {

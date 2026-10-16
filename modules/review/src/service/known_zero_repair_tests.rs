@@ -134,6 +134,7 @@ async fn active_share_zero_cannot_read_propose_or_execute_old_app_job_after_crea
     let child_pid = child.id().unwrap();
     let (shutdown, _) = tokio::sync::oneshot::channel();
     *f.service.tunnel.lock().await = Some(Tunnel {
+        session_id: uuid::Uuid::new_v4(),
         endpoint: "https://fixture.invalid/mcp/review-fixture".into(),
         secret: "synthetic-zero-probe".into(),
         child,

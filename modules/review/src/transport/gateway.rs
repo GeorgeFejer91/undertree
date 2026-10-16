@@ -141,6 +141,58 @@ pub async fn gateway_enable(service: &Arc<Service>, enabled: bool) -> Result<Val
     snapshot(service, Some(&active.secret))
 }
 
+fn reject_self_origin(endpoint: &str, own_endpoint: &str) -> Result<()> {
+    if let (Ok(endpoint), Ok(own_endpoint)) = (
+        reqwest::Url::parse(endpoint),
+        reqwest::Url::parse(own_endpoint),
+    ) {
+        if endpoint.origin() == own_endpoint.origin() {
+            return Err(Error::new(
+                "hub_self",
+                "This address belongs to UnderTree's own tunnel. Link Secret Tunnel's separate MCP endpoint instead.",
+            ));
+        }
+    }
+    Ok(())
+}
+
+pub async fn gateway_link(service: &Arc<Service>, label: &str, endpoint: &str) -> Result<Value> {
+    {
+        let tunnel = service.tunnel.lock().await;
+        if let Some(active) = tunnel.as_ref() {
+            reject_self_origin(endpoint, &active.endpoint)?;
+        }
+    }
+    service.hub.link(label, endpoint).await?;
+    gateway_status(service).await
+}
+
+#[cfg(test)]
+mod self_link_tests {
+    use super::*;
+
+    #[test]
+    fn imported_gateway_rejects_own_origin_across_paths_and_url_normalization() {
+        let own = "https://existing-name.shares.zrok.io/t/private-fixture/mcp";
+        for endpoint in [
+            own,
+            "https://EXISTING-NAME.shares.zrok.io:443/mcp/hub/other-fixture",
+            "https://existing-name.shares.zrok.io/another-path",
+        ] {
+            let error = reject_self_origin(endpoint, own).unwrap_err();
+            assert_eq!(error.code, "hub_self");
+            assert!(!error.message.contains("private-fixture"));
+        }
+        for endpoint in [
+            "http://127.0.0.1:8792/t/peer-fixture/mcp",
+            "https://another-name.shares.zrok.io/t/peer-fixture/mcp",
+            "https://existing-name.shares.zrok.io:8443/mcp",
+        ] {
+            reject_self_origin(endpoint, own).unwrap();
+        }
+    }
+}
+
 pub(super) fn control_grant(service: &Service, parent: &str) -> Result<Option<(String, String)>> {
     let status = service.app_control_status()?;
     let secret = status["endpoint"]

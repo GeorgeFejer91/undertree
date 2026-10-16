@@ -32,6 +32,7 @@ const MAX_APP_INSTRUCTIONS: usize = 128 * 1024;
 const MAX_WIRE_RESPONSE: usize = MAX_RESULT + 64 * 1024;
 const LINK_TIMEOUT: Duration = Duration::from_secs(30);
 const CALL_TIMEOUT: Duration = Duration::from_secs(60);
+mod apps;
 
 type Upstream = RunningService<RoleClient, UpstreamHandler>;
 
@@ -43,10 +44,33 @@ struct UpstreamHandler {
 
 impl ClientHandler for UpstreamHandler {
     fn get_info(&self) -> ClientConfig {
-        ClientConfig::default()
+        let mut config = ClientConfig::default();
+        config.capabilities.extensions = Some(BTreeMap::from([(
+            "io.modelcontextprotocol/ui".into(),
+            serde_json::Map::from_iter([("mimeTypes".into(), json!([apps::UI_MIME]))]),
+        )]));
+        config
     }
 
     async fn on_tool_list_changed(&self, _context: NotificationContext<RoleClient>) {
+        self.invalidate();
+    }
+
+    async fn on_resource_list_changed(&self, _context: NotificationContext<RoleClient>) {
+        self.invalidate();
+    }
+
+    async fn on_resource_updated(
+        &self,
+        _params: rmcp::model::ResourceUpdatedNotificationParam,
+        _context: NotificationContext<RoleClient>,
+    ) {
+        self.invalidate();
+    }
+}
+
+impl UpstreamHandler {
+    fn invalidate(&self) {
         if self.invalidated.swap(true, Ordering::AcqRel) {
             return;
         }
@@ -91,6 +115,7 @@ struct LinkedApp {
     endpoint: String,
     client: Arc<Upstream>,
     tools: Vec<FrozenTool>,
+    resources: Vec<apps::FrozenResource>,
     instructions: Option<String>,
     failed: bool,
 }
@@ -314,7 +339,7 @@ impl Hub {
             state: self.state.clone(),
         };
         let id = Uuid::new_v4().simple().to_string();
-        let (client, tools, instructions) = tokio::time::timeout(
+        let (client, tools, resources, instructions) = tokio::time::timeout(
             LINK_TIMEOUT,
             connect(endpoint, &id, label, Arc::downgrade(&self.state)),
         )
@@ -338,6 +363,7 @@ impl Hub {
             .values()
             .map(|app| {
                 instructions_size(&app.instructions)
+                    + apps::size(&app.resources)
                     + app
                         .tools
                         .iter()
@@ -346,8 +372,16 @@ impl Hub {
             })
             .sum();
         if tool_count + tools.len() > MAX_TOOLS
+            || resources.len()
+                + state
+                    .apps
+                    .values()
+                    .map(|app| app.resources.len())
+                    .sum::<usize>()
+                > apps::MAX_RESOURCES
             || catalogue_bytes
                 + instructions_size(&instructions)
+                + apps::size(&resources)
                 + tools
                     .iter()
                     .map(|tool| tool.catalogue.to_string().len())
@@ -369,6 +403,7 @@ impl Hub {
                 endpoint: endpoint.into(),
                 client,
                 tools,
+                resources,
                 instructions,
                 failed: false,
             },
@@ -586,7 +621,12 @@ async fn connect(
     id: &str,
     label: &str,
     state: Weak<Mutex<HubState>>,
-) -> Result<(Arc<Upstream>, Vec<FrozenTool>, Option<String>)> {
+) -> Result<(
+    Arc<Upstream>,
+    Vec<FrozenTool>,
+    Vec<apps::FrozenResource>,
+    Option<String>,
+)> {
     let mut builder = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .retry(reqwest::retry::never())
@@ -632,6 +672,7 @@ async fn connect(
     let mut names = HashSet::new();
     let mut cursor = None;
     let mut bytes = instructions_size(&instructions);
+    let mut complete = false;
     for _ in 0..MAX_TOOLS {
         let page = client
             .list_tools(Some(PaginatedRequestParams::default().with_cursor(cursor)))
@@ -711,7 +752,8 @@ async fn connect(
         }
         cursor = page.next_cursor;
         let Some(next) = &cursor else {
-            return Ok((client, tools, instructions));
+            complete = true;
+            break;
         };
         if next.len() > 4096 || !cursors.insert(next.clone()) {
             return Err(Error::new(
@@ -720,10 +762,14 @@ async fn connect(
             ));
         }
     }
-    Err(Error::new(
-        "hub_limit",
-        "The upstream catalogue has too many pages.",
-    ))
+    if !complete {
+        return Err(Error::new(
+            "hub_limit",
+            "The upstream catalogue has too many pages.",
+        ));
+    }
+    let resources = apps::freeze(&client, id, label, &mut tools, bytes).await?;
+    Ok((client, tools, resources, instructions))
 }
 
 #[derive(Clone)]
