@@ -379,7 +379,7 @@ try {
   await qualifyChrome();
   assert.deepEqual(await execute('return window.__undertreeNativeErrors'), [], 'Native resize and text enlargement have no uncaught errors.');
   checks.push('Native 320 px reflow, 200% text, short-height finite controls and visible frame SVG ink centers pass without page scrolling.');
-  await qualifyNativeFileMove({execute,waitFor,project,state,projectId:'33333333-3333-4333-8333-333333333333',compilerCalls,evidence,checks});
+  await qualifyNativeFileMove({execute,click,waitFor,project,state,projectId:'33333333-3333-4333-8333-333333333333',compilerCalls,evidence,checks});
   await screenshot('native-typst-workspace.png');
   const buffer = await execute('return document.querySelector(".cm-content").textContent');
   await click('#window-minimize');

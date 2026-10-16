@@ -226,7 +226,25 @@ fault hook is compiled out. Extracting that exact body into a private helper
 preserves the fault boundary, Result-to-`outcome_unknown` handling and caller's
 exclusion lifetime without a lint allowance. Independent source review has
 SHA-256 `8eac0e2803ab883f03d3c09537ed84face79c17896c8d1508271016441bb3f1e`.
-The extracted helper and native effect gate require fresh hosted qualification.
+Hosted PR run 38844695508 on `180a0ca` passes strict native/review Clippy,
+the full Rust and browser gates, native Word count and the preceding ten native
+UI groups. The new Move helper then fails before any Move invocation: it waits
+for a current PDF after the preceding deliberately failed build and explicit
+CLI save, but that save does not schedule a rebuild. Its fixture setup now
+clicks real Recompile once, retains the same current-PDF predicate and deadline,
+and verifies that cached PDF metadata matches the saved main source before
+capturing the Move/compiler/Save baselines. This is a test setup correction;
+fresh hosted qualification must establish actual Move effects.
+
+The corresponding push run 38844691775 stops earlier when the revoked-endpoint
+read-only catalogue probe receives 429 instead of its required 401. Source
+inspection establishes tunnel-mutex admission contention before authentication;
+the exact competing holder is unrecorded. Both revocation probes now retry only
+429 admission, using the existing ten-attempt/50-ms pattern, then assert the
+first non-429 status is exactly 401. A 200 or other denial fails immediately;
+no mutation is retried and product authentication is unchanged. Five extracted
+actual-helper checks cover those status sequences and budget exhaustion.
+These source checks do not replace the complete App-controls qualification.
 
 The maintained native UI gate also gains one helper on its existing disposable
 window. It exercises both actual typed Move commands, exact source/Review/opaque

@@ -21,8 +21,12 @@ export async function seedNativeFileMove(project) {
   }
 }
 
-export async function qualifyNativeFileMove({execute, waitFor, project, state, projectId, compilerCalls, evidence, checks}) {
+export async function qualifyNativeFileMove({execute, click, waitFor, project, state, projectId, compilerCalls, evidence, checks}) {
+  // The preceding denied build retains an old PDF; the explicit CLI save does not schedule a rebuild.
+  await click('#typst-compile');
   await waitFor(() => execute('return document.getElementById("typst-compile").textContent === "Recompile" && document.getElementById("typst-preview-status").dataset.state === "current";'), 'The current native PDF must settle before the closed-source Move contract.');
+  const pdfMetadata = JSON.parse(await readFile(join(state, 'pdfs', `${hash(projectId + ':main.typ')}.json`), 'utf8'));
+  assert.equal(pdfMetadata.revision, hash(await readFile(join(project, 'main.typ'))), 'Move setup uses the actual newly saved main PDF.');
   const beforeEditor = await execute('return {text:document.querySelector(".cm-content").textContent,label:document.getElementById("save-label").textContent,probe:{saved:window.__cliProbe.saved,committed:window.__cliProbe.committed,fallback:window.__cliProbe.fallback,errors:[...window.__cliProbe.errors]}};');
   assert.equal(beforeEditor.label, 'Saved locally');
   assert.equal(beforeEditor.probe.fallback, false); assert.deepEqual(beforeEditor.probe.errors, []);
