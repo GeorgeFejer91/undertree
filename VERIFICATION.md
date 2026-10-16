@@ -169,7 +169,24 @@ the parallel failure. A simplified real-markup/CSS/Pretext Chromium diagnostic
 without the app, editor or PDF does not reproduce the native overflow. The
 native fixture now captures capped geometry/style observations only after a
 failure, before and after two animation frames, while retaining every original
-assertion and deadline. No CSS cause or correction is established yet.
+assertion and deadline. The next failure records the document returning from
+458px to 320px after two animation frames, without a CSS change. A single
+existing two-frame prerequisite now follows resize/text enlargement before the
+unchanged geometry assertion, avoiding the previous fit state.
+
+Complete push run [38840439176](https://github.com/GeorgeFejer91/undertree_texstudio/actions/runs/38840439176)
+on `bb75ac2` passes both jobs, including all Rust/browser/native gates and the
+extracted Linux installer. Native publishing observes 320px document/body width
+at a 320px viewport and 28px text; receipt SHA-256 is
+`a783723db92693f4e2d7eca6ba3d306321360d436936f99ddd588e3eb7a2cf34`.
+Installer SHA-256 is
+`1c5ac957a41fb7e2b8e6f46a5e6df72736315799386d8018c9f491f0c1f25307`;
+extracted-package receipt SHA-256 is
+`f8857dd0e4fd63d73f49a44197ba97c97fa4a17ca967c4fc379cf8d2a21ec9bb`.
+Its archive was downloaded and matches that package digest locally. The parallel
+pull-request run 38840443332 also passes both jobs. This qualifies the menu
+branch and its extracted installer, without a new system installation, public
+ChatGPT route, pinned Overleaf runtime comparison or the separate Move candidate.
 
 Architecture and refreshed attribution verification pass; the actual Rust and
 JavaScript license payloads remain identical to v16. The broader initial
@@ -190,7 +207,24 @@ two-file generation/maintenance patch. The original full workspace remains
 intact; offline locked metadata resolves all 479 packages. The v6 source review
 receipt has SHA-256
 `07430182767c86596e469e7e752502782ebd626e11661c35126b5566bb4786ca`.
-Its 42 expected focused tests have not executed on v6 at draft publication.
+At draft publication, the 42 expected focused tests had not executed on v6.
+Hosted push/PR runs 38840600528 and 38840788487 compile the full candidate and
+record 409 library passes and one failure: the dropped-waiter test expects an
+accepted `pending` receipt at hook 0, which precedes durable acceptance. Pure
+List correctly returns the persisted `prepared` phase there. The test now checks
+both hook 0 (`prepared`) and hook 1 (`pending`), verifies List/Status against the
+actual durable intent with byte-pure reads, preserves original source/epochs,
+and waits for real completion plus release of both exclusions within its
+unchanged finite loop. Runtime behavior and every other test remain unchanged.
+The new test source requires fresh hosted qualification.
+
+The maintained native UI gate also gains one helper on its existing disposable
+window. It exercises both actual typed Move commands, exact source/Review/opaque
+import-report bytes and modes, collision/non-current-owner/live-editor denial,
+epoch advance, pure receipt reads, completed replay and explicit generation
+retirement. It checks that the unrelated editor/source/policy and compiler/Save
+counters remain unchanged. This helper is source-reviewed; its native effect
+results remain pending. No browser mock is counted as native Move evidence.
 
 Fresh pinned cargo-about generation selects 331 Rust components, adding
 `nix` 0.31.3 and `cfg_aliases` 0.2.2 with their actual license/notice texts.
@@ -201,11 +235,13 @@ exact, then the original generator verifies the fresh cached output and builds
 the frontend. No product-test deadline changes. Attribution manifest SHA-256 is
 `42e0ec10d5bcd53c7eb0885ecae5757d8689bf4fa13de1707a724a2a6e0769ae`.
 Architecture, full-workspace format and current attribution checks run on the
-isolated integration; full Rust compilation, real native effects and complete
+isolated integration; a green full Rust gate, real native effects and complete
 hosted acceptance remain required. The preceding v4 source's 27 focused checks
 and strict Clippy do not qualify v6. Its old full gate has recorded 11 failures
-and remains incomplete; interrupted quota work and focused failure diagnosis
-are preserved separately. No new Move UI, merge, release or installation is
+and was stopped during its second lengthy quota case. Seven isolated diagnostics
+identify missing compiler-environment prerequisites; three others pass in
+isolation and one reaches its finite watchdog. The four original full-run
+causes remain unestablished; every failure/interruption is preserved separately. No new Move UI, merge, release or installation is
 claimed by this draft.
 
 ## Native Linux release and this-PC installation (2026-10-15)

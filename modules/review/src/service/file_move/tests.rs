@@ -778,79 +778,135 @@ async fn pending_journal_corrupt_policy_collision_and_executable_members_fail_be
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn dropped_waiter_retains_actual_exclusions_without_holding_live_editor_documents() {
-    let f = Fixture::new();
-    let p = f.prepare(f.request("main.typ", "moved.typ")).await;
-    let (arrived, ready) = tokio::sync::oneshot::channel();
-    let (release, waiting) = std::sync::mpsc::channel();
-    f.hook(0, move || {
-        arrived.send(()).unwrap();
-        waiting.recv().unwrap();
-        Ok(())
-    });
-    let caller = {
-        let service = f.service.clone();
-        let owner = f.owner.clone();
-        let p = p.clone();
-        tokio::spawn(async move {
-            service
-                .file_move_native(
-                    "main",
-                    &owner,
-                    MoveOperation::MoveCommit {
-                        generation: "0".into(),
-                        move_id: p["moveId"].as_str().unwrap().into(),
-                        request_id: p["requestId"].as_str().unwrap().into(),
-                    },
-                )
-                .await
-        })
-    };
-    ready.await.unwrap();
-    caller.abort();
-    assert!(f.service.compile_lock.clone().try_lock_owned().is_err());
-    assert!(f.service.sync_lock.clone().try_lock_owned().is_err());
-    assert!(f.service.editor.try_lock().is_ok());
-    assert!(f.service.documents.try_lock().is_ok());
-    assert_eq!(
-        f.service
-            .move_source_available(&f.project.id, "main.typ")
-            .unwrap_err()
-            .code,
-        "move_pending"
-    );
-    let before = directory_bytes(f.temp.path());
-    let discovery = listed(&f.service, &f.owner).await;
-    assert_eq!(discovery["moves"].as_array().unwrap().len(), 1);
-    assert_eq!(discovery["moves"][0]["requestId"], p["requestId"]);
-    assert_eq!(discovery["moves"][0]["status"], "pending");
-    assert_eq!(directory_bytes(f.temp.path()), before);
-    assert!(f.service.compile_lock.clone().try_lock_owned().is_err());
-    assert!(f.service.sync_lock.clone().try_lock_owned().is_err());
-    release.send(()).unwrap();
-    let id = p["requestId"].as_str().unwrap();
-    let mut finished = false;
-    for _ in 0..200 {
+    for (point, expected_status) in [(0, "prepared"), (1, "pending")] {
+        let f = Fixture::new();
+        let p = f.prepare(f.request("main.typ", "moved.typ")).await;
+        let (arrived, ready) = tokio::sync::oneshot::channel();
+        let (release, waiting) = std::sync::mpsc::channel();
+        f.hook(point, move || {
+            arrived.send(()).unwrap();
+            waiting.recv().unwrap();
+            Ok(())
+        });
+        let caller = {
+            let service = f.service.clone();
+            let owner = f.owner.clone();
+            let p = p.clone();
+            tokio::spawn(async move {
+                service
+                    .file_move_native(
+                        "main",
+                        &owner,
+                        MoveOperation::MoveCommit {
+                            generation: p["generation"].as_str().unwrap().into(),
+                            move_id: p["moveId"].as_str().unwrap().into(),
+                            request_id: p["requestId"].as_str().unwrap().into(),
+                        },
+                    )
+                    .await
+            })
+        };
+        ready.await.unwrap();
+        caller.abort();
+        assert!(f.service.compile_lock.clone().try_lock_owned().is_err());
+        assert!(f.service.sync_lock.clone().try_lock_owned().is_err());
+        assert!(f.service.editor.try_lock().is_ok());
+        assert!(f.service.documents.try_lock().is_ok());
+        assert_eq!(
+            f.service
+                .move_source_available(&f.project.id, "main.typ")
+                .unwrap_err()
+                .code,
+            "move_pending"
+        );
+        // Running holds exclusions before acceptance; observational replies retain the durable phase.
+        let before = directory_bytes(f.temp.path());
+        let discovery = listed(&f.service, &f.owner).await;
+        assert_eq!(discovery["moves"].as_array().unwrap().len(), 1);
+        assert_eq!(discovery["moves"][0]["requestId"], p["requestId"]);
+        assert_eq!(discovery["moves"][0]["status"], expected_status);
         let status = f
             .service
             .file_move_native(
                 "main",
                 &f.owner,
                 MoveOperation::MoveStatus {
-                    generation: "0".into(),
-                    request_id: id.into(),
+                    generation: p["generation"].as_str().unwrap().into(),
+                    request_id: p["requestId"].as_str().unwrap().into(),
                 },
             )
             .await
             .unwrap();
-        if status["status"] == "moved" {
-            finished = true;
-            break;
+        assert_eq!(status, discovery["moves"][0]);
+        let intent = directory(&f.service.state, p["moveId"].as_str().unwrap())
+            .unwrap()
+            .join("intent.json");
+        let durable: Record = serde_json::from_slice(&fs::read(intent).unwrap()).unwrap();
+        assert_eq!(reply(&durable), status);
+        assert_eq!(directory_bytes(f.temp.path()), before);
+        f.original();
+        assert!(!f.project.root.join("moved.typ").exists());
+        assert_eq!(
+            f.service.project(&f.project.id).unwrap().main_document,
+            "main.typ"
+        );
+        for path in ["main.typ", "moved.typ"] {
+            assert_eq!(f.service.source_epoch(&f.project.id, path).unwrap(), 0);
         }
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        assert!(f.service.compile_lock.clone().try_lock_owned().is_err());
+        assert!(f.service.sync_lock.clone().try_lock_owned().is_err());
+        release.send(()).unwrap();
+        let id = p["requestId"].as_str().unwrap();
+        let mut finished = false;
+        for _ in 0..200 {
+            let status = f
+                .service
+                .file_move_native(
+                    "main",
+                    &f.owner,
+                    MoveOperation::MoveStatus {
+                        generation: p["generation"].as_str().unwrap().into(),
+                        request_id: id.into(),
+                    },
+                )
+                .await
+                .unwrap();
+            if status["status"] == "moved"
+                && f.service.compile_lock.clone().try_lock_owned().is_ok()
+                && f.service.sync_lock.clone().try_lock_owned().is_ok()
+            {
+                finished = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(finished);
+        assert_eq!(
+            fs::read(f.project.root.join("moved.typ")).unwrap(),
+            f.source
+        );
+        assert_eq!(
+            fs::read(sidecar(&f.project.root.join("moved.typ"))).unwrap(),
+            f.review
+        );
+        assert_eq!(
+            fs::read(f.project.root.join("moved.typ.import-report.json")).unwrap(),
+            f.report
+        );
+        for path in [
+            "main.typ",
+            "main.typ.undertree-review.json",
+            "main.typ.import-report.json",
+        ] {
+            assert!(!f.project.root.join(path).exists());
+        }
+        assert_eq!(
+            f.service.project(&f.project.id).unwrap().main_document,
+            "moved.typ"
+        );
+        assert!(f.service.compile_lock.clone().try_lock_owned().is_ok());
+        assert!(f.service.sync_lock.clone().try_lock_owned().is_ok());
     }
-    assert!(finished);
-    assert!(f.service.compile_lock.clone().try_lock_owned().is_ok());
-    assert!(f.service.sync_lock.clone().try_lock_owned().is_ok());
 }
 
 #[tokio::test]
