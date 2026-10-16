@@ -170,11 +170,13 @@ test('actual cached tree Open refuses a new occupant and stale project callback 
 });
 
 test('actual PDF parse cannot install an old result after a same-object main rebind', async () => {
-  const session = make(2), gate = defer(); let destroyed = 0, installed = 0;
-  const code = manuscript.slice(manuscript.indexOf('async function showPdf('), manuscript.indexOf('async function loadPublicationPreview('));
-  const environment = { ...identity, active: session, sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, publicationPath: () => 'main.typ', observedSourceTarget: () => ({ ...captureSourceBinding(session), session }), pdfGeneration: 0, atob: () => '', pdfjs: { getDocument: () => ({ promise: gate.promise, destroy: async () => { destroyed += 1; } }) }, pdfViewer: { clear() { installed += 1; } }, pdfLoadingTask: null, $: () => ({}), showingLogs: false };
+  const session = make(2), gate = defer(), parsing = defer(); let destroyed = 0, installed = 0;
+  const original = manuscript.slice(manuscript.indexOf('async function showPdf('), manuscript.indexOf('async function loadPublicationPreview('));
+  const code = original.replace("await import('pdfjs-dist')", 'await loadPdfJs()');
+  assert.notEqual(code, original, 'Substitute only the external PDF.js loader; execute the actual preview guards.');
+  const environment = { ...identity, active: session, sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, publicationPath: () => 'main.typ', observedSourceTarget: () => ({ ...captureSourceBinding(session), session }), pdfGeneration: 0, atob: () => '', loadPdfJs: async () => ({ GlobalWorkerOptions: {}, getDocument() { parsing.resolve(); return { promise: gate.promise, destroy: async () => { destroyed += 1; } }; } }), pdfWorker: 'fixture:pdf-worker', pdfViewer: { clear() { installed += 1; }, async setDocument() {} }, pdfLoadingTask: null, $: () => ({}), showingLogs: false };
   const show = runInNewContext(code + '\nshowPdf;', environment), work = show({ available: true, sourceEpoch: 2, base64: '' }, session);
-  rebind(session, 3); gate.resolve({}); await work; assert.equal(destroyed, 1); assert.equal(installed, 0);
+  await parsing.promise; rebind(session, 3); gate.resolve({}); await work; assert.equal(installed, 0); assert.equal(destroyed, 1);
 });
 
 test('actual main choice uses its own captured epoch and main clear remains usable on a frozen active buffer', async () => {

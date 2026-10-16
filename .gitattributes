@@ -1,1 +1,2 @@
 tests/fixtures/mcp-apps/secret-tunnel-chat-control-v1.html -text
+native/tauri/notices*/THIRD-PARTY-*.md text eol=lf

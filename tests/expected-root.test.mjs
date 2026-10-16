@@ -157,18 +157,20 @@ test('actual configured-main Open/Compile carry root strings independently of ch
 });
 
 test('new wrong-root PDF refuses parsing/export while held parse cannot install after same-object root replacement', async () => {
-  const code = manuscript.slice(manuscript.indexOf('async function showPdf('), manuscript.indexOf('async function loadPublicationPreview('));
+  const original = manuscript.slice(manuscript.indexOf('async function showPdf('), manuscript.indexOf('async function loadPublicationPreview('));
+  const code = original.replace("await import('pdfjs-dist')", 'await loadPdfJs()');
+  assert.notEqual(code, original, 'Substitute only the external PDF.js loader; execute the actual preview guards.');
   for (const artifactRoot of [root1, null]) {
     const session = make(); let parsed = 0;
-    const environment = { ...identity, active: session, sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, publicationPath: () => 'main.typ', observedSourceTarget: () => ({ ...captureSourceBinding(session), session }), pdfjs: { getDocument() { parsed += 1; } }, pdfBytes: 'previous explicitly stale PDF', pdfPath: 'main.typ' };
+    const environment = { ...identity, active: session, sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, publicationPath: () => 'main.typ', observedSourceTarget: () => ({ ...captureSourceBinding(session), session }), loadPdfJs: async () => ({ getDocument() { parsed += 1; } }), pdfBytes: 'previous explicitly stale PDF', pdfPath: 'main.typ' };
     const show = runInNewContext(code + '\nshowPdf;', environment);
     await assert.rejects(show({ available: true, sourceEpoch: 2, ...(artifactRoot ? { expectedRoot: artifactRoot } : {}), base64: '' }, session), error => error.code === 'stale');
     assert.equal(parsed, 0); assert.equal(environment.pdfBytes, 'previous explicitly stale PDF'); assert.equal(session.identityProblem, null);
   }
-  const session = make(), gate = deferred(); let destroyed = 0, installed = 0;
-  const environment = { ...identity, active: session, sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, publicationPath: () => 'main.typ', observedSourceTarget: () => ({ ...captureSourceBinding(session), session }), pdfGeneration: 0, atob: () => '', pdfjs: { getDocument: () => ({ promise: gate.promise, destroy: async () => { destroyed += 1; } }) }, pdfViewer: { clear() { installed += 1; } }, pdfLoadingTask: null, $: () => ({}), showingLogs: false };
+  const session = make(), gate = deferred(), parsing = deferred(); let destroyed = 0, installed = 0;
+  const environment = { ...identity, active: session, sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, publicationPath: () => 'main.typ', observedSourceTarget: () => ({ ...captureSourceBinding(session), session }), pdfGeneration: 0, atob: () => '', loadPdfJs: async () => ({ GlobalWorkerOptions: {}, getDocument() { parsing.resolve(); return { promise: gate.promise, destroy: async () => { destroyed += 1; } }; } }), pdfWorker: 'fixture:pdf-worker', pdfViewer: { clear() { installed += 1; }, async setDocument() {} }, pdfLoadingTask: null, $: () => ({}), showingLogs: false };
   const work = runInNewContext(code + '\nshowPdf;', environment)({ available: true, sourceEpoch: 2, expectedRoot: root0, base64: '' }, session);
-  rebind(session, root1); gate.resolve({}); await work; assert.equal(destroyed, 1); assert.equal(installed, 0);
+  await parsing.promise; rebind(session, root1); gate.resolve({}); await work; assert.equal(installed, 0); assert.equal(destroyed, 1);
 });
 
 test('actual cached tree and held Open cannot adopt a changed root or replace old history', async () => {

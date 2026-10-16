@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -9,6 +10,16 @@ import { promisify } from 'node:util';
 
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
+
+test('both platform attribution manifests pin canonical LF license text', async () => {
+  for (const directory of ['native/tauri/notices', 'native/tauri/notices-windows']) {
+    const manifest = JSON.parse(await readFile(join(root, directory, 'manifest.json'), 'utf8'));
+    for (const [file, expected] of Object.entries(manifest.outputs)) {
+      const text = (await readFile(join(root, directory, file), 'utf8')).replace(/\r\n/g, '\n');
+      assert.equal(createHash('sha256').update(text).digest('hex'), expected, `${directory}/${file}`);
+    }
+  }
+});
 
 test('notice verification needs no build tools and refuses changed payloads or lock inputs', async t => {
   const fixture = await mkdtemp(join(tmpdir(), 'undertree-notices-'));
