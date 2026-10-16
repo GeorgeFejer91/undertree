@@ -379,6 +379,8 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflo
 #file-move-dialog .file-move-body > label { display: grid; grid-template-columns: minmax(0, 1fr); }
 #file-move-draft { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--move-gap); min-inline-size: 0; }
 #file-move-dialog select,#file-move-dialog input { min-inline-size: 0; max-inline-size: 100%; inline-size: 100%; font: inherit; }
+#file-move-dialog .file-move-request-select { display: block; inline-size: 100%; min-inline-size: 0; max-inline-size: 100%; contain: paint; overflow: hidden; }
+#file-move-dialog .file-move-request-select:focus-within { outline: 2px solid var(--focus); outline-offset: -2px; }
 #file-move-paths { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--move-gap); margin: 0; }
 #file-move-paths > div { min-inline-size: 0; }
 #file-move-paths dd { margin-inline-start: 0; overflow-wrap: anywhere; white-space: pre-wrap; user-select: text; }
