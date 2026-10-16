@@ -1,5 +1,21 @@
 # Verification report
 
+## Native Word count overflow diagnostic — 2026-10-16
+
+Both hosted runs of `e144e3f` pass the corrected JavaScript suites, Rust,
+browser and desktop build gates, then fail the native Word count page-boundary
+assertion at 320 × 900 with 28px root text. The document is 445px wide while
+the count dialog and its body fit. Later native and installer gates are not
+reached; this establishes whole-page overflow, without identifying its cause.
+
+The native fixture now records bounded structural geometry and two passive
+frame samples before retaining the original first-geometry assertion. Every
+original action, count, page/body/Close assertion and deadline remains. Eight
+fake-DOM boundary checks and syntax verification pass; independent source
+reviews accept the diagnostic. Product source and attribution inputs are
+unchanged. Fresh hosted native evidence is required before choosing a layout
+or fixture correction; this diagnostic does not fix or waive overflow.
+
 ## Background Review fixture extraction — 2026-10-16
 
 Both hosted runs of `ca92e43` pass attribution verification, then stop before
