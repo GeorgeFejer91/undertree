@@ -4100,6 +4100,7 @@ dependencies = [
  "cap-fs-ext",
  "cap-std",
  "futures-core",
+ "nix",
  "serde",
  "serde_json",
  "sha2",

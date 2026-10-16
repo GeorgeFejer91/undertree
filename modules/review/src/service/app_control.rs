@@ -68,6 +68,11 @@ pub(super) struct AppControlState {
     grant: Option<Grant>,
     bindings: BTreeMap<String, Binding>,
 }
+impl AppControlState {
+    pub(super) fn reset_for_move(&mut self) {
+        *self = Self::default();
+    }
+}
 impl Default for AppControlState {
     fn default() -> Self {
         Self {

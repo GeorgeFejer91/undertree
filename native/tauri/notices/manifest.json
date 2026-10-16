@@ -4,7 +4,7 @@
   "cargoAboutBinarySha256": "67e8e0134a88ab25194f2d3b3ab157d5a6467fc091df3af93e63f355a111828f",
   "target": "x86_64-unknown-linux-gnu",
   "inputs": {
-    "Cargo.lock": "0f7d79fb18bbd4e16e22fdca2f569a724dfcc50cec5649aae654c79b5b0008c7",
+    "Cargo.lock": "d3bad6cdd93ddcd11bc3803378120fed707454c86363fd0cfb49a9a207be1c49",
     "Cargo.toml": "7d7664114335d2407ce20baa755c38b841ffce6467cb2c305fd56c51c2c2b3b3",
     "index.html": "5b51c9843f12350952806eb6baac1db2ebb753168716a65b5cdf31f50ccbdeef",
     "layout/compiler.mjs": "f3c8d7238be5041c1f8d1b5177e469eb15d05a2286050288a53f302055978e15",
@@ -34,7 +34,7 @@
     "modules/frontend/word-count-worker.js": "7ceac8b7bcdcf4defa36d19c7e0479225666e6d0a3096b05d3c97504be46f224",
     "modules/frontend/word-count.js": "05e891b7718acd413cddd62172f05264ad754e0b2fe8fdb932ebd25f8cdb4fad",
     "modules/maintenance/generate-notices.mjs": "2dabccc83efa977d944bf6b4e147362e464eb607e87563de85a86ce3cd42e3a5",
-    "modules/review/Cargo.toml": "6e862b855c8f7f8535d0bd4c22d45b86251b46738bbd8828bcc19173d6d1e6e3",
+    "modules/review/Cargo.toml": "5791d9cf686b34e940d3465dc9e07a8d93502e32e45a296178fe5f8ee25acbd1",
     "native/tauri/Cargo.toml": "d934f1392b37a85004f825435dbd60665ed3062fd4aa5609223119bda4baa601",
     "package-lock.json": "fc8d2e5c5197ac4c0339e935fbdb756b8a55025226a8452a26512c8ee29de16a",
     "package.json": "3449fbb5e3c13582d70a8e629481a7d2c45a4ee96e2f33cb0a04e8875dfae212",
@@ -72,7 +72,7 @@
     "vite.config.js": "0ed5260235a9c79fb9534163d1e67c0ee749082156fa5fd04dd78496d3674f61"
   },
   "outputs": {
-    "THIRD-PARTY-RUST.md": "e6236e945c68945f880b2911c60b4b7f8ab8e2a43d3e92239a260874154ea2b9",
+    "THIRD-PARTY-RUST.md": "d6d62d75b7e570243e535e2971c5c61a97eef7ed2440a5ec4b3455e6d504c800",
     "THIRD-PARTY-JAVASCRIPT.md": "d87b37d0ef9f018a2f4d62f08eb93177b64c8f464f33dab1a778a648cf671316"
   },
   "rustComponents": [
@@ -211,6 +211,10 @@
     [
       "cfb",
       "0.14.0"
+    ],
+    [
+      "cfg_aliases",
+      "0.2.2"
     ],
     [
       "cfg-expr",
@@ -735,6 +739,10 @@
     [
       "new_debug_unreachable",
       "1.0.6"
+    ],
+    [
+      "nix",
+      "0.31.3"
     ],
     [
       "num-conv",
@@ -1719,6 +1727,13 @@
     },
     {
       "id": "MIT",
+      "sha256": "1e2b7ade3fb228130408b9990cae6a7618eb314c75aa0b164bfe485d9d9756ee",
+      "components": [
+        "cfg_aliases@0.2.2"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "ea417315dc653b10a03911cbc3a724fafa75d3ed6381b358e3bed8ed2b50ffea",
       "components": [
         "schemars_derive@0.8.22"
@@ -2420,6 +2435,13 @@
     },
     {
       "id": "MIT",
+      "sha256": "31b94860253d8ec7b4529f51901044d3b459d6292d996504a36b1bae3a36a812",
+      "components": [
+        "cfg_aliases@0.2.2"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "ef88893533af22ffbb68ceef0724ba1389518df26165a34f3c99ad30b884df4f",
       "components": [
         "wry@0.57.0"
@@ -2725,6 +2747,13 @@
         "byteorder@1.5.0",
         "memchr@2.8.3",
         "walkdir@2.5.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "66e3ee1fa7f909ad3c612d556f2a0cdabcd809ad6e66f3b0605015ac64841b70",
+      "components": [
+        "nix@0.31.3"
       ]
     },
     {

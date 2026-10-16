@@ -947,7 +947,8 @@ impl Service {
             let root_matches = held
                 .as_ref()
                 .is_some_and(|held| held.check_current().is_ok());
-            let current = metadata.compiler_capture_version == 1
+            let current = self.move_project_available(project).is_ok()
+                && metadata.compiler_capture_version == 1
                 && root_matches
                 && source_matches
                 && identity_matches
@@ -1071,6 +1072,7 @@ impl Service {
                 "A Typst compilation is already running; editing remains available.",
             )
         })?;
+        self.move_project_available(binding.project)?;
         let service = self.clone();
         let project = binding.project.to_owned();
         let path = binding.path.to_owned();

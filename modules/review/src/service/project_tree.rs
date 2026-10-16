@@ -285,6 +285,7 @@ impl Service {
         path: &str,
         expected: Option<RootObservation>,
     ) -> Result<Value> {
+        self.move_project_available(project)?;
         let (parent_path, name) = directory_path(path)?;
         let approved = self.project(project)?;
         let observation = expected.map_or_else(|| RootedRoot::observe(&approved.root), Ok)?;

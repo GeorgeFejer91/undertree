@@ -15,6 +15,7 @@ use uuid::Uuid;
 pub mod app_control;
 pub mod editor;
 pub mod file_import;
+pub mod file_move;
 pub(crate) mod history;
 mod history_native;
 mod journal_ownership;
@@ -75,6 +76,8 @@ struct Registry {
     projects: Vec<Project>,
     #[serde(default, rename = "sourceEpochs")]
     source_epochs: BTreeMap<String, BTreeMap<String, u64>>,
+    #[serde(default, rename = "pendingDeletions")]
+    pending_deletions: BTreeMap<String, BTreeMap<String, file_move::OwnedDeletion>>,
     #[serde(
         default,
         rename = "historyStoreId",
@@ -90,12 +93,13 @@ pub struct Service {
     documents: tokio::sync::Mutex<()>,
     pub shared: Mutex<BTreeMap<String, (String, String, u64, RootObservation)>>,
     pub tunnel: tokio::sync::Mutex<Option<Tunnel>>,
-    pub sync_lock: tokio::sync::Mutex<()>,
+    pub sync_lock: Arc<tokio::sync::Mutex<()>>,
     pub compile_lock: Arc<tokio::sync::Mutex<()>>,
     connection_settings: Mutex<crate::transport::ConnectionSettings>,
     editor: Mutex<editor::EditorState>,
     file_import: Mutex<file_import::ImportState>,
     import_capture: Mutex<()>,
+    file_move: Mutex<file_move::MoveState>,
     project_export: Mutex<project_export::ExportState>,
     export_capture: Mutex<()>,
     #[cfg(test)]
@@ -257,6 +261,7 @@ impl Service {
         } else {
             crate::transport::ConnectionSettings::default()
         };
+        let file_move = file_move::MoveState::load(&state, &registry)?;
         Ok(Arc::new(Self {
             instance_id: Uuid::new_v4().to_string(),
             state,
@@ -264,12 +269,13 @@ impl Service {
             documents: tokio::sync::Mutex::new(()),
             shared: Mutex::new(BTreeMap::new()),
             tunnel: tokio::sync::Mutex::new(None),
-            sync_lock: tokio::sync::Mutex::new(()),
+            sync_lock: Arc::new(tokio::sync::Mutex::new(())),
             compile_lock: Arc::new(tokio::sync::Mutex::new(())),
             connection_settings: Mutex::new(settings),
             editor: Mutex::new(editor::EditorState::default()),
             file_import: Mutex::new(file_import::ImportState::default()),
             import_capture: Mutex::new(()),
+            file_move: Mutex::new(file_move),
             project_export: Mutex::new(project_export::ExportState::default()),
             export_capture: Mutex::new(()),
             #[cfg(test)]
@@ -435,6 +441,7 @@ impl Service {
     }
 
     fn acquire_group(&self, binding: SourceBinding<'_>) -> Result<SourceGroup> {
+        self.move_source_available(binding.project, binding.path)?;
         self.require_source_epoch(binding.project, binding.path, binding.epoch)?;
         let project = self.project(binding.project)?;
         let expected = binding
@@ -974,6 +981,7 @@ impl Service {
         let root = expected_root.map_or_else(|| RootedRoot::observe(&project.root), Ok)?;
         let held_root = RootedRoot::acquire(&project.root, &root)?;
         let group = held_root.source_group(relative)?;
+        self.move_source_available(&project.id, relative)?;
         self.require_unaliased_source_creation(project, &group)?;
         for member in [
             Member::Source,
@@ -1266,6 +1274,15 @@ impl Service {
                 if !root.is_dir() {
                     return Err(Error::new("project", "Choose a project folder."));
                 }
+                if let Some(existing) = lock(&self.registry)?
+                    .projects
+                    .iter()
+                    .find(|p| p.root == root)
+                    .cloned()
+                {
+                    return Ok(json!(existing));
+                }
+                self.move_add_project_allowed(&root)?;
                 let mut registry = lock(&self.registry)?;
                 if let Some(existing) = registry.projects.iter().find(|p| p.root == root) {
                     return Ok(json!(existing));
@@ -2320,6 +2337,7 @@ impl Service {
     }
 
     async fn sync_remote(&self, p: &Project, fetch_url: &str, push_url: &str) -> Result<Value> {
+        self.move_project_available(&p.id)?;
         let top = git(&p.root, &["rev-parse", "--show-toplevel"]).await?;
         if Path::new(top.trim()).canonicalize()? != p.root {
             return Err(Error::new(
@@ -2472,6 +2490,20 @@ impl Service {
                 }
             }
         }
+        if let Some(deletions) = next.pending_deletions.get_mut(&p.id) {
+            let cleared = deletions
+                .iter()
+                .filter_map(|(path, deletion)| {
+                    (published_revisions.get(path)
+                        == file_move::deletion_marker(deletion).ok().as_ref()
+                        && current_epochs.get(path) == published_epochs.get(path))
+                    .then_some(path.clone())
+                })
+                .collect::<Vec<_>>();
+            for path in cleared {
+                deletions.remove(&path);
+            }
+        }
         self.save_registry(&next)?;
         *registry = next;
         Ok(json!({"head":commit,"message":"GitHub confirmed the manuscript checkpoint."}))
@@ -2483,6 +2515,7 @@ impl Service {
         branch: &str,
         old_head: Option<&str>,
     ) -> Result<(Option<String>, BTreeMap<String, String>)> {
+        self.move_project_available(&project.id)?;
         self.checked_root(project)?;
         let index = git(
             &project.root,
@@ -2503,6 +2536,14 @@ impl Service {
             })?;
         let _index_lock = IndexLock(index_lock);
         let current = self.project(&project.id)?;
+        let deletions = self.move_checkpoint_deletions(&current, old_head).await?;
+        let mut changed_paths = BTreeSet::new();
+        for path in current.pending.iter().chain(deletions.keys()) {
+            changed_paths.insert(path);
+            if changed_paths.len() > 1000 {
+                return Err(Error::new("limit","Synchronize no more than 1,000 combined file writes and owned deletions at once."));
+            }
+        }
         let status = git(
             &project.root,
             &[
@@ -2518,6 +2559,13 @@ impl Service {
         let mut revisions = BTreeMap::new();
         let mut total = 0usize;
         for record in git_changes(&status) {
+            if record.get(..2) == Some(" D")
+                && record
+                    .get(3..)
+                    .is_some_and(|path| deletions.contains_key(path))
+            {
+                continue;
+            }
             if !matches!(record.get(..2), Some("??" | " M")) {
                 return Err(Error::new("conflict", "Resolve staged, renamed, deleted, or conflicting Git changes before synchronization."));
             }
@@ -2574,7 +2622,7 @@ impl Service {
             fs::set_permissions(&destination, permissions)?;
             revisions.insert(relative.to_owned(), revision);
         }
-        if revisions.is_empty() {
+        if revisions.is_empty() && deletions.is_empty() {
             return Ok((None, revisions));
         }
         let alternate = tempfile::NamedTempFile::new_in(
@@ -2614,15 +2662,41 @@ impl Service {
             };
             modes.insert(relative, mode.to_owned());
         }
-        let mut add = vec!["add", "--"];
-        add.extend(revisions.keys().map(String::as_str));
-        git_index(
-            &project.root,
-            &add,
-            Some(alternate.path()),
-            Some(snapshot.path()),
-        )
-        .await?;
+        if !revisions.is_empty() {
+            let mut add = vec!["add", "--"];
+            add.extend(revisions.keys().map(String::as_str));
+            git_index(
+                &project.root,
+                &add,
+                Some(alternate.path()),
+                Some(snapshot.path()),
+            )
+            .await?;
+        }
+        for (relative, deletion) in &deletions {
+            self.verify_move_deletion(&current, relative, deletion)?;
+            git_index(
+                &project.root,
+                &["update-index", "--force-remove", "--", relative],
+                Some(alternate.path()),
+                None,
+            )
+            .await?;
+            if !git_index(
+                &project.root,
+                &["ls-files", "--stage", "-z", "--", relative],
+                Some(alternate.path()),
+                None,
+            )
+            .await?
+            .is_empty()
+            {
+                return Err(Error::new(
+                    "conflict",
+                    "The exact owned deletion was not staged.",
+                ));
+            }
+        }
         for relative in revisions.keys() {
             let raw = git(
                 &project.root,
@@ -2694,6 +2768,9 @@ impl Service {
             )
         })?;
         atomic_write(&index, &index_bytes)?;
+        for (relative, deletion) in deletions {
+            revisions.insert(relative, file_move::deletion_marker(&deletion)?);
+        }
         Ok((Some(commit.trim().to_owned()), revisions))
     }
 }

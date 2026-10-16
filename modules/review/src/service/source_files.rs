@@ -911,3 +911,6 @@ impl SourceGroup {
 
 #[cfg(test)]
 mod tests;
+
+mod move_files;
+pub(super) use move_files::{MoveBundle, MoveMember};

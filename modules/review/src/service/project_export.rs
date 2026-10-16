@@ -459,7 +459,8 @@ impl Service {
             let editors = lock(&service.editor)?;
             let authority = editors
                 .check_import_owner(&owner)
-                .and_then(|()| held.check_current());
+                .and_then(|()| held.check_current())
+                .and_then(|()| service.move_project_available(&approved.id));
             let mut state = lock(&service.project_export)?;
             if let Err(error) = authority {
                 state.tickets.remove(&export_id);
@@ -498,6 +499,7 @@ impl Service {
         export_id: &str,
         expected_root: Option<RootObservation>,
     ) -> Result<Archive> {
+        self.move_project_available(&project.id)?;
         let _worker = self
             .export_capture
             .try_lock()
@@ -750,6 +752,7 @@ impl Service {
                 "Choose an absolute destination through the native Save dialog.",
             ));
         }
+        self.move_native_output_available(destination)?;
         let parent_path = destination.parent().ok_or_else(stale)?;
         let name = destination.file_name().ok_or_else(stale)?;
         let destination_name = name
@@ -815,6 +818,7 @@ impl Service {
             let editors = lock(&self.editor)?;
             editors.check_import_owner(owner)?;
             self.check_export_root(archive)?;
+            self.move_native_output_available(destination)?;
             if id(&project_tree::open_root(parent_path)?.dir_metadata()?) != parent_id {
                 return Err(stale());
             }
@@ -848,6 +852,7 @@ impl Service {
     }
 
     fn check_export_root(&self, archive: &Archive) -> Result<()> {
+        self.move_project_available(archive.info["project"].as_str().ok_or_else(stale)?)?;
         let project = self.project(archive.info["project"].as_str().ok_or_else(stale)?)?;
         if project.root != archive.root
             || project_tree::root_identity(&archive.root)? != archive.root_id

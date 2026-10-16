@@ -180,6 +180,34 @@ diff stalled. Its 408 passes and four failures remain in
 Rename/Move is still a private, unintegrated candidate under independent
 review. These results do not complete the final product acceptance rows.
 
+## Native source Move candidate — 2026-10-16
+
+An isolated draft adds the native-only closed-source transaction and bounded
+explicit terminal-receipt maintenance described in `modules/review/README.md`.
+Independent source reviews reconstruct the 14-file product patch and minimal
+original lock change, main-only native command/permission adapter, and later
+two-file generation/maintenance patch. The original full workspace remains
+intact; offline locked metadata resolves all 479 packages. The v6 source review
+receipt has SHA-256
+`07430182767c86596e469e7e752502782ebd626e11661c35126b5566bb4786ca`.
+Its 42 expected focused tests have not executed on v6 at draft publication.
+
+Fresh pinned cargo-about generation selects 331 Rust components, adding
+`nix` 0.31.3 and `cfg_aliases` 0.2.2 with their actual license/notice texts.
+All 27 JavaScript components and their notice payload remain unchanged.
+The first actual scan exceeds the generator's 600-second prerequisite budget;
+a separately recorded 1,800-second scan completes with all 306 source guards
+exact, then the original generator verifies the fresh cached output and builds
+the frontend. No product-test deadline changes. Attribution manifest SHA-256 is
+`42e0ec10d5bcd53c7eb0885ecae5757d8689bf4fa13de1707a724a2a6e0769ae`.
+Architecture, full-workspace format and current attribution checks run on the
+isolated integration; full Rust compilation, real native effects and complete
+hosted acceptance remain required. The preceding v4 source's 27 focused checks
+and strict Clippy do not qualify v6. Its old full gate has recorded 11 failures
+and remains incomplete; interrupted quota work and focused failure diagnosis
+are preserved separately. No new Move UI, merge, release or installation is
+claimed by this draft.
+
 ## Native Linux release and this-PC installation (2026-10-15)
 
 [UnderTree v0.3.0](https://github.com/GeorgeFejer91/undertree_texstudio/releases/tag/v0.3.0)

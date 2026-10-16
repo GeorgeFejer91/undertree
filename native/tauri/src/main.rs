@@ -7,6 +7,7 @@ use undertree_review::instance::LocalInstance;
 use undertree_review::service::app_control::ControlOperation;
 use undertree_review::service::editor::EditorOperation;
 use undertree_review::service::file_import::ImportOperation;
+use undertree_review::service::file_move::{MoveOperation, MovePrepare};
 use undertree_review::service::project_export::ExportOperation;
 use undertree_review::service::{HistoryQuery, HistoryReply, Service};
 use undertree_review::word_count_native::{WordCountReply, WordCountRequest, WordCountWorker};
@@ -251,6 +252,44 @@ async fn choose_import_files(
 }
 
 #[tauri::command]
+async fn prepare_file_move(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, Arc<Service>>,
+    owner_id: String,
+    request: MovePrepare,
+) -> std::result::Result<serde_json::Value, Error> {
+    if window.label() != "main" {
+        return Err(Error::new(
+            "scope",
+            "File Move requires the local UnderTree window.",
+        ));
+    }
+    state
+        .inner()
+        .prepare_native_file_move(window.label(), &owner_id, request)
+        .await
+}
+
+#[tauri::command]
+async fn file_move_operation(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, Arc<Service>>,
+    owner_id: String,
+    operation: MoveOperation,
+) -> std::result::Result<serde_json::Value, Error> {
+    if window.label() != "main" {
+        return Err(Error::new(
+            "scope",
+            "File Move requires the local UnderTree window.",
+        ));
+    }
+    state
+        .inner()
+        .file_move_native(window.label(), &owner_id, operation)
+        .await
+}
+
+#[tauri::command]
 async fn prepare_project_export(
     window: tauri::WebviewWindow,
     state: tauri::State<'_, Arc<Service>>,
@@ -405,6 +444,8 @@ fn main() {
             choose_project,
             choose_import_files,
             import_operation,
+            prepare_file_move,
+            file_move_operation,
             prepare_project_export,
             choose_project_export_destination,
             project_export_operation

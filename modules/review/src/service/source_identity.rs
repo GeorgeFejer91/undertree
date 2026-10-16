@@ -80,6 +80,7 @@ fn valid_path(path: &str) -> bool {
 }
 
 pub(super) fn validate(registry: &Registry) -> Result<()> {
+    super::file_move::validate_registry_deletions(registry)?;
     for (project, paths) in &registry.source_epochs {
         if !registry.projects.iter().any(|entry| &entry.id == project)
             || paths
@@ -193,6 +194,7 @@ impl Service {
         path: &str,
         expected: u64,
     ) -> Result<()> {
+        self.move_source_available(project, path)?;
         require_in(&*lock(&self.registry)?, project, path, expected)
     }
 
