@@ -43,8 +43,25 @@ receipt `continuation/clamp/build-receipt.json` has SHA-256
 `cdc084c62e09a4668203a7b040df937bb8eeb8cefc060a6304ef6fd5b5594f6b`.
 The matching native build also passes its input checks, producing desktop
 SHA-256 `4c994ca3a337defce70b38a18ac72336dc30065443551c78853176460d4dde4b`.
-Runtime qualification of this endpoint correction remains pending; the earlier
-browser/native receipts above identify the preceding implementation.
+The endpoint-corrected build passes all six browser groups again, with exact
+65 frontend/62 backend/15 asset guards and source/policy preservation. Receipt
+`continuation/menu-gate-attempt-browser-clamp/evidence/receipt.json` has SHA-256
+`e819c81eb724bd41a4157903fddb988ca4b89b06f42b1689021f5aa982c5083e`.
+The new native attempt stops at private window-manager readiness before an
+application or driver starts; it supplies no menu observations. Its input
+guards pass and owned processes/storage are cleaned up. Earlier native
+receipts above identify the preceding implementation, so native qualification
+of the endpoint correction remains open.
+
+Hosted runs 38828861357 and 38828855791 stop earlier at attribution verification:
+the notice manifest still records the preceding menu-helper input hash.
+Fresh generation corrects that metadata, retaining byte-identical Rust and
+JavaScript license payloads for 329 and 27 components respectively. All
+65 frontend/62 backend inputs remain exact, and its 15 regenerated assets
+match the tested endpoint-corrected build. Receipt
+`artifacts/qualification/continuation-20261016/notices-clamp-refresh.json`
+has SHA-256 `54b719967e1ab3d19db28c50eb273b7a053de7a4bd36d59bc893d620f8862353`.
+This metadata correction requires a fresh hosted run.
 
 Hosted run 38819332811 passes the menu/Close regression step and historical
 compatibility job, then stops in the App-controls fixture at its File-menu

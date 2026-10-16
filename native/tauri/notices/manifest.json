@@ -17,7 +17,7 @@
     "modules/frontend/manuscript-control-state.js": "16abac3b78d26e3c1c94337db66432ed2d64f6315701d5689fa175eb24765a2c",
     "modules/frontend/manuscript-pdf-viewer.js": "d5d9f50dae2d6c5b385d5ee5a5f46380dac556820c2876a7c6077e327d9727b5",
     "modules/frontend/manuscript-workspace.js": "fa4e7a65375c74a1f3a50e29b5177487365a72243bd9aac00bc462b358edb4c5",
-    "modules/frontend/menu-navigation.js": "38d931a95b8d0e0ff950c8ec2996291810660a4ed03b86d6f8291ce3de13401a",
+    "modules/frontend/menu-navigation.js": "d4082939fe6014a985a396f7d64327b5f19a5d80eaf3a586688ca7bea370dd95",
     "modules/frontend/pretext-runtime.js": "0eae01496c1d8eff597b62940e6797e13aca3d7dd282cc225d9910871bc3cf75",
     "modules/frontend/project-export.js": "d035216507aad6acc18790203e9fff37b0ea46fe35395a94b15db4d321e8e870",
     "modules/frontend/review-api.js": "4327730b950fb6bdfd863e811413613b59d24b566447663de62fea3d9c74e520",
