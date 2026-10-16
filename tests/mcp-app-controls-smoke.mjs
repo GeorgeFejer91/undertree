@@ -143,6 +143,14 @@ try {
     assert.equal(response.status, 200, `${method} HTTP ${response.status}`);
     const value = await response.json(); assert.equal(value.error, undefined, JSON.stringify(value.error)); return value.result;
   }
+  async function revokedCapabilityStatus(endpoint) {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const response = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }) });
+      // Tunnel admission can be busy before authentication. Never retry a successful or denied capability response.
+      if (response.status !== 429 || attempt === 9) return response.status;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
   const initialize = endpoint => rpc(endpoint, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'UnderTree app controls fixture', version: '1' } });
   await initialize(reviewEndpoint); await initialize(appEndpoint);
   const reviewTools = (await rpc(reviewEndpoint, 'tools/list')).tools.map(tool => tool.name);
@@ -286,7 +294,7 @@ try {
   await initialize(appEndpoint);
   await until(async()=>!(await tool('get_workspace')).isError,'The renewed UI grant did not attach.');
   assert.equal((await tool('get_control_result',{requestId:'revoked-queued-open'})).isError,true);
-  assert.equal((await fetch(revokedEndpoint,{method:'POST',headers,body:JSON.stringify({jsonrpc:'2.0',id:2,method:'tools/list'})})).status,401);
+  assert.equal(await revokedCapabilityStatus(revokedEndpoint),401);
   await page.keyboard.press('Escape');
   await waitForSource('private.typ',privateOriginal);
   await new Promise(resolve => setTimeout(resolve, 250));
@@ -365,7 +373,7 @@ try {
   await page.locator('#connection-open').click(); await page.locator('#connection-tab-app').click();
   await page.locator('#connection-app-enabled').uncheck();
   await until(async () => !(await local({ action: 'connection' })).appControls.enabled, 'App revocation failed.');
-  assert.equal((await fetch(appEndpoint, { method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }) })).status, 401);
+  assert.equal(await revokedCapabilityStatus(appEndpoint), 401);
   assert.deepEqual((await rpc(reviewEndpoint, 'tools/list')).tools.map(tool => tool.name), reviewTools);
   assert.deepEqual(writes,attemptsBeforeRemote,'independent App revocation also leaves both save routes untouched');
   assert.deepEqual([await readFile(sourceFile),await readFile(privateFile)],sourcesBeforeRemote);
