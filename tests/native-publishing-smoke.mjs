@@ -1,6 +1,7 @@
 // Real packaged Tauri -> native IPC -> Rust MCP -> renderer -> native window controls.
 // Requires Linux WebKitGTK/WebDriver, Xvfb, xfwm4, xdotool and wmctrl. zrok alone is simulated.
 import assert from 'node:assert/strict';
+import { createZrokFixture } from './zrok-fixture.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
@@ -21,7 +22,7 @@ const state = join(data, 'io.github.georgefejer91.UnderTree', 'review');
 const sourceName=`qa-native-export-${Date.now()}-${process.pid}.typ`;
 const downloads=join(fixture,'downloads'),config=join(fixture,'config');
 const source = join(project, sourceName), policy = source + '.undertree-review.json';
-const targetFile = join(fixture, 'target'), zrok = join(fixture, 'zrok-fixture');
+const targetFile = join(fixture, 'target');
 const processes = [], checks = [], secrets = [];
 let session, driverUrl, displayEnv, nativeWindow, nativePid, log = '';
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -71,7 +72,7 @@ try{
   await stat(binary);await mkdir(project);await mkdir(state,{recursive:true});await mkdir(artifacts,{recursive:true});
   let original='= Native publishing\r\n\r\nThe saved manuscript stays unchanged. Café UTF-8.\r\n';await writeFile(source,original);
   await writeFile(join(state,'projects.json'),JSON.stringify({projects:[{id:'11111111-1111-4111-8111-111111111111',name:'Native App controls',root:project,repository:'',autoSync:false,pending:[],pendingRevisions:{}}]}));
-  await writeFile(zrok,`#!/bin/sh\nprintf '%s' "$3" > ${quote(targetFile)}\nexec sleep 180\n`);await chmod(zrok,0o700);
+  const zrokFixture = await createZrokFixture(fixture, targetFile, 'native-app.example.invalid');
   await mkdir(config);await mkdir(downloads);await writeFile(join(config,'user-dirs.dirs'),`XDG_DOWNLOAD_DIR="${downloads}"\n`);
   let probeLibrary;
   if(!downloadProbe){
@@ -88,12 +89,12 @@ try{
     const compiled=spawnSync('rustc',['--edition=2021','--crate-name','undertree_download_dir_probe',sourceProbe,'--extern',`dirs=${probeLibrary}`,'-L',`dependency=${join(probeLibrary,'..')}`,'-o',downloadProbe],{cwd:fixture,encoding:'utf8',timeout:30000});
     assert.equal(compiled.status,0,compiled.stderr);
   }
-  const preflight=spawnSync(downloadProbe,[],{env:{...process.env,XDG_CONFIG_HOME:config,UNDERTREE_QA_DOWNLOADS:downloads},cwd:fixture,encoding:'utf8',timeout:5000});
+  const preflight=spawnSync(downloadProbe,[],{env:{...process.env,...zrokFixture.environment,XDG_DATA_HOME:data,XDG_CONFIG_HOME:config,XDG_CACHE_HOME:join(fixture,'cache'),UNDERTREE_QA_DOWNLOADS:downloads},cwd:fixture,encoding:'utf8',timeout:5000});
   assert.equal(preflight.status,0,preflight.stderr);assert.equal(preflight.stdout.trim(),downloads);assert.deepEqual(await readdir(downloads),[]);
-  evidence.downloadIsolation={preflight:true,HOMEChanged:false,privateCwd:true,probeSha256:hash(await readFile(downloadProbe)),librarySha256:probeLibrary?hash(await readFile(probeLibrary)):undefined};
+  evidence.downloadIsolation={preflight:true,HOMEChanged:zrokFixture.environment.HOME!==process.env.HOME,privateCwd:true,probeSha256:hash(await readFile(downloadProbe)),librarySha256:probeLibrary?hash(await readFile(probeLibrary)):undefined};
   const xvfb=child(process.env.UNDERTREE_XVFB||'Xvfb',['-displayfd','1','-screen','0','1600x1000x24','-nolisten','tcp','-noreset']);let display='';xvfb.stdout.on('data',bytes=>{display+=bytes;});
   await until(()=>display.trim()&&xvfb.exitCode===null,'Private Xvfb did not start.');
-  displayEnv={DISPLAY:`:${display.trim()}`,XDG_DATA_HOME:data,XDG_CONFIG_HOME:config,XDG_CACHE_HOME:join(fixture,'cache'),SESSION_MANAGER:'',UNDERTREE_ZROK:zrok};
+  displayEnv = { ...zrokFixture.environment, DISPLAY:`:${display.trim()}`,XDG_DATA_HOME:data,XDG_CONFIG_HOME:config,XDG_CACHE_HOME:join(fixture,'cache'),SESSION_MANAGER:'',UNDERTREE_ZROK: zrokFixture.executable};
   const wm=child(process.env.UNDERTREE_XFWM||'xfwm4',['--replace'],displayEnv);await until(()=>wm.exitCode===null&&native('xprop',['-root','_NET_SUPPORTING_WM_CHECK']).includes('window id'),'Private window manager did not start.');
   const port=await freePort(),nativePort=await freePort();driverUrl=`http://127.0.0.1:${port}`;
   const driver=child(process.env.UNDERTREE_TAURI_DRIVER||'tauri-driver',['--port',String(port),'--native-port',String(nativePort),'--native-host','127.0.0.1'],displayEnv);driver.stdout.on('data',bytes=>{log=(log+bytes).slice(-32_000);});

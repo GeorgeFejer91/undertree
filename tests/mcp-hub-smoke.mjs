@@ -85,7 +85,7 @@ async function call(name, args, denied = false) {
   return result;
 }
 try {
-  const zrok = await createZrokFixture(root, targetFile);
+  const zrok = await createZrokFixture(root, targetFile, 'review.example.org');
   service = spawn(resolve(process.env.UNDERTREE_REVIEW_BINARY || 'target/debug/undertree-review'), ['serve'], {
     env: { ...process.env, ...zrok.environment, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: join(root, 'state'), UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: zrok.executable },
     stdio: ['ignore', 'pipe', 'pipe'],

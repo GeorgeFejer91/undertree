@@ -1,8 +1,9 @@
 // Real native local consent; simulated zrok process, no public-route or OS-window claim.
 import assert from 'node:assert/strict';
+import { createZrokFixture } from './zrok-fixture.mjs';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { chmod, cp, mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -23,8 +24,8 @@ try {
   const content = '<p>Saved shared manuscript.</p>\n';
   for (const root of [firstRoot, secondRoot]) await writeFile(join(root, 'main.html'), content);
   await cp(resolve(process.env.UNDERTREE_REVIEW_ASSETS || 'dist'), assets, { recursive: true });
-  const zrok = join(temporary, 'zrok'); await writeFile(zrok, '#!/bin/sh\nexec sleep 180\n'); await chmod(zrok, 0o700);
-  service = spawn(binary, [], { env: { ...process.env, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: join(temporary, 'state'), UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_REVIEW_ASSETS: assets, UNDERTREE_ZROK: zrok }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const zrokFixture = await createZrokFixture(temporary, join(temporary, 'target'), 'consent.example.org');
+  service = spawn(binary, [], { env: { ...process.env, ...zrokFixture.environment, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: join(temporary, 'state'), UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_REVIEW_ASSETS: assets, UNDERTREE_ZROK: zrokFixture.executable }, stdio: ['ignore', 'pipe', 'pipe'] });
   service.stdout.on('data', bytes => { log = (log + bytes).slice(-16_000); port = Number(log.match(/127\.0\.0\.1:(\d+)/)?.[1]); }); service.stderr.on('data', bytes => { log = (log + bytes).slice(-16_000); });
   await until(() => port, 'The isolated Rust service did not start.'); const base = `http://127.0.0.1:${port}`;
   async function post(path, operation, extra = {}) {

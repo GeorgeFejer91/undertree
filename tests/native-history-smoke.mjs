@@ -1,6 +1,7 @@
 // Focused actual Linux Tauri/WebKit saved-History gate; run only on a matching capture.
 // Reuses the native source/session harness and passive IPC context. No restore or remote edits.
 import assert from 'node:assert/strict';
+import { createZrokFixture } from './zrok-fixture.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
@@ -36,7 +37,7 @@ const state = join(data,'io.github.georgefejer91.UnderTree','review'), registryP
 const project = randomUUID(), source = join(projectRoot,'main.typ'), otherSource = join(projectRoot,'other.typ'), policy = source+'.undertree-review.json';
 const initial = '= Native History\n\nOriginal historical words\n', other = '= Other live buffer\n\nAnother manuscript stays exact\n';
 const versionB = initial+'\nSaved locally as version one\n', versionC = versionB+'\nSaved by the registered local CLI\n', versionD = versionC.replace('Original historical words','Accepted historical words');
-const compilerCalls = join(fixture,'compiler-calls'), compiler = join(fixture,'typst-observed'), zrok = join(fixture,'zrok-fixture'), targetFile = join(fixture,'tunnel-target');
+const compilerCalls = join(fixture,'compiler-calls'), compiler = join(fixture,'typst-observed'), targetFile = join(fixture,'tunnel-target');
 const processes = [], nativePids = [], checks = [], privateTrace = [], secrets = new Set(), cliRuns = [];
 let session, driverUrl, displayEnv, nativeWindow, nativePid, descriptor, log='', phase='setup', oldOwner, expectedRoot, failureSnapshot;
 const delay = ms => new Promise(resolve=>setTimeout(resolve,ms));
@@ -116,9 +117,10 @@ async function pureSince(start,before){await quiescent();assert.deepEqual(await 
 try {
   evidence.state='running';await mkdir(projectRoot);await mkdir(state,{recursive:true});await mkdir(artifacts,{recursive:true});await writeFile(source,initial);await writeFile(otherSource,other);
   await writeFile(registryPath,JSON.stringify({projects:[{id:project,name:'Native saved History',root:projectRoot,mainDocument:'main.typ',repository:'',autoSync:false,pending:[],pendingRevisions:{}}],sourceEpochs:{[project]:{'main.typ':4,'other.typ':8}}}));
-  await writeFile(compiler,`#!/bin/sh\nprintf 'compile\\n' >> ${quote(compilerCalls)}\nexec ${quote(typst)} "$@"\n`);await chmod(compiler,0o700);await writeFile(zrok,`#!/bin/sh\nprintf '%s' "$3" > ${quote(targetFile)}\nexec sleep 300\n`);await chmod(zrok,0o700);
+  await writeFile(compiler,`#!/bin/sh\nprintf 'compile\\n' >> ${quote(compilerCalls)}\nexec ${quote(typst)} "$@"\n`);await chmod(compiler,0o700);
+  const zrokFixture = await createZrokFixture(fixture, targetFile, 'native-history.example.invalid');
   const xvfb=child(process.env.UNDERTREE_XVFB||'Xvfb',['-displayfd','1','-screen','0','1600x1000x24','-nolisten','tcp','-noreset']);let display='';xvfb.stdout.on('data',bytes=>{display+=bytes;});await until(()=>display.trim()&&xvfb.exitCode===null,'Private Xvfb did not start.');
-  displayEnv={DISPLAY:':'+display.trim(),XDG_DATA_HOME:data,XDG_CONFIG_HOME:join(fixture,'config'),XDG_CACHE_HOME:join(fixture,'cache'),SESSION_MANAGER:'',UNDERTREE_TYPST:compiler,UNDERTREE_ZROK:zrok};
+  displayEnv = { ...zrokFixture.environment, DISPLAY:':'+display.trim(),XDG_DATA_HOME:data,XDG_CONFIG_HOME:join(fixture,'config'),XDG_CACHE_HOME:join(fixture,'cache'),SESSION_MANAGER:'',UNDERTREE_TYPST:compiler,UNDERTREE_ZROK: zrokFixture.executable};
   const wm=child(process.env.UNDERTREE_XFWM||'xfwm4',['--replace'],displayEnv);await until(()=>wm.exitCode===null&&native('xprop',['-root','_NET_SUPPORTING_WM_CHECK']).includes('window id'),'Private window manager did not start.');const port=await freePort(),nativePort=await freePort();driverUrl='http://127.0.0.1:'+port;const driver=child(process.env.UNDERTREE_TAURI_DRIVER||'tauri-driver',['--port',String(port),'--native-port',String(nativePort),'--native-host','127.0.0.1'],displayEnv);await until(async()=>driver.exitCode===null&&await request('/status',undefined,'GET'),'Native driver did not start.');
   await startDesktop('initial');await open('main.typ',4);await quiescent();assert.equal(await liveText(),initial);expectedRoot=await execute('return window.__nativeFixtureContext.root(arguments[0]);',[project]);oldOwner=await execute('return window.__nativeFixtureContext.owner();');secrets.add(oldOwner);
   let before=await diskSnapshot(),start=(await trace()).length;await historyUi();const unavailable=(await trace()).slice(start).find(item=>item.name==='history_query'&&item.finished);assert.ok(unavailable,'The actual native History query must reach a terminal receipt.');assert.equal(unavailable.error.code,'history_not_initialized');await assert.rejects(stat(join(state,'history-v1')),{code:'ENOENT'});await click('#history-back');await pureSince(start,before);

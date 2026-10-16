@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createZrokFixture } from './zrok-fixture.mjs';
 import { mkdtemp, mkdir, writeFile, readFile, chmod, rm, cp, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join, dirname, basename } from 'node:path';
@@ -41,14 +42,14 @@ await mkdir(join(projectRoot, 'chapters')); await writeFile(join(projectRoot, 'c
 await writeFile(join(projectRoot, 'book.typ'), '#set text(font: ("UndertreeMissingParityFont", "Libertinus Serif"))\n= Whole project\n#include "chapters/part.typ"\nA reference @undertree.\n#bibliography("references.bib")\n');
 await writeFile(join(projectRoot, 'references.bib'), bibliographySource);
 await writeFile(join(projectRoot, 'import.tex'), '\\documentclass{article}\n\\begin{document}\n\\section{Results}An \\textbf{important} result.\\custom{kept}\n\\end{document}');
-const zrok = join(root,'zrok2'); const targetFile = join(root,'zrok-target');
-await writeFile(zrok, `#!/bin/sh\nprintf '%s' "$3" > '${targetFile}'\nexec sleep 300\n`); await chmod(zrok,0o700);
+const targetFile = join(root,'zrok-target');
+const zrokFixture = await createZrokFixture(root, targetFile, 'review.example.org');
 const token = randomBytes(32).toString('hex');
 const compilerCalls = join(root,'compiler-calls');
 const compiler = join(root,'typst');
 const shellQuote = value => `'${value.replaceAll("'", "'\\''")}'`;
 await writeFile(compiler,`#!/bin/sh\nprintf '1\\n' >> ${shellQuote(compilerCalls)}\nsleep 0.3\nexec ${shellQuote(process.env.UNDERTREE_TYPST || 'typst')} "$@"\n`);await chmod(compiler,0o700);
-const child = spawn(reviewBinary, [], { env: { ...process.env, UNDERTREE_REVIEW_PORT:'0', UNDERTREE_REVIEW_STATE:join(root,'state'), UNDERTREE_REVIEW_ASSETS:frontendAssets, UNDERTREE_REVIEW_TOKEN:token, UNDERTREE_ZROK:zrok, UNDERTREE_TYPST:compiler }, stdio:['ignore','pipe','pipe'] });
+const child = spawn(reviewBinary, [], { env: { ...process.env, ...zrokFixture.environment, UNDERTREE_REVIEW_PORT:'0', UNDERTREE_REVIEW_STATE:join(root,'state'), UNDERTREE_REVIEW_ASSETS:frontendAssets, UNDERTREE_REVIEW_TOKEN:token, UNDERTREE_ZROK: zrokFixture.executable, UNDERTREE_TYPST:compiler }, stdio:['ignore','pipe','pipe'] });
 let serverLog=''; let port;
 child.stdout.on('data', b=>{serverLog+=b;port=Number(serverLog.match(/127\.0\.0\.1:(\d+)/)?.[1]);});
 child.stderr.on('data', b=>{serverLog+=b;});

@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
+import { createZrokFixture } from './zrok-fixture.mjs';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const root = await mkdtemp(join(tmpdir(), 'undertree-mcp-policy-'));
-const projectRoot = join(root, 'project'), targetFile = join(root, 'target'), zrok = join(root, 'zrok-fixture');
+const projectRoot = join(root, 'project'), targetFile = join(root, 'target');
 const token = randomBytes(32).toString('hex');
 const prose = 'Keep this wording. Reword this sentence. Obsolete idea. Rejected edits.';
 const rules = [
@@ -45,10 +46,9 @@ try {
   await mkdir(projectRoot);
   await writeFile(join(projectRoot, 'main.typ'), prose);
   await writeFile(join(projectRoot, 'main.html'), `<p>${prose}</p>`);
-  await writeFile(zrok, `#!/bin/sh\nprintf '%s' "$3" > '${targetFile}'\nexec sleep 180\n`);
-  await chmod(zrok, 0o700);
+  const zrokFixture = await createZrokFixture(root, targetFile, 'review.example.org');
   service = spawn(resolve(process.env.UNDERTREE_REVIEW_BINARY || 'target/debug/undertree-review'), ['serve'], {
-    env: { ...process.env, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: join(root, 'state'), UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: zrok },
+    env: { ...process.env, ...zrokFixture.environment, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: join(root, 'state'), UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: zrokFixture.executable },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   service.on('error', error => { spawnFailure = error; });

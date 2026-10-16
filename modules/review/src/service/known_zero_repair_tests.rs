@@ -138,6 +138,7 @@ async fn active_share_zero_cannot_read_propose_or_execute_old_app_job_after_crea
         endpoint: "https://fixture.invalid/mcp/review-fixture".into(),
         secret: "synthetic-zero-probe".into(),
         child,
+        owned_share: None,
         shutdown,
         mcp_initialized: false,
         last_activity_ms: 0,

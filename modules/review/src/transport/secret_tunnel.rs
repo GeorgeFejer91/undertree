@@ -137,15 +137,7 @@ async fn rollback(service: &Arc<Service>, session_id: Uuid, secret: &str) -> Res
         return Ok(());
     }
     // Revoke under the same ownership lock. Never stop a replacement session.
-    let revoked = gateway::revoke(service);
-    let mut owned = current.take().ok_or_else(unavailable)?;
-    let _ = owned.shutdown.send(());
-    let _ = owned.child.start_kill();
-    tokio::time::timeout(Duration::from_secs(3), owned.child.wait())
-        .await
-        .map_err(|_| unavailable())?
-        .map_err(|_| unavailable())?;
-    revoked
+    super::retire_tunnel(service, &mut current, false).await
 }
 
 #[cfg(test)]

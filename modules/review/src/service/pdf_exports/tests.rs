@@ -52,6 +52,7 @@ impl Fixture {
             endpoint: "https://review.example.org/mcp/test-review".into(),
             secret: "test-review".into(),
             child,
+            owned_share: None,
             shutdown,
             mcp_initialized: false,
             last_activity_ms: 0,

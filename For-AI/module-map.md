@@ -12,6 +12,8 @@
 
 Connection ownership: `modules/review/src/transport.rs` owns zrok2 supervision, the separate MCP listener, URL capability and observed MCP activity; `service.rs` owns approved shares and non-secret setup persistence. `src/connection-manager.js` is the dialog DOM adapter; it uses `modules/frontend/review-api.js` and never talks to zrok or the MCP endpoint directly. `manuscript.html` and `src/manuscript.css` own the popup structure/geometry. The active product uses Rust/Tauri on every platform. The obsolete `native/windows/` Electron shell and its compiler utility-process entry have been removed; the architecture check rejects their return.
 
+`transport/owned_share.rs` owns bounded native controller reads and exact-token retirement for the newly created share. Its private process-local ownership record never enters status, WebView configuration or remote tools. Failed cleanup retains the reserved target and blocks reconnect; it never adopts or removes another current owner.
+
 The explicitly enabled multi-app gateway uses `modules/review/src/mcp_hub.rs`
 for native upstream MCP sessions, frozen app-tool aliases and bounded call
 receipts, with `transport/gateway.rs` for inbound capabilities and revocation.

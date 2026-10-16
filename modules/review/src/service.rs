@@ -118,6 +118,7 @@ pub struct Tunnel {
     pub endpoint: String,
     pub secret: String,
     pub child: Child,
+    pub(crate) owned_share: Option<crate::transport::owned_share::OwnedShare>,
     pub shutdown: tokio::sync::oneshot::Sender<()>,
     pub mcp_initialized: bool,
     pub last_activity_ms: u64,

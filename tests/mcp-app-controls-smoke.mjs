@@ -1,9 +1,10 @@
 // Strengthened artifact-only runner; the canonical test and copied snapshots stay frozen.
 // Real Rust MCP -> rendered workspace. The zrok process is simulated; no public route claim.
 import assert from 'node:assert/strict';
+import { createZrokFixture } from './zrok-fixture.mjs';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { chmod, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -15,7 +16,7 @@ const original = 'Hello 🌳 from the saved manuscript.\n\n#pagebreak()\nSecond 
 const privateFile = join(projectRoot, 'private.typ'), privateOriginal = 'Unshared source.\n';
 const chapterFile = join(projectRoot, 'chapter.typ'), chapterOriginal = 'Shared chapter only.\n';
 const token = randomBytes(32).toString('hex'), binary = resolve(process.env.UNDERTREE_REVIEW_BINARY || 'target/debug/undertree-review');
-const zrok = join(root, 'zrok-fixture'), targetFile = join(root, 'target');
+const targetFile = join(root, 'target');
 let service, browser, port, log = '';
 async function until(check, message, timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs;
@@ -29,8 +30,8 @@ async function until(check, message, timeoutMs = 15_000) {
 try {
   await mkdir(projectRoot); await cp(resolve(process.env.UNDERTREE_REVIEW_ASSETS || 'dist'), assets, { recursive: true });
   await writeFile(sourceFile, original); await writeFile(privateFile, privateOriginal); await writeFile(chapterFile, chapterOriginal);
-  await writeFile(zrok, `#!/bin/sh\nprintf '%s' "$3" > '${targetFile}'\nexec sleep 180\n`); await chmod(zrok, 0o700);
-  service = spawn(binary, [], { env: { ...process.env, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: stateRoot, UNDERTREE_REVIEW_ASSETS: assets, UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: zrok }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const zrokFixture = await createZrokFixture(root, targetFile, 'app-control.example.org');
+  service = spawn(binary, [], { env: { ...process.env, ...zrokFixture.environment, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: stateRoot, UNDERTREE_REVIEW_ASSETS: assets, UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: zrokFixture.executable }, stdio: ['ignore', 'pipe', 'pipe'] });
   service.stdout.on('data', bytes => { log = (log + bytes).slice(-16_000); port = Number(log.match(/127\.0\.0\.1:(\d+)/)?.[1]); });
   service.stderr.on('data', bytes => { log = (log + bytes).slice(-16_000); });
   await until(() => !!port, 'The Rust authority did not start.');

@@ -1,6 +1,7 @@
 // Real packaged Tauri -> native IPC -> Rust MCP -> renderer -> native window controls.
 // Requires Linux WebKitGTK/WebDriver, Xvfb, xfwm4, xdotool and wmctrl. zrok alone is simulated.
 import assert from 'node:assert/strict';
+import { createZrokFixture } from './zrok-fixture.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, readlink, rm, stat, writeFile } from 'node:fs/promises';
@@ -18,7 +19,7 @@ const fixture = await mkdtemp(join(tmpdir(), 'undertree-native-zip-'));
 const project = join(fixture, 'project'), data = join(fixture, 'data');
 const state = join(data, 'io.github.georgefejer91.UnderTree', 'review');
 const source = join(project, 'main.typ'), policy = source + '.undertree-review.json';
-const targetFile = join(fixture, 'target'), zrok = join(fixture, 'zrok-fixture');
+const targetFile = join(fixture, 'target');
 const processes = [], checks = [], secrets = [];
 let session, driverUrl, displayEnv, nativeWindow, nativePid, log = '';
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -56,10 +57,10 @@ try{
   await mkdir(join(project,'.settings'));await mkdir(join(project,'assets'));await mkdir(join(project,'empty'));await mkdir(join(project,'.git'));await mkdir(join(project,'build'));
   await writeFile(join(project,'.settings/input.txt'),Buffer.from([0,1,254,255]));await writeFile(join(project,'assets/diagram.bin'),Buffer.from([137,80,78,71,0,255,13,10]));await writeFile(join(project,'notes.html'),'<p>Saved HTML</p>\r\n');await writeFile(join(project,'notes.html.undertree-review.json'),Buffer.from([255,0,123,10]));await writeFile(join(project,'notes.html.import-report.json'),'opaque report bytes\r\n');await writeFile(join(project,'.git/qa-ignored'),'excluded');await writeFile(join(project,'build/qa-ignored'),'excluded');await chmod(join(project,'notes.html'),0o640);
   await writeFile(join(state,'projects.json'),JSON.stringify({projects:[{id:'11111111-1111-4111-8111-111111111111',name:'Native App controls',root:project,mainDocument:'main.typ',repository:'',autoSync:false,pending:[],pendingRevisions:{}}]}));
-  await writeFile(zrok,`#!/bin/sh\nprintf '%s' "$3" > ${quote(targetFile)}\nexec sleep 300\n`);await chmod(zrok,0o700);
+  const zrokFixture = await createZrokFixture(fixture, targetFile, 'native-app.example.invalid');
   const xvfb=child(process.env.UNDERTREE_XVFB||'Xvfb',['-displayfd','1','-screen','0','1600x1000x24','-nolisten','tcp']);let display='';xvfb.stdout.on('data',bytes=>{display+=bytes;});
   await until(()=>display.trim()&&xvfb.exitCode===null,'Private Xvfb did not start.');
-  displayEnv={DISPLAY:`:${display.trim()}`,XDG_DATA_HOME:data,XDG_CONFIG_HOME:join(fixture,'config'),XDG_CACHE_HOME:join(fixture,'cache'),SESSION_MANAGER:'',UNDERTREE_ZROK:zrok};
+  displayEnv = { ...zrokFixture.environment, DISPLAY:`:${display.trim()}`,XDG_DATA_HOME:data,XDG_CONFIG_HOME:join(fixture,'config'),XDG_CACHE_HOME:join(fixture,'cache'),SESSION_MANAGER:'',UNDERTREE_ZROK: zrokFixture.executable};
   const wm=child(process.env.UNDERTREE_XFWM||'xfwm4',['--replace'],displayEnv);await until(()=>wm.exitCode===null&&native('xprop',['-root','_NET_SUPPORTING_WM_CHECK']).includes('window id'),'Private window manager did not start.');
   const port=await freePort(),nativePort=await freePort();driverUrl=`http://127.0.0.1:${port}`;
   const driver=child(process.env.UNDERTREE_TAURI_DRIVER||'tauri-driver',['--port',String(port),'--native-port',String(nativePort),'--native-host','127.0.0.1'],displayEnv);driver.stdout.on('data',bytes=>{log=(log+bytes).slice(-32_000);});

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, chmod, rm } from 'node:fs/promises';
+import { createZrokFixture } from './zrok-fixture.mjs';
+import { mkdtemp, mkdir, writeFile, readFile, realpath, chmod, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve, join } from 'node:path';
+import { resolve, join, toNamespacedPath } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright-core';
@@ -12,7 +13,6 @@ await mkdir(projectRoot);
 await writeFile(join(projectRoot, 'main.html'), '<p>Hello world.</p>');
 const longPath = 'Ein Manuskript mit einer langen Bezeichnung für die gemeinsame Begutachtung '.repeat(2) + '🧑‍🔬.html';
 await writeFile(join(projectRoot, longPath), '<p>Research notes.</p>');
-const zrok = join(root, 'zrok test helper');
 const targetFile = join(root, 'target');
 const argsFile = join(root, 'args');
 const stateRoot = join(root, 'state');
@@ -21,14 +21,13 @@ const childHomeFile = join(root, 'child-home');
 const childActivationFile = join(root, 'child-activation');
 const parentHome = process.env.HOME;
 const parentUserProfile = process.env.USERPROFILE;
-await writeFile(zrok, `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsFile}'\nprintf '%s' "$3" > '${targetFile}'\nif [ "$5" = public:imported-session ]; then\n  printf '%s' "$HOME" > '${childHomeFile}'\n  [ "$HOME" = '${importedHome}' ] || exit 9\n  cat "$HOME/.zrok2/metadata.json" > '${childActivationFile}' || exit 10\nfi\ncase "$5" in\npublic:startup-failure) exit 3;;\npublic:late-failure) sleep 4; exit 7;;\n*) exec sleep 600;;\nesac\n`);
-await chmod(zrok, 0o700);
+const zrokFixture = await createZrokFixture(root, targetFile, 'review.example.org', { executableName: 'zrok test helper' });
 const token = randomBytes(32).toString('hex');
 const child = spawn(resolve(process.env.UNDERTREE_REVIEW_BINARY || 'target/debug/undertree-review'), [], {
-  env: { ...process.env, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: stateRoot, UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: zrok },
+  env: { ...process.env, ...zrokFixture.environment, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: stateRoot, UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: zrokFixture.executable },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
-let log = '', port, browser;
+let log = '', port, browser, base;
 child.stdout.on('data', bytes => { log += bytes; port = Number(log.match(/127\.0\.0\.1:(\d+)/)?.[1]); });
 child.stderr.on('data', bytes => { log += bytes; });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -39,7 +38,7 @@ async function until(check, message) {
 try {
   await until(() => port || child.exitCode !== null, 'native startup');
   assert.ok(port, log);
-  const base = `http://127.0.0.1:${port}`;
+  base = `http://127.0.0.1:${port}`;
   async function call(operation, rejected = false) {
     for (let attempt = 0; attempt < 20; attempt++) {
       const response = await fetch(base + '/api/review', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(operation) });
@@ -89,6 +88,7 @@ try {
   await page.keyboard.press('Escape');
   await page.locator('#review-toggle').click();
   await page.locator('#manuscript-share').check();
+  await until(async () => (await call({ action: 'connection' })).sharedCount === 1, 'initial manuscript sharing committed before tunnel setup');
   await page.getByRole('button', { name: 'Connections', exact: true }).click();
   await dialog.waitFor();
   await page.locator('#connection-tab-zrok').focus();
@@ -99,11 +99,17 @@ try {
   await page.keyboard.press('Home');
   assert.equal(await page.locator('#connection-tab-mcp').getAttribute('aria-selected'), 'true', 'Home selects the overview');
   await page.locator('#connection-tab-zrok').click();
+  await writeFile(join(root, 'mode'), 'startup-failure');
   await page.locator('#zrok-name').fill('startup-failure');
   await page.locator('#zrok-origin').fill('https://review.example.org');
   await page.locator('#tunnel-start').click();
   await until(async () => (await page.locator('#connection-error').textContent()).includes('exited'), 'startup error is visible inside popup');
   assert.equal(await page.locator('#tunnel-start').isEnabled(), true);
+  assert.equal((await call({ action: 'connection' })).sharedCount, 0, 'failed startup retires earlier manuscript grants');
+  // Establish a fresh local grant after verified retirement, for the separate
+  // successful-session and individual-revocation checks below.
+  await call({ action: 'share', project: project.id, path: 'main.html', enabled: true });
+  await writeFile(join(root, 'mode'), '');
   await page.locator('#zrok-name').fill('test-session');
   await page.locator('#tunnel-start').click();
   await until(async () => (await page.locator('#connection-url').inputValue()).startsWith('https://'), 'private URL');
@@ -136,7 +142,7 @@ try {
   assert.equal((await call({ action: 'connection' })).endpoint, connection.endpoint, 'bad setup preserves live session');
   await call({ action: 'tunnel', enabled: true, reservation: 'test-session', public_url: 'https://review.example.org' }, true);
   assert.equal((await call({ action: 'connection' })).endpoint, connection.endpoint, 'duplicate start preserves session');
-  assert.deepEqual((await readFile(argsFile, 'utf8')).trim().split('\n'), ['share', 'public', await readFile(targetFile, 'utf8'), '-n', 'public:test-session', '--headless']);
+  assert.deepEqual((await readFile(argsFile, 'utf8')).trim().split('\n'), ['share', 'public', await readFile(targetFile, 'utf8'), '-n', 'public:test-session', '--headless', '--force-local']);
 
   await call({ action: 'share', project: project.id, path: longPath, enabled: true });
   await page.locator('#connection-tab-shared').click();
@@ -192,6 +198,7 @@ try {
   assert.equal((await call({ action: 'connection' })).sharedCount, 0);
   assert.notEqual((await rpc('tools/list').catch(() => ({ status: 0 }))).status, 200, 'old capability revoked');
   await page.locator('#connection-tab-zrok').click();
+  await writeFile(join(root, 'mode'), 'late-failure');
   await page.locator('#zrok-name').fill('late-failure');
   await page.locator('#tunnel-start').click();
   await until(async () => (await call({ action: 'connection' })).running, 'second session');
@@ -218,12 +225,14 @@ try {
   assert.equal(await page.locator('#connection-url').inputValue(), '');
   // Import only a disposable activation fixture after all ordinary-session checks.
   await call({ action: 'tunnel', enabled: false, reservation: '', public_url: '' });
+  await writeFile(join(root, 'mode'), '');
   const activation = join(importedHome, '.zrok2');
   await mkdir(activation, { recursive: true, mode: 0o700 });
   await chmod(importedHome, 0o700);
   await chmod(activation, 0o700);
   const activationMarker = JSON.stringify({ fixtureActivation: randomBytes(24).toString('hex') });
   await writeFile(join(activation, 'metadata.json'), activationMarker, { mode: 0o600 });
+  await writeFile(join(activation, 'environment.json'), JSON.stringify({ ziti_identity: 'fixture-enrollment' }), { mode: 0o600 });
   const importedToken = randomBytes(24).toString('hex');
   const importedOrigin = 'https://imported.example.org';
   await writeFile(join(stateRoot, 'secret-tunnel-connector.json'), JSON.stringify({
@@ -232,6 +241,7 @@ try {
   }), { mode: 0o600 });
   await page.locator('#connection-refresh').click();
   await until(async () => (await page.locator('#connection-tab-app').isDisabled()), 'imported profile disables App controls before starting');
+  await writeFile(join(root, 'public-host'), new URL(importedOrigin).hostname);
   await page.locator('#zrok-name').fill('imported-session');
   await page.locator('#zrok-origin').fill(importedOrigin);
   await page.locator('#tunnel-start').click();
@@ -244,18 +254,19 @@ try {
   assert.deepEqual(imported.config, { reservation: 'imported-session', publicUrl: importedOrigin });
   assert.equal(JSON.stringify(imported).includes(importedHome), false, 'status never exposes the private activation home');
   assert.equal(JSON.stringify(imported).includes(activationMarker), false, 'status never exposes activation contents');
-  assert.equal(await readFile(childHomeFile, 'utf8'), importedHome, 'only the owned zrok child uses the imported activation home');
+  assert.equal(await readFile(childHomeFile, 'utf8'), toNamespacedPath(await realpath(importedHome)), 'only the owned zrok child uses the canonical imported activation home');
   assert.equal(await readFile(childActivationFile, 'utf8'), activationMarker, 'the started child reads the dedicated fixture identity');
   assert.equal(process.env.HOME, parentHome, 'the test parent HOME is unchanged');
   assert.equal(process.env.USERPROFILE, parentUserProfile, 'the test parent USERPROFILE is unchanged');
-  assert.deepEqual((await readFile(argsFile, 'utf8')).trim().split('\n'), ['share', 'public', await readFile(targetFile, 'utf8'), '-n', 'public:imported-session', '--headless']);
+  assert.deepEqual((await readFile(argsFile, 'utf8')).trim().split('\n'), ['share', 'public', await readFile(targetFile, 'utf8'), '-n', 'public:imported-session', '--headless', '--force-local']);
   await page.locator('#connection-refresh').click();
   assert.equal(await page.locator('#connection-url').inputValue(), imported.endpoint);
   assert.equal(await page.locator('#connection-tab-app').isDisabled(), true);
   assert.equal(await page.locator('#connection-app-enabled').isDisabled(), true);
   await page.locator('#connection-tab-mcp').focus();
   await page.keyboard.press('End');
-  assert.equal(await page.locator('#connection-tab-shared').getAttribute('aria-selected'), 'true', 'imported-mode keyboard navigation skips App controls');
+  assert.equal(await page.locator('#connection-tab-apps').getAttribute('aria-selected'), 'true', 'imported-mode End selects Apps and skips disabled App controls');
+  assert.equal(await page.locator('#connection-tab-app').getAttribute('aria-selected'), 'false', 'keyboard navigation never selects disabled App controls');
   const importedLocal = await readFile(targetFile, 'utf8');
   const importedEndpoint = importedLocal + new URL(imported.endpoint).pathname;
   async function importedRpc(method, params = {}) {
@@ -281,7 +292,17 @@ try {
   assert.notEqual((await importedRpc('tools/list').catch(() => ({ status: 0 }))).status, 200, 'stopping imported access closes the existing bearer route');
   assert.deepEqual(errors, []);
   console.log('ChatGPT SVG/main MCP menu, desktop/mobile entry, read-only opening, selectable URL, native start/failure/stop, MCP activity, revocation, keyboard/focus, Pretext, narrow/short/regrown and 200% text layouts, imported connector exact URL/private child HOME/Review-only routes/App denial/revocation passed. zrok simulated; public ChatGPT route untested.');
+} catch (error) {
+  console.error('Connections smoke failed:', error.message);
+  throw error;
 } finally {
+  if (base && child.exitCode === null && child.signalCode === null) {
+    await fetch(base + '/api/review', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'tunnel', enabled: false, reservation: '', public_url: '' }),
+      signal: AbortSignal.timeout(10_000),
+    }).catch(() => {});
+  }
   await browser?.close();
   child.kill('SIGINT');
   await new Promise(resolve => { if (child.exitCode !== null) resolve(); else { child.once('exit', resolve); setTimeout(resolve, 3000).unref(); } });

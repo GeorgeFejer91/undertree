@@ -1,9 +1,10 @@
 // Real Typst/PDF + local consent + MCP/HTTP. Requires Typst and pdftotext on PATH.
 // zrok is simulated; no public route, ChatGPT client or native OS-window claim.
 import assert from 'node:assert/strict';
+import { createZrokFixture } from './zrok-fixture.mjs';
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { chmod, cp, mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -29,8 +30,8 @@ try {
   await mkdir(firstRoot); await mkdir(secondRoot); await cp(resolve(process.env.UNDERTREE_REVIEW_ASSETS || 'dist'), assets, { recursive: true });
   const main = '= Shared manuscript\n#include "private.typ"\n', privateText = 'A saved unshared section appears in this exported PDF.\n', secondMain = 'Another project needs separate export permission.\n';
   await writeFile(join(firstRoot, 'main.typ'), main); await writeFile(join(firstRoot, 'private.typ'), privateText); await writeFile(join(secondRoot, 'other.typ'), secondMain);
-  const zrok = join(temporary, 'zrok'); await writeFile(zrok, `#!/bin/sh\nprintf '%s' "$3" > '${target}'\nexec sleep 180\n`); await chmod(zrok, 0o700);
-  service = spawn(binary, [], { env: { ...process.env, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: join(temporary, 'state'), UNDERTREE_REVIEW_ASSETS: assets, UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: zrok }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const zrokFixture = await createZrokFixture(temporary, target, 'pdf-export.example.org');
+  service = spawn(binary, [], { env: { ...process.env, ...zrokFixture.environment, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: join(temporary, 'state'), UNDERTREE_REVIEW_ASSETS: assets, UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: zrokFixture.executable }, stdio: ['ignore', 'pipe', 'pipe'] });
   service.stdout.on('data', bytes => { log = (log + bytes).slice(-16_000); port = Number(log.match(/127\.0\.0\.1:(\d+)/)?.[1]); }); service.stderr.on('data', bytes => { log = (log + bytes).slice(-16_000); });
   await until(() => port, 'The native PDF authority did not start.'); const base = `http://127.0.0.1:${port}`;
   local = async operation => {

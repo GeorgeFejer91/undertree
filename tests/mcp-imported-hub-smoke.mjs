@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
+import { createZrokFixture } from './zrok-fixture.mjs';
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
-import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, resolve, toNamespacedPath } from 'node:path';
 
 const binary = resolve(process.env.UNDERTREE_REVIEW_BINARY || 'target/debug/undertree-review');
 const artifacts = resolve(process.env.UNDERTREE_IMPORTED_HUB_ARTIFACTS || 'artifacts/mcp-imported-hub');
@@ -14,11 +15,10 @@ const reservation = 'existing-name', publicUrl = 'https://existing-name.shares.z
 const publicPathToken = 'existing_private_token', importedPath = `/t/${publicPathToken}/mcp`;
 const publicEndpoint = publicUrl + importedPath;
 const targetFile = join(fixture, 'target'), childHomeFile = join(fixture, 'child-home');
-const zrok = join(fixture, 'zrok-fixture'), peerPath = '/mcp/' + randomBytes(24).toString('hex');
+const peerPath = '/mcp/' + randomBytes(24).toString('hex');
 const checks = [], peerState = { value: 'initial', effects: 0 };
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const pause = duration => new Promise(resolve => setTimeout(resolve, duration));
-const quote = value => `'${value.replaceAll("'", "'\\''")}'`;
 const headers = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2025-06-18' };
 const initialize = { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'Imported gateway fixture', version: '1' } };
 const evidence = { verifiedAt: new Date().toISOString(), binary, assertions: checks, limitations: 'Fake private import, fake zrok and loopback peer only. No real credentials, account transfer, public tunnel, ChatGPT, desktop or renderer acknowledgements.' };
@@ -74,14 +74,14 @@ try {
   const state = await realpath(join(fixture, 'state')), home = join(state, 'zrok-home-fixture');
   await mkdir(home, { mode: 0o700 }); await mkdir(join(home, '.zrok2'), { mode: 0o700 });
   await writeFile(join(home, '.zrok2', 'metadata.json'), 'fixture-activation', { mode: 0o600 });
+  await writeFile(join(home, '.zrok2', 'environment.json'), JSON.stringify({ ziti_identity: 'fixture-enrollment' }), { mode: 0o600 });
   const profile = JSON.stringify({ version: 1, reservation, publicUrl, publicPathToken, zrokHome: home });
   const profilePath = join(state, 'secret-tunnel-connector.json');
   await writeFile(profilePath, profile, { mode: 0o600 });
   await writeFile(join(state, 'connection.json'), JSON.stringify({ reservation, publicUrl }), { mode: 0o600 });
-  await writeFile(zrok, `#!/bin/sh\n[ "$HOME" = ${quote(home)} ] || exit 42\n[ -f "$HOME/.zrok2/metadata.json" ] || exit 43\nprintf '%s' "$3" > ${quote(targetFile)}\nprintf '%s' "$HOME" > ${quote(childHomeFile)}\nexec sleep 600\n`);
-  await chmod(zrok, 0o700);
+  const zrokFixture = await createZrokFixture(fixture, targetFile, new URL(publicUrl).hostname);
   service = spawn(binary, ['serve'], {
-    env: { ...process.env, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: state, UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: zrok, XDG_DATA_HOME: join(fixture, 'data'), XDG_CONFIG_HOME: join(fixture, 'config'), XDG_CACHE_HOME: join(fixture, 'cache') },
+    env: { ...process.env, ...zrokFixture.environment, UNDERTREE_REVIEW_PORT: '0', UNDERTREE_REVIEW_STATE: state, UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: zrokFixture.executable, XDG_DATA_HOME: join(fixture, 'data'), XDG_CONFIG_HOME: join(fixture, 'config'), XDG_CACHE_HOME: join(fixture, 'cache') },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   service.on('error', error => { startupError = error; });
@@ -96,7 +96,8 @@ try {
   assert.ok(base, redact(log) || 'The isolated Rust service did not start.');
   const started = await local({ action: 'tunnel', enabled: true, reservation, public_url: publicUrl });
   assert.equal(started.endpoint, publicEndpoint); assert.equal(started.textOnlyConnector, true);
-  assert.equal(await readFile(childHomeFile, 'utf8'), home);
+  assert.equal(await readFile(childHomeFile, 'utf8'), toNamespacedPath(await realpath(home)));
+  assert.equal(await readFile(join(fixture, 'child-activation'), 'utf8'), 'fixture-activation', 'The imported child reads the dedicated synthetic activation metadata.');
   const target = await readFile(targetFile, 'utf8'); endpoint = target + importedPath;
   await rpc('initialize', initialize);
   const reviewTools = ['list_manuscripts', 'read_manuscript', 'suggest_text'];

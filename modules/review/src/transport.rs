@@ -12,6 +12,7 @@ use serde_json::{json, Value};
 use std::process::Stdio;
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
+#[cfg(test)]
 use tokio::process::Command;
 use uuid::Uuid;
 
@@ -21,6 +22,7 @@ mod gateway;
 #[cfg(test)]
 #[path = "transport/gateway_apps_tests.rs"]
 mod gateway_apps_tests;
+pub(crate) mod owned_share;
 pub(crate) use gateway::GatewaySession;
 pub use gateway::{gateway_enable, gateway_link, gateway_status};
 mod secret_tunnel;
@@ -679,14 +681,9 @@ pub async fn connection(service: &Arc<Service>) -> Result<Value> {
         None => false,
     };
     let failed = tunnel.is_some() && !running;
+    let mut cleanup_error = None;
     if failed {
-        gateway::revoke(service)?;
-        service.revoke_app_controls()?;
-        service
-            .shared
-            .lock()
-            .map_err(|_| Error::new("state", "Local state unavailable."))?
-            .clear();
+        cleanup_error = retire_tunnel(service, &mut tunnel, true).await.err();
     }
     let shared = service.shared_manuscripts()?;
     Ok(json!({
@@ -696,13 +693,59 @@ pub async fn connection(service: &Arc<Service>) -> Result<Value> {
         "mcpInitialized":running && tunnel.as_ref().is_some_and(|t| t.mcp_initialized),
         "lastActivityMs":tunnel.as_ref().filter(|_| running).map(|t| t.last_activity_ms).unwrap_or(0),
         "toolCalls":tunnel.as_ref().filter(|_| running).map(|t| t.tool_calls).unwrap_or(0),
-        "lastError":if failed {"zrok2 exited. Access was revoked; check your account and public name before restarting."} else {""},
+        "lastError":cleanup_error.as_ref().map(|error|error.message.as_str()).unwrap_or(if failed {"zrok2 exited. Access was revoked; check your account and public name before restarting."} else {""}),
         "sharedCount":shared.as_array().map_or(0, Vec::len),"shared":shared,
         "config":service.connection_settings()?,"protocolVersion":MCP_VERSION,
         "textOnlyConnector":tunnel.as_ref().filter(|_| running).map_or_else(|| connector::present(service.state_dir()), Tunnel::text_only_connector),
         "tools":tool_catalogue()
         ,"appControls":service.app_control_status()?,"gateway":gateway::snapshot(service,tunnel.as_ref().filter(|_| running).map(|active|active.secret.as_str()))?
     }))
+}
+
+// Keep the listener and ownership record on uncertain cleanup. Its bound port cannot be
+// recycled into a foreign target while Stop is retried; dead children cannot grant access.
+async fn retire_tunnel(
+    service: &Service,
+    current: &mut Option<Tunnel>,
+    retain_failure: bool,
+) -> Result<()> {
+    gateway::revoke(service)?;
+    service.revoke_app_controls()?;
+    service
+        .shared
+        .lock()
+        .map_err(|_| Error::new("state", "Local state unavailable."))?
+        .clear();
+    let Some(active) = current.as_mut() else {
+        return Ok(());
+    };
+    if active
+        .child
+        .try_wait()
+        .map_err(|_| owned_share::uncertain())?
+        .is_none()
+    {
+        active
+            .child
+            .start_kill()
+            .map_err(|_| owned_share::uncertain())?;
+    }
+    tokio::time::timeout(std::time::Duration::from_secs(3), active.child.wait())
+        .await
+        .map_err(|_| owned_share::uncertain())?
+        .map_err(|_| owned_share::uncertain())?;
+    if let Some(owned) = active.owned_share.as_mut() {
+        owned.retire().await?;
+    }
+    active.owned_share = None;
+    let (placeholder, _) = tokio::sync::oneshot::channel();
+    let _ = std::mem::replace(&mut active.shutdown, placeholder).send(());
+    // Preserve the observed exit across status polls, as before. No cleanup identity
+    // or listening socket remains; an explicit Stop/new Start clears this observation.
+    if !retain_failure {
+        current.take();
+    }
+    Ok(())
 }
 
 pub async fn tunnel(
@@ -768,13 +811,8 @@ async fn start_tunnel(
                 .clear();
         }
     }
-    if let Some(mut previous) = current.take() {
-        gateway::revoke(service)?;
-        service.revoke_app_controls()?;
-        let _ = previous.shutdown.send(());
-        let _ = previous.child.start_kill();
-        let _ =
-            tokio::time::timeout(std::time::Duration::from_secs(3), previous.child.wait()).await;
+    if current.is_some() || !enabled {
+        retire_tunnel(service, &mut current, false).await?;
     }
     if !enabled {
         gateway::revoke(service)?;
@@ -807,21 +845,30 @@ async fn start_tunnel(
         remote_router(service.clone())
     };
     let executable = std::env::var_os("UNDERTREE_ZROK").unwrap_or_else(|| "zrok2".into());
-    let mut command = Command::new(&executable);
-    #[cfg(windows)]
-    command.creation_flags(0x08000000);
+    let target = format!("http://127.0.0.1:{port}");
+    let owned_share = owned_share::OwnedShare::prepare(
+        executable,
+        imported
+            .as_ref()
+            .and_then(|connector| connector.zrok_home.clone()),
+        target.clone(),
+        &public_url,
+    )
+    .await?;
+    let mut command = owned_share.command();
     if let Some(connector) = &imported {
         connector.configure_command(&mut command);
     }
     command.args([
         "share",
         "public",
-        &format!("http://127.0.0.1:{port}"),
+        &target,
         "-n",
         &format!("public:{reservation}"),
         "--headless",
+        "--force-local",
     ]);
-    let mut child = command
+    let child = command
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .kill_on_drop(true)
@@ -832,18 +879,6 @@ async fn start_tunnel(
                 "Install and enable zrok2, create its public reserved name, then retry.",
             )
         })?;
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    if child.try_wait()?.is_some() {
-        return Err(Error::new(
-            "tunnel",
-            "zrok2 exited. Check its enabled account and reserved name.",
-        ));
-    }
-    let settings = settings.ok_or_else(|| Error::new("tunnel", "Missing zrok2 setup."))?;
-    let settings_service = service.clone();
-    tokio::task::spawn_blocking(move || settings_service.save_connection_settings(settings))
-        .await
-        .map_err(|_| Error::new("state", "Could not save zrok2 setup."))??;
     let (shutdown, receiver) = tokio::sync::oneshot::channel();
     tokio::spawn(async move {
         let _ = axum::serve(listener, router)
@@ -857,11 +892,66 @@ async fn start_tunnel(
         endpoint: endpoint.clone(),
         secret,
         child,
+        owned_share: Some(owned_share),
         shutdown,
         mcp_initialized: false,
         last_activity_ms: 0,
         tool_calls: 0,
     });
+    let started = async {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(20);
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        let active = current.as_mut().ok_or_else(owned_share::uncertain)?;
+        loop {
+            if active.child.try_wait()?.is_some() {
+                return Err(Error::new(
+                    "tunnel",
+                    "zrok2 exited. Check its enabled account and reserved name.",
+                ));
+            }
+            let discovered = tokio::time::timeout_at(
+                deadline,
+                active
+                    .owned_share
+                    .as_mut()
+                    .ok_or_else(owned_share::uncertain)?
+                    .discover(),
+            )
+            .await
+            .map_err(|_| owned_share::uncertain())??;
+            if active.child.try_wait()?.is_some() {
+                return Err(Error::new(
+                    "tunnel",
+                    "zrok2 exited. Check its enabled account and reserved name.",
+                ));
+            }
+            if discovered {
+                break;
+            }
+            if tokio::time::Instant::now() >= deadline {
+                return Err(Error::new(
+                    "tunnel",
+                    "zrok2 did not confirm this session's share. Retry the connection.",
+                ));
+            }
+            // Only an empty successful listing is retried. Errors never authorize cleanup or replay.
+            tokio::time::sleep_until(
+                (tokio::time::Instant::now() + std::time::Duration::from_millis(200)).min(deadline),
+            )
+            .await;
+        }
+        let settings = settings.ok_or_else(|| Error::new("tunnel", "Missing zrok2 setup."))?;
+        let settings_service = service.clone();
+        tokio::task::spawn_blocking(move || settings_service.save_connection_settings(settings))
+            .await
+            .map_err(|_| Error::new("state", "Could not save zrok2 setup."))??;
+        Ok(())
+    }
+    .await;
+    if let Err(error) = started {
+        retire_tunnel(service, &mut current, false).await?;
+        return Err(error);
+    }
     Ok(
         json!({"running":true,"endpoint":endpoint,"externallyVerified":false,"textOnlyConnector":imported.is_some()}),
     )
@@ -1216,6 +1306,7 @@ mod tests {
             endpoint: "https://existing-name.shares.zrok.io/t/existing_private_token/mcp".into(),
             secret: "existing_private_token".into(),
             child,
+            owned_share: None,
             shutdown,
             mcp_initialized: false,
             last_activity_ms: 0,
@@ -1834,6 +1925,7 @@ mod tests {
             endpoint: "https://review.example.org/mcp/review-fixture".into(),
             secret: "review-fixture".into(),
             child,
+            owned_share: None,
             shutdown,
             mcp_initialized: false,
             last_activity_ms: 0,
@@ -2126,6 +2218,7 @@ mod tests {
             endpoint: String::new(),
             secret: secret.into(),
             child,
+            owned_share: None,
             shutdown,
             mcp_initialized: false,
             last_activity_ms: 0,

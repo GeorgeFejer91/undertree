@@ -952,6 +952,7 @@ mod tests {
                 endpoint: "https://review.example.org/mcp/review-fixture".into(),
                 secret: "review-fixture".into(),
                 child,
+                owned_share: None,
                 shutdown,
                 mcp_initialized: false,
                 last_activity_ms: 0,

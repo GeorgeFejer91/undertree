@@ -1,6 +1,7 @@
 // Real UI + real Rust authority. Epoch replacement is an explicitly stopped-service
 // registry fixture; this never calls/invents a public rotation or qualifies native Move.
 import assert from 'node:assert/strict';
+import { createZrokFixture } from './zrok-fixture.mjs';
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { cp, chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
@@ -22,7 +23,7 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 const checks = [], observations = [], traces = [], errors = [], gates = new Set(), processes = [];
 const original = '<p>Alpha target.</p>\n', cleanSource = '<p>A clean retained source.</p>\n', firstSource = '<p>First local input.</p>\n';
 const sourceFiles = { 'legacy.html': original, 'clean.html': cleanSource, 'first.html': firstSource, 'inactive.html': '<p>Inactive same bytes.</p>\n', 'main.typ': '#include "chapter.typ"\n', 'chapter.typ': '= Epoch publication\n\nSaved chapter prose.\n' };
-let service, browser, port, base, failure, publicTarget, appPath, serviceGeneration = 0;
+let zrokFixture, service, browser, port, base, failure, publicTarget, appPath, serviceGeneration = 0;
 let serverLog = '';
 const redact = text => String(text).replaceAll(token, '[session]');
 async function hashes(directory, prefix = '') {
@@ -48,7 +49,7 @@ async function until(check, message, timeout = 15000) {
 async function startService(requestedPort = 0) {
   assert.ok(!running(service), 'Fixture may edit registry/start a replacement only after prior Service exits.');
   let output = ''; port = null; serviceGeneration += 1;
-  service = spawn(binary, [], { env: { ...process.env, UNDERTREE_REVIEW_PORT: String(requestedPort), UNDERTREE_REVIEW_STATE: state, UNDERTREE_REVIEW_ASSETS: assets, UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: join(temporary, 'zrok-fixture'), UNDERTREE_TYPST: join(temporary, 'typst-fixture') }, stdio: ['ignore', 'pipe', 'pipe'] });
+  service = spawn(binary, [], { env: { ...process.env, ...zrokFixture.environment, UNDERTREE_REVIEW_PORT: String(requestedPort), UNDERTREE_REVIEW_STATE: state, UNDERTREE_REVIEW_ASSETS: assets, UNDERTREE_REVIEW_TOKEN: token, UNDERTREE_ZROK: zrokFixture.executable, UNDERTREE_TYPST: join(temporary, 'typst-fixture') }, stdio: ['ignore', 'pipe', 'pipe'] });
   processes.push({ generation: serviceGeneration, pid: service.pid });
   for (const stream of [service.stdout, service.stderr]) stream.on('data', bytes => { output += bytes; serverLog = (serverLog + bytes).slice(-32000); port = Number(output.match(/127\.0\.0\.1:(\d+)/)?.[1]); });
   await until(() => !!port, 'The copied Rust service did not start.');
@@ -57,6 +58,7 @@ async function startService(requestedPort = 0) {
 }
 async function stopService() {
   if (!running(service)) return;
+  await local({ action: 'tunnel', enabled: false, reservation: '', public_url: '' });
   const stopped = new Promise(resolve => service.once('exit', resolve)); service.kill('SIGINT');
   await Promise.race([stopped, delay(3000)]);
   if (running(service)) { service.kill('SIGKILL'); await stopped; }
@@ -118,7 +120,7 @@ try {
   const projectRow = { id: project, name: 'Epoch fixture', root: projectRoot, mainDocument: 'main.typ', repository: '', autoSync: false, pending: [], pendingRevisions: {} };
   await writeFile(registryPath, JSON.stringify({ projects: [projectRow], sourceEpochs: { [project]: { 'main.typ': 2, 'chapter.typ': 7, 'inactive.html': 5 } } }));
   const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
-  await writeFile(join(temporary, 'zrok-fixture'), `#!/bin/sh\nprintf '%s' "$3" > ${quote(join(temporary, 'zrok-target'))}\nprintf '%s' "$$" > ${quote(join(temporary, 'zrok-pid'))}\nexec sleep 180\n`); await chmod(join(temporary, 'zrok-fixture'), 0o700);
+  zrokFixture = await createZrokFixture(temporary, join(temporary, 'zrok-target'), 'source-epochs.example.invalid');
   await writeFile(join(temporary, 'typst-fixture'), `#!/bin/sh\nprintf 'compile\\n' >> ${quote(join(temporary, 'compiler-calls'))}\nexec ${quote(process.env.UNDERTREE_TYPST)} "$@"\n`); await chmod(join(temporary, 'typst-fixture'), 0o700);
   await startService();
   const cleanOld = await local({ action: 'open', project, path: 'clean.html' });
@@ -249,7 +251,7 @@ try {
   for (const gate of gates) gate.resolve();
   if (running(service) && base) await local({ action: 'tunnel', enabled: false, reservation: '', public_url: '' }).catch(() => {});
   await browser?.close().catch(() => {}); await stopService();
-  try { const pid = Number(await readFile(join(temporary, 'zrok-pid'), 'utf8')); if (Number.isInteger(pid) && pid > 1) try { process.kill(pid, 'SIGTERM'); } catch {} } catch {}
+  try { const pid = Number(await readFile(join(temporary, 'pid'), 'utf8')); if (Number.isInteger(pid) && pid > 1) try { process.kill(pid, 'SIGTERM'); } catch {} } catch {}
   const selectedInputsUnchanged = hash(await readFile(selectedBinary)) === initialBinaryHash && JSON.stringify(await hashes(selectedAssets)) === JSON.stringify(initialAssets);
   const passed = !failure && selectedInputsUnchanged;
   await mkdir(resolve(receiptPath, '..'), { recursive: true });
