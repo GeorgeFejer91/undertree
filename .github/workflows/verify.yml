@@ -52,7 +52,7 @@ jobs:
       - name: Qualify menu navigation and protected Close
         run: node --test tests/menu-navigation.test.mjs tests/window-close-auto-compile.test.mjs tests/window-chrome.test.mjs tests/manuscript-control-state.test.mjs tests/native-click.test.mjs tests/background-review-status.test.mjs tests/native-find-guards.test.mjs tests/native-find-registration.test.mjs tests/native-move-select-guards.test.mjs tests/review-save-observation.test.mjs
       - name: Qualify Move, Find, preview continuity and rooted editor observations
-        run: node --test tests/file-move.test.mjs tests/publication-preview.test.mjs tests/expected-root.test.mjs tests/source-epoch.test.mjs tests/editor-session-bridge.test.mjs tests/review-session.test.mjs tests/review-text-layout-search.test.mjs tests/manuscript-pdf-viewer.test.mjs tests/secret-tunnel-profile.test.mjs tests/compile-report-context.test.mjs tests/manuscript-tab-visibility.test.mjs tests/review-policy.test.mjs tests/native-find-click-geometry.test.mjs
+        run: node --test tests/file-move.test.mjs tests/publication-preview.test.mjs tests/expected-root.test.mjs tests/source-epoch.test.mjs tests/editor-session-bridge.test.mjs tests/review-session.test.mjs tests/review-text-layout-search.test.mjs tests/manuscript-pdf-viewer.test.mjs tests/secret-tunnel-profile.test.mjs tests/compile-report-context.test.mjs tests/manuscript-tab-visibility.test.mjs tests/review-policy.test.mjs tests/native-find-click-geometry.test.mjs tests/native-find-source-pointer.test.mjs tests/native-word-count-frame-observer.test.mjs
       - run: cargo fmt --all -- --check
       - run: cargo test --locked -p undertree-review
       - run: cargo build --locked -p undertree-review

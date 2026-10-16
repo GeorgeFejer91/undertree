@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createServer } from 'node:net';
 import { nativeFixtureContextScript } from './native-fixture-context.mjs';
+import { observeNativeCountFrames } from './native-word-count-frame-observer.mjs';
 
 assert.equal(process.platform, 'linux');
 assert.notEqual(process.getuid(), 0, 'Run the private native WebKit qualification as a regular desktop user.');
@@ -223,7 +224,9 @@ try {
   checks.push('Actual WebKit module worker counts decoded structural HTML and exclusions without invoking native Typst, executing script or changing source/policy.');
   for (const [width, height, text] of [[1100,480,28],[320,900,28],[1440,900,14]]) {
     await command('/window/rect', { width, height }); await execute('document.documentElement.style.fontSize=arguments[0]+"px";document.querySelector("#word-count-dialog details").open=true;', [text]);
-    const frameAck = await execute('return new Promise(resolve=>{let completedFrames=0,done=false;const finish=timedOut=>{if(done)return;done=true;clearTimeout(timer);resolve({completedFrames,timedOut,requestedFrames:2,capMs:500});};const timer=setTimeout(()=>finish(true),500);requestAnimationFrame(()=>{if(done)return;completedFrames++;requestAnimationFrame(()=>{if(done)return;completedFrames++;finish(false);});});});');
+    const frameObservation = await execute('return ('+observeNativeCountFrames.toString()+')();');
+    const frameAck = frameObservation.ack;
+    (evidence.layoutFrameObservations ||= []).push({width,height,text,...frameObservation.observation});
     (evidence.layoutFrameAcks ||= []).push({width,height,text,...frameAck});
     assert.deepEqual(frameAck,{completedFrames:2,timedOut:false,requestedFrames:2,capMs:500},'Native count resize/font setup needs two animation frames before measuring.');
     await until(() => execute('return [...document.querySelectorAll("#word-count-dialog [data-measure]")].filter(n=>n.getClientRects().length).every(n=>["fit","reflow","unavailable"].includes(n.dataset.textFit));'), 'Actual Pretext has a no-fit or unresolved native count label.');

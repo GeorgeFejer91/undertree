@@ -214,7 +214,14 @@ export async function qualifyNativeFindReplace(context) {
 }
 
 async function clickNativeFindSource(context,report) {
-  try {await context.click('.cm-content');}
+  try {
+    const point=await context.execute('return ('+readNativeFindSourcePointer.toString()+')('+readNativeFindClickTargetGeometry.toString()+');');
+    const rows=report.sourcePointerAttempts ||= [];
+    assert.ok(rows.length<2,'Only the two original source clicks are admitted.');rows.push(point);
+    await context.command('/actions',{actions:[{type:'pointer',id:'native-find-source',parameters:{pointerType:'mouse'},actions:[
+      {type:'pointerMove',duration:0,origin:'viewport',x:point.x,y:point.y},{type:'pointerDown',button:0},{type:'pointerUp',button:0}
+    ]}]});
+  }
   catch(error) {
     // One structural after-state and one early screenshot retain the ORIGINAL
     // failed viewport before the existing finally restores font/window size.
@@ -224,6 +231,22 @@ async function clickNativeFindSource(context,report) {
     catch(screenshotError){report.clickFailureScreenshot={unavailable:true,errorName:String(screenshotError?.name||'Error').slice(0,80)};}
     throw error;
   }
+}
+
+// Read only, immediately before one real viewport pointer action; never focus or scroll.
+function readNativeFindSourcePointer(readGeometry) {
+  const value=readGeometry(),point=value.lineViewportPoint;
+  const positive=box=>box&&['left','right','top','bottom'].every(key=>Number.isFinite(box[key]))&&box.right>box.left&&box.bottom>box.top;
+  const usable=node=>node&&node.connected&&!node.hidden&&!node.inert&&node.display?.value!=='none'&&node.visibility?.value==='visible'&&node.pointerEvents?.value!=='none';
+  if(!value.documentFocused||!value.viewportValid||!usable(value.target)||!usable(value.scroller)||!point||!Number.isFinite(point.x)||!Number.isFinite(point.y))throw Error('No focused visible native source click target.');
+  const action={x:Math.floor(point.x),y:Math.floor(point.y)};
+  const inside=box=>positive(box)&&action.x>box.left&&action.x<box.right&&action.y>box.top&&action.y<box.bottom;
+  const layoutBounds={left:0,top:0,right:value.layoutViewport?.width,bottom:value.layoutViewport?.height};
+  if(!Number.isSafeInteger(action.x)||!Number.isSafeInteger(action.y)||![layoutBounds,value.viewport,value.scrollerClientViewport,value.target.box].every(inside)
+      ||!Array.isArray(value.lines)||value.lines.length>8||!value.lines.some(line=>usable(line)&&inside(line.box)))throw Error('The integer source action point is outside its actual visible line or viewport.');
+  const target=document.querySelector('.cm-content'),hit=document.elementFromPoint(action.x,action.y);
+  if(!target?.isConnected||!hit||!target.contains(hit))throw Error('The integer source action point is covered or detached.');
+  return {...action,documentFocused:true,integerHitInsideSource:true,viewport:value.viewport,clip:value.scrollerClientViewport};
 }
 
 async function qualifyFindGeometry(context,h,report) {

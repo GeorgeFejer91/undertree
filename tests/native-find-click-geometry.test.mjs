@@ -102,24 +102,27 @@ test('Absent hit or blurred document is recorded without invented focus or targe
 });
 
 function actualWrapper() {
-  const context=vm.createContext({readNativeFindClickTargetGeometry});
+  const context=vm.createContext({assert,readNativeFindClickTargetGeometry});
   return vm.runInContext(wrapper+';clickNativeFindSource;',context);
 }
-test('Actual wrapper retains one original click and adds zero requests/actions on success',async()=>{
-  const calls=[],report={};await actualWrapper()({click:async selector=>calls.push(['click',selector]),execute:async()=>{throw Error('unexpected execute');},screenshot:async()=>{throw Error('unexpected screenshot');}},report);
-  assert.deepEqual(calls,[['click','.cm-content']]);assert.deepEqual(report,{});
+test('Actual wrapper makes exactly one genuine pointer click after one fresh point read',async()=>{
+  const calls=[],report={},point={x:207,y:296};
+  await actualWrapper()({command:async(path,body)=>calls.push(['command',path,body]),execute:async script=>{calls.push(['execute']);assert.ok(script.startsWith('return (function readNativeFindSourcePointer('));return point;},screenshot:async()=>{throw Error('unexpected screenshot');}},report);
+  assert.equal(calls.length,2);assert.deepEqual(calls[0],['execute']);assert.equal(calls[1][1],'/actions');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[1][2])),{actions:[{type:'pointer',id:'native-find-source',parameters:{pointerType:'mouse'},actions:[{type:'pointerMove',duration:0,origin:'viewport',x:207,y:296},{type:'pointerDown',button:0},{type:'pointerUp',button:0}]}]});
+  assert.equal(report.sourcePointerAttempts.length,1);assert.equal(report.sourcePointerAttempts[0],point);
 });
-test('Actual wrapper records after-state then early screenshot and rethrows ORIGINAL object',async()=>{
-  const calls=[],report={},original=Error('original native refusal'),after={ivcp:{x:10,y:20}};
-  const promise=actualWrapper()({click:async selector=>{calls.push(['click',selector]);throw original;},execute:async script=>{calls.push(['execute']);assert.ok(script.startsWith('return (function readNativeFindClickTargetGeometry()'));return after;},screenshot:async name=>calls.push(['screenshot',name])},report);
+test('Actual wrapper retains one pointer attempt, after-state/early screenshot and ORIGINAL error',async()=>{
+  const calls=[],report={},original=Error('original native refusal'),after={ivcp:{x:10,y:20}};let reads=0;
+  const promise=actualWrapper()({command:async path=>{calls.push(['command',path]);throw original;},execute:async()=>{calls.push(['execute']);return ++reads===1?{x:207,y:296}:after;},screenshot:async name=>calls.push(['screenshot',name])},report);
   await assert.rejects(promise,error=>error===original);
-  assert.deepEqual(calls,[['click','.cm-content'],['execute'],['screenshot','native-find-click-failure.png']]);assert.equal(report.clickFailure,after);
+  assert.deepEqual(calls,[['execute'],['command','/actions'],['execute'],['screenshot','native-find-click-failure.png']]);assert.equal(report.clickFailure,after);
 });
-test('Observation/screenshot failures never replace original error or retry the click',async()=>{
+test('Observation/screenshot failures never replace original error or replay pointer actions',async()=>{
   const original=Error('original'),report={};let clicks=0,reads=0,screenshots=0;
   const observer=Object.assign(Error('body/value must not be recorded'),{name:'x'.repeat(1000)});
-  await assert.rejects(actualWrapper()({click:async()=>{clicks++;throw original;},execute:async()=>{reads++;throw observer;},screenshot:async()=>{screenshots++;throw observer;}},report),error=>error===original);
-  assert.equal(clicks,1);assert.equal(reads,1);assert.equal(screenshots,1);assert.equal(report.clickFailure.unavailable,true);assert.equal(report.clickFailure.errorName.length,80);assert.equal(report.clickFailureScreenshot.errorName.length,80);assert.equal(JSON.stringify(report).includes(observer.message),false);
+  await assert.rejects(actualWrapper()({command:async()=>{clicks++;throw original;},execute:async()=>{reads++;if(reads===1)return {x:207,y:296};throw observer;},screenshot:async()=>{screenshots++;throw observer;}},report),error=>error===original);
+  assert.equal(clicks,1);assert.equal(reads,2);assert.equal(screenshots,1);assert.equal(report.clickFailure.unavailable,true);assert.equal(report.clickFailure.errorName.length,80);assert.equal(report.clickFailureScreenshot.errorName.length,80);assert.equal(JSON.stringify(report).includes(observer.message),false);
 });
 test('Full contract reverses exact dcd after only four declared diagnostic edits',()=>{
   const edits=[

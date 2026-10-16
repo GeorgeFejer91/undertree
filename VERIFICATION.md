@@ -1,5 +1,38 @@
 # Verification report
 
+## Native Find visible click and frame timing — 2026-10-16
+
+Both `924fd87` Historical suites pass all 590 tests and both Review UI
+checkpoints pass. The push run passes native Word count, then the original
+Find element-center click fails at 320 × 480 with 28px root text. Identical
+before/after samples show 274px content behind a 42px scroller: the viewport
+center hits a search-panel label, while the visible source-line point hits an
+editor descendant. The early narrow screenshot agrees; no atomic driver
+hitpoint trace is claimed. Later Move, SELECT and installer gates are unreached.
+
+The fixture now reads and validates a fresh visible source-line intersection,
+including strict interior integer viewport/clip/target/line bounds and an exact
+integer hit inside the current editor, then sends one genuine native pointer
+move/down/up sequence. This replaces each of the two original source clicks.
+No retry, JavaScript focus/scroll/events, product style or font change is added.
+The existing focus, keys, source, Undo/Redo, geometry and cleanup checks remain.
+Each click has one new existing-limit 20-second observation request; pointer
+actions replace its prior lookup/click requests. The outer budget stays fixed.
+The existing failure after-state and early screenshot remain.
+
+The PR twin separately gets only one of two intended RAF callbacks before the
+500ms timer at its first Word count layout, before any geometry observation.
+That failure gives no persistent overflow or scheduling-cause proof. Its same
+execute now records at most four passive monotonic timing, visibility and focus
+rows. The original four-field ACK/deepEqual, one 500ms timer, at most two
+sequential RAF requests and 30-second transport limit remain unchanged.
+
+All 27 Find and nine frame-observer models pass. Root and independent source
+reviews accept both changes. All 338 checks in the three integrated CI
+JavaScript groups, architecture validation, six module syntax checks and the
+diff check pass. Matching hosted qualification remains pending. Product source and the complete attribution manifest/payloads are
+unchanged from `924fd87`; the previous frontend build remains applicable.
+
 ## Find click diagnostic and post-Reanchor observation — 2026-10-16
 
 Both `dcd99b9` Historical jobs pass all 571 tests. The push product job stops
