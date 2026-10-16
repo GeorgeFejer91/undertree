@@ -1,5 +1,15 @@
 # Verification report
 
+## Attribution manifest refresh — 2026-10-16
+
+Both hosted runs of `8f60155` stopped at attribution verification before
+Rust, browser, native or installer checks. The compile-reporting change had
+not refreshed the tracked frontend input hash. The normal notice generator
+now updates only the `src/manuscript.js` hash in the manifest; both complete
+notice payloads, component inventories and license texts remain byte-identical.
+The exact failing `tests/notices.test.mjs` check passes locally. The combined
+hosted runtime and installer gates still require a successful run of this head.
+
 ## Compile error reporting and Connections keyboard candidate — 2026-10-16
 
 The two hosted runs of `b390b42` stopped at different browser checkpoints.
