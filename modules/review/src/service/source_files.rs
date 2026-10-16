@@ -138,12 +138,12 @@ fn changed() -> Error {
 }
 
 fn supported() -> Result<()> {
-    if cfg!(unix) {
+    if cfg!(any(unix, windows)) {
         Ok(())
     } else {
         Err(Error::new(
             "unsupported",
-            "Rooted source-group effects require a qualified Unix filesystem.",
+            "Rooted source-group effects are unavailable on this platform.",
         ))
     }
 }
@@ -168,10 +168,49 @@ fn unix_details(metadata: &Metadata) -> Result<(u32, (i64, i64))> {
         (Unix::ctime(metadata), Unix::ctime_nsec(metadata)),
     ))
 }
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn unix_details(metadata: &Metadata) -> Result<(u32, (i64, i64))> {
+    use cap_std::fs::MetadataExt as Windows;
+    if Windows::file_attributes(metadata) & 0x400 != 0 {
+        return Err(changed());
+    }
+    let mode = if metadata.permissions().readonly() {
+        0o400
+    } else {
+        0o600
+    };
+    Ok((
+        mode,
+        (
+            Windows::creation_time(metadata) as i64,
+            Windows::last_write_time(metadata) as i64,
+        ),
+    ))
+}
+#[cfg(not(any(unix, windows)))]
 fn unix_details(_: &Metadata) -> Result<(u32, (i64, i64))> {
     supported()?;
     Err(changed())
+}
+
+pub(super) fn complete_directory_publication(directory: &Dir) -> std::io::Result<()> {
+    #[cfg(unix)]
+    return directory.open(".")?.sync_all();
+    // Windows flushes written file handles and verifies published identities/bytes.
+    // It has no portable directory fsync; see docs/engineering/windows-filesystem.md.
+    #[cfg(not(unix))]
+    directory.dir_metadata().map(|_| ())
+}
+
+pub(super) fn plain_metadata(metadata: &Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        use cap_std::fs::MetadataExt as Windows;
+        if Windows::file_attributes(metadata) & 0x400 != 0 {
+            return false;
+        }
+    }
+    !metadata.file_type().is_symlink()
 }
 
 fn stamp(metadata: &Metadata) -> Result<Stamp> {
@@ -696,6 +735,8 @@ impl SourceGroup {
                 let name = format!(".undertree-compile-{}.tmp", uuid::Uuid::new_v4());
                 let mut create = options();
                 create.write(true).create_new(true);
+                #[cfg(windows)]
+                create.sync(true);
                 #[cfg(unix)]
                 {
                     use cap_std::fs::OpenOptionsExt;
@@ -714,7 +755,9 @@ impl SourceGroup {
                 }
                 file.seek(SeekFrom::Start(0))?;
                 let mut actual = Vec::new();
-                file.take(bytes.len() as u64 + 1).read_to_end(&mut actual)?;
+                (&mut file)
+                    .take(bytes.len() as u64 + 1)
+                    .read_to_end(&mut actual)?;
                 if actual != *bytes {
                     return Err(changed());
                 }
@@ -742,7 +785,7 @@ impl SourceGroup {
                 self.check_current()?;
                 // shortcut: exact staging check/unlink is optimistic against external writers, as journal retirement is.
                 self.parent.remove_file(name)?;
-                self.parent.open(".")?.sync_all()?;
+                complete_directory_publication(&self.parent)?;
                 let installed = self.read_bytes(*member, member.maximum())?;
                 if installed.bytes() != Some(*bytes) {
                     return Err(changed());
@@ -771,7 +814,7 @@ impl SourceGroup {
                 tests::Point::BeforeJournalSync,
                 &self.name(Member::Journal),
             )?;
-            self.parent.open(".")?.sync_all()?;
+            complete_directory_publication(&self.parent)?;
             if self
                 .read_bytes(Member::Journal, Member::Journal.maximum())?
                 .bytes()
@@ -808,6 +851,8 @@ impl SourceGroup {
         tests::run(self, tests::Point::BeforeCreate, &name)?;
         let mut create = options();
         create.write(true).create_new(true);
+        #[cfg(windows)]
+        create.sync(true);
         #[cfg(unix)]
         {
             use cap_std::fs::OpenOptionsExt;
@@ -883,9 +928,11 @@ impl SourceGroup {
             #[cfg(test)]
             tests::run(self, tests::Point::AfterFinalCheck, &name)?;
             self.parent.rename(&name, &self.parent, self.name(member))?;
+            #[cfg(windows)]
+            file.sync_all()?;
             #[cfg(test)]
             tests::run(self, tests::Point::AfterRename, &name)?;
-            self.parent.open(".")?.sync_all()?;
+            complete_directory_publication(&self.parent)?;
             let installed = self.read_bytes(member, maximum)?;
             if installed.bytes() != Some(bytes)
                 || installed

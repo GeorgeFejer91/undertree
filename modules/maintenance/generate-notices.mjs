@@ -9,12 +9,16 @@ import { promisify } from 'node:util';
 
 const exec = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const output = join(root, 'native/tauri/notices');
-const scratch = join(root, 'artifacts/third-party-notices');
+const windows = process.platform === 'win32';
+assert.ok(!windows || ['x64', 'arm64'].includes(process.arch), 'Windows notices support x64 and arm64 MSVC targets.');
+const target = windows ? `${process.arch === 'arm64' ? 'aarch64' : 'x86_64'}-pc-windows-msvc` : 'x86_64-unknown-linux-gnu';
+const output = resolve(root, process.env.UNDERTREE_NOTICES_DIR || `native/tauri/notices${windows ? '-windows' : ''}`);
+const scratch = join(root, 'artifacts/third-party-notices', target);
 const version = '0.9.2';
 const files = ['THIRD-PARTY-RUST.md', 'THIRD-PARTY-JAVASCRIPT.md'];
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
-const hash = async path => sha(await readFile(join(root, path)));
+const canonicalText = async path => (await readFile(path, 'utf8')).replace(/\r\n/g, '\n');
+const hash = async path => sha(await canonicalText(join(root, path)));
 const check = process.argv.slice(2).length === 1 && process.argv[2] === '--check';
 assert.ok(process.argv.length === 2 || check, 'Use generate-notices.mjs [--check].');
 
@@ -38,13 +42,16 @@ async function verify() {
   const manifest = JSON.parse(await readFile(join(output, 'manifest.json'), 'utf8'));
   assert.equal(manifest.schema, 1);
   assert.equal(manifest.cargoAbout, version);
-  assert.equal(manifest.target, 'x86_64-unknown-linux-gnu');
+  assert.equal(manifest.target, target);
   assert.deepEqual(manifest.inputs, await inputs(), 'Notice inputs changed; regenerate the locked attribution payload.');
-  for (const file of files) assert.equal(sha(await readFile(join(output, file))), manifest.outputs[file], `Notice changed: ${file}`);
-  for (const file of manifest.upstreamFiles) assert.equal(await hash(file.path), file.sha256, `Upstream attribution changed: ${file.path}`);
+  for (const file of files) {
+    const bytes = await readFile(join(output, file));
+    assert.ok([sha(bytes), sha(bytes.toString('utf8').replace(/\r\n/g, '\n'))].includes(manifest.outputs[file]), `Notice changed: ${file}`);
+  }
+  for (const file of manifest.upstreamFiles) assert.equal(sha(await readFile(join(root, file.path))), file.sha256, `Upstream attribution changed: ${file.path}`);
   const rust = await readFile(join(output, files[0]), 'utf8');
   const js = await readFile(join(output, files[1]), 'utf8');
-  const lock = await readFile(join(root, 'Cargo.lock'), 'utf8');
+  const lock = await canonicalText(join(root, 'Cargo.lock'));
   for (const [name, crateVersion] of manifest.rustComponents) {
     assert.ok(lock.includes(`name = "${name}"\nversion = "${crateVersion}"`), `Rust component absent from lock: ${name}`);
   }
@@ -61,15 +68,21 @@ if (check) {
 } else {
   await mkdir(scratch, { recursive: true });
   await mkdir(output, { recursive: true });
-  const tool = resolve(process.env.UNDERTREE_CARGO_ABOUT || join(root, 'artifacts/tools/bin/cargo-about'));
+  const tool = resolve(process.env.UNDERTREE_CARGO_ABOUT || join(root, `artifacts/tools/bin/cargo-about${windows ? '.exe' : ''}`));
   const toolVersion = (await exec(tool, ['--version'], { cwd: root })).stdout.trim();
   assert.match(toolVersion, /^cargo-about 0\.9\.2$/, 'Use the reviewed cargo-about0.9.2 tool.');
   const before = await inputs();
   const environment = { ...process.env, CARGO_TARGET_DIR: join(scratch, 'cargo-target') };
-  const config = (await readFile(join(root, 'packaging/licenses/about.toml'), 'utf8')).replace(
-    /"@LICENSE_ROOT@\/([^"\n]+)"/g, (_, file) => JSON.stringify(join(root, 'packaging/licenses/upstream', file)));
+  const licenseRoot = join(scratch, 'upstream');
+  await mkdir(licenseRoot, { recursive: true });
+  for (const file of await readdir(join(root, 'packaging/licenses/upstream'))) {
+    await writeFile(join(licenseRoot, file), await canonicalText(join(root, 'packaging/licenses/upstream', file)));
+  }
+  const config = (await canonicalText(join(root, 'packaging/licenses/about.toml')))
+    .replace(/^targets = .*$/m, `targets = [${JSON.stringify(target)}]`)
+    .replace(/"@LICENSE_ROOT@\/([^"\n]+)"/g, (_, file) => JSON.stringify(join(licenseRoot, file)));
   await writeFile(join(scratch, 'about-local.toml'), config);
-  const rustKey = sha(JSON.stringify({ tool: sha(await readFile(tool)),
+  const rustKey = sha(JSON.stringify({ target, tool: sha(await readFile(tool)),
     inputs: Object.fromEntries(Object.entries(before).filter(([path]) => path.startsWith('packaging/licenses/') || path.endsWith('Cargo.toml') || path === 'Cargo.lock')) }));
   const previous = await readFile(join(scratch, 'rust-cache.json'), 'utf8').then(JSON.parse).catch(() => null);
   const cachedJson = await readFile(join(scratch, 'rust.json')).catch(() => null);
@@ -87,8 +100,8 @@ if (check) {
   const missing = rustData.licenses.filter(license => !license.source_path || /<year>|<copyright holders>/.test(license.text));
   await writeFile(join(scratch, 'missing-texts.json'), JSON.stringify(missing.map(license => ({ id: license.id,
     components: license.used_by.map(({ crate: component }) => ({ name: component.name, version: component.version })) })), null, 2) + '\n');
-  assert.equal(missing.length, 0, 'Canonical license fallback lacks upstream text/copyright; see artifacts/third-party-notices/missing-texts.json and add a verified clarification.');
-  let rust = '# UnderTree third-party Rust notices\n\nGenerated by cargo-about0.9.2 from Cargo.lock for the Linux desktop and its Rust CLI, including transitive/build dependencies. Exact-version source links accompany each component. These notices do not change UnderTree’s own license.\n';
+  assert.equal(missing.length, 0, `Canonical license fallback lacks upstream text/copyright; see ${join(scratch, 'missing-texts.json')} and add a verified clarification.`);
+  let rust = `# UnderTree third-party Rust notices\n\nGenerated by cargo-about0.9.2 from Cargo.lock for the ${windows ? 'Windows' : 'Linux'} desktop and its Rust CLI, including transitive/build dependencies. Exact-version source links accompany each component. These notices do not change UnderTree’s own license.\n`;
   for (const license of rustData.licenses) {
     rust += `\n## ${license.name} (${license.id})\n\n`;
     for (const { crate: component } of license.used_by) rust += `- [${component.name} ${component.version}](https://crates.io/crates/${component.name}/${component.version})\n`;
@@ -146,11 +159,13 @@ if (check) {
   const rustComponents = [...new Map([...rust.matchAll(/\[([A-Za-z0-9_-]+) ([^\]]+)\]\(https:\/\/crates\.io\/crates\/[^)]+\)/g)]
     .map(match => [`${match[1]}@${match[2]}`, [match[1], match[2]]])).values()].sort(([a, av], [b, bv]) => a.localeCompare(b) || av.localeCompare(bv));
   assert.ok(rustComponents.length > 100, 'The Rust transitive graph must not be reduced to direct dependencies.');
+  rust = rust.replace(/\r\n/g, '\n');
+  javascript = javascript.replace(/\r\n/g, '\n');
   const outputs = { [files[0]]: sha(rust), [files[1]]: sha(javascript) };
   await writeFile(join(output, files[0]), rust);
   await writeFile(join(output, files[1]), javascript);
   await writeFile(join(output, 'manifest.json'), JSON.stringify({ schema: 1, cargoAbout: version, cargoAboutBinarySha256: sha(await readFile(tool)),
-    target: 'x86_64-unknown-linux-gnu', inputs: before, outputs, rustComponents,
+    target, inputs: before, outputs, rustComponents,
     javascriptComponents: components.map(({ name, version, identifier }) => ({ name, version, identifier })), upstreamFiles,
     rustNotices, rustLicenseTexts: rustData.licenses.map(license => ({ id: license.id, sha256: sha(license.text),
       components: license.used_by.map(({ crate: component }) => `${component.name}@${component.version}`) })) }, null, 2) + '\n');

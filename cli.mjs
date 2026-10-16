@@ -61,9 +61,7 @@ async function ensureServer() {
     if (flags.has("no-start")) throw initialError;
     const executable = appExecutable();
     if (!executable) throw new Error("UnderTree is not running and its desktop executable could not be found.");
-    const environment = { ...process.env };
-    delete environment.ELECTRON_RUN_AS_NODE;
-    const child = spawn(executable, [], { detached: true, stdio: "ignore", env: environment, windowsHide: true });
+    const child = spawn(executable, [], { detached: true, stdio: "ignore", windowsHide: true });
     child.unref();
     const deadline = Date.now() + 15000;
     while (Date.now() < deadline) {

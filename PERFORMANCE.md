@@ -1,11 +1,15 @@
 # Performance and footprint audit
 
-## Realtime modularization phase (2026-08-22)
+## Current desktop architecture
 
-The Windows shell now launches the authenticated local service in an Electron
-utility process instead of importing `server.mjs` into the native window
-process. Project discovery, parsing, fallback search, archive creation, and TeX
-orchestration can therefore no longer block Electron's window event loop.
+The desktop uses Rust authority and Tauri v2 with a bundled HTML/CSS frontend
+and the operating system's web view. The obsolete Electron Windows shell,
+preload, installer hook and utility-process entry were removed on 2026-10-16.
+The architecture check rejects their return as well as Electron dependencies
+and packaging. Node/GTK and TeX paths below describe the earlier compatibility
+implementation; their measurements do not qualify the current Rust/Tauri build.
+
+## Historical realtime modularization phase (2026-08-22)
 
 Frontend live compilation now uses a tested latest-state scheduler. It debounces
 edit bursts for 450 ms, keeps typing enabled throughout ordinary compilation,

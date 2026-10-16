@@ -2,7 +2,7 @@
 
 This directory exists only for Codex and other repository-aware coding agents. It contains project-wide constraints, ownership boundaries, and change workflows. It must remain Markdown-only and must never be imported, packaged, or read by the UnderTree application at runtime.
 
-The fixed product stack is **Rust, Tauri v2, HTML/CSS and Typst**; see [constraints.md](constraints.md#architecture). Historical Electron code is outside the active development and release target.
+The fixed product stack is **Rust, Tauri v2, HTML/CSS and Typst**; see [constraints.md](constraints.md#architecture). Obsolete Electron code and packaging have been removed; historical evidence remains in documentation and Git history.
 
 Read in this order:
 

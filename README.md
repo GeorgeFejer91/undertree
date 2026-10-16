@@ -32,6 +32,26 @@ Launch **UnderTree** from the applications menu. Typst 0.15.1 is installed
 separately for compilation; the editor itself does not require LaTeX.
 This Linux build targets Debian 13; other platforms need their own packages.
 
+### Windows installer
+
+The native Windows build uses Rust/Tauri and the Windows system WebView2 runtime.
+Build it on Windows with Node.js 22.13 or newer, Rust's MSVC toolchain and the
+Visual Studio C++ build tools:
+
+```powershell
+npm ci
+cargo install cargo-about --version 0.9.2 --locked --features cli --root artifacts/tools
+npm run generate:notices
+npm run build:installer:windows
+```
+
+The installer is written below the Cargo release directory in `bundle/nsis/`.
+It installs UnderTree for the current user, a Start menu shortcut, the native
+`undertree-review.exe` CLI and Windows-specific third-party notices. Local builds
+are unsigned. Install Typst 0.15.1 separately and put it on PATH, or set
+`UNDERTREE_TYPST` to its executable. Git synchronization uses the user's existing
+Git installation and authentication.
+
 ### Build from source
 
 Install Node.js 22.13 or newer, Rust and the platform's Tauri v2 build
@@ -53,7 +73,7 @@ Linux installer builds verify the checked-in dependency notices. After changing
 frontend or dependency inputs, regenerate them with the pinned maintenance tool:
 
 ```bash
-cargo install cargo-about --version 0.9.2 --locked --root artifacts/tools
+cargo install cargo-about --version 0.9.2 --locked --features cli --root artifacts/tools
 npm run generate:notices
 npm run verify:notices
 ```
@@ -367,9 +387,10 @@ checkpoint.
 
 On Linux, `npm run build:installer:linux` builds the unsigned Debian package;
 `npm run test:installer:linux` extracts and qualifies it without installation.
-Install Typst separately. Windows and macOS use the same Rust/Tauri architecture;
-their native installers still require platform qualification. Historical Electron
-installers and commands are outside the current delivery target.
+Install Typst separately. On Windows, `npm run build:installer:windows` creates
+the native per-user setup executable described above. macOS packages still need
+platform qualification. Obsolete Electron adapters have been removed from this
+branch; historical versions remain in Git history.
 
 ### Linux
 

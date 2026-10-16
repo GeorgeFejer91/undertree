@@ -28,7 +28,10 @@ const MAX_INVENTORY_FILES: usize = 20_000;
 const MAX_INVENTORY_DIRECTORIES: usize = 2000;
 const MAX_NATIVE_REPORT: usize = 128 * 1024;
 const MAX_NATIVE_OVERHEAD: usize = 256 * 1024;
+#[cfg(not(windows))]
 const QUALIFIED_TYPST: &str = "29273eaa04f6d00edd0c2bec578f565fc9c65be856bfbffc894567c68ed0b237";
+#[cfg(windows)]
+const QUALIFIED_TYPST: &str = "081217a463adb006f8894b44227fe4b9c9e91fc85f5463d5948e8370db9bb31e";
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -484,10 +487,18 @@ fn qualified_compiler(command: &mut tokio::process::Command) -> bool {
     let candidates = if path.is_absolute() {
         vec![path.to_owned()]
     } else if path.components().count() == 1 {
+        #[cfg(windows)]
+        let program = if path.extension().is_none() {
+            path.with_extension("exe")
+        } else {
+            path.to_owned()
+        };
+        #[cfg(not(windows))]
+        let program = path;
         std::env::var_os("PATH")
             .map(|paths| {
                 std::env::split_paths(&paths)
-                    .map(|dir| dir.join(path))
+                    .map(|dir| dir.join(&program))
                     .collect()
             })
             .unwrap_or_default()

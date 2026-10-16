@@ -1,6 +1,126 @@
 use super::*;
 use std::collections::BTreeMap;
 
+#[cfg(windows)]
+#[test]
+fn windows_rooted_reads_preserve_stale_sources_and_refuse_hardlinks_and_streams() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = std::fs::canonicalize(temp.path()).unwrap();
+    let source = root.join("main.typ");
+    std::fs::write(&source, "before").unwrap();
+    let held = RootedRoot::acquire(&root, &RootedRoot::observe(&root).unwrap()).unwrap();
+    let group = held.source_group("main.typ").unwrap();
+    let observation = group
+        .read_utf8(Member::Source, Member::Source.maximum())
+        .unwrap();
+    assert_eq!(observation.text().unwrap(), Some("before"));
+    std::fs::write(&source, "external").unwrap();
+    assert_eq!(
+        error_code(group.replace(
+            Member::Source,
+            observation.expectation(),
+            b"replacement",
+            Member::Source.maximum(),
+            &[]
+        )),
+        "stale"
+    );
+    assert_eq!(std::fs::read_to_string(&source).unwrap(), "external");
+    std::fs::hard_link(&source, root.join("alias.typ")).unwrap();
+    assert!(group
+        .read_utf8(Member::Source, Member::Source.maximum())
+        .is_err());
+    for name in [
+        "main.typ:stream.typ",
+        "NUL.typ",
+        "CON.typ",
+        "LPT1.typ",
+        "dir /main.typ",
+        "dir./main.typ",
+        "for-ai/main.typ",
+    ] {
+        assert_eq!(error_code(held.source_group(name)), "path", "{name}");
+    }
+    assert_eq!(std::fs::read_to_string(&source).unwrap(), "external");
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_rooted_creation_is_no_clobber_and_reads_published_bytes() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = std::fs::canonicalize(temp.path()).unwrap();
+    let held = RootedRoot::acquire(&root, &RootedRoot::observe(&root).unwrap()).unwrap();
+    let group = held.source_group("new.typ").unwrap();
+    group
+        .create_new(&[(Member::Source, b"new source")], || Ok(()), None)
+        .unwrap();
+    assert_eq!(
+        group
+            .read_utf8(Member::Source, Member::Source.maximum())
+            .unwrap()
+            .text()
+            .unwrap(),
+        Some("new source")
+    );
+    assert_eq!(
+        error_code(group.create_new(&[(Member::Source, b"overwrite")], || Ok(()), None)),
+        "conflict"
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.join("new.typ")).unwrap(),
+        "new source"
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_rooted_refuses_directory_junction_without_changing_target() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("project");
+    let outside = temp.path().join("outside");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::create_dir(&outside).unwrap();
+    std::fs::write(outside.join("main.typ"), "outside source").unwrap();
+    let junction = root.join("linked");
+    assert!(std::process::Command::new("cmd")
+        .args(["/C", "mklink", "/J"])
+        .arg(&junction)
+        .arg(&outside)
+        .output()
+        .unwrap()
+        .status
+        .success());
+    let root = std::fs::canonicalize(&root).unwrap();
+    let held = RootedRoot::acquire(&root, &RootedRoot::observe(&root).unwrap()).unwrap();
+    assert!(held.source_group("linked/main.typ").is_err());
+    assert!(RootedRoot::observe(&junction).is_err());
+    assert_eq!(
+        std::fs::read_to_string(outside.join("main.typ")).unwrap(),
+        "outside source"
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_rooted_refuses_a_replaced_root_identity() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("project");
+    std::fs::create_dir(&root).unwrap();
+    let root = std::fs::canonicalize(&root).unwrap();
+    let expected = RootedRoot::observe(&root).unwrap();
+    std::fs::rename(&root, temp.path().join("original")).unwrap();
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("main.typ"), "replacement project").unwrap();
+    assert_eq!(
+        error_code(RootedRoot::acquire(&root, &expected)),
+        "stale_root"
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.join("main.typ")).unwrap(),
+        "replacement project"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn creation_aliases_use_exact_held_parent_and_leaf_without_requiring_present_source() {
@@ -210,6 +330,7 @@ fn source_path_is_canonical_bounded_and_cannot_select_adjacent_metadata() {
         super::super::source_path::validate_source_path("main.typ").unwrap(),
         ("", "main.typ")
     );
+    #[cfg(not(windows))]
     assert_eq!(
         super::super::source_path::validate_source_path("chapters/a b:c.typ").unwrap(),
         ("chapters", "a b:c.typ")

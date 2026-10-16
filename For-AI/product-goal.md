@@ -1,6 +1,6 @@
 # Product goal: Typst UnderTree
 
-Fixed stack, reaffirmed 2026-10-15: **Rust authority, Tauri v2 native shell, HTML/CSS interface and Typst publishing**. Electron is outside the product and release scope; historical Electron files do not authorize work on that stack. Apply this requirement to every worker assignment and platform package.
+Fixed stack, reaffirmed 2026-10-15: **Rust authority, Tauri v2 native shell, HTML/CSS interface and Typst publishing**. Electron is outside the product and release scope; its obsolete sources and packaging have been removed. Apply this requirement to every worker assignment and platform package.
 
 User direction, 2026-10-15: make and prove UnderTree as an Overleaf-capable Typst editor with additional UnderTree abilities. The active delivery goal covers the publishing outcomes and expected UI actions below, alongside the existing native, review, ChatGPT and GitHub requirements. The pinned Overleaf source defines the reference actions; enabled edition/configuration and actual runtime observations define parity evidence. Do not infer unlimited compatibility from a finite fixture suite or mark the goal complete while required actions remain unimplemented or unqualified.
 
@@ -61,7 +61,7 @@ Equivalent document outcomes use Typst's language and packages. Existing LaTeX c
 
 ## Migration boundary
 
-`native/tauri/` is the desktop shell on every target platform. `modules/review/` owns the framework-independent Rust review authority and MCP boundary. `modules/frontend/` owns browser interaction and save coordination; `src/manuscript.js`, `src/manuscript.css`, and `manuscript.html` adapt it to the DOM. Existing Node/GTK and TeX modules are compatibility references during migration. The historical Electron path is inactive and is excluded from current builds and releases.
+`native/tauri/` is the desktop shell on every target platform. `modules/review/` owns the framework-independent Rust review authority and MCP boundary. `modules/frontend/` owns browser interaction and save coordination; `src/manuscript.js`, `src/manuscript.css`, and `manuscript.html` adapt it to the DOM. Existing Node/GTK and TeX modules are compatibility references during migration. The obsolete Electron path has been removed and must not return to builds or releases.
 
 The Rust/Tauri review workspace is an independent, TeX-free execution path. Typst integration must use the same save, revision, project-confinement, and last-good-preview safeguards. Do not label the Typst migration complete until real `.typ` editing, compilation, preview, and agent suggestion behavior have been exercised.
 

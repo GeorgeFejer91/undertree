@@ -25,7 +25,7 @@ export async function architectureErrors(root = repositoryRoot) {
   for (const required of [
     "AGENTS.md", "For-AI/README.md", "For-AI/constraints.md", "For-AI/module-map.md", "For-AI/workflows.md",
     "For-AI/product-goal.md", "For-AI/skills.md", "For-AI/reference-evidence.md", "For-AI/overleaf-ui-parity.md", "For-AI/ui-layout.md",
-    "modules/frontend/README.md", "modules/compiler/README.md", "modules/compiler/server-process.mjs",
+    "modules/frontend/README.md", "modules/compiler/README.md",
     "modules/maintenance/runtime-package-policy.json",
     "Cargo.toml", "modules/review/README.md", "modules/review/Cargo.toml",
     "modules/review/src/document.rs", "modules/review/src/service.rs", "modules/review/src/transport.rs",
@@ -34,6 +34,9 @@ export async function architectureErrors(root = repositoryRoot) {
     "native/tauri/capabilities/main.json", "native/tauri/permissions/review.toml", "manuscript.html",
   ]) {
     if (!(await stat(join(root, required)).catch(() => null))) errors.push(`Required architecture asset is missing: ${required}`);
+  }
+  for (const obsolete of ["native/windows", "modules/compiler/server-process.mjs"]) {
+    if (await stat(join(root, obsolete)).catch(() => null)) errors.push(`Obsolete Electron asset is forbidden: ${obsolete}`);
   }
 
   const packageJson = JSON.parse(await readFile(join(root, "package.json"), "utf8"));

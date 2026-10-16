@@ -61,7 +61,13 @@ pub(super) fn open_root(root: &Path) -> Result<Dir> {
         let Component::Normal(name) = component else {
             return Err(changed());
         };
+        if !super::source_files::plain_metadata(&directory.symlink_metadata(name)?) {
+            return Err(changed());
+        }
         directory = directory.open_dir_nofollow(name).map_err(|_| changed())?;
+        if !super::source_files::plain_metadata(&directory.dir_metadata()?) {
+            return Err(changed());
+        }
     }
     Ok(directory)
 }
@@ -75,7 +81,13 @@ pub(super) fn open_directory(root: &Dir, relative: &str) -> Result<Dir> {
     let mut directory = root.try_clone()?;
     if !relative.is_empty() {
         for name in relative.split('/') {
+            if !super::source_files::plain_metadata(&directory.symlink_metadata(name)?) {
+                return Err(changed());
+            }
             directory = directory.open_dir_nofollow(name).map_err(|_| changed())?;
+            if !super::source_files::plain_metadata(&directory.dir_metadata()?) {
+                return Err(changed());
+            }
         }
     }
     Ok(directory)

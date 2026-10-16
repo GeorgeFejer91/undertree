@@ -21,7 +21,7 @@
 
 ## Architecture
 
-- The final product stack is Rust, Tauri v2, HTML/CSS and Typst. This is a fixed user requirement, reaffirmed on 2026-10-15. Do not introduce Electron, its dependencies or its packaging into development or release work. Historical Electron sources are inactive migration material, not an application target.
+- The final product stack is Rust, Tauri v2, HTML/CSS and Typst. This is a fixed user requirement, reaffirmed on 2026-10-15. Do not introduce Electron, its dependencies or its packaging into development or release work. Obsolete Electron sources and packaging have been removed; retain historical evidence in documentation and Git history.
 - `For-AI/` is Markdown-only and orchestration-only. It is not a runtime module.
 - The new Tauri shell owns window lifecycle, native folder selection and thin typed IPC. `modules/review/` owns manuscript/review policy, persistence, Typst process supervision, TeX import, Git checkpoints and the closed MCP service. Neither the WebView nor the MCP transport is a second authority.
 - Windows and other native platform delivery use the same Rust/Tauri architecture. Existing TeX and HTML compatibility modules may supply format behavior without replacing the native shell or authority.

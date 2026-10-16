@@ -138,7 +138,7 @@ impl StoredSourceSlot {
 
 impl SourceSlot {
     pub fn from_held_parent(parent: &Dir, actual_entry_basename: &str) -> Result<Self> {
-        if !cfg!(unix) {
+        if !cfg!(any(unix, windows)) {
             return Err(unavailable());
         }
         let metadata = parent.dir_metadata().map_err(|_| unavailable())?;
@@ -538,6 +538,8 @@ fn regular(directory: &Dir, name: &str, maximum: u64) -> Result<cap_std::fs::Fil
         .symlink_metadata(name)
         .map_err(|_| unavailable())?;
     if !m.is_file()
+        || !super::source_files::plain_metadata(&m)
+        || !super::source_files::plain_metadata(&p)
         || m.nlink() != 1
         || !p.is_file()
         || (m.dev(), m.ino()) != (p.dev(), p.ino())
@@ -582,10 +584,30 @@ fn absent(directory: &Dir, name: &str) -> Result<bool> {
 }
 
 fn sync_dir(directory: &Dir) -> Result<()> {
-    directory
-        .open(".")
-        .and_then(|file| file.sync_all())
-        .map_err(|_| uncertain())
+    super::source_files::complete_directory_publication(directory).map_err(|_| uncertain())
+}
+
+fn sync_regular(directory: &Dir, name: &str, maximum: u64) -> Result<()> {
+    let file = regular(directory, name, maximum)?;
+    #[cfg(windows)]
+    let file = {
+        let before = file.metadata()?;
+        let mut options = OpenOptions::new();
+        options.read(true).write(true).follow(FollowSymlinks::No);
+        let writable = directory
+            .open_with(name, &options)
+            .map_err(|_| uncertain())?;
+        let after = writable.metadata()?;
+        if (before.dev(), before.ino()) != (after.dev(), after.ino())
+            || !super::source_files::plain_metadata(&after)
+            || after.nlink() != 1
+            || after.len() > maximum
+        {
+            return Err(uncertain());
+        }
+        writable
+    };
+    file.sync_all().map_err(|_| uncertain())
 }
 fn create(directory: &Dir, name: &str, bytes: &[u8]) -> Result<()> {
     let mut options = OpenOptions::new();
@@ -593,6 +615,8 @@ fn create(directory: &Dir, name: &str, bytes: &[u8]) -> Result<()> {
         .write(true)
         .create_new(true)
         .follow(FollowSymlinks::No);
+    #[cfg(windows)]
+    options.sync(true);
     #[cfg(unix)]
     options.mode(0o600);
     let mut file = directory
@@ -1841,9 +1865,7 @@ impl HistoryStore {
         {
             return Err(unavailable());
         }
-        regular(&directory, "catalog.json", MAX_CATALOG as u64)?
-            .sync_all()
-            .map_err(|_| uncertain())?;
+        sync_regular(&directory, "catalog.json", MAX_CATALOG as u64)?;
         sync_dir(&blobs)?;
         sync_dir(&directory)?;
         sync_dir(state)
@@ -1987,6 +2009,8 @@ impl HistoryStore {
         self.directory
             .rename("catalog.next", &self.directory, "catalog.json")
             .map_err(|_| uncertain())?;
+        #[cfg(windows)]
+        sync_regular(&self.directory, "catalog.json", MAX_CATALOG as u64)?;
         #[cfg(test)]
         self.fail(FailurePoint::AfterCatalogRename)?;
         sync_dir(&self.directory)?;
@@ -2003,12 +2027,8 @@ impl HistoryStore {
 
     fn resync(&self, record: &Record) -> Result<()> {
         self.payload(record)?;
-        regular(&self.blobs, &blob_name(&record.core.event_id), MAX_TEXT)?
-            .sync_all()
-            .map_err(|_| uncertain())?;
-        regular(&self.directory, "catalog.json", MAX_CATALOG as u64)?
-            .sync_all()
-            .map_err(|_| uncertain())?;
+        sync_regular(&self.blobs, &blob_name(&record.core.event_id), MAX_TEXT)?;
+        sync_regular(&self.directory, "catalog.json", MAX_CATALOG as u64)?;
         sync_dir(&self.blobs)?;
         sync_dir(&self.directory)?;
         self.check_directories()
@@ -2021,13 +2041,9 @@ impl HistoryStore {
             if bytes.len() as u64 != retired.bytes || hash(&bytes) != retired.sha256 {
                 return Err(unavailable());
             }
-            regular(&self.blobs, &name, MAX_TEXT)?
-                .sync_all()
-                .map_err(|_| uncertain())?;
+            sync_regular(&self.blobs, &name, MAX_TEXT)?;
         }
-        regular(&self.directory, "catalog.json", MAX_CATALOG as u64)?
-            .sync_all()
-            .map_err(|_| uncertain())?;
+        sync_regular(&self.directory, "catalog.json", MAX_CATALOG as u64)?;
         sync_dir(&self.blobs)?;
         sync_dir(&self.directory)?;
         self.check_directories()

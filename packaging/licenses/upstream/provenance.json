@@ -23,5 +23,20 @@
     "file": "rmcp-LICENSE",
     "url": "https://raw.githubusercontent.com/modelcontextprotocol/rust-sdk/79437f291b2c44053d00dcd5db969fd0cca7c887/LICENSE",
     "sha256": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a"
+  },
+  {
+    "file": "webview2-rs-LICENSE",
+    "url": "https://raw.githubusercontent.com/wravery/webview2-rs/edc2caf886175ccaebe86078c9cfe1ae2a187328/LICENSE",
+    "sha256": "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73",
+    "sourceBlob": "de9a7e660e173136b351982a34f715af424ff812",
+    "sourceCommits": [
+      "edc2caf886175ccaebe86078c9cfe1ae2a187328",
+      "dffa41a8a46d3f5565eefbff2de57d38d399f158"
+    ],
+    "components": [
+      "webview2-com 0.39.1",
+      "webview2-com-sys 0.39.1",
+      "webview2-com-macros 0.8.1"
+    ]
   }
 ]

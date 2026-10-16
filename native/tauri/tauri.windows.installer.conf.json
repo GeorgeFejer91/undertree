@@ -1,0 +1,16 @@
+{
+  "bundle": {
+    "targets": ["nsis"],
+    "useLocalToolsDir": true,
+    "publisher": "GeorgeFejer91",
+    "homepage": "https://github.com/GeorgeFejer91/undertree",
+    "category": "Productivity",
+    "shortDescription": "Offline Typst manuscript and review workspace",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "startMenuFolder": "UnderTree"
+      }
+    }
+  }
+}

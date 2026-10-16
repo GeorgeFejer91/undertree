@@ -50,6 +50,7 @@
     "test:review-text-layout": "node tests/review-text-layout-smoke.mjs",
     "build:native": "npm run build && cargo build -p undertree-desktop --release --features custom-protocol",
     "build:installer:linux": "bash scripts/build-native-release.sh",
+    "build:installer:windows": "node modules/maintenance/build-windows-installer.mjs",
     "test:installer:linux": "node modules/maintenance/verify-native-package.mjs",
     "test:editor-save": "node tests/editor-save-smoke.mjs",
     "test:workspace-layout": "node tests/workspace-layout-smoke.mjs",
