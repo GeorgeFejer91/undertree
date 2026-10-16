@@ -21,7 +21,7 @@ normalization is limited to its exact focus/open clause, with its own test.
 
 This is source/build evidence only. Combined Rust tests, service/browser/native
 execution and hosted installer qualification remain pending. The inherited
-Move native width failure remains open here. The experimental 648-package
+Move native gate remains open here. The experimental 648-package
 same-build source/PDF worker is outside this candidate. Raw source snapshots,
 merge resolutions and logs are under ignored
 `artifacts/qualification/connections-integration-20261016/`.
@@ -77,6 +77,31 @@ real Replace/Replace-all persistence, IME and paired Overleaf parity remain
 separate gates. The parent Move dialog's native width gate is still open.
 Raw receipts are under ignored
 `artifacts/qualification/menu-navigation-p1/continuation/find-focus/`.
+## Native Move select containment candidate — 2026-10-16
+
+The requests selector now has a wrapper containing only the native control,
+with paint/overflow containment and an inset keyboard-focus outline. Full
+option labels, native appearance and handlers, From/To and request identity
+remain unchanged. The body and its text labels are not clipped.
+
+A private actual WebKitGTK 2.54 reduction reproduces the original 222px body
+with 681px scroll width; horizontal scrolling moves its visible siblings off
+screen. The selector wrapper yields 222/222 with the native arrow retained.
+All four cases, twelve screenshots and 272 before/after input guards complete;
+all eleven observed process identities exit and cleanup passes. This local
+reduction does not qualify hosted WebKitGTK 2.52.6, native popup usability,
+keyboard focus, full-value selection or actual Move effects. The original
+min-inline and grid native failures remain failed. The exact candidate passes
+89 focused tests, architecture, the frontend build and current 331 Rust/27
+JavaScript attribution verification. Full license payloads remain unchanged.
+The separate hosted candidate at 791d5ed passes four closed-maintenance
+geometry cases, including 222/222 body width at 320px. Its next case stops
+because the fixture clicks the maintenance summary twice; open-maintenance
+geometry, complete native workflow and installer remain unqualified. This
+combined candidate still requires its own full native and installer gates.
+Evidence is under ignored
+`artifacts/reverse-engineering/move-select-webkitgtk-20261016/` and
+`artifacts/qualification/native-move-ui-integration-20261016/`.
 
 ## Native source Move interface candidate — 2026-10-16
 
