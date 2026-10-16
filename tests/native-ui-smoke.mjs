@@ -81,7 +81,9 @@ const execute = (script, args = []) => command('/execute/sync', { script, args }
 const find = async selector => (await command('/element', { using: 'css selector', value: selector }))['element-6066-11e4-a52e-4f735466cecf'];
 async function click(selector) {
   const menu = await execute(`
-    const parent = document.querySelector(arguments[0])?.closest('details:not([open])');
+    const target = document.querySelector(arguments[0]);
+    const parent = target?.closest('details:not([open])');
+    if (parent?.querySelector(':scope > summary')?.contains(target)) return null;
     return parent?.id ? '#' + CSS.escape(parent.id) + ' > summary' : null;
   `, [selector]);
   if (menu) await command(`/element/${await find(menu)}/click`, {});

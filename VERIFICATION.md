@@ -1,5 +1,21 @@
 # Verification report
 
+## Background Review status preservation candidate — 2026-10-16
+
+An ordinary busy reply from the automatic read-only Review refresh preserves
+an existing compile/status receipt. Identity changes still freeze the source,
+cancel pending Save/compile work and retain the last good PDF. Other failures
+and busy errors from explicit user actions remain visible; no action is replayed.
+
+The same five extracted production-callback tests pass after failing three
+cases before the change. The frontend build, architecture and attribution
+verification pass; component lists and full license payloads remain unchanged
+at 331 Rust and 27 JavaScript entries. Independent source review accepted the
+one-condition change. This is model/source evidence; the exact producer of the
+hosted Review UI busy message remains unknown. Full hosted/native qualification
+is still required. Receipts are under ignored
+`artifacts/qualification/connections-integration-20261016/`.
+
 ## Combined Connections, Move, Find and preview source candidate — 2026-10-16
 
 A separate checkout combines the reviewed Connections/gateway, discard,
@@ -94,11 +110,14 @@ keyboard focus, full-value selection or actual Move effects. The original
 min-inline and grid native failures remain failed. The exact candidate passes
 89 focused tests, architecture, the frontend build and current 331 Rust/27
 JavaScript attribution verification. Full license payloads remain unchanged.
-The separate hosted candidate at 791d5ed passes four closed-maintenance
-geometry cases, including 222/222 body width at 320px. Its next case stops
-because the fixture clicks the maintenance summary twice; open-maintenance
-geometry, complete native workflow and installer remain unqualified. This
-combined candidate still requires its own full native and installer gates.
+The hosted 791d5ed candidate passed four closed-maintenance geometry cases
+with 222/222 body width at 320px. The next case failed because the native
+fixture auto-opened the requested summary and clicked it again. The shared
+click helper now excludes its own summary from auto-opening; closed menu
+children keep their existing two-click setup. Four extracted-helper models
+pass after the unchanged tests failed two cases before the correction. All
+original native assertions, matrix cases and deadlines remain. Open-maintenance
+geometry, the complete native workflow and installer still require a fresh run.
 Evidence is under ignored
 `artifacts/reverse-engineering/move-select-webkitgtk-20261016/` and
 `artifacts/qualification/native-move-ui-integration-20261016/`.
