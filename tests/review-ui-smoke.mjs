@@ -97,6 +97,7 @@ async function observeSource(project, path) {
     assert.equal(value.ok,false,'source observation requires a typed response');
     assert.equal(response.status,400,'only a typed service refusal may be observed again');
     assert.equal(value.error?.code,'busy',value.error?.message);
+    assert.equal(value.error?.message,'A local document operation is running. Retry this action.','only the pre-dispatch document admission refusal may be observed again');
     lastBusy=value.error.message;
     await new Promise(resolve=>setTimeout(resolve,Math.min(50,Math.max(0,deadline-performance.now()))));
   }
@@ -266,7 +267,7 @@ try {
   await page.getByRole('button',{name:'Reanchor highlight',exact:true}).click();
   await page.locator('#reanchor-dialog').waitFor({state:'hidden'});
   await page.evaluate(()=>{document.documentElement.style.fontSize='';});await page.setViewportSize({width:1600,height:1000});
-  const anchored=await call({action:'open',project:project.id,path:'main.html'});
+  const anchored=await observeSource(project.id,'main.html');
   const markerAfter=anchored.review.markers[0];
   assert.equal(markerAfter.id,markerBefore.id); assert.equal(markerAfter.rule,markerBefore.rule); assert.equal(markerAfter.prompt,markerBefore.prompt);
   assert.equal(markerAfter.anchor.quote,'Hi'); assert.equal(markerAfter.anchor.stale,false);

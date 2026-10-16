@@ -1,5 +1,37 @@
 # Verification report
 
+## Find click diagnostic and post-Reanchor observation — 2026-10-16
+
+Both `dcd99b9` Historical jobs pass all 571 tests. The push product job stops
+after Reanchor when its fixed Open request receives document-admission busy.
+The PR job passes Review and native Word count, then passes the fifth narrow
+Find geometry, including the active tab and a full source line. Its original
+editor click fails as not interactable. The target box and hit point were not
+recorded, and the later wide screenshot cannot establish the narrow cause.
+Later replacement, Move, SELECT and installer gates are not reached.
+
+The native fixture adds bounded structural target, clipping and hit metadata
+after its original geometry fields. It keeps the original single click. On
+failure only, it records an after-state and screenshot before restoring the
+window, then rethrows the original error even if diagnostics fail. Those two
+passive requests add up to 40 seconds of transport opportunity under their
+existing 20-second limits; outer and readiness budgets do not increase. This
+is a diagnostic, with no focus, scroll, font, CSS or assertion change.
+
+Local Open can recover and publish, so its observation helper now repeats only
+the exact HTTP 400 document-admission busy refusal before dispatch. Later
+History busy, other errors and uncertain outcomes remain fatal. The one fixed
+post-Reanchor checkpoint uses that existing helper with an explicitly new
+15-second allowance. The original Reanchor and marker/source assertions remain.
+
+All 17 diagnostic and 14 admission-helper models pass after source review.
+Root and independent reviews accept both reversible changes. Product source
+and the complete attribution manifest/payloads are unchanged from `dcd99b9`.
+All 319 checks in the three integrated CI JavaScript groups, architecture
+validation, five module syntax checks and the diff check pass. The previous
+frontend build remains applicable because product inputs are unchanged.
+Matching hosted browser/native and installer qualification remains required.
+
 ## Active tab visibility after resizing — 2026-10-16
 
 Both `1988c14` hosted runs pass all three native Word count layouts with the

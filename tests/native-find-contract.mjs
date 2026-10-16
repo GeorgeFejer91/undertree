@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { chmod,readFile,readdir,lstat,stat,writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { installNativeFindObserver } from './native-find-observer.mjs';
-import { readNativeFindGeometry } from './native-find-geometry.mjs';
+import { readNativeFindGeometry,readNativeFindClickTargetGeometry } from './native-find-geometry.mjs';
 import { assertObserved,assertPureQuery,assertProducerQuiet,assertSaveBoundary,matchOffsets,isProducer,assertFreshRegistrationSetup } from './native-find-guards.mjs';
 
 export const findPath='z-native-find.typ';
@@ -213,6 +213,19 @@ export async function qualifyNativeFindReplace(context) {
   if(failure)throw failure;
 }
 
+async function clickNativeFindSource(context,report) {
+  try {await context.click('.cm-content');}
+  catch(error) {
+    // One structural after-state and one early screenshot retain the ORIGINAL
+    // failed viewport before the existing finally restores font/window size.
+    try {report.clickFailure=await context.execute('return ('+readNativeFindClickTargetGeometry.toString()+')();');}
+    catch(observationError){report.clickFailure={unavailable:true,errorName:String(observationError?.name||'Error').slice(0,80)};}
+    try {await context.screenshot?.('native-find-click-failure.png');}
+    catch(screenshotError){report.clickFailureScreenshot={unavailable:true,errorName:String(screenshotError?.name||'Error').slice(0,80)};}
+    throw error;
+  }
+}
+
 async function qualifyFindGeometry(context,h,report) {
   const {execute,command,click,waitFor,screenshot}=context;
   const font=await execute('return document.documentElement.style.fontSize;');
@@ -226,7 +239,7 @@ async function qualifyFindGeometry(context,h,report) {
       const nodes=[...document.querySelectorAll('.cm-search button,.cm-search label,.mobile-views button'),...tab?.querySelectorAll('button')||[]].filter(visible);
       return nodes.length>0&&nodes.every(node=>node.dataset.textFit&&node.dataset.textFit!=='deferred');
     `),'Actual native Pretext controls did not settle.',5000);
-    const value=await execute('return ('+readNativeFindGeometry.toString()+')();');
+    const value=await execute('return ('+readNativeFindGeometry.toString()+')('+readNativeFindClickTargetGeometry.toString()+');');
     // Preserve the real failure dimensions before checking any predicate.
     report.geometry.push({label,value});
     const bounds={left:0,top:0,right:value.viewport.width,bottom:value.viewport.height};
@@ -269,7 +282,7 @@ async function qualifyFindGeometry(context,h,report) {
     for(const [width,height,rootFont] of [[1440,900,14],[320,480,28]]) {
       await command('/window/rect',{width,height});await execute('document.documentElement.style.fontSize=arguments[0];',[rootFont+'px']);await settle();
       await h.command('find');await h.query('needle');await measured(width+'x'+height+'/'+rootFont+'/opened');
-      await click('.cm-content');assert.equal((await h.snapshot()).editorFocused,true);
+      await clickNativeFindSource(context,report);assert.equal((await h.snapshot()).editorFocused,true);
       for(const [key,position] of [['ctrl+Home',0],['ctrl+End',findSource.length]]) {
         h.key(key);await settle();
         const cursor=await waitFor(()=>execute(readView+`

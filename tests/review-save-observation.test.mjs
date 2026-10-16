@@ -22,7 +22,7 @@ function model(reply, timeout) {
   return {observe,calls,delays};
 }
 const envelope=(value,status=value.ok?200:400)=>({status,json:async()=>value});
-const busy=()=>envelope({ok:false,error:{code:'busy',message:'document admission busy'}});
+const busy=()=>envelope({ok:false,error:{code:'busy',message:'A local document operation is running. Retry this action.'}});
 const saved={content:'exact\r\n😀',review:{revision:'fixture-revision'}};
 
 test('post-Save inspection observes typed busy then the exact source without replaying Save',async()=>{
@@ -42,6 +42,8 @@ test('a successful first observation adds no wait',async()=>{
 });
 for(const [label,reply] of [
   ['non-busy refusal',()=>envelope({ok:false,error:{code:'stale_session',message:'stale identity'}})],
+  ['later saved-History busy',()=>envelope({ok:false,error:{code:'busy',message:'An original saved-History operation is unresolved. Inspect that operation before changing this source.'}})],
+  ['other or unknown busy',()=>envelope({ok:false,error:{code:'busy',message:'Another operation is busy.'}})],
   ['authentication failure',()=>envelope({ok:false,error:{code:'busy',message:'unauthorized'}},401)],
   ['malformed envelope',()=>envelope({error:{code:'busy'}})],
   ['invalid JSON',()=>({status:400,json:async()=>{throw new SyntaxError('invalid JSON');}})],
@@ -75,10 +77,11 @@ test('Save remains a single action followed by the exact content and receipt ass
   assert.ok(body.includes("finally { page.off('response',observe); }"));
 });
 
-test('fixed Open observation has only its two known callers and preserves the real navigation/external mutation boundary',()=>{
+test('fixed Open observation has only its three known callers and preserves Reanchor/navigation/external mutation boundaries',()=>{
   assert.ok(helper.startsWith('async function observeSource(project, path)'));
-  assert.equal((source.match(/\bobserveSource\(/g)||[]).length,3,'one declaration and exactly two direct callers');
-  assert.deepEqual([...source.matchAll(/await observeSource\(([^)]*)\)/g)].map(match=>match[1]),['project,path',"project.id,'main.typ'"]);
+  assert.equal((source.match(/\bobserveSource\(/g)||[]).length,4,'one declaration and exactly three direct callers');
+  assert.deepEqual([...source.matchAll(/await observeSource\(([^)]*)\)/g)].map(match=>match[1]),['project,path',"project.id,'main.html'","project.id,'main.typ'"]);
+  assert.ok(source.includes("  await page.getByRole('button',{name:'Reanchor highlight',exact:true}).click();\n  await page.locator('#reanchor-dialog').waitFor({state:'hidden'});\n  await page.evaluate(()=>{document.documentElement.style.fontSize='';});await page.setViewportSize({width:1600,height:1000});\n  const anchored=await observeSource(project.id,'main.html');\n  const markerAfter=anchored.review.markers[0];\n  assert.equal(markerAfter.id,markerBefore.id); assert.equal(markerAfter.rule,markerBefore.rule); assert.equal(markerAfter.prompt,markerBefore.prompt);\n  assert.equal(markerAfter.anchor.quote,'Hi'); assert.equal(markerAfter.anchor.stale,false);\n  assert.equal(await readFile(join(projectRoot,'main.html'),'utf8'),original.replace('Hello','Hi'),'reanchor only changes metadata');"),'one actual Reanchor and all exact marker/content assertions remain');
   assert.ok(source.includes(`  await page.getByRole('button',{name:'main.typ',exact:true}).click();await waitForSource(page,'main.typ');
   const mainBeforeExternalChange=await page.locator('.cm-content').textContent();
   const checkpoint=await observeSource(project.id,'main.typ');
