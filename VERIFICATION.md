@@ -2,7 +2,7 @@
 
 ## Menu navigation and policy fixture continuation — 2026-10-16
 
-The current workspace connects the existing menu-navigation helper to the
+The qualified review snapshot connects the existing menu-navigation helper to the
 actual File/Edit/Insert/View/Highlight/Help and mobile disclosures. Keyboard
 traversal rechecks visible, enabled commands, preserves native form controls,
 and returns focus on Escape. Existing command and protected-Close handlers
@@ -35,14 +35,55 @@ complete input checks. All owned runtime processes exit and private test
 storage is removed. CI now runs the same focused 37-check regression suite.
 Paired Overleaf comparison and new installer qualification remain separate.
 
+Pinned original `@restart/ui` 1.9.4 source establishes that ArrowUp/ArrowDown
+stay at the enabled-item endpoints. The helper now follows that behavior;
+the 37 focused checks pass with the endpoint assertions corrected. A new
+65-input/15-asset frontend build passes its complete input checks. Its build
+receipt `continuation/clamp/build-receipt.json` has SHA-256
+`cdc084c62e09a4668203a7b040df937bb8eeb8cefc060a6304ef6fd5b5594f6b`.
+The matching native build also passes its input checks, producing desktop
+SHA-256 `4c994ca3a337defce70b38a18ac72336dc30065443551c78853176460d4dde4b`.
+Runtime qualification of this endpoint correction remains pending; the earlier
+browser/native receipts above identify the preceding implementation.
+
 Hosted run 38819332811 passes the menu/Close regression step and historical
 compatibility job, then stops in the App-controls fixture at its File-menu
-locator: it still requests a button after the command becomes a menuitem.
-The scoped helper now accepts either actual role, preserving all 84 assertions,
-actions and deadlines. This repairs the observed locator mismatch; the next
-hosted run remains required. Separate frozen-v16 App fixture failures are
-preserved and remain under investigation; this role change does not resolve
-those failures.
+button locator. Accepting the actual menuitem role lets run 38821000104 reach
+the dirty/inactive-buffer assertion. That run also passes the Rust tests,
+Typst publishing, editor-save, tree, HTML, Review, workspace, settings,
+selection, policy, word-count and Connections gates; its later native and
+installer gates remain skipped.
+
+Separate actual frozen-v16 observations reproduce two App fixture defects.
+An automatic Save can take the response gate before the delayed tree click;
+navigation then correctly refuses the fixture-blocked Save of newer content.
+Activating the real tree command in the dirty-tab mutation microtask makes
+the intended navigation-first scenario deterministic, preserving actual
+CodeMirror typing, native Save and the held-response/newer-edit race. A second
+failure then proves that the fixture's unrooted private document ID differs
+from the UI's rooted identity. Capturing and reopening with the private root
+and epoch repairs that expected identity while retaining shared-document
+legacy compatibility. Neither correction changes product save behavior.
+
+The corrected complete fixture passes all 87 assertions on the released v16
+binary and frozen assets: all 84 original assertions and scenario deadlines
+are retained, with three additional prerequisite checks. Both Save and
+editor_commit attempt counts and exact source/policy byte checks remain.
+All 325 input guards match, owned processes exit and temporary storage is
+removed. Summary
+`artifacts/qualification/app-ci-continuation-20261016/full-frozen-v16-green.json`
+has SHA-256 `00e53f2887c290757c606439ee827b35e838df2302bb148a9748c43f8e32e1bd`.
+This qualifies the intended navigation-first fixture; it does not qualify
+every automatic-save ordering. A matched corrected-menu run and a new full
+hosted run remain required.
+
+The same 87-assertion fixture against the new endpoint-corrected build stops
+at the first private-file PDF canvas, before the later App scenarios. Its
+inputs remain exact and owned processes/storage are cleaned up. The same
+symptom occurred in an earlier frozen-v16 attempt; its cause is unproven.
+The frozen-v16 success is not qualification of the new combined build. A
+stronger compile-target prerequisite and passive trace remain private,
+unqualified diagnostic work.
 
 Hosted runs 38760615456 and 38760604395 stop before any policy scenario because
 their fixture compares an unrooted setup document ID with the UI's rooted
@@ -53,7 +94,8 @@ scenario deadlines and adding two setup identity assertions. No product policy
 change was needed. Handoff
 `artifacts/qualification/policy-ci-continuation-20261016/handoff.json` has SHA-256
 `44c45d5b3ffb70a93ee39c0afe178ed540763d1aa0c3ba55f458a39c1f4771a5`.
-The qualified inherited correction does not establish a green hosted run.
+The policy gate also passes in hosted run 38821000104; the full workflow
+remains unqualified beyond the App fixture stop described above.
 
 Architecture and refreshed attribution verification pass; the actual Rust and
 JavaScript license payloads remain identical to v16. The broader initial

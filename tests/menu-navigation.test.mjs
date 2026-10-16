@@ -116,9 +116,9 @@ test('actual shared hooks traverse all six desktop menus and mobile with Down, U
     f.key(items[0], 'ArrowDown'); assert.ok(f.document.activeElement === (items[1] || items[0]), `${id}: second Down`);
     f.key(f.document.activeElement, 'ArrowUp'); assert.ok(f.document.activeElement === items[0]);
     f.key(items[0], 'End'); assert.ok(f.document.activeElement === items.at(-1));
-    f.key(items.at(-1), 'ArrowDown'); assert.ok(f.document.activeElement === items[0]);
-    f.key(items[0], 'ArrowUp'); assert.ok(f.document.activeElement === items.at(-1));
+    f.key(items.at(-1), 'ArrowDown'); assert.ok(f.document.activeElement === items.at(-1));
     f.key(items.at(-1), 'Home'); assert.ok(f.document.activeElement === items[0]);
+    f.key(items[0], 'ArrowUp'); assert.ok(f.document.activeElement === items[0]);
     f.key(items[0], 'Escape'); assert.equal(menu.open, false); assert.ok(f.document.activeElement === trigger(menu)); f.unchanged();
   }
 });

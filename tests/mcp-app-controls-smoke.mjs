@@ -111,7 +111,10 @@ try {
   }
   await page.goto(`${base}/manuscript.html#session=${token}`);
   await openLocal('private.typ', privateOriginal);
-  const privateSnapshot = await local({ action: 'open', project: project.id, path: 'private.typ' });
+  const observedPrivate = await local({ action: 'open', project: project.id, path: 'private.typ' });
+  const privateBinding = Object.freeze({ sourceEpoch: observedPrivate.sourceEpoch, expectedRoot: Object.freeze({ ...observedPrivate.expectedRoot }) });
+  const privateSnapshot = await local({ action: 'open', project: project.id, path: 'private.typ', ...privateBinding });
+  assert.deepEqual(privateSnapshot.expectedRoot, privateBinding.expectedRoot); assert.equal(privateSnapshot.sourceEpoch, privateBinding.sourceEpoch);
   await local({action:'palette',project:project.id,path:'private.typ',revision:privateSnapshot.review.revision,rules:privateSnapshot.review.rules});
   await openLocal('main.typ', original);
   const localSource = await local({ action: 'open', project: project.id, path: 'main.typ' });
@@ -295,9 +298,23 @@ try {
   // The first local save writes successfully; newer typing stays dirty in its inactive tab.
   await openLocal('private.typ',privateOriginal);
   holdNavigationSave=true;
+  // Activate the real tree command in the dirty-tab mutation microtask, before
+  // the automatic Save/Compile timers can enqueue a different first flush.
+  await page.evaluate(expected => {
+    globalThis.__appNavigationSaveActivated = false;
+    const observer = new MutationObserver(() => {
+      const selected = document.querySelector('#manuscript-tabs [aria-selected="true"]');
+      const content = [...document.querySelectorAll('.cm-content .cm-line')].map(line => line.textContent).join('\n');
+      if (selected?.textContent !== 'private.typ •' || content !== expected) return;
+      observer.disconnect();
+      document.querySelector('#manuscript-files [data-path="main.typ"]').click();
+      globalThis.__appNavigationSaveActivated = true;
+    });
+    observer.observe(document.getElementById('manuscript-tabs'), { childList:true, subtree:true, characterData:true });
+  }, privateOriginal+'First saved local edit.');
   await page.locator('.cm-content').focus();await page.keyboard.press('Control+End');await page.keyboard.insertText('First saved local edit.');
-  await page.locator('#manuscript-files [data-path="main.typ"]').click();
   await until(()=>!!navigationSaveResponse,'The real navigation save did not reach the held-response gate.');
+  assert.equal(await page.evaluate(() => globalThis.__appNavigationSaveActivated),true,'the actual tree command owns the first navigation Save');
   const firstSave=navigationSaveResponse;
   assert.equal(firstSave.ok,true,firstSave.error?.message);
   const privateSaved=privateOriginal+'First saved local edit.';

@@ -41,7 +41,7 @@ export function setupMenuNavigation(menus, { isComposing = () => false, isClosin
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault(); open(menu);
         const enabled = items(menu), current = enabled.indexOf(document.activeElement), down = event.key === 'ArrowDown';
-        enabled[onTrigger || current < 0 ? (down ? 0 : enabled.length - 1) : (current + (down ? 1 : enabled.length - 1)) % enabled.length]?.focus();
+        enabled[onTrigger || current < 0 ? (down ? 0 : enabled.length - 1) : Math.max(0, Math.min(current + (down ? 1 : -1), enabled.length - 1))]?.focus();
       } else if ((event.key === 'Home' || event.key === 'End') && menu.open && !onTrigger) {
         event.preventDefault(); const enabled = items(menu); enabled[event.key === 'Home' ? 0 : enabled.length - 1]?.focus();
       } else if (event.key === 'Escape' && menu.open) {
