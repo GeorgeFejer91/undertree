@@ -147,6 +147,30 @@ Independent source review accepts the extension; its runtime qualification is
 pending the existing hosted native gate, rather than inferred from older
 native receipts.
 
+
+Hosted push run 38835853642 on `824008d` passes the complete corrected Review
+and 87-assertion App fixtures, all preceding product browser gates, strict
+Rust/native Clippy, native Word count and the maintained native UI fixture.
+The latter performs all six menus' real OS-key traversal, endpoint clamps,
+Escape focus and dirty-state preservation checks on desktop SHA-256
+`9a12d06dfa28a72e887f747dd53199ae6072e549eefd89a7fb2565d859983699`.
+Receipt `artifacts/qualification/continuation-20261016/hosted-38835853642-evidence/native-ui-evidence.json`
+has SHA-256 `618aeef8d8658635eb455880f912a8adc1ce3901f7fb82cf4b0fe4e8d6579d4d`.
+This closes native endpoint qualification for that exact hosted build; it
+does not qualify paired Overleaf behavior or a new installer.
+
+The workflow then fails native publishing's existing 320px/enlarged-text
+page-overflow assertion: document width is 458px for a 320px viewport, while
+the consent root itself fits its allocated width. The parallel pull-request
+run 38835858502 stops earlier waiting for the imported Typst tab; its status
+reports a busy document operation. Which import/refresh operation refused
+is not established. Preserve both outcomes; the push success does not erase
+the parallel failure. A simplified real-markup/CSS/Pretext Chromium diagnostic
+without the app, editor or PDF does not reproduce the native overflow. The
+native fixture now captures capped geometry/style observations only after a
+failure, before and after two animation frames, while retaining every original
+assertion and deadline. No CSS cause or correction is established yet.
+
 Architecture and refreshed attribution verification pass; the actual Rust and
 JavaScript license payloads remain identical to v16. The broader initial
 `npm test` run is not green: three legacy compatibility cases require absent

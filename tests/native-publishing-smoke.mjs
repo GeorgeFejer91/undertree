@@ -52,6 +52,20 @@ const find=async selector=>(await command('/element',{using:'css selector',value
 const click=async selector=>command(`/element/${await find(selector)}/click`,{});
 const review=operation=>execute('return window.__TAURI_INTERNALS__.invoke("review_action",{ownerId:window.__nativeFixtureContext.owner(),operation:arguments[0]});',[operation]);
 const windowState=()=>native('xprop',['-id',nativeWindow,'WM_STATE']);
+async function observeOverflow(){
+  return execute(`
+    const rect=node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right,width:r.width,top:r.top,bottom:r.bottom,height:r.height};};
+    const identify=node=>({tag:node.tagName,id:node.id,className:typeof node.className==='string'?node.className:''});
+    return {width:innerWidth,height:innerHeight,document:{clientWidth:document.documentElement.clientWidth,scrollWidth:document.documentElement.scrollWidth},
+      elements:[...document.querySelectorAll('body *')].filter(node=>{const r=node.getBoundingClientRect();return r.width&&r.height&&(r.right>innerWidth+1||r.left< -1)&&getComputedStyle(node).visibility!=='hidden';}).slice(0,48).map(node=>{
+        const style=getComputedStyle(node);let ancestor=node.parentElement;
+        while(ancestor&&getComputedStyle(ancestor).overflowX==='visible')ancestor=ancestor.parentElement;
+        return {...identify(node),box:rect(node),clientWidth:node.clientWidth,scrollWidth:node.scrollWidth,textFit:node.dataset.textFit,
+          style:{display:style.display,position:style.position,width:style.width,minWidth:style.minWidth,overflowX:style.overflowX,whiteSpace:style.whiteSpace},
+          containingOverflow:ancestor?{...identify(ancestor),box:rect(ancestor),overflowX:getComputedStyle(ancestor).overflowX}:null};
+      })};
+  `);
+}
 async function screenshot(name){const encoded=await command('/screenshot',undefined,'GET');await writeFile(join(artifacts,name),Buffer.from(encoded,'base64'));}
 try{
   await stat(binary);await mkdir(project);await mkdir(state,{recursive:true});await mkdir(artifacts,{recursive:true});
@@ -245,7 +259,7 @@ try{
   assert.deepEqual(await execute('return window.__nativeAppErrors'),[]);assert.deepEqual(await execute('return window.__nativeAppObservationErrors'),[]);assert.equal(await execute('return window.__nativeAppFallback'),false);
   evidence.result='passed';evidence.sourceSha256=sourceBefore;evidence.pdfSha256=hash(savedPdf);evidence.policySha256=policyBefore;evidence.nativeDownloads=(await readdir(downloads)).sort();evidence.remoteDownload={bytes:ticket.bytes,sha256:ticket.sha256,revokedStatus:revoked.status};
   console.log(`Native publishing passed: ${checks.length} real keyboard/download/consent checks; evidence in ${artifacts}.`);
-}catch(error){evidence.result='failed';evidence.error=error.message;if(nativeWindow)try{evidence.x11WindowState=windowState();}catch{}if(session){evidence.frontendErrors=await execute('return window.__nativeAppErrors||[]').catch(()=>[]);evidence.dom=await execute('return {width:innerWidth,editorText:document.querySelector(".cm-content")?.textContent,menuOpen:document.getElementById("menu-file")?.open,exportButton:(()=>{const node=document.getElementById("export-manuscript");return node?{disabled:node.disabled,display:getComputedStyle(node).display,box:node.getBoundingClientRect().toJSON()}:null;})(),ready:document.readyState,saveLabel:document.getElementById("save-label")?.textContent,status:document.getElementById("review-status")?.textContent,reviewOpen:document.querySelector(".review-workspace")?.dataset.reviewOpen,appEnabled:document.getElementById("connection-app-enabled")?.checked,observedCommands:window.__nativeAppObservedCommands?.slice(-12),observationErrors:window.__nativeAppObservationErrors};').catch(()=>null);await screenshot('native-app-failure.png').catch(()=>{});}throw error;}
+}catch(error){evidence.result='failed';evidence.error=error.message;if(session){evidence.overflowAtFailure=await observeOverflow().catch(()=>null);await execute('return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));').catch(()=>{});evidence.overflowAfterFrames=await observeOverflow().catch(()=>null);}if(nativeWindow)try{evidence.x11WindowState=windowState();}catch{}if(session){evidence.frontendErrors=await execute('return window.__nativeAppErrors||[]').catch(()=>[]);evidence.dom=await execute('return {width:innerWidth,editorText:document.querySelector(".cm-content")?.textContent,menuOpen:document.getElementById("menu-file")?.open,exportButton:(()=>{const node=document.getElementById("export-manuscript");return node?{disabled:node.disabled,display:getComputedStyle(node).display,box:node.getBoundingClientRect().toJSON()}:null;})(),ready:document.readyState,saveLabel:document.getElementById("save-label")?.textContent,status:document.getElementById("review-status")?.textContent,reviewOpen:document.querySelector(".review-workspace")?.dataset.reviewOpen,appEnabled:document.getElementById("connection-app-enabled")?.checked,observedCommands:window.__nativeAppObservedCommands?.slice(-12),observationErrors:window.__nativeAppObservationErrors};').catch(()=>null);await screenshot('native-app-failure.png').catch(()=>{});}throw error;}
 finally{
   if(session)evidence.scheduling=await execute('return {saves:window.__nativePublishingSaves,compiles:window.__nativePublishingCompiles,clicks:window.__nativePublishingClicks,timers:window.__nativePublishingTimers,pending:[...window.__nativePublishingPending.values()]};').catch(()=>null);
   await chmod(project,0o755).catch(()=>{});
