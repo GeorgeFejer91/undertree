@@ -41,6 +41,16 @@ children keep their existing two-click setup. Four extracted-helper models
 pass after the unchanged tests failed two cases before the correction. All
 original native assertions, matrix cases and deadlines remain. Open-maintenance
 geometry, the complete native workflow and installer still require a fresh run.
+
+The later 3b2cde4 native run stopped before menus/Move because Review Close
+was not interactable after a durable CRLF highlight. Its terminal screenshot
+shows Close, without the Highlight modal; the state at the failed click was
+not captured. The fixture now additionally waits for the actual Highlight
+acknowledgement, open Review sidebar and enabled, visible, non-inert Close
+control with a bounded box and successful center hit test. The same one Close
+click and all 76 original assertions remain. This adds one default 15-second
+observational prerequisite; it does not replay any action. Independent source
+review accepts the correction; its native execution remains pending.
 Evidence is under ignored
 `artifacts/reverse-engineering/move-select-webkitgtk-20261016/` and
 `artifacts/qualification/native-move-ui-integration-20261016/`.
