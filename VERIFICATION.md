@@ -1,5 +1,27 @@
 # Verification report
 
+## Native Word count frame acknowledgement — 2026-10-16
+
+Both `9bc53fc` hosted runs again fail the original narrow page-width assertion.
+The new diagnostic observes the document changing from 445px to 320px within
+one read sequence, then staying at 320px in both following frame samples. That
+snapshot is non-atomic and does not identify a persistent CSS culprit. Existing
+text measurement is scheduled through animation frames, and unchanged terminal
+fit labels do not acknowledge a fresh resize.
+
+The fixture now requires two animation-frame callbacks after its original
+resize/font/details setup and before the unchanged Pretext poll and first
+geometry assertion. A new cooperative 500ms prerequisite per original size
+fails on missing frames; it never waits for page fit or replays an action.
+The original 20s poll and 30s transport limits remain, with up to 1500ms nominal
+additional in-page timer allowance across three cases. All page/body/Close
+assertions and tolerances remain; persistent overflow still fails.
+
+Ten fake RAF/timer/assertion checks and syntax verification pass. Root and
+independent QA source reviews accept the three-line insertion. Product and
+attribution inputs are unchanged. Fresh hosted native and installer results
+remain pending; the earlier failures stay preserved.
+
 ## Native Word count overflow diagnostic — 2026-10-16
 
 Both hosted runs of `e144e3f` pass the corrected JavaScript suites, Rust,
