@@ -82,6 +82,15 @@ failed runs. A test-only passive capture now records up to 128 descendant boxes
 and computed width policies, including native selects and closed-details
 ancestry, plus up to 64 overflow observations before the same assertions.
 No runtime source, action, assertion or deadline changes accompany this capture.
+Both diagnostic runs 38851954244 and 38851958900 reproduce the same overflow.
+Their 54 descendant observations identify the visible Move requests label:
+its rectangle is 216.8125px wide and client width 217px, but scroll width is
+681px. The nested native select's rectangle and scroll width fit. Closed
+details do not explain the observed width. A candidate now explicitly permits
+Move labels to shrink with `min-inline-size: 0`, completing the wrapper sizing
+policy without clipping, changing type or relaxing the scroll assertion. The
+label rectangle already fit, so whether this changes WebKit's internal
+overflow contribution remains a hypothesis pending the exact native run.
 Integrated native UI/installer qualification remains open. No release, installation,
 IME or paired Overleaf parity is inferred from the build or mocked native wire.
 

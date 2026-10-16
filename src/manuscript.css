@@ -374,6 +374,7 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 14rem; overflo
 #file-move-dialog { --move-gap: clamp(.4rem, min(1.5vw, 1.5vh), .9rem); inline-size: min(42rem, calc(100% - 2rem)); block-size: min(42rem, calc(100dvh - 2rem)); padding: clamp(.6rem, min(2vw, 2vh), 1.3rem); overflow: hidden; }
 #file-move-dialog[open] { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--move-gap); }
 #file-move-dialog h2,#file-move-dialog .dialog-actions,#file-move-dialog p,#file-move-dialog label { margin: 0; }
+#file-move-dialog label { min-inline-size: 0; }
 .file-move-body { min-block-size: 0; overflow: auto; display: grid; grid-template-columns: minmax(0, 1fr); align-content: space-between; gap: var(--move-gap); padding-inline-end: .2rem; }
 #file-move-draft { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--move-gap); min-inline-size: 0; }
 #file-move-dialog select,#file-move-dialog input { min-inline-size: 0; max-inline-size: 100%; inline-size: 100%; font: inherit; }
