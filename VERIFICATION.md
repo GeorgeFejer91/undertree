@@ -17,7 +17,14 @@ keyboard focus, full-value selection or actual Move effects. The original
 min-inline and grid native failures remain failed. The exact candidate passes
 89 focused tests, architecture, the frontend build and current 331 Rust/27
 JavaScript attribution verification. Full license payloads remain unchanged.
-The unchanged full native workflow and installer gate must run on this commit.
+The hosted 791d5ed candidate passed four closed-maintenance geometry cases
+with 222/222 body width at 320px. The next case failed because the native
+fixture auto-opened the requested summary and clicked it again. The shared
+click helper now excludes its own summary from auto-opening; closed menu
+children keep their existing two-click setup. Four extracted-helper models
+pass after the unchanged tests failed two cases before the correction. All
+original native assertions, matrix cases and deadlines remain. Open-maintenance
+geometry, the complete native workflow and installer still require a fresh run.
 Evidence is under ignored
 `artifacts/reverse-engineering/move-select-webkitgtk-20261016/` and
 `artifacts/qualification/native-move-ui-integration-20261016/`.
