@@ -1,5 +1,15 @@
 # Verification report
 
+## Background Review fixture extraction — 2026-10-16
+
+Both hosted runs of `ca92e43` pass attribution verification, then stop before
+the five background Review cases because their fixture searches for the old
+exact `task` signature. The fixture now locates the unchanged function name
+and retains every callback and assertion, including explicit busy reporting.
+All 270 checks from both adjacent CI JavaScript suites pass locally. Product
+source is unchanged; hosted Rust, browser, native and installer gates remain
+pending for this correction.
+
 ## Attribution manifest refresh — 2026-10-16
 
 Both hosted runs of `8f60155` stopped at attribution verification before
