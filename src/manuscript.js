@@ -1,4 +1,6 @@
 import './manuscript.css';
+import './dialog-layout.css';
+import './pdf-text-layer.css';
 import { basicSetup } from 'codemirror';
 import { EditorView, Decoration, highlightSpecialChars } from '@codemirror/view';
 import { EditorState, StateEffect, StateField, Compartment, Transaction } from '@codemirror/state';
@@ -9,18 +11,26 @@ import { NativeFileImport } from '../modules/frontend/file-import.js';
 import { navigateCompileDiagnostic } from '../modules/frontend/compile-report.js';
 import { NativeProjectExport } from '../modules/frontend/project-export.js';
 import { EditorSessionBridge } from '../modules/frontend/editor-session-bridge.js';
+import { ReviewChangeBridge } from '../modules/frontend/review-change-bridge.js';
 import { reviewRequest as nativeRequest, editorRequest, controlRequest, chooseProject, chooseImportFiles, importRequest, prepareProjectExport, chooseProjectExportDestination, projectExportRequest, wordCountTypstText, nativeReview, editorOwnerId, historyRequest } from '../modules/frontend/review-api.js';
 import { HistoryPanel } from './history-panel.js';
 import { WordCountController, captureWordCount, wordCountCurrent } from '../modules/frontend/word-count-controller.js';
 import { McpControlBridge } from './mcp-control.js';
 import { captureControlState, assertControlState, assertControlPassage, controlPreviewIdentity, assertControlPreview } from '../modules/frontend/manuscript-control-state.js';
 import { observeReviewText } from '../modules/frontend/review-text-layout.js';
+import { setupDialogLayout } from '../modules/frontend/dialog-layout.js';
 import { setupWindowChrome } from '../modules/frontend/window-chrome.js';
 import { setupMenuNavigation } from '../modules/frontend/menu-navigation.js';
 import { setupConnectionManager } from './connection-manager.js';
+import { setupColorRules } from './color-rules.js';
+import { sourceHighlightColors } from '../modules/frontend/highlight-rule-access.js';
+import { assertContextShareReady, setupContextSharing } from './context-sharing.js';
+import selectiveEditor from '../modules/review/selective-editor-contract.json' with { type: 'json' };
 import { LatestCompileScheduler } from '../modules/frontend/latest-compile-scheduler.js';
 import { manuscriptTree, clampPaneWidth, capturePublicationInputs, publicationPreviewCurrent, editorLineHeights, normalizeWorkspacePreferences, readWorkspacePreferences, writeWorkspacePreferences } from '../modules/frontend/manuscript-workspace.js';
+import { smartSourceEntries, smartSourceNotice } from '../modules/frontend/smart-source-tree.js';
 import { ManuscriptPdfViewer } from '../modules/frontend/manuscript-pdf-viewer.js';
+import { setupPdfTextSelection } from '../modules/frontend/pdf-text-selection.js';
 import { positionReviewCards, acceptedTextChange } from '../modules/frontend/review-position.js';
 import { sourceFormat } from '../modules/frontend/source-format.js';
 import { typstInsertion } from '../modules/frontend/typst-insertion.js';
@@ -30,9 +40,14 @@ import { openSearchPanel } from '@codemirror/search';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 const $ = id => document.getElementById(id);
+$('manuscript-share').nextElementSibling.textContent = selectiveEditor.labels.shareContext;
+$('manuscript-context-help').textContent = selectiveEditor.labels.savedContextHelp;
+document.querySelector('.review-context-details summary').textContent = selectiveEditor.labels.readingContext;
+for (const [id, label] of [['highlight-title', selectiveEditor.labels.highlightTitle], ['highlight-rule-label', selectiveEditor.labels.highlightRule], ['highlight-prompt-label', selectiveEditor.labels.passagePrompt], ['highlight-submit', selectiveEditor.labels.addHighlight], ['highlight-help', selectiveEditor.labels.highlightHelp]]) $(id).textContent = label;
+const contextSharing = setupContextSharing({ request });
 const sessions = new Map();
 let localRequests = 0, localRequestsVersion = 0;
-const readOnlyRequests = new Set(['projects', 'files', 'project_tree', 'review', 'pdf', 'git_status', 'connection', 'capabilities']);
+const readOnlyRequests = new Set(['projects', 'files', 'project_tree', 'review', 'context_preview', 'pdf', 'pdf_annotations', 'git_status', 'connection', 'capabilities']);
 async function request(operation) {
   // Open may recover a local journal; Review and inventory reads never do.
   const pending = !readOnlyRequests.has(operation.action);
@@ -65,10 +80,13 @@ const saveTimers = new Map();
 let previewTimer = null;
 let selection = null;
 let refreshing = false;
+let reviewRefreshQueued = false;
 let sharingSession = null;
+let contextShareIntent = 0;
 let palette = [];
 let paletteSession = null;
 let paletteBinding = null;
+let paletteOriginal = null;
 let githubProject = null;
 const syncTimers = new Map();
 const pausedSync = new Set();
@@ -82,8 +100,15 @@ let pdfSourceEpoch = null;
 let pdfRoot = {};
 let pdfProject = '';
 let pdfGeneration = 0;
+let pdfReviewContext = null;
+let pdfAnnotations = [];
+let pdfAnnotationRequest = 0;
 let navigationIntent = 0;
 let fileInventoryGeneration = 0;
+let lastFileInventory = null;
+let smartFileTree = false;
+try { smartFileTree = localStorage.getItem('undertree.smart-file-tree') === 'true'; } catch { /* Storage availability does not affect navigation. */ }
+const smartCollapsedFolders = new Set();
 const fileInventoryRoots = new WeakMap();
 let newFileContext = null;
 let newFolderContext = null;
@@ -92,6 +117,7 @@ let windowChrome = null;
 let sharedManuscripts = [];
 let pendingRemoteClose = null;
 let appControls = null;
+let reviewChanges = null;
 const editorBridge = new EditorSessionBridge({
   request: editorRequest,
   state: session => ({ current: sessions.get(keyFor(session.project, session.path)) === session, composing: active === session && !!view?.compositionStarted, closing: windowClosing }),
@@ -141,6 +167,31 @@ const pdfViewer = new ManuscriptPdfViewer({
     $('pdf-page-count').textContent = `of ${total}`; $('pdf-zoom-label').textContent = `${Math.round(scale * 100)}%`;
     $('pdf-fit-width').setAttribute('aria-pressed', String(fit));
     $('pdf-previous').disabled = page <= 1; $('pdf-next').disabled = page >= total;
+  },
+});
+const colorRules = setupColorRules({
+  context: () => ({ session: active, binding: active && captureSourceBinding(active), blocked: !!(active?.reviewProblem || active?.identityProblem || active?.conflict || windowClosing), composing: !!view?.compositionStarted }),
+  save: async (captured, rules) => {
+    const { session } = captured;
+    const binding = captured.binding;
+    const assertCurrent = () => {
+      assertSourceBinding(session, binding);
+      if (session !== active || windowClosing || view?.compositionStarted || session.conflict || JSON.stringify(session.snapshot.review.rules) !== captured.original) throw { message: 'The manuscript or its color rules changed. Reopen the color rule before saving.' };
+    };
+    assertCurrent();
+    await session.mutate('palette', { rules, expectedRules: captured.rules }, assertCurrent);
+    if (active === session) { renderReview(); decorations(); }
+    void refreshPdfAnnotations().catch(error => {
+      if (active === session && sourceBindingCurrent(session, binding)) status(`Color rule saved. PDF highlights could not refresh: ${error.message || 'Reopen the preview to refresh its display.'}`, true);
+    });
+    queueSync(session.project);
+  },
+  report: status,
+  onChoose: rule => {
+    const enabled = !!rule && /\.typ$/i.test(pdfPath);
+    $('typst-preview').dataset.highlighting = String(enabled);
+    $('typst-preview').style.setProperty('--active-highlighter', rule?.color || '#74b9a4');
+    $('pdf-highlight-selection').disabled = !enabled;
   },
 });
 let historyPresentation = null;
@@ -300,6 +351,7 @@ function openWordCount(trigger) {
   void wordCount.open(captured, { source, format: /\.typ$/i.test(captured.path) ? 'typ' : 'html', locale: document.documentElement.lang || 'en' });
 }
 function restoreWorkspacePreferences() {
+  workspacePreferences.editorCollapsed = false; workspacePreferences.previewCollapsed = false;
   for (const key of ['filesCollapsed', 'editorCollapsed', 'previewCollapsed', 'reviewOpen']) workspace.dataset[key] = String(workspacePreferences[key]);
   $('review-toggle').setAttribute('aria-pressed', String(workspacePreferences.reviewOpen));
   $('outline-panel').dataset.collapsed = String(workspacePreferences.outlineCollapsed);
@@ -401,6 +453,7 @@ function beginReanchor(marker) {
 }
 function showPane(name) {
   workspace.dataset[`${name === 'files' ? 'files' : name}Collapsed`] = 'false';
+  if (name === 'editor' || name === 'preview') { workspace.dataset.editorCollapsed = 'false'; workspace.dataset.previewCollapsed = 'false'; }
   mobileView(name);
   rememberWorkspace();
 }
@@ -670,7 +723,11 @@ const controlEffects = {
 };
 function publicationPath(session) {
   if (!session) return '';
-  return projects.find(project => project.id === session.project)?.mainDocument || (session.path.endsWith('.typ') ? session.path : '');
+  return projects.find(project => project.id === session.project)?.mainDocument || (/\.(typ|tex)$/.test(session.path) ? session.path : '');
+}
+function usesLatexPublication(project) {
+  const main = projects.find(candidate => candidate.id === project)?.mainDocument;
+  return /\.tex$/.test(main || (active?.project === project ? active.path : ''));
 }
 function publicationCurrent(result, session, path, inputs) {
   return publicationPreviewCurrent(result, {
@@ -713,9 +770,10 @@ async function setMainDocument(path) {
     assertSourceBinding(target.session, target);
   } else if (target && !sourceRootsEqual(target, inventoryRoot(project.id))) throw { code: 'stale_root', message: 'The project file tree changed while setting the main document.' };
   projects = projects.map(existing => existing.id === updated.id ? updated : existing);
+  if (currentProject()?.id === updated.id) await loadFiles();
   renderReview();
   if (active?.project === updated.id && !active.identityProblem) await loadPublicationPreview(active);
-  status(updated.mainDocument ? `Main document: ${updated.mainDocument}` : 'Recompile now uses the selected Typst source.');
+  status(updated.mainDocument ? `Main document: ${updated.mainDocument}` : 'Recompile now uses the selected Typst or LaTeX source.');
 }
 function queueSync(project, expectedRoot) {
   const root = expectedRoot === undefined ? null : { expectedRoot: sourceRoot({ expectedRoot }) };
@@ -734,8 +792,28 @@ function queueSync(project, expectedRoot) {
 }
 async function saveSession(session) {
   clearTimeout(saveTimers.get(session)); saveTimers.delete(session);
+  const binding = captureSourceBinding(session), version = session.version;
+  const before = { documentId: session.snapshot.documentId, content: session.snapshot.content,
+    sidecarRevision: session.snapshot.sidecarRevision, review: JSON.stringify(session.snapshot.review) };
+  const navigation = navigationIntent, closing = windowClosing;
+  const retryCurrent = () => sessions.get(keyFor(binding.project, binding.path)) === session
+    && sourceBindingCurrent(session, binding) && session.version === version
+    && session.snapshot.documentId === before.documentId && session.snapshot.content === before.content
+    && session.snapshot.sidecarRevision === before.sidecarRevision && JSON.stringify(session.snapshot.review) === before.review
+    && !session.conflict && !session.reviewProblem && navigationIntent === navigation && windowClosing === closing;
   let snapshot;
-  try { snapshot = await session.flush(); }
+  try {
+    for (let attempt = 0; ; attempt++) {
+      try { snapshot = await session.flush(); break; }
+      catch (error) {
+        // This exact native refusal happens before Save dispatch. Never retry
+        // another busy/error or an uncertain write outcome.
+        if (attempt >= 5 || error?.code !== 'busy' || error.message !== 'A local document operation is running. Retry this action.' || !retryCurrent()) throw error;
+        await new Promise(resolve => setTimeout(resolve, 50 * 2 ** attempt));
+        if (!retryCurrent()) throw error;
+      }
+    }
+  }
   catch (error) { if (session.identityProblem) { clearTimeout(saveTimers.get(session)); saveTimers.delete(session); compileScheduler.cancel(); } if(active === session) renderReview(); throw error; }
   if (active === session) { renderReview(); renderTabs(); $('save-label').textContent = saveLabel(session); }
   queueSync(session.project);
@@ -747,10 +825,10 @@ function decorations() {
   const ranges = [];
   for (const marker of review.markers) {
     const rule = review.rules.find(r => r.id === marker.rule);
-    if (marker.anchor.stale || !rule || marker.anchor.to > view.state.doc.length) continue;
-    ranges.push(Decoration.mark({ attributes: { style: `background-color:${rule.color}55;border-bottom:2px solid ${rule.color}`, title: `${rule.label}${marker.prompt ? ': ' + marker.prompt : ''}` } }).range(marker.anchor.from, marker.anchor.to));
+    if (marker.anchor.stale || !rule || marker.anchor.to > view.state.doc.length || view.state.doc.sliceString(marker.anchor.from, marker.anchor.to) !== marker.anchor.quote) continue;
+    ranges.push(Decoration.mark({ attributes: { style: `background-color:${rule.color}55;border-bottom:2px solid ${rule.color}`, title: `${rule.label}${marker.prompt ? ': ' + marker.prompt : ''}. Double-click or press F4 for color settings.` } }).range(marker.anchor.from, marker.anchor.to));
   }
-  for (const suggestion of review.suggestions) if (suggestion.status === 'pending' && !suggestion.anchor.stale && suggestion.anchor.to <= view.state.doc.length) {
+  for (const suggestion of review.suggestions) if (suggestion.status === 'pending' && !suggestion.anchor.stale && suggestion.anchor.to <= view.state.doc.length && view.state.doc.sliceString(suggestion.anchor.from, suggestion.anchor.to) === suggestion.anchor.quote) {
     ranges.push(Decoration.mark({ attributes: { style: `border-bottom:2px dotted ${suggestion.color}` } }).range(suggestion.anchor.from, suggestion.anchor.to));
   }
   ranges.sort((a, b) => a.from - b.from || a.to - b.to);
@@ -794,13 +872,17 @@ async function showPdf(result, session, path = publicationPath(session), inputs)
   if (generation !== pdfGeneration || !valid() || session !== active || publicationPath(session) !== path) { await loadingTask.destroy(); return; }
   await pdfLoadingTask?.destroy();
   if (generation !== pdfGeneration || !valid() || session !== active || publicationPath(session) !== path) { await loadingTask.destroy(); return; }
-  pdfViewer.clear(); pdfLoadingTask = loadingTask; pdfBytes = bytes; pdfPath = path; pdfSourceEpoch = sourceEpoch(result); pdfRoot = sourceRoot(result) ? { expectedRoot: sourceRoot(result) } : {}; pdfProject = binding.project;
+  pdfViewer.clear(); pdfAnnotations = []; pdfLoadingTask = loadingTask; pdfBytes = bytes; pdfPath = path; pdfSourceEpoch = sourceEpoch(result); pdfRoot = sourceRoot(result) ? { expectedRoot: sourceRoot(result) } : {}; pdfProject = binding.project;
   $('pdf-toolbar').hidden = showingLogs;
-  await pdfViewer.setDocument(pdf);
+  await pdfViewer.setDocument(pdf, { TextLayer: pdfjs.TextLayer, identity: result.pdfHash });
   if (generation !== pdfGeneration || !valid() || session !== active || pdfLoadingTask !== loadingTask) return;
   const current = publicationCurrent(result, session, path, inputs);
+  pdfReviewContext = { session, binding, generation, result, inputs };
+  colorPdfHighlights();
   pdfStatus(`${current ? 'Current PDF' : 'Last good PDF · recompile or verify inputs'} · ${pdf.numPages} page${pdf.numPages===1?'':'s'}`, current ? 'current' : 'stale');
   $('export-pdf').hidden = false;
+  // Drain this document read before releasing the next explicit build.
+  await refreshPdfAnnotations().catch(error => status(error.message || 'PDF highlights could not be loaded.', true));
 }
 async function loadPublicationPreview(session, intent = navigationIntent, read = request) {
   retireCompileNavigation();
@@ -810,6 +892,7 @@ async function loadPublicationPreview(session, intent = navigationIntent, read =
   const generation = ++pdfGeneration; const cleanup = pdfLoadingTask;
   pdfLoadingTask = null; pdfBytes = null; pdfPath = ''; pdfSourceEpoch = null; pdfRoot = {}; pdfProject = ''; pdfViewer.clear();
   $('typst-compile').hidden = !path; $('typst-compile').title = path ? `Compile ${path}` : '';
+  $('source-compile').hidden = !path;
   $('manuscript-preview').hidden = Boolean(path) || showingLogs; $('typst-preview').hidden = !path || showingLogs;
   $('export-pdf').hidden = true; $('pdf-toolbar').hidden = true; $('typst-preview-status').hidden = !path;
   pdfStatus(path ? `Compile ${path} to see its PDF.` : '', 'empty');
@@ -860,13 +943,33 @@ async function compileSession(session, explicit = false, path = publicationPath(
   const reportSession = active, reportEditor = view, reportNavigation = navigationIntent;
   let reportCurrent = null;
   compiling = true; $('typst-compile').textContent = 'Compiling…';
-  setCompileLog(`Compiling ${path} with Typst…`);
+  $('source-compile').textContent = 'Compiling…';
+  setCompileLog(`Compiling ${path}…`);
   try {
     if (active?.project === session.project && view?.compositionStarted) throw {message:'Finish the current text composition before compiling the project.'};
     for (const input of inputBindings) { checkInputs(); await saveSession(input.session); checkInputs(); }
     if ([...sessions.values()].some(input => input.project === session.project && (input.dirty || input.conflict || input.reviewProblem || input.identityProblem))) throw {message:'Project inputs changed while saving. Your buffers are kept; save them and compile again.'};
     checkInputs(); assertPublicationTarget(target, session, binding, mainChoice);
-    const snapshot = await request({action:'open',...captureSourceBinding(target)});
+    const openingVersions = inputBindings.map(input => [input.session, input.session.version]);
+    const checkOpening = () => {
+      checkInputs(); assertPublicationTarget(target, session, binding, mainChoice);
+      if (navigationIntent !== reportNavigation || openingVersions.some(([input, version]) => input.version !== version
+        || input.dirty || input.conflict || input.reviewProblem || input.identityProblem)) {
+        throw { code: 'stale_document', message: 'Project inputs or navigation changed before compilation started. Your draft is kept; the next build must use the current inputs.' };
+      }
+    };
+    let snapshot;
+    for (let attempt = 0; ; attempt++) {
+      checkOpening();
+      try { snapshot = await request({action:'open',...captureSourceBinding(target)}); break; }
+      catch (error) {
+        // Open can recover a journal. Only this pre-dispatch refusal is safe
+        // to retry; an uncertain Open or any Compile is never replayed here.
+        if (attempt >= 5 || error?.code !== 'busy' || error.message !== 'A local document operation is running. Retry this action.') throw error;
+        await new Promise(resolve => setTimeout(resolve, 50 * 2 ** attempt));
+      }
+    }
+    checkOpening();
     assertPublicationTarget(target, session, binding, mainChoice);
     assertSourceSnapshot(snapshot, target); checkInputs();
     const main = sessions.get(keyFor(session.project, path));
@@ -882,16 +985,19 @@ async function compileSession(session, explicit = false, path = publicationPath(
     };
     const result = await request({action:'compile',...captureSourceBinding(target),revision:snapshot.review.revision});
     checkInputs(); assertPublicationTarget(target, session, binding, mainChoice);
+    const treeRefreshError = smartFileTree && !/\.tex$/i.test(path) && currentProject()?.id === session.project ? await loadFiles().then(() => null, error => error) : null;
     const previewSession = active?.project === session.project && publicationPath(active) === path ? active : session;
     await showPdf(result,previewSession,path,inputs);
     const current = publicationCurrent(result, session, path, inputs);
     setCompileLog(`Compiled ${path} successfully.\n${current ? 'PDF matches the saved project inputs.' : result.externalDependencyCount ? 'External package inputs are not fully verified.' : 'Source changes are newer than this PDF, inputs could not be verified, or require conflict resolution.'}${!result.compileReport && result.diagnostics ? `\n\n${result.diagnostics}` : ''}`, result.compileReport, current ? reportCurrent : null);
-    status(current ? 'Typst PDF compiled locally.' : result.externalDependencyCount ? 'Compiled PDF retained; verify external package inputs.' : 'Compiled preview retained; recompile or verify project inputs.');
+    status(current ? 'PDF compiled locally.' : result.externalDependencyCount ? 'Compiled PDF retained; verify external package inputs.' : 'Compiled preview retained; recompile or verify project inputs.');
+    if (treeRefreshError) status(`PDF compiled. Refresh the Smart file tree: ${treeRefreshError.message || 'The dependency listing could not be refreshed.'}`, true);
   } catch (error) {
     if (active?.project === session.project && publicationPath(active) === path) pdfStatus(`${error.code === 'outcome_unknown' ? 'Build outcome unknown' : 'Compilation failed'}${pdfBytes ? ' · last good PDF retained' : ''}. Open the compilation log for details.`, 'error');
     setCompileLog(error.message || String(error), error.compileReport, reportCurrent); status(error.message, true); throw error;
   } finally {
     compiling=false; $('typst-compile').textContent = 'Recompile';
+    $('source-compile').textContent = 'Compile';
     releaseCompileQueue();
   }
 }
@@ -946,6 +1052,129 @@ function selectAnchor(anchor) {
 function actionButton(text, callback, className = '') {
   const button = element('button', text, className); button.dataset.measure = ''; button.onclick = task(callback); return button;
 }
+function currentColorPdf() {
+  const context = pdfReviewContext;
+  return /\.typ$/i.test(pdfPath) && !!context && active === context.session && context.generation === pdfGeneration
+    && pdfPath === active.path && publicationPath(active) === active.path && pdfProject === active.project
+    && pdfSourceEpoch === active.sourceEpoch && sourceRootsEqual(pdfRoot, active)
+    && sourceBindingCurrent(active, context.binding) && !active.dirty && !active.conflict
+    && !active.reviewProblem && !active.identityProblem && publicationCurrent(context.result, active, active.path, context.inputs);
+}
+function colorPdfHighlights() {
+  const review = active?.snapshot.review;
+  const annotations = displayedColorPdf() ? pdfAnnotations.filter(annotation => annotation.ownerPath !== active?.path) : [];
+  if (review && displayedColorPdf()) annotations.push(...(review.pdfAnnotations || []).map(annotation => ({ ...annotation, ownerPath: active.path, color: review.rules.find(rule => rule.id === annotation.rule)?.color || '#8295d2' })));
+  pdfViewer.setPdfAnnotations(annotations.filter(annotation => annotation.pdfPath === pdfPath));
+  const chosen = colorRules.chosen();
+  const enabled = !!chosen && /\.typ$/i.test(pdfPath);
+  $('pdf-highlight-selection').disabled = !enabled;
+  $('typst-preview').dataset.highlighting = String(enabled);
+  $('typst-preview').style.setProperty('--active-highlighter', chosen?.color || '#74b9a4');
+  const positioned = new Set(annotations.filter(annotation => annotation.identity === pdfViewer.identity).map(annotation => annotation.sourceMarkerId));
+  pdfViewer.setHighlights(currentColorPdf() ? review.markers.filter(marker => !positioned.has(marker.id) && !marker.anchor.stale && active.content.slice(marker.anchor.from, marker.anchor.to) === marker.anchor.quote)
+    .map(marker => ({ quote: marker.anchor.quote, ruleId: marker.rule, ownerPath: active.path, color: review.rules.find(rule => rule.id === marker.rule)?.color || '#8295d2' })) : []);
+}
+function captureColorSelection() {
+  if (!active || !view) return null;
+  if (windowClosing || view.compositionStarted) throw { message: 'Finish the current text composition before marking a passage.' };
+  if (active.reviewProblem || active.identityProblem || active.conflict) throw { message: 'Resolve the manuscript or review conflict before marking a passage.' };
+  const pdf = pdfViewer.selectedText();
+  let from, to, quote;
+  if (pdf) {
+    if (!currentColorPdf()) throw { message: 'This PDF does not match the current saved source. Recompile, or select the passage in the source editor.' };
+    quote = pdf.quote;
+    from = active.content.indexOf(quote); to = from + quote.length;
+    if (from < 0 || active.content.indexOf(quote, from + 1) !== -1) throw { message: 'The PDF selection cannot be matched to one exact source passage. Select it in the source editor instead.' };
+  } else {
+    if (view.state.selection.ranges.length !== 1) throw { message: 'Use a single source selection to mark a passage.' };
+    const range = view.state.selection.main;
+    if (range.empty) return null;
+    from = range.from; to = range.to; quote = view.state.sliceDoc(from, to);
+  }
+  return { session: active, editor: view, binding: captureSourceBinding(active), version: active.version, from, to, quote, pdf };
+}
+function assertColorSelection(selected) {
+  if (!selected) throw { message: 'Select a passage in the source editor or current PDF first.' };
+  const { session } = selected;
+  assertSourceBinding(session, selected.binding);
+  if (active !== session || view !== selected.editor || windowClosing || view.compositionStarted || selected.version !== session.version || session.content.slice(selected.from, selected.to) !== selected.quote || session.conflict) throw { message: 'The selection changed. Select the passage again before marking.' };
+  if (selected.pdf && (!currentColorPdf() || !pdfViewer.selectionCurrent(selected.pdf))) throw { message: 'The selected PDF changed. Select the passage again in the current PDF or source editor.' };
+}
+async function applyColorSelection(rule) {
+  const selected = captureColorSelection();
+  if (!selected) return false;
+  const { session } = selected, originalRule = JSON.stringify(rule);
+  const assertSelected = () => {
+    assertColorSelection(selected);
+    if (JSON.stringify(session.snapshot.review.rules.find(value => value.id === rule.id)) !== originalRule) throw { message: 'This color rule changed. Choose its current color again.' };
+  };
+  assertSelected();
+  if (selected.pdf && !await pdfViewer.isUniqueText(selected.quote)) throw { message: 'The PDF selection cannot be matched to one exact PDF passage. Select it in the source editor instead.' };
+  assertSelected();
+  if (session.snapshot.review.markers.some(marker => !marker.anchor.stale && marker.rule === rule.id && marker.anchor.from === selected.from && marker.anchor.to === selected.to && !marker.prompt)) return true;
+  await session.mutate('mark', { from: selected.from, to: selected.to, rule: rule.id, prompt: '' }, assertSelected);
+  if (active === session) { renderReview(); decorations(); }
+  queueSync(session.project); status(`Marked with ${rule.label}. ${rule.action === 'neutral' ? selectiveEditor.labels.neutralHelp : ['protect', 'reject'].includes(rule.action) ? 'The exact protected text must be preserved.' : rule.accessMode === 'direct' ? 'Direct edits are allowed within this color’s marked text.' : 'AI can only submit suggestions for your review.'}`);
+  return true;
+}
+function displayedColorPdf() {
+  return /\.typ$/i.test(pdfPath) && !!active && !!pdfViewer.pdf && !!pdfReviewContext
+    && pdfReviewContext.generation === pdfGeneration && pdfProject === active.project
+    && pdfPath === publicationPath(active) && sourceRootsEqual(pdfRoot, active)
+    && !active.reviewProblem && !active.identityProblem && !active.conflict && !windowClosing;
+}
+async function refreshPdfAnnotations() {
+  if (!displayedColorPdf() || !pdfViewer.identity) return;
+  const generation = pdfGeneration, project = pdfProject, path = pdfPath, identity = pdfViewer.identity;
+  const ticket = ++pdfAnnotationRequest;
+  const operation = { action: 'pdf_annotations', project, path, identity, ...pdfRoot, sourceEpoch: pdfSourceEpoch };
+  const current = () => ticket === pdfAnnotationRequest && generation === pdfGeneration && project === pdfProject && path === pdfPath && identity === pdfViewer.identity
+    && pdfSourceEpoch === operation.sourceEpoch && sourceRootsEqual(pdfRoot, operation) && displayedColorPdf();
+  let result;
+  for (let attempt = 0; ; attempt++) {
+    if (!current()) return;
+    try { result = await request(operation); break; }
+    catch (error) {
+      if (attempt >= 3 || error.code !== 'busy' || error.message !== 'A local document operation is running. Retry this action.') throw error;
+      await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1)));
+    }
+  }
+  if (!current()) return;
+  pdfAnnotations = result.annotations;
+  colorPdfHighlights();
+}
+async function applyPdfColorSelection(rule, pdf = pdfViewer.selectedText()) {
+  if (!pdf) return false;
+  if (!displayedColorPdf()) throw { message: 'Open this PDF in its project before highlighting it.' };
+  const session = active, binding = captureSourceBinding(session), path = pdfPath;
+  const originalRule = JSON.stringify(rule);
+  const assertCurrent = () => {
+    assertSourceBinding(session, binding);
+    if (active !== session || !displayedColorPdf() || pdfPath !== path || !pdfViewer.selectionCurrent(pdf)
+      || JSON.stringify(session.snapshot.review.rules.find(value => value.id === rule.id)) !== originalRule) throw { message: 'The PDF or highlighter changed. Select the words again.' };
+  };
+  assertCurrent();
+  const payload = { identity: pdf.identity, pdfPath: path, segments: pdf.segments, rule: rule.id, prompt: '' };
+  const sourceVersion = session.version;
+  const sourceFrom = session.content.indexOf(pdf.quote);
+  if (!session.dirty && pdf.segments.length === 1 && sourceFrom >= 0
+    && session.content.indexOf(pdf.quote, sourceFrom + 1) === -1 && await pdfViewer.isUniqueText(pdf.quote)) {
+    assertCurrent();
+    if (!session.dirty && session.version === sourceVersion) { payload.sourceFrom = sourceFrom; payload.sourceTo = sourceFrom + pdf.quote.length; }
+  }
+  await session.mutate('pdf_mark', payload, () => {
+    assertCurrent();
+    if (Object.hasOwn(payload, 'sourceFrom') && (session.dirty || session.version !== sourceVersion)) throw { message: 'The source changed while linking this PDF highlight. Select the PDF words again.' };
+  });
+  if (active === session) { renderReview(); decorations(); }
+  const selection = document.getSelection();
+  if (selection?.rangeCount && selection.getRangeAt(0).compareBoundaryPoints(0, pdf.range) === 0 && selection.getRangeAt(0).compareBoundaryPoints(2, pdf.range) === 0
+    && selection.anchorNode && $('typst-pages').contains(selection.anchorNode)) selection.removeAllRanges();
+  await refreshPdfAnnotations();
+  queueSync(session.project);
+  status(`PDF text highlighted with ${rule.label}. Drag over another passage, or press Escape to stop.`);
+  return true;
+}
 function renderReview() {
   if (currentCompileContext && !currentCompileContext()) retireCompileNavigation();
   historyPanel.changed();
@@ -958,6 +1187,7 @@ function renderReview() {
   reviewCardsObserved.clear(); list.replaceChildren($('review-conflict')); renderedReviewSession = active;
   reviewCue();
   const reviewBlocked = !!(active?.reviewProblem || active?.identityProblem);
+  colorRules.render(); colorPdfHighlights();
   $('manuscript-share').disabled = !active || !/\.(html?|typ)$/i.test(active.path) || (reviewBlocked && !active.snapshot.shared);
   if (sharingSession !== active) $('manuscript-share').checked = Boolean(active?.snapshot.shared);
   $('review-conflict').hidden = !active?.conflict;
@@ -970,12 +1200,12 @@ function renderReview() {
     if (reviewBlocked && ['save','highlight','palette','set-main-document'].includes(command)) button.disabled = true;
     if (insertionCommands.has(command)) button.disabled = !active?.path.endsWith('.typ');
     if (command === 'import') button.hidden = !active?.path.endsWith('.tex');
-    if (command === 'set-main-document') button.disabled = reviewBlocked || !active?.path.endsWith('.typ') || currentProject()?.mainDocument === active.path;
+    if (command === 'set-main-document') button.disabled = reviewBlocked || !/\.(typ|tex)$/.test(active?.path || '') || currentProject()?.mainDocument === active.path;
     if (command === 'clear-main-document') { button.disabled = !currentProject()?.mainDocument; button.title = currentProject()?.mainDocument || ''; }
   }
   const noReviewPassages = reviewBlocked || !reviewAnchors().length;
   $('review-previous').disabled = noReviewPassages; $('review-next').disabled = noReviewPassages;
-  if (!active) { $('typst-compile').hidden = true; $('pdf-toolbar').hidden = true; $('export-pdf').hidden = true; list.append(element('p', 'Select text in the editor to add a highlight or reviewer instruction.', 'review-empty')); return; }
+  if (!active) { $('source-compile').hidden = true; $('typst-compile').hidden = true; $('pdf-toolbar').hidden = true; $('export-pdf').hidden = true; list.append(element('p', 'Select text in the editor to add a highlight or reviewer instruction.', 'review-empty')); return; }
   const review = active.snapshot.review;
   if (reviewBlocked) {
     const session = active, problem = session.identityProblem || session.reviewProblem;
@@ -987,6 +1217,36 @@ function renderReview() {
     if (!session.identityProblem) card.append(actionButton('Check review data', () => { if (active === session) $('review-refresh').click(); }), actionButton('Export my buffer', () => { if (active === session) downloadBuffer(); }));
     if (session.identityProblem) card.append(actionButton('Export my buffer', () => { if (active === session) downloadBuffer(); }), actionButton('Load disk version', () => { if (active === session) $('reload-buffer').click(); }));
     list.append(card);
+  }
+  if (review.pdfAnnotations?.length) {
+    const details = element('details', '', 'pdf-review-highlights');
+    details.open = true;
+    const summary = element('summary', `PDF highlights (${review.pdfAnnotations.length})`); summary.dataset.measure = ''; details.append(summary);
+    for (const annotation of review.pdfAnnotations) {
+      const rule = review.rules.find(rule => rule.id === annotation.rule);
+      const card = element('article', '', 'review-card'); card.dataset.pdfAnnotation = annotation.id;
+      card.style.setProperty('--review-color', rule?.color || '#8295d2');
+      const heading = element('h3', `${rule?.label || 'PDF highlight'} · page ${annotation.segments[0].page}`); heading.dataset.measure = ''; card.append(heading);
+      card.append(element('blockquote', annotation.segments.map(segment => segment.quote).join('\n')));
+      if (rule?.prompt || annotation.prompt) card.append(element('p', [rule?.prompt, annotation.prompt].filter(Boolean).join(' '), 'rationale'));
+      const linked = review.markers.some(marker => marker.id === annotation.sourceMarkerId && marker.rule === annotation.rule && !marker.anchor.stale);
+      const note = element('p', linked ? 'PDF highlight linked to this source passage. Its color rules apply to AI suggestions.'
+        : ['protect', 'reject', 'discard'].includes(rule?.action)
+          ? 'PDF highlight awaiting a source link. AI changes are blocked for this project while this restriction remains.'
+          : 'Saved on the PDF. This passage is not yet linked to a source editing range.', 'rationale'); note.dataset.measure = ''; card.append(note);
+      if (annotation.identity !== pdfViewer.identity || annotation.pdfPath !== pdfPath) { const old = element('p', 'This mark belongs to another saved PDF version.', 'stale-note'); old.dataset.measure = ''; card.append(old); }
+      const actions = element('div', '', 'card-actions');
+      const locate = actionButton('Show in PDF', () => { showPane('preview'); pdfViewer.go(annotation.segments[0].page); });
+      locate.disabled = annotation.identity !== pdfViewer.identity || annotation.pdfPath !== pdfPath;
+      const remove = actionButton('Remove PDF highlight', async () => {
+        const session = active, binding = captureSourceBinding(session);
+        await session.mutate('pdf_unmark', { id: annotation.id }, () => assertSourceBinding(session, binding));
+        if (active === session) { renderReview(); decorations(); }
+        await refreshPdfAnnotations(); queueSync(session.project);
+      }); remove.dataset.pdfUnmark = annotation.id; remove.disabled = reviewBlocked;
+      actions.append(locate, remove); card.append(actions); details.append(card);
+    }
+    list.append(details);
   }
   const passages = element('div', '', 'review-passages'); passages.id = 'review-passages';
   list.append(passages);
@@ -1001,6 +1261,7 @@ function renderReview() {
     card.dataset.reviewId = marker.id; card.dataset.sourcePosition = String(marker.anchor.from);
     card.dataset.stale = String(marker.anchor.stale);
     const heading = element('h3', rule?.label || 'Highlight'); heading.dataset.measure = ''; card.append(heading);
+    if (rule?.action === 'neutral') card.append(element('p', selectiveEditor.labels.neutralHelp, 'rationale'));
     card.append(element('blockquote', marker.anchor.quote));
     if (reviewBlocked) card.append(element('p', 'Last known protection · review data needs resolution.', 'stale-note'));
     if (rule?.prompt || marker.prompt) card.append(element('p', [rule?.prompt, marker.prompt].filter(Boolean).join(' '), 'rationale'));
@@ -1008,20 +1269,22 @@ function renderReview() {
     const actions = element('div', '', 'card-actions');
     const locate = actionButton('Locate', () => locateReview(marker.id, marker.anchor)); locate.disabled = reviewBlocked || marker.anchor.stale;
     const remove = actionButton('Remove highlight', async () => { const session = active; await session.mutate('unmark', { id: marker.id }); if (active === session) { renderReview(); decorations(); } queueSync(session.project); }); remove.disabled = reviewBlocked;
-    actions.append(locate, remove);
+    const settings = actionButton('Color rule', event => colorRules.edit([marker.rule], event?.currentTarget)); settings.disabled = reviewBlocked;
+    actions.append(locate, settings, remove);
     if (marker.anchor.stale) { const reanchor = actionButton('Reanchor from selection', () => beginReanchor(marker)); reanchor.disabled = reviewBlocked; actions.prepend(reanchor); }
     card.append(actions); passages.append(card);
   }
   const pending = review.suggestions.filter(s => s.status === 'pending');
-  if (!pending.length) list.append(element('p', 'Agent suggestions will appear here after you share this manuscript and connect ChatGPT. Your text changes only when you accept.', 'review-empty'));
+  if (!pending.length) list.append(element('p', 'AI suggestions appear here for approval. Colors with direct access allow edits within their marked text.', 'review-empty'));
   for (const suggestion of pending) {
     const card = element('article', '', 'review-card suggestion-card'); card.style.setProperty('--review-color', suggestion.color);
     card.dataset.reviewId = suggestion.id; card.dataset.sourcePosition = String(suggestion.anchor.from);
     card.dataset.stale = String(suggestion.anchor.stale);
     const heading = element('h3', suggestion.replacement === '' ? 'Proposed deletion' : 'Proposed wording'); heading.dataset.measure = ''; card.append(heading);
-    const replacement = element('p', suggestion.replacement === '' ? 'Delete the quoted passage. Your text changes only when you accept.' : suggestion.replacement, 'replacement');
+    const replacement = element(suggestion.replacement === '' ? 'p' : 'ins', suggestion.replacement === '' ? 'Delete the quoted passage. Your text changes only when you accept.' : suggestion.replacement, 'replacement');
     if (suggestion.replacement === '') replacement.dataset.measure = '';
-    card.append(element('blockquote', suggestion.anchor.quote), replacement, element('p', suggestion.rationale, 'rationale'));
+    const original = element('blockquote'); original.append(element('del', suggestion.anchor.quote));
+    card.append(original, replacement, element('p', suggestion.rationale, 'rationale'));
     if (suggestion.prompt) card.append(element('p', suggestion.prompt, 'rationale'));
     if (suggestion.anchor.stale) card.append(element('p', 'The original passage changed. Ask for a new suggestion.', 'stale-note'));
     const actions = element('div', '', 'card-actions');
@@ -1090,6 +1353,7 @@ async function mountSession(session, intent, read = request, binding = captureSo
   await cleanup?.destroy();
   if (!sessionNavigationCurrent(intent, session, binding)) return;
   active = session;
+  if (lastFileInventory?.project === session.project && $('files-smart').disabled !== usesLatexPublication(session.project)) renderFiles(lastFileInventory, session.project);
   selectedReviewId = session.reviewSelectedId || null;
   // Literal carriage returns stay in the document so review UTF-16 positions match the saved source.
   const extensions = [EditorState.lineSeparator.of('\n'), highlightSpecialChars({ render: code => {
@@ -1097,7 +1361,7 @@ async function mountSession(session, intent, read = request, binding = captureSo
     const carriage = element('span', '', 'cm-preserved-cr'); carriage.setAttribute('aria-hidden', 'true'); return carriage;
   } }), basicSetup, editorWrapping.of(workspacePreferences.wordWrap ? EditorView.lineWrapping : []), reviewField, windowEditing.of(windowEditorAccess()), EditorView.domEventHandlers({
     compositionstart: () => { queueMicrotask(() => { editorBridge.changed(session); wordCount.changed(); }); },
-    compositionend: () => { setTimeout(() => editorBridge.changed(session), 0); },
+    compositionend: () => { setTimeout(() => { editorBridge.changed(session); if (active === session) decorations(); }, 0); },
   }), EditorView.updateListener.of(update => {
     if (update.docChanged || update.selectionSet) queueMicrotask(() => wordCount.changed());
     if (update.selectionSet && !session.dirty && !update.docChanged && !update.view.compositionStarted && active === session) {
@@ -1109,6 +1373,7 @@ async function mountSession(session, intent, read = request, binding = captureSo
     if (!update.docChanged || update.transactions.some(t => t.annotation(authoritative))) return;
     const wasDirty = session.dirty;
     session.edit(update.state.doc.toString());
+    colorPdfHighlights();
     noteProjectEdit(session.project);
     if (active === session && !wasDirty) { $('save-label').textContent = 'Unsaved changes'; renderTabs(); }
     clearTimeout(saveTimers.get(session));
@@ -1168,9 +1433,17 @@ async function loadFiles(intent = navigationIntent, expectedRoot) {
   if (root && !sourceRootsEqual(root, inventoryRoot(project))) throw { code: 'stale_root', message: 'The project folder changed. Refresh its file tree deliberately.' };
   if (!navigationCurrent(intent, project)) return;
   const generation = ++fileInventoryGeneration;
-  if (!project) { $('manuscript-files').replaceChildren(); delete $('manuscript-files').dataset.project; return; }
+  if (!project) { lastFileInventory = null; $('manuscript-files').replaceChildren(); delete $('manuscript-files').dataset.project; return; }
   if ($('manuscript-files').dataset.project !== project) { $('manuscript-files').replaceChildren(); delete $('manuscript-files').dataset.project; }
-  const files = await request({ action: 'project_tree', project, ...(root || {}) });
+  let files;
+  for (let attempt = 0; ; attempt += 1) {
+    if (generation !== fileInventoryGeneration || project !== $('project-select').value) return;
+    try { files = await request({ action: 'project_tree', project, ...(root || {}) }); break; }
+    catch (error) {
+      if (attempt >= 3 || error.code !== 'busy' || error.message !== 'Another document operation is running.') throw error;
+      await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1)));
+    }
+  }
   if (root && (project !== $('project-select').value || !sourceRootsEqual(root, files) || !sourceRootsEqual(root, inventoryRoot(project)))) throw { code: 'stale_root', message: 'The project folder changed while refreshing its tree. Refresh it deliberately.' };
   if (generation !== fileInventoryGeneration || project !== $('project-select').value) return;
   renderFiles(files, project);
@@ -1181,6 +1454,17 @@ function rememberExpandedFolders() {
 }
 function renderFiles(inventory, project) {
   if (inventory.project !== project) throw { message: 'The file listing belongs to a different project. Refresh the file tree.' };
+  lastFileInventory = inventory;
+  const latex = usesLatexPublication(project), smart = smartFileTree && !latex;
+  const latexNotice = 'LaTeX files use the full project tree. Smart filtering currently applies to Typst sources.';
+  $('files-smart').disabled = latex;
+  $('files-smart').setAttribute('aria-checked', String(smart));
+  $('files-smart').title = latex ? latexNotice : 'Show only Typst sources used by the main document';
+  const tree = $('manuscript-files');
+  const focused = tree.dataset.project === project && tree.contains(document.activeElement) ? document.activeElement : null;
+  const focusedPath = focused?.dataset.path || (focused?.matches('.file-folder > summary') ? focused.parentElement.dataset.path : null);
+  const scroll = tree.dataset.project === project && tree.dataset.smart === String(smart) ? tree.scrollTop : 0;
+  tree.dataset.smart = String(smart);
   const expectedRoot = sourceRoot(inventory), root = Object.freeze(expectedRoot ? { expectedRoot } : {});
   $('manuscript-files').replaceChildren();
   $('manuscript-files').dataset.project = project;
@@ -1190,10 +1474,16 @@ function renderFiles(inventory, project) {
       if (node.kind === 'directory') {
         const folder = element('details', '', 'file-folder'); const key = `${project}:${node.path}`;
         folder.dataset.path = node.path;
-        folder.open = expandedFolders.has(key); const summary = element('summary', node.name); summary.dataset.measure = ''; summary.setAttribute('aria-label', `Folder ${node.path}`);
+        folder.open = smart ? !smartCollapsedFolders.has(key) : expandedFolders.has(key); const summary = element('summary', node.name); summary.dataset.measure = ''; summary.setAttribute('aria-label', `Folder ${node.path}`);
         folder.ontoggle = () => {
-          if (folder.open) expandedFolders.add(key); else expandedFolders.delete(key);
-          rememberExpandedFolders();
+          if (!folder.isConnected) return;
+          if (smart) {
+            if (folder.open) smartCollapsedFolders.delete(key); else smartCollapsedFolders.add(key);
+            while (smartCollapsedFolders.size > 500) smartCollapsedFolders.delete(smartCollapsedFolders.values().next().value);
+          } else {
+            if (folder.open) expandedFolders.add(key); else expandedFolders.delete(key);
+            rememberExpandedFolders();
+          }
         };
         const children = element('div', '', 'tree-children'); appendTree(node.children, children); folder.append(summary, children); parent.append(folder);
       } else if (node.editable) {
@@ -1204,12 +1494,20 @@ function renderFiles(inventory, project) {
       }
     }
   }
-  appendTree(manuscriptTree(inventory.entries), $('manuscript-files'));
+  const entries = smart ? smartSourceEntries(inventory) : inventory.entries;
+  appendTree(manuscriptTree(entries), $('manuscript-files'));
   const notices = [];
+  if (latex) notices.push(latexNotice);
+  else if (smart) notices.push(smartSourceNotice(inventory));
   if (inventory.truncated) notices.push('Inventory limit reached. Some items are not shown.');
   if (inventory.omittedNonUtf8) notices.push(`${inventory.omittedNonUtf8} non-UTF-8 filename${inventory.omittedNonUtf8 === 1 ? ' was' : 's were'} omitted.`);
   if (!inventory.entries.length && !notices.length) notices.push('No visible files or folders yet. Use the File menu to create one.');
   if (notices.length) { const help = element('p', notices.join(' '), 'file-help'); help.setAttribute('role', 'status'); help.dataset.measure = ''; $('manuscript-files').append(help); }
+  if (focusedPath) {
+    const replacement = [...tree.querySelectorAll(focused.matches('summary') ? '.file-folder > summary' : '.file-button')].find(node => (node.dataset.path || node.parentElement.dataset.path) === focusedPath);
+    (replacement || $('files-smart')).focus({ preventScroll: true });
+  }
+  tree.scrollTop = scroll;
 }
 function openNewFolder() {
   const project = currentProject();
@@ -1327,10 +1625,14 @@ function paletteRows() {
     const color = element('input'); color.type = 'color'; color.value = rule.color; color.setAttribute('aria-label', `${rule.label} color`); color.oninput = () => { rule.color = color.value; };
     const label = element('input'); label.value = rule.label; label.maxLength = 100; label.required = true; label.setAttribute('aria-label', 'Rule name'); label.oninput = () => { rule.label = label.value; };
     const action = element('select'); action.setAttribute('aria-label', 'Rule action');
-    for (const [value, name] of [['protect', 'No agent changes allowed'], ['prompt', 'Follow custom prompt'], ['discard', 'Discard idea'], ['reject', 'Reject agent changes']]) { const option = element('option', name); option.value = value; action.append(option); }
-    action.value = rule.action; action.onchange = () => { rule.action = action.value; };
-    const prompt = element('textarea'); prompt.value = rule.prompt; prompt.rows = 2; prompt.maxLength = 4000; prompt.setAttribute('aria-label', 'Fixed reviewer prompt'); prompt.oninput = () => { rule.prompt = prompt.value; };
-    row.append(color, label, action, prompt); $('palette-rules').append(row);
+    for (const { id, label: name } of selectiveEditor.actions) { const option = element('option', name); option.value = id; action.append(option); }
+    const access = element('select'); access.setAttribute('aria-label', 'AI access for this color');
+    for (const { id, label: name } of selectiveEditor.accessModes) { const option = element('option', name); option.value = id; access.append(option); }
+    access.value = rule.accessMode === 'direct' ? 'direct' : 'suggestions'; access.disabled = rule.action !== 'prompt';
+    access.onchange = () => { rule.accessMode = access.value; };
+    action.value = rule.action; action.onchange = () => { rule.action = action.value; access.disabled = rule.action !== 'prompt'; if (access.disabled) { rule.accessMode = 'suggestions'; access.value = 'suggestions'; } prompt.disabled = rule.action === 'neutral'; if (prompt.disabled) { rule.prompt = ''; prompt.value = ''; } };
+    const prompt = element('textarea'); prompt.value = rule.prompt; prompt.disabled = rule.action === 'neutral'; prompt.rows = 2; prompt.maxLength = 4000; prompt.setAttribute('aria-label', 'Fixed reviewer prompt'); prompt.oninput = () => { rule.prompt = prompt.value; };
+    row.append(color, label, action, prompt, access); $('palette-rules').append(row);
   }
 }
 for (const button of document.querySelectorAll('[data-close]')) button.onclick = () => button.closest('dialog').close();
@@ -1353,6 +1655,15 @@ $('project-open').onclick = task(async () => {
 $('project-form').onsubmit = task(async event => { event.preventDefault(); const intent = ++navigationIntent; const project = await request({ action: 'add_project', root: $('project-root').value }); if (intent !== navigationIntent) return; closeDialogs(); await loadProjects(project.id, intent); });
 $('project-select').onchange = task(() => selectProject(++navigationIntent, $('project-select').value));
 $('file-new').onclick = task(async () => { const project = currentProject(); if (!project) throw {message:'Choose a project folder first.'}; newFileContext = { project: project.id, ...inventoryRoot(project.id) }; $('new-dialog').showModal(); });
+$('files-smart').setAttribute('aria-checked', String(smartFileTree));
+$('files-smart').onclick = task(async () => {
+  smartFileTree = !smartFileTree;
+  $('files-smart').setAttribute('aria-checked', String(smartFileTree));
+  try { localStorage.setItem('undertree.smart-file-tree', String(smartFileTree)); } catch { /* Storage availability does not affect navigation. */ }
+  const project = currentProject()?.id;
+  if (lastFileInventory?.project === project) renderFiles(lastFileInventory, project);
+  else await loadFiles();
+});
 $('file-import-choose').onclick = task(() => fileImport.choose($('file-import-parent').value));
 $('file-import-clear').onclick = task(() => fileImport.clear());
 $('file-import-submit').onclick = task(() => fileImport.commit());
@@ -1412,20 +1723,86 @@ $('new-form').onsubmit = task(async event => {
   await loadFiles(intent); await openSession(session, intent);
 });
 $('manuscript-save').onclick = task(async () => { closeWorkspaceMenus(); if (active) await saveSession(active); });
+$('highlight-rule').onchange = () => colorRules.select($('highlight-rule').value);
+$('pdf-highlight-selection').onclick = task(async () => {
+  const rule = colorRules.chosen();
+  if (!rule) throw { message: 'Choose a highlighter color first.' };
+  if (!await applyPdfColorSelection(rule)) throw { message: 'Select words on the PDF page first.' };
+});
+{
+  const source = $('manuscript-source');
+  let dragging = null;
+  source.addEventListener('pointerdown', event => {
+    dragging = event.button === 0 && !!colorRules.chosen() && !!event.target.closest('.cm-content') ? { x: event.clientX, y: event.clientY } : null;
+  });
+  source.addEventListener('pointercancel', () => { dragging = null; });
+  source.addEventListener('pointerup', event => {
+    const mark = dragging && event.button === 0 && Math.hypot(event.clientX - dragging.x, event.clientY - dragging.y) >= 3; dragging = null;
+    if (!mark || !colorRules.chosen() || view?.compositionStarted) return;
+    const rule = colorRules.chosen();
+    queueMicrotask(() => {
+      if (colorRules.chosen()?.id !== rule.id) return;
+      void task(() => applyColorSelection(rule))();
+    });
+  });
+  source.addEventListener('dblclick', task(event => {
+    if (!active || !view || !event.target.closest('.cm-content')) return;
+    const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (position === null) return;
+    const colors = sourceHighlightColors(active.snapshot.review, view.state.doc.toString(), position);
+    if (!colors.length) return;
+    event.preventDefault(); colorRules.edit(colors, view.contentDOM);
+  }), true);
+  source.addEventListener('keydown', task(event => {
+    if (event.key !== 'F4' || !active || !view || document.querySelector('dialog[open]')) return;
+    const range = view.state.selection.main;
+    const colors = sourceHighlightColors(active.snapshot.review, view.state.doc.toString(), range.from, range.to);
+    if (!colors.length) return;
+    event.preventDefault(); colorRules.edit(colors, view.contentDOM);
+  }));
+}
+function editPdfHighlightColor(event, point) {
+  if (!active || !displayedColorPdf() || view?.compositionStarted) return;
+  const highlights = pdfViewer.highlightedRulesAt(point);
+  const colors = highlights.filter(record => record.ownerPath === active.path).map(record => record.ruleId);
+  if (!colors.length) {
+    if (highlights.length) status('This highlight belongs to another source file. Open its owning source to configure the color.');
+    return;
+  }
+  event.preventDefault(); colorRules.edit(colors, $('typst-preview'));
+}
+$('typst-preview').addEventListener('dblclick', task(event => editPdfHighlightColor(event, event)));
+$('typst-preview').addEventListener('keydown', task(event => {
+  if (event.key === 'F4' && !document.querySelector('dialog[open]')) editPdfHighlightColor(event);
+}));
+setupPdfTextSelection({
+  scroller: $('typst-preview'), pages: $('typst-pages'),
+  identity: () => pdfViewer.pdf && active ? `${pdfGeneration}:${pdfViewer.generation}:${pdfViewer.identity}:${active.project}:${active.path}:${active.sourceEpoch}` : null,
+  onComplete: () => {
+    const rule = colorRules.chosen(), selected = pdfViewer.selectedText();
+    if (rule && selected && displayedColorPdf() && !view?.compositionStarted) void task(() => applyPdfColorSelection(rule, selected))();
+  },
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && colorRules.chosen() && !document.querySelector('dialog[open]')) { colorRules.clear(); status('Passage marking stopped.'); }
+});
 $('highlight-selection').onclick = task(async () => {
   closeWorkspaceMenus();
-  if (!active || !view) return; const selected = view.state.selection.main;
-  if (selected.empty) throw {message:'Select a passage in the source editor first.'};
-  selection = { session: active, binding: captureSourceBinding(active), from: selected.from, to: selected.to, quote: view.state.sliceDoc(selected.from, selected.to), version: active.version };
+  if (!active || !view) return;
+  selection = captureColorSelection();
+  if (!selection) throw {message:'Select a passage in the source editor or current PDF first.'};
+  selection.rules = JSON.stringify(active.snapshot.review.rules);
   $('highlight-quote').textContent = selection.quote; $('highlight-dialog-rule').value = $('highlight-rule').value; $('highlight-prompt').value = ''; $('highlight-dialog').showModal();
 });
 $('highlight-form').onsubmit = task(async event => {
   event.preventDefault(); const selected = selection;
   const session = selected?.session;
   const assertSelected = () => {
-    if (session) assertSourceBinding(session, selected.binding);
-    if (!session || session !== active || selected.version !== session.version || session.content.slice(selected.from, selected.to) !== selected.quote) throw {message:'The selection changed. Select the passage again.'};
+    assertColorSelection(selected);
+    if (JSON.stringify(session.snapshot.review.rules) !== selected.rules) throw {message:'The color rules changed. Select the passage and color again.'};
   };
+  assertSelected();
+  if (selected.pdf && !await pdfViewer.isUniqueText(selected.quote)) throw { message: 'The PDF selection cannot be matched to one exact PDF passage. Select it in the source editor instead.' };
   assertSelected();
   await session.mutate('mark', { from: selected.from, to: selected.to, rule: $('highlight-dialog-rule').value, prompt: $('highlight-prompt').value }, assertSelected);
   if (selection === selected) $('highlight-dialog').close();
@@ -1445,41 +1822,65 @@ $('reanchor-form').onsubmit = task(async event => {
   queueSync(selected.session.project);
   status('Highlight reanchored.');
 });
-$('palette-open').onclick = task(async () => { closeWorkspaceMenus(); if (!active) return; paletteSession = active; paletteBinding = captureSourceBinding(active); palette = structuredClone(active.snapshot.review.rules); paletteRows(); $('palette-dialog').showModal(); });
-$('rule-add').onclick = () => { if (palette.length >= 24) return; palette.push({ id: crypto.randomUUID(), label: 'Custom instruction', color: '#8295d2', action: 'prompt', prompt: '' }); paletteRows(); };
+$('palette-open').onclick = task(async () => { closeWorkspaceMenus(); if (!active) return; if (view?.compositionStarted) throw { message: 'Finish the current text composition before changing color rules.' }; paletteSession = active; paletteBinding = captureSourceBinding(active); palette = structuredClone(active.snapshot.review.rules); paletteOriginal = structuredClone(palette); paletteRows(); $('palette-dialog').showModal(); });
+$('rule-add').onclick = () => { if (palette.length >= 24) return; palette.push({ id: crypto.randomUUID(), label: 'Custom instruction', color: '#8295d2', action: 'prompt', prompt: '', accessMode: 'suggestions' }); paletteRows(); };
 $('palette-form').onsubmit = task(async event => {
   event.preventDefault(); const session = paletteSession; if (!session || session !== active) throw {message:'The manuscript changed. Open its color rules again.'};
-  const rules = palette, binding = paletteBinding;
-  await session.mutate('palette', { rules }, () => assertSourceBinding(session, binding));
+  const rules = palette, binding = paletteBinding, expectedRules = paletteOriginal;
+  await session.mutate('palette', { rules, expectedRules }, () => {
+    assertSourceBinding(session, binding);
+    if (session !== active || windowClosing || view?.compositionStarted || JSON.stringify(session.snapshot.review.rules) !== JSON.stringify(expectedRules)) throw {message:'The manuscript or its color rules changed. Reopen its color rules before saving.'};
+  });
   if (paletteSession === session && palette === rules) $('palette-dialog').close();
   if (active === session) { renderReview(); decorations(); } queueSync(session.project);
 });
 $('manuscript-share').onchange = task(async () => {
   if (!active) return;
   const session = active; const binding = captureSourceBinding(session); const enabled = $('manuscript-share').checked; sharingSession = session;
+  const version = session.version;
+  const intent = ++contextShareIntent;
+  let submitted = false;
   try {
-    if (enabled) { assertSourceBinding(session, binding); await saveSession(session); assertSourceBinding(session, binding); }
-    const response = await request({action:'share',project:binding.project,path:binding.path,enabled,...(enabled ? binding : {})});
-    if (enabled) { assertSourceBinding(session, binding); if (!sourceRootsEqual(response, binding)) throw { code: 'stale_root', message: 'The sharing response belongs to another project folder identity.' }; if (sourceEpoch(response) !== binding.sourceEpoch) throw { code: 'stale_document', message: 'The sharing response belongs to another source identity.' }; }
+    const assertCurrent = () => {
+      if (intent !== contextShareIntent) throw { code: 'context_changed', message: 'Context sharing changed. Open its confirmation again if access is still needed.' };
+      assertContextShareReady(session, binding, { version, composing: !!view?.compositionStarted, closing: windowClosing });
+    };
+    const preview = enabled ? await contextSharing.confirm({ binding, assertCurrent }) : null;
+    if (enabled && !preview) return;
+    if (enabled) assertCurrent();
+    submitted = true;
+    const response = await request({action:'share',project:binding.project,path:binding.path,enabled,...(enabled ? { ...binding, contextShared: true, expectedContextScope: preview.scopeId } : {})});
+    if (enabled) { assertCurrent(); if (!sourceRootsEqual(response, binding)) throw { code: 'stale_root', message: 'The sharing response belongs to another project folder identity.' }; if (sourceEpoch(response) !== binding.sourceEpoch) throw { code: 'stale_document', message: 'The sharing response belongs to another source identity.' }; }
     if (typeof response.shared !== 'boolean' || response.shared !== enabled || (enabled && response.documentId !== session.snapshot.documentId)) throw { message: 'The sharing change could not be confirmed. Refresh Connections to check native access.' };
     if (session.project === binding.project && session.path === binding.path && session.sourceEpoch === binding.sourceEpoch && sourceRootsEqual(session, binding) && sessions.get(keyFor(session.project,session.path)) === session && session.snapshot.shared !== response.shared) session.snapshot = { ...session.snapshot, shared: response.shared };
     void connections.refresh().catch(() => {});
+  } catch (error) {
+    if (enabled && submitted) {
+      try {
+        const revoked = await request({ action: 'share', project: binding.project, path: binding.path, enabled: false });
+        if (revoked.shared !== false) throw Error('Revocation was not confirmed.');
+      } catch { throw { code: 'context_uncertain', message: 'Context sharing could not be confirmed or revoked. Open Connections to inspect current access.' }; }
+      if (sourceBindingCurrent(session, binding)) session.snapshot = { ...session.snapshot, shared: false };
+    }
+    throw error;
   }
   finally { sharingSession = null; renderReview(); }
 });
 $('review-refresh').onclick = task(async () => {
   const session = active; if (!session) return;
-  const problem = session.reviewProblem;
+  const problem = session.reviewProblem, previousSnapshot = session.snapshot;
   let refreshed;
-  try { refreshed = await session.refresh({ retryProblem: true, isCurrent: () => active === session && !windowClosing && !view?.compositionStarted && sessions.get(keyFor(session.project,session.path)) === session }); }
+  try { refreshed = await session.refresh({ retryProblem: true, metadataOnly: true, directEdits: true, isCurrent: () => active === session && !windowClosing && !view?.compositionStarted && sessions.get(keyFor(session.project,session.path)) === session }); }
   catch (error) { if (active === session) throw error; return; }
   if (active !== session) return;
+  renderDirectEdit(session, previousSnapshot);
   renderReview(); decorations(); $('save-label').textContent = saveLabel(session);
   if (problem && refreshed && !session.reviewProblem) status(session.conflict ? 'Review data restored. Resolve the source change before saving.' : session.dirty ? 'Review data restored. Your unsaved draft is kept; Save when ready.' : 'Review data restored.');
 });
 $('export-buffer').onclick = downloadBuffer;
 $('export-manuscript').onclick = () => { closeWorkspaceMenus(); downloadBuffer(); };
 $('typst-compile').onclick = task(() => compileSession(active,true));
+$('source-compile').onclick = task(() => { showPane('preview'); return compileSession(active,true); });
 $('tex-import').onclick = task(async () => {
   closeWorkspaceMenus();
   if (!active?.path.endsWith('.tex')) return;
@@ -1498,7 +1899,7 @@ $('tex-import').onclick = task(async () => {
 });
 $('export-pdf').onclick = () => {
   if (!pdfBytes || !pdfPath) return;
-  const url = URL.createObjectURL(new Blob([pdfBytes],{type:'application/pdf'})); const a=element('a'); a.href=url; a.download=pdfPath.split('/').pop().replace(/\.typ$/,'.pdf'); a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+  const url = URL.createObjectURL(new Blob([pdfBytes],{type:'application/pdf'})); const a=element('a'); a.href=url; a.download=pdfPath.split('/').pop().replace(/\.(typ|tex)$/i,'.pdf'); a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
 };
 $('reload-buffer').onclick = task(async () => {
   if (!active) return;
@@ -1528,6 +1929,7 @@ $('reload-buffer').onclick = task(async () => {
 const connections = setupConnectionManager({
   request, controlRequest, status,
   onRevoked: share => {
+    contextShareIntent += 1;
     sharedManuscripts = share ? sharedManuscripts.filter(existing => existing.documentId !== share.documentId) : [];
     for (const session of sessions.values()) if ((!share || (session.project === share.project && session.path === share.path)) && session.snapshot.shared) session.snapshot = { ...session.snapshot, shared: false };
     renderReview();
@@ -1567,8 +1969,6 @@ $('outline-toggle').onclick = () => {
 };
 $('rail-editor').onclick = () => showPane('editor'); $('rail-preview').onclick = () => showPane('preview');
 $('files-collapse').onclick = () => { workspace.dataset.filesCollapsed = 'true'; rememberWorkspace(); };
-$('editor-collapse').onclick = () => { workspace.dataset.editorCollapsed = 'true'; workspace.dataset.previewCollapsed = 'false'; mobileView('preview'); rememberWorkspace(); };
-$('preview-collapse').onclick = () => { workspace.dataset.previewCollapsed = 'true'; workspace.dataset.editorCollapsed = 'false'; mobileView('editor'); rememberWorkspace(); };
 $('editor-search').onclick = () => { if (view) { showPane('editor'); openSearchPanel(view); } };
 $('pdf-previous').onclick = () => pdfViewer.go(pdfViewer.page - 1); $('pdf-next').onclick = () => pdfViewer.go(pdfViewer.page + 1);
 $('pdf-page-number').onchange = () => { pdfViewer.go(Number($('pdf-page-number').value)); $('pdf-page-number').value = String(pdfViewer.page); };
@@ -1685,12 +2085,13 @@ windowChrome = await setupWindowChrome({
     }
   },
 });
+setupDialogLayout(document);
 observeReviewText(document.body);
 for (const button of document.querySelectorAll('[data-command="history"]')) button.disabled = !nativeReview;
 for (const hint of document.querySelectorAll('.history-desktop-help')) hint.hidden = nativeReview;
 editorBridge.start();
-window.addEventListener('pagehide', () => { historyPanel.back(); wordCount.close(); appControls?.stop(); editorBridge.stop(); for (const session of sessions.values()) void editorBridge.unwatch(session); });
-window.addEventListener('pageshow', event => { if (event.persisted) { for (const session of sessions.values()) editorBridge.watch(session); editorBridge.start(); appControls?.start(); } });
+window.addEventListener('pagehide', () => { historyPanel.back(); wordCount.close(); appControls?.stop(); reviewChanges?.stop(); editorBridge.stop(); for (const session of sessions.values()) void editorBridge.unwatch(session); });
+window.addEventListener('pageshow', event => { if (event.persisted) { for (const session of sessions.values()) editorBridge.watch(session); editorBridge.start(); appControls?.start(); reviewChanges?.start(); } });
 await task(async () => { await loadProjects(); renderReview(); await connections.refresh(); })();
 appControls = new McpControlBridge({
   request: controlRequest, snapshot: controlWorkspaceSnapshot, effects: controlEffects,
@@ -1704,15 +2105,44 @@ appControls = new McpControlBridge({
   },
 });
 appControls.start();
-setInterval(async () => {
-  if (document.hidden || refreshing || !active || active.dirty || active.conflict || active.reviewProblem || active.identityProblem) return;
+function renderDirectEdit(session, previousSnapshot) {
+  const receipt = session.snapshot.directEdit;
+  if (session.conflict || session.dirty || session.content === previousSnapshot.content || session.content !== session.snapshot.content
+    || receipt?.fromRevision !== previousSnapshot.review.revision || receipt?.toRevision !== session.snapshot.review.revision) return;
+  view.dispatch({ changes: acceptedTextChange(view.state.doc.toString(), session.content), annotations: [authoritative.of(true), Transaction.userEvent.of('input.review')] });
+  noteProjectEdit(session.project); preview(); renderTabs(); $('save-label').textContent = saveLabel(session);
+  pdfStatus('Marked text updated · last good PDF retained');
+  if (publicationPath(session)) compileScheduler.request(keyFor(session.project, session.path));
+  status('AI edited text within a color rule with direct access.');
+}
+async function refreshLiveReview() {
+  if (refreshing) { reviewRefreshQueued = true; return; }
+  if (windowClosing || !active || active.conflict || active.reviewProblem || active.identityProblem) return;
   refreshing = true;
   const session = active;
   try {
-    const before = JSON.stringify(session.snapshot.review);
-    await session.refresh();
-    if (active === session && (before !== JSON.stringify(session.snapshot.review) || session.conflict)) { renderReview(); decorations(); queueSync(session.project); }
+    const known = new Set(session.snapshot.review.suggestions.map(item => item.id));
+    const before = JSON.stringify(session.snapshot.review), previousSnapshot = session.snapshot;
+    for (let attempt = 0; ; attempt++) {
+      try { await session.refresh({ metadataOnly: true, directEdits: true, isCurrent: () => active === session && !windowClosing && !view?.compositionStarted && sessions.get(keyFor(session.project, session.path)) === session }); break; }
+      catch (error) {
+        if (attempt >= 3 || error?.code !== 'busy' || active !== session || windowClosing) throw error;
+        await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1)));
+      }
+    }
+    if (active === session && (before !== JSON.stringify(session.snapshot.review) || session.conflict)) {
+      renderDirectEdit(session, previousSnapshot);
+      const arrived = session.snapshot.review.suggestions.filter(item => item.status === 'pending' && !known.has(item.id));
+      renderReview(); if (!view?.compositionStarted) decorations(); queueSync(session.project);
+      if (arrived.length && innerWidth > 900) reviewPanel(true);
+    }
     if (session.conflict && active?.project === session.project && publicationPath(active)) pdfStatus('Project input conflict · last good PDF retained');
   } catch (error) { if (active === session) { if (session.identityProblem) { clearTimeout(saveTimers.get(session)); saveTimers.delete(session); compileScheduler.cancel(); renderReview(); pdfStatus('Source identity changed · last good PDF retained'); } status(error.message, true); } }
-  finally { refreshing = false; }
-}, 2000);
+  finally {
+    refreshing = false;
+    if (reviewRefreshQueued) { reviewRefreshQueued = false; void refreshLiveReview(); }
+  }
+}
+reviewChanges = new ReviewChangeBridge({ request: editorRequest, onChange: refreshLiveReview });
+reviewChanges.start();
+setInterval(() => { if (!document.hidden) void refreshLiveReview(); }, 2000);

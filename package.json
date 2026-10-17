@@ -32,6 +32,13 @@
     "test:review": "node --test tests/review-session.test.mjs tests/review-position.test.mjs tests/source-format.test.mjs && cargo test -p undertree-review",
     "test:review-ui": "node tests/review-ui-smoke.mjs",
     "test:review-selection": "node tests/review-selection-smoke.mjs",
+    "test:color-rules": "node tests/color-rules-smoke.mjs",
+    "test:pdf-color-rules": "node tests/pdf-color-rules-smoke.mjs",
+    "test:pdf-prose": "node tests/pdf-prose-selection-smoke.mjs",
+    "test:pdf-highlighter": "node tests/pdf-highlighter-smoke.mjs",
+    "test:pdf-academic-review": "node tests/pdf-academic-review-scenarios.mjs",
+    "test:review-realtime": "node tests/review-realtime-smoke.mjs",
+    "test:academic-review": "node tests/academic-review-scenarios.mjs",
     "test:review-policy": "node tests/review-policy-smoke.mjs",
     "test:word-count": "node tests/word-count-smoke.mjs",
     "test:html-editor": "node tests/html-editor-smoke.mjs",
@@ -63,7 +70,11 @@
     "test:review-discard": "node tests/review-discard-smoke.mjs",
     "test:mcp-hub": "node tests/mcp-hub-smoke.mjs",
     "test:mcp-hub-ui": "node tests/mcp-hub-ui-smoke.mjs",
-    "test:native-mcp-hub": "node tests/native-mcp-hub-smoke.mjs"
+    "test:native-mcp-hub": "node tests/native-mcp-hub-smoke.mjs",
+    "build:libreoffice": "python modules/libreoffice/build.py",
+    "test:libreoffice": "python -m unittest discover -s modules/libreoffice/tests -p test_*.py",
+    "test:libreoffice-uno": "python modules/libreoffice/tests/uno_smoke.py",
+    "test:libreoffice-gateway": "node tests/libreoffice-gateway-smoke.mjs"
   },
   "dependencies": {
     "@chenglou/pretext": "0.0.8",

@@ -4,49 +4,124 @@
   "cargoAboutBinarySha256": "52ba268d4b0c854f991a88bde358717543b0ba8bddc4689fcef87ad36533b60a",
   "target": "x86_64-pc-windows-msvc",
   "inputs": {
-    "Cargo.lock": "f4eeacdee235bc951f14a77d6a80271f102a8fae2c59c6247f2bde72650faff7",
-    "Cargo.toml": "ffb06f9cb215a2afd93b0d87311ee6b31f0603d303839f52be0ae1cc1af0144c",
-    "index.html": "5b51c9843f12350952806eb6baac1db2ebb753168716a65b5cdf31f50ccbdeef",
+    "Cargo.lock": "8d5608487da8aa208f0f2a16d3d43705faa00b4b3d36f72db5c1d9ad83e3497b",
+    "Cargo.toml": "20ea074830bb14ca111c8acd345cab613128924794e1e8273ba814ae700e8a5f",
+    "index.html": "e3690717d86a4bbbfcfe43fee35d52a0a1f46dcb8b40b3139e03da047915a61b",
     "layout/compiler.mjs": "f3c8d7238be5041c1f8d1b5177e469eb15d05a2286050288a53f302055978e15",
-    "manuscript.html": "bffab02e50b66d8674c48177b32dfa5d3773e46d8581c19755751a0aa599ea2e",
-    "modules/frontend/compile-report.js": "845068bfbcf4da0b6fa0eaaa85518c77d44899d06d369fce64479647302d5482",
+    "manuscript.html": "b98785f4b6867c32ef8ebb68f8671110118175733077f82ba948cb11ade50cc4",
+    "modules/compiler/latex-worker/Cargo.toml": "73a7a4ba605d8d65887ecaf0f2ea9412bcaba56a45255c90b10c64d1158e2f05",
+    "modules/compiler/latex-worker/LICENSE": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6",
+    "modules/compiler/latex-worker/README.md": "3d4a52bf0cbcf1b0406d760601943181be7233a96783dbad4fb9bd73f15e9ed1",
+    "modules/compiler/latex-worker/src/main.rs": "e89865bdcb525b1dd5b0f3bb075e7b95fa400561a5bef0a0716bad3e2dc2fb0a",
+    "modules/compiler/vendor/README.md": "d6e4c251f11e6569789c890ca2fdae91a509691b1f61663cf2ec312e7dab29af",
+    "modules/compiler/vendor/tectonic/CARGO_README.md": "059f31ebedde53df51dc3d7fa6598b7e0f525cb1b2cc643d8f79df3f3904ef5e",
+    "modules/compiler/vendor/tectonic/Cargo.toml": "d71405684a632e1c88e937d59211d1bca5a8396f9baa2aee483dbfbfa0dff1bf",
+    "modules/compiler/vendor/tectonic/LICENSE": "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306",
+    "modules/compiler/vendor/tectonic/build.rs": "9ac22c5ade621cc33af548c73b8339e04fd556549184ac9faa0df081c15eadfd",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/compile.rs": "61db18370f33ad6d8eb6706b28f472f05046c90bf5a0cdbdc814caff12dc22c8",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/main.rs": "4d0c324d17932eebd87e5ce37add29bab58d1bd393c30b2cbe654f680a5ea54d",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/build.rs": "29f0fa456d1b3894d555985a5d689bc55c3dc37653a1b18cefa29495a79cd90d",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/bundle/actions.rs": "20c9028b59e90c119a525040442691e6328eae8d02f664c7145f14f76b905c9f",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/bundle/create.rs": "6a1a82c0f87cf1173ab857924293f1c9af9410328922202b817544b5724210ac",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/bundle/mod.rs": "1109a857f5efaae3c9c47d7f363d7db7659e4e8fc1b42f338ffe689c4f095918",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/bundle/pack/bundlev1.rs": "e5bd4945bd91482e7cbe0d2df8bae02282feb53c9829d20eb39ed1d31368510e",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/bundle/pack/mod.rs": "9f6ec0f0a092703355955f0c47cdc96db1d896852b9f6391d9f0ced4b1138671",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/bundle/select/input/dir.rs": "5f4f8fe2ecf65483cdd4e1b646d9f6da376f299d25cb0c4c31d9c72379a7bb8b",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/bundle/select/input/mod.rs": "bb1766017d100b84d750f13d2ed7126923080318ea78f6cdbb0a56634b5905ee",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/bundle/select/input/tar.rs": "c0d05761e7e8adc0fe9347a8fc8d2020b0fec6fb1ce0dbb34ccdf12bf6b44ced",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/bundle/select/mod.rs": "c44f785934b3355c16436aa99929b910fb1abc07db1c6d7a7ca5cfeeb86893b4",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/bundle/select/picker.rs": "f08436c2074f147520bd43e828ccddf5e955ae528bfd0c3cccdc0922ad4aaaa1",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/bundle/select/spec.rs": "2de679c656846fe54c63db902e667df83f9492d66d0e4059039f8f26835e5553",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/dump.rs": "72aa9566bc6da772f2fce438add643d0d93ea12c76b3813420c671c3efed0503",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/mod.rs": "39f873ddcc621226ba508d89aa32be46b70ff2ce10ecb15f5f88ca5e802acb7b",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/new.rs": "22e56da9660bb04456e8a486a89d0f6c57971696a252ea323ce915a11b60301d",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/show.rs": "ef5a3d4ca7ac8b1d896509f8ce188a373f4f17abb813861cb5e22b8ebd953b55",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/commands/watch.rs": "661ceb1c7ba12bbd32c5bd0a06b62af32714814ab6245c60884520468291dc3f",
+    "modules/compiler/vendor/tectonic/src/bin/tectonic/v2cli/mod.rs": "83965956ba5e84222e17bb2210c553fe772b97035077cb5e9ab20787e782f13a",
+    "modules/compiler/vendor/tectonic/src/config.rs": "a8a3cc39e399d0c4dee207981e299b40560ba081e5db151dd45e28a0d0d36670",
+    "modules/compiler/vendor/tectonic/src/digest.rs": "d15faf9bcfc0ca53cc3ddfb5da04ffd9cbdd0046274a2068fc9a5c1070f05f97",
+    "modules/compiler/vendor/tectonic/src/docmodel.rs": "1dd42324de4b862b9b23c5abc89789820ccf09103080b2ef59fa9069cccbcc8d",
+    "modules/compiler/vendor/tectonic/src/driver.rs": "12356e2c645fb68e34ee8035316feb1713e7bf633c850940708880623e5fcb95",
+    "modules/compiler/vendor/tectonic/src/engines/bibtex.rs": "3f79c21c1b1ca2f5ff9c9280448b965f9f98f17e28e3bdfe748737c0fd9da320",
+    "modules/compiler/vendor/tectonic/src/engines/mod.rs": "52ec5b9bdf2d72b75c5b6d7cc1c7976ac3975bbb913abe435cec6f962d136382",
+    "modules/compiler/vendor/tectonic/src/engines/spx2html.rs": "ce1424082c3f8eb7d8b92dfce9e8d48868830e150629b3ddc4e0e3de61f5fc40",
+    "modules/compiler/vendor/tectonic/src/engines/tex.rs": "3470494eae941825c9b2166a1ec060dc37ef7f60c5fbb7e6705bef245ac5941a",
+    "modules/compiler/vendor/tectonic/src/engines/xdvipdfmx.rs": "d96116e55a8dc5dc6d464ed4a658b3cac42e8ce9013ca2c6116c286407261942",
+    "modules/compiler/vendor/tectonic/src/errors.rs": "01e534faffeccb46c0571e827b4a59b4a25057057e0325a1b050c2f34b9e3c6b",
+    "modules/compiler/vendor/tectonic/src/io/format_cache.rs": "d2ae06e9d083ff1aafc5008eaf3fff3105761ce48222e7cc21cb5c0eac1ddf78",
+    "modules/compiler/vendor/tectonic/src/io/memory.rs": "79aa488fc678649d5e282ec654e7d50d67b7a172d136e1e6e5266e7b8944c545",
+    "modules/compiler/vendor/tectonic/src/io/mod.rs": "b4d70fd5046297751b3f116be3c168052849957a028336c4bf9f13102fee41a2",
+    "modules/compiler/vendor/tectonic/src/lib.rs": "e2eee8ca3190e0707ba4d60a35b5d14af45778f89ab8a8b13393e9bce0f6a1fa",
+    "modules/compiler/vendor/tectonic/src/status/mod.rs": "8f6402eacef4c8be75ff2ef9584c67a9745be11d1031e8a5d0c540750df8ba30",
+    "modules/compiler/vendor/tectonic/src/status/termcolor.rs": "422a2097b5607efed43ce0894dd134cdc1fbc8c2c37210ca8ef550a6801d2d8a",
+    "modules/compiler/vendor/tectonic/src/test_util.rs": "59c2fb095ff04a8cab36e1e9fc0d2bf297c2fd9cae0b5d331291355133573a62",
+    "modules/compiler/vendor/tectonic/src/unstable_opts.rs": "f69fd36eaf77b5ed72ef19abf1ed120fb21f5fed880adb2d6d3d21fb0313a878",
+    "modules/frontend/compile-report.js": "d0b0bd6c0f5dc234e2124c5d37e0862acf40185293f4d621cc133eb8d7ff38c0",
+    "modules/frontend/dialog-layout.js": "2c6efae423e22cb9378a22cd4e924ca26daa45e7a0c3642634453df3e6994885",
     "modules/frontend/editor-session-bridge.js": "e4262f0a4433b1d32bbe23fe7eb1683643d86174816848748d8ac029e6e38250",
     "modules/frontend/file-import.js": "2372cfd9f8751a572f69bb0f61d88afca098ef2463ba8c9cf571cd95859c0798",
+    "modules/frontend/highlight-rule-access.js": "4f526b4aca69783c13aef2f556f1c6e71868eec1e911366d1f90fd05467a48ac",
     "modules/frontend/history-controller.js": "eade0bbc4b7a9e18fcac4103922a797865c204a82a83207c49610916d2b157d9",
     "modules/frontend/latest-compile-scheduler.js": "9eb3e5b270f841c7458d6e873f5a2c2850f2f0d7ea98f05c154de03a99dc6007",
     "modules/frontend/manuscript-control-state.js": "16abac3b78d26e3c1c94337db66432ed2d64f6315701d5689fa175eb24765a2c",
-    "modules/frontend/manuscript-pdf-viewer.js": "4752caa0e1df677132e84eacdd6aca0dd70368f8e6cc0f81a73a1374dcc2760b",
+    "modules/frontend/manuscript-pdf-viewer.js": "b1e0f3b2d80584bc983b9e1dae01f1751a653c8a4d2fb9523cd138623680a963",
     "modules/frontend/manuscript-workspace.js": "fa4e7a65375c74a1f3a50e29b5177487365a72243bd9aac00bc462b358edb4c5",
     "modules/frontend/menu-navigation.js": "d4082939fe6014a985a396f7d64327b5f19a5d80eaf3a586688ca7bea370dd95",
+    "modules/frontend/pdf-text-selection.js": "39b63312402782ae47ab1a96ce10adfd3f0ec71e36c5a4d783639a4b3e96b2cd",
     "modules/frontend/pretext-runtime.js": "0eae01496c1d8eff597b62940e6797e13aca3d7dd282cc225d9910871bc3cf75",
     "modules/frontend/project-export.js": "d035216507aad6acc18790203e9fff37b0ea46fe35395a94b15db4d321e8e870",
     "modules/frontend/review-api.js": "4327730b950fb6bdfd863e811413613b59d24b566447663de62fea3d9c74e520",
+    "modules/frontend/review-change-bridge.js": "761247aaa551d560da2e82fffdd5a77315546fad628c1b48c95ecdc7cae9b258",
     "modules/frontend/review-position.js": "d35bd5db4ac7e012a66b6f2491168145083cfd65075cf6cf5d97298bc3225c92",
-    "modules/frontend/review-session.js": "9d24d949058bb1ab43b8980dfe08b35b7c847bd45e83c6ff262b585c480a41ae",
-    "modules/frontend/review-text-layout.js": "b3318d1e6b2e6157658908adc5f9307d5905d437a2a57b681b4167cd5bbdddde",
+    "modules/frontend/review-session.js": "839cfdea300ef8a3589ad0d58cbcda9a865dcc5d3776760d321999fe9d9b84df",
+    "modules/frontend/review-text-layout.js": "91e1a559df6e3e26ff878949d7e3311da2b8c765db233b80185c2127bf7ec1ef",
     "modules/frontend/sidebar-splitter.js": "c97680567a948ceffe3e1a8276a4645adcd9379a08b1a93b3c2db175a92595cc",
+    "modules/frontend/smart-source-tree.js": "54f560615c735350429c1e3e16d982f158c04eccf93113f1e4ae6f8753b3bb10",
     "modules/frontend/source-format.js": "9aa3db53b6f049ded67457fe19335309ca88931291cf2a6ec1cdcc86926c8016",
-    "modules/frontend/text-details.js": "c50053477b2bfee948a26323b1394d69a4acba099cfc12fe838d2677ec444ae4",
+    "modules/frontend/text-details.js": "b803b7673e652cf6680f88d6b0f47b679082f49bd5a1b3d7db5ea5234aefc199",
     "modules/frontend/typst-insertion.js": "e8f10553edbeb16c3d15699f0ba7f26b47f1553934e5c4eadb8cf27ec52fd21a",
     "modules/frontend/typst-language.js": "5ff4529c70eb2c9d130b64f1d9326e7cbacd3f4c23914f6d1e5d63d7ffcf405f",
-    "modules/frontend/window-chrome.js": "793d29ebe00e08f4488562bc89a1bebb432ff58b70701aff9e99b0fdf1ca4f7c",
+    "modules/frontend/window-chrome.js": "0547082e25317aeb57c5c654ab277d9e0127c16e6711359396f122ac70a9b3fc",
     "modules/frontend/word-count-controller.js": "b3ee46420269cc82a2967671988c0b8d8c69d5294fb4a119a99632962bffd1a3",
     "modules/frontend/word-count-worker.js": "7ceac8b7bcdcf4defa36d19c7e0479225666e6d0a3096b05d3c97504be46f224",
     "modules/frontend/word-count.js": "05e891b7718acd413cddd62172f05264ad754e0b2fe8fdb932ebd25f8cdb4fad",
-    "modules/maintenance/generate-notices.mjs": "8038d5c066e8165fa69522abdacd058385ed6be805aab5ee2ac4062db1ba52b5",
+    "modules/maintenance/generate-notices.mjs": "4a30357357f0f6d5d33864e35b5c9208b5c5f5932e6a7520115ea50f59e9b8ae",
     "modules/review/Cargo.toml": "7e2bfe920aa2de042b03fc4a88bd3dd39a78289faf2578ced5d8b6151d52b77c",
     "native/tauri/Cargo.toml": "d934f1392b37a85004f825435dbd60665ed3062fd4aa5609223119bda4baa601",
     "package-lock.json": "fc8d2e5c5197ac4c0339e935fbdb756b8a55025226a8452a26512c8ee29de16a",
-    "package.json": "b6e3c8b75a2dbf9e016119eaa2645eabb08ed95ff3cb415b566762f4ff90fe6e",
-    "packaging/licenses/about.toml": "503ddbda517026b4b6df1da683b7cd6ebbe4b3d0aee00f9b79ac3dfdf0408561",
+    "package.json": "2d61645b5989a17b3b36cafa923eff5a416a43bffc86f076ac7edbfa44a91fb9",
+    "packaging/licenses/about.toml": "56ac4060913fe4e1f42daf1007b6a505126ce5cc9b868bbd05d0dde5d650800a",
+    "packaging/licenses/upstream/GNU-GPL-2.0": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6",
+    "packaging/licenses/upstream/GNU-GPL-3.0": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "packaging/licenses/upstream/Tectonic-LICENSE": "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306",
     "packaging/licenses/upstream/alloc-stdlib-LICENSE": "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae",
+    "packaging/licenses/upstream/chrono-tz-LICENSE": "6b7865fa851a101527956f17ad1256fbae502272016ff0733aa94964fdac5341",
     "packaging/licenses/upstream/dlopen2-LICENSE": "39fa265207450e77c62e90c5594a06c085b655d8374c7ced4bf7894b6bd95dd2",
+    "packaging/licenses/upstream/latex-native-brotli-copyright": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94",
+    "packaging/licenses/upstream/latex-native-bzip2-copyright": "c6dbbf828498be844a89eaa3b84adbab3199e342eb5cb2ed2f0d4ba7ec0f38a3",
+    "packaging/licenses/upstream/latex-native-components.json": "0dfbe55e2b501ae250fdfe65aa3416dbe9e00edbaf73714c7cb553267767f16a",
+    "packaging/licenses/upstream/latex-native-dirent-copyright": "2f414f6c48e8c25ffb5d03cddd6043b3b613187f758d0a6964ca2ad7ed749e50",
+    "packaging/licenses/upstream/latex-native-expat-copyright": "31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87",
+    "packaging/licenses/upstream/latex-native-fontconfig-copyright": "51a51aa9823704fd90bccc616cdd17ebabb5b2b3e9cbde886ca02c7002288067",
+    "packaging/licenses/upstream/latex-native-freetype-copyright": "57e6b185071cbb481589e17b654752d03d731600db0faf3cd07ae9ad8ea435b3",
+    "packaging/licenses/upstream/latex-native-graphite2-copyright": "06efcedb9ce07473956b72b8669f03ced9f39ca19f3c1216e328b796a36ea6a8",
+    "packaging/licenses/upstream/latex-native-harfbuzz-copyright": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64",
+    "packaging/licenses/upstream/latex-native-icu-copyright": "17510cf7a58b4879b887ec05a45d72cf1b73544dd9ec7e72f20110ed104229ee",
+    "packaging/licenses/upstream/latex-native-libpng-copyright": "16d9daaafbf63a31a5bdc91d4600972548fef5aaa1244202393288dbd079c49a",
+    "packaging/licenses/upstream/latex-native-zlib-copyright": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243",
+    "packaging/licenses/upstream/latex-provenance.json": "3cbc678c4159cbeeeaf7f87e843f03894adfaf34bde117c95474a60e73161e92",
+    "packaging/licenses/upstream/parse-zoneinfo-LICENSE": "4789210f4df8abc03fce1cddd9c2ba517f184840687f2815d741de282c1aa93a",
     "packaging/licenses/upstream/provenance.json": "1e53f471d55e752f3ec1a675a9f60b8daa932d944d45f445131c2be4e68dc9b0",
     "packaging/licenses/upstream/rmcp-LICENSE": "0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a",
     "packaging/licenses/upstream/tauri-plugin-LICENSE-MIT": "9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d",
     "packaging/licenses/upstream/typst-LICENSE": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+    "packaging/licenses/upstream/watchexec-LICENSE": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
     "packaging/licenses/upstream/webview2-rs-LICENSE": "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73",
-    "src/connection-manager.js": "b48220f0667188ca1fcd157b560ffd2b541c358fb40f949042a89ff0d10121c6",
+    "packaging/licenses/upstream/windows-registry-LICENSE-MIT": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+    "src/color-rules.js": "d92c4261dc8afdac8d671570786109869a79227f19ced0bf47ce27a8911eda9a",
+    "src/connection-manager.js": "c4232a9ca207ffbfe120f5ccd11243d6326767a3aa2f1e2ee57215c5003e36be",
+    "src/context-sharing.js": "2bdc15178d43d64f62178154679dfea5189198b9bd1582e26117480ebf6eedc2",
+    "src/dialog-layout.css": "8e8d9b0bd4f3d698ac57a4afab39569cbcf94af244d9912f7477119c37815b1e",
     "src/file-tree-actions.js": "dba091734fcb8c7d126bb14ffc8648ddeecbc63ff2ace3907dec7358646211f9",
     "src/file-tree-filter.js": "507494144dc981327aa5f497099dd2f6ebaa308c0a3de144860619da1323a43e",
     "src/history-panel.css": "fb73532aa14225b1f91c1c96e7a73a54129872fc95641a9315a18f6405dcda71",
@@ -56,26 +131,28 @@
     "src/html-renderer.mjs": "5fe0eb793cef262ded037746fc7254747e82819032c8548eab01f90976f06387",
     "src/html-tex-export.js": "02b2eb758298eb5b3095bf6648cbd02d48d5848bbafb9cf219c098f6bfc5b948",
     "src/html-visual-layout.js": "840c05e0f9306da1722e08ecf0a9fd42222d510ead4bc216480563961070f99d",
-    "src/main.js": "b19ea1f927250305cdbb2da63b9cb29b14648f533ff9837739baa6513cf17775",
-    "src/manuscript.css": "80611b468d97ac0fbbc35288a124ba812a2f708aa95b4f22c6d6c695db15f339",
-    "src/manuscript.js": "443f40a0b876705ddbc107ed1086d4a47511dbfcf3d12ba51eea5209b3b5c6cd",
+    "src/legacy-dialog.js": "0450c4dca076ca2e847c889da52b3b94dedc904e2582111f1f9b58858f79fbf9",
+    "src/main.js": "b897619933fdfd5c40bb3ec28a76e617db795336388af9ebc09b77be3d92f65b",
+    "src/manuscript.css": "7a9e261129de9b48e0e57ef277944989025b258cc46e3459728625d9db386682",
+    "src/manuscript.js": "1d7256c9b4809878f5ef1ec73a8f875f5ac534e18be806c2c977c2286390b305",
     "src/mcp-control.js": "0d905cce833e08f256577ce74ae536f9c73f3cbfa739f9413113674a1223432e",
-    "src/mcp-hub.js": "f3d36911fa8a3b71330ee310547b0375f3f0df0837122d759dab09c688689ffe",
+    "src/mcp-hub.js": "f1ecc79ab688e327e1c7100ff1ee1c9294383df1bbe6da8230d20f2818c27403",
     "src/outline.js": "6fd74b48248bfb03ae785456f5db7f8d496ca716fc70cb642b70c1f963d6d073",
     "src/pdf-export-consent.js": "de83eda507f42e62c4b03425a5100074163b078f887cd4fb285ffa19028e5f23",
     "src/pdf-preview-cache.js": "ab9c1a1af982b3f8d1822f75675a62921b70ed3593638b53bb24fe3f1ce698aa",
+    "src/pdf-text-layer.css": "7489d13b6d3ce28a2196826c2e6349e0b8dca49ed991aec1072f39f7099407cc",
     "src/pdf-viewer-state.js": "506d69363a618be214092b2a65f07bfafb4e7f4e44ca4cb20dc727c36c7f6390",
     "src/pretext-fit-core.js": "60f0beab4a226d35642bb26b6d5265da67bab491de65e0265287e2aa07c2da14",
     "src/project-sorting.js": "9fb23adcea36d6e3b5336710b00216ab7217a3fe9db294d9241d9e34ce34f996",
     "src/save-coordinator.js": "42920d1fa1274bb2fa06fcf4f8b5500c95c4480f683550297a4809f3c8af0f2f",
-    "src/styles.css": "dece3fde8ec869d564db4ee0d669b681666279a853a49e1ff9df2704d8e6992f",
+    "src/styles.css": "bdbe4f9a2c2feb5b93f4b138da900bbb5ccdd2aa7bceb59191ebf39cd37d9027",
     "src/tex-engine.js": "1e703ea1937d757dc27bba3279e58b540ec1abdd4829daa100490b4b465dca87",
     "src/tex-monitor.js": "2d03989829926e2e3c5e869b1acd3b13d6c5effd021d68a90777b51b4a9f8cec",
     "src/tex-recovery.js": "a65e339fd893fd6cbac8774601a8f149f081909aa4e91265e0875f34c868355a",
     "vite.config.js": "0ed5260235a9c79fb9534163d1e67c0ee749082156fa5fd04dd78496d3674f61"
   },
   "outputs": {
-    "THIRD-PARTY-RUST.md": "d8849304ca410ac05c3a1226ccebd90126eeb42fa13c35f8021486d2b1f70b55",
+    "THIRD-PARTY-RUST.md": "13cc372fe3e389a5a434c6ebf65b7071fed76f6bb00e80c5eb33cac7ae1b6f32",
     "THIRD-PARTY-JAVASCRIPT.md": "d87b37d0ef9f018a2f4d62f08eb93177b64c8f464f33dab1a778a648cf671316"
   },
   "rustComponents": [
@@ -100,8 +177,40 @@
       "0.0.2"
     ],
     [
+      "anstream",
+      "1.0.0"
+    ],
+    [
+      "anstyle",
+      "1.0.14"
+    ],
+    [
+      "anstyle-parse",
+      "1.0.0"
+    ],
+    [
+      "anstyle-query",
+      "1.1.5"
+    ],
+    [
+      "anstyle-wincon",
+      "3.0.11"
+    ],
+    [
       "anyhow",
       "1.0.104"
+    ],
+    [
+      "arrayvec",
+      "0.7.8"
+    ],
+    [
+      "async-priority-channel",
+      "0.2.0"
+    ],
+    [
+      "atomic-take",
+      "1.1.0"
     ],
     [
       "atomic-waker",
@@ -156,12 +265,36 @@
       "0.10.4"
     ],
     [
+      "block-buffer",
+      "0.12.1"
+    ],
+    [
       "brotli",
       "9.0.0"
     ],
     [
       "brotli-decompressor",
       "6.0.1"
+    ],
+    [
+      "bstr",
+      "1.13.1"
+    ],
+    [
+      "bumpalo",
+      "3.20.3"
+    ],
+    [
+      "byte-unit",
+      "5.2.6"
+    ],
+    [
+      "bytemuck",
+      "1.25.2"
+    ],
+    [
+      "bytemuck_derive",
+      "1.12.1"
     ],
     [
       "byteorder",
@@ -216,8 +349,48 @@
       "0.4.45"
     ],
     [
+      "chrono-tz",
+      "0.9.0"
+    ],
+    [
+      "chrono-tz-build",
+      "0.3.0"
+    ],
+    [
+      "clap",
+      "4.6.7"
+    ],
+    [
+      "clap_builder",
+      "4.6.7"
+    ],
+    [
+      "clap_complete",
+      "4.6.11"
+    ],
+    [
+      "clap_derive",
+      "4.6.7"
+    ],
+    [
+      "clap_lex",
+      "1.1.1"
+    ],
+    [
       "cmake",
       "0.1.58"
+    ],
+    [
+      "colorchoice",
+      "1.0.5"
+    ],
+    [
+      "concurrent-queue",
+      "2.5.0"
+    ],
+    [
+      "const-oid",
+      "0.10.2"
     ],
     [
       "cookie",
@@ -226,6 +399,10 @@
     [
       "cpufeatures",
       "0.2.17"
+    ],
+    [
+      "cpufeatures",
+      "0.3.1"
     ],
     [
       "crc32fast",
@@ -250,6 +427,10 @@
     [
       "crypto-common",
       "0.1.7"
+    ],
+    [
+      "crypto-common",
+      "0.2.2"
     ],
     [
       "cssparser",
@@ -288,8 +469,24 @@
       "2.1.1"
     ],
     [
+      "deunicode",
+      "1.6.2"
+    ],
+    [
       "digest",
       "0.10.7"
+    ],
+    [
+      "digest",
+      "0.11.3"
+    ],
+    [
+      "digest-io",
+      "0.1.0"
+    ],
+    [
+      "directories",
+      "6.0.0"
     ],
     [
       "dirs",
@@ -340,6 +537,14 @@
       "3.0.12"
     ],
     [
+      "endian-type",
+      "0.2.0"
+    ],
+    [
+      "enrede",
+      "0.2.0"
+    ],
+    [
       "equivalent",
       "1.0.3"
     ],
@@ -348,12 +553,24 @@
       "0.4.10"
     ],
     [
+      "event-listener",
+      "4.0.3"
+    ],
+    [
+      "faster-hex",
+      "0.10.1"
+    ],
+    [
       "fastrand",
       "2.5.0"
     ],
     [
       "fdeflate",
       "0.3.7"
+    ],
+    [
+      "filetime",
+      "0.2.29"
     ],
     [
       "find-msvc-tools",
@@ -425,6 +642,10 @@
     ],
     [
       "getrandom",
+      "0.2.17"
+    ],
+    [
+      "getrandom",
       "0.3.4"
     ],
     [
@@ -432,8 +653,96 @@
       "0.4.3"
     ],
     [
+      "gix-actor",
+      "0.43.0"
+    ],
+    [
+      "gix-config",
+      "0.61.0"
+    ],
+    [
+      "gix-config-value",
+      "0.20.0"
+    ],
+    [
+      "gix-date",
+      "0.17.0"
+    ],
+    [
+      "gix-error",
+      "0.4.0"
+    ],
+    [
+      "gix-features",
+      "0.50.0"
+    ],
+    [
+      "gix-fs",
+      "0.23.0"
+    ],
+    [
+      "gix-glob",
+      "0.28.0"
+    ],
+    [
+      "gix-hash",
+      "0.27.0"
+    ],
+    [
+      "gix-hashtable",
+      "0.17.0"
+    ],
+    [
+      "gix-lock",
+      "25.0.0"
+    ],
+    [
+      "gix-object",
+      "0.65.0"
+    ],
+    [
+      "gix-path",
+      "0.13.0"
+    ],
+    [
+      "gix-ref",
+      "0.68.0"
+    ],
+    [
+      "gix-sec",
+      "0.15.0"
+    ],
+    [
+      "gix-tempfile",
+      "25.0.0"
+    ],
+    [
+      "gix-trace",
+      "0.2.0"
+    ],
+    [
+      "gix-utils",
+      "0.4.0"
+    ],
+    [
+      "gix-validate",
+      "0.12.0"
+    ],
+    [
       "glob",
       "0.3.4"
+    ],
+    [
+      "globset",
+      "0.4.20"
+    ],
+    [
+      "globwalk",
+      "0.9.1"
+    ],
+    [
+      "hash32",
+      "0.3.1"
     ],
     [
       "hashbrown",
@@ -444,8 +753,16 @@
       "0.17.1"
     ],
     [
+      "heapless",
+      "0.8.0"
+    ],
+    [
       "heck",
       "0.5.0"
+    ],
+    [
+      "html-escape",
+      "0.2.15"
     ],
     [
       "html5ever",
@@ -474,6 +791,14 @@
     [
       "httpdate",
       "1.0.3"
+    ],
+    [
+      "humansize",
+      "2.1.3"
+    ],
+    [
+      "hybrid-array",
+      "0.4.15"
     ],
     [
       "hyper",
@@ -532,6 +857,14 @@
       "1.2.2"
     ],
     [
+      "ignore",
+      "0.4.33"
+    ],
+    [
+      "ignore-files",
+      "3.0.8"
+    ],
+    [
       "indexmap",
       "1.9.3"
     ],
@@ -560,8 +893,28 @@
       "2.12.2"
     ],
     [
+      "is_terminal_polyfill",
+      "1.70.2"
+    ],
+    [
       "itoa",
       "1.0.18"
+    ],
+    [
+      "jiff",
+      "0.2.38"
+    ],
+    [
+      "jiff-core",
+      "0.1.1"
+    ],
+    [
+      "jiff-tzdb",
+      "0.1.9"
+    ],
+    [
+      "jiff-tzdb-platform",
+      "0.1.3"
     ],
     [
       "jobserver",
@@ -580,12 +933,20 @@
       "0.8.3"
     ],
     [
+      "lazy_static",
+      "1.5.1"
+    ],
+    [
       "libc",
       "0.2.190"
     ],
     [
       "libm",
       "0.2.16"
+    ],
+    [
+      "libz-sys",
+      "1.1.30"
     ],
     [
       "litemap",
@@ -604,6 +965,10 @@
       "0.39.0"
     ],
     [
+      "matchers",
+      "0.2.0"
+    ],
+    [
       "matchit",
       "0.8.4"
     ],
@@ -612,8 +977,24 @@
       "0.3.4"
     ],
     [
+      "md-5",
+      "0.11.0"
+    ],
+    [
       "memchr",
       "2.8.3"
+    ],
+    [
+      "memmap2",
+      "0.9.11"
+    ],
+    [
+      "miette",
+      "7.6.0"
+    ],
+    [
+      "miette-derive",
+      "7.6.0"
     ],
     [
       "mime",
@@ -644,6 +1025,26 @@
       "1.0.6"
     ],
     [
+      "nibble_vec",
+      "0.1.0"
+    ],
+    [
+      "normalize-path",
+      "0.2.2"
+    ],
+    [
+      "notify",
+      "8.2.0"
+    ],
+    [
+      "notify-types",
+      "2.1.0"
+    ],
+    [
+      "nu-ansi-term",
+      "0.50.3"
+    ],
+    [
       "num-conv",
       "0.2.2"
     ],
@@ -656,8 +1057,20 @@
       "1.21.4"
     ],
     [
+      "once_cell_polyfill",
+      "1.70.2"
+    ],
+    [
+      "open",
+      "5.4.4"
+    ],
+    [
       "option-ext",
       "0.2.0"
+    ],
+    [
+      "parking",
+      "2.2.1"
     ],
     [
       "parking_lot",
@@ -668,8 +1081,32 @@
       "0.9.12"
     ],
     [
+      "parse-zoneinfo",
+      "0.3.1"
+    ],
+    [
       "percent-encoding",
       "2.3.2"
+    ],
+    [
+      "pest",
+      "2.9.4"
+    ],
+    [
+      "pest_derive",
+      "2.9.4"
+    ],
+    [
+      "pest_generator",
+      "2.9.4"
+    ],
+    [
+      "pest_meta",
+      "2.9.4"
+    ],
+    [
+      "phf",
+      "0.11.3"
     ],
     [
       "phf",
@@ -677,7 +1114,15 @@
     ],
     [
       "phf_codegen",
+      "0.11.3"
+    ],
+    [
+      "phf_codegen",
       "0.13.1"
+    ],
+    [
+      "phf_generator",
+      "0.11.3"
     ],
     [
       "phf_generator",
@@ -685,7 +1130,15 @@
     ],
     [
       "phf_macros",
+      "0.11.3"
+    ],
+    [
+      "phf_macros",
       "0.13.1"
+    ],
+    [
+      "phf_shared",
+      "0.11.3"
     ],
     [
       "phf_shared",
@@ -694,6 +1147,14 @@
     [
       "pin-project-lite",
       "0.2.17"
+    ],
+    [
+      "pinot",
+      "0.1.5"
+    ],
+    [
+      "pkg-config",
+      "0.3.34"
     ],
     [
       "plist",
@@ -720,6 +1181,10 @@
       "0.2.1"
     ],
     [
+      "ppv-lite86",
+      "0.2.21"
+    ],
+    [
       "precomputed-hash",
       "0.1.1"
     ],
@@ -728,12 +1193,48 @@
       "1.0.107"
     ],
     [
+      "process-wrap",
+      "9.1.1"
+    ],
+    [
+      "prodash",
+      "31.0.1"
+    ],
+    [
+      "project-origins",
+      "1.4.4"
+    ],
+    [
+      "psm",
+      "0.1.24"
+    ],
+    [
+      "quick-xml",
+      "0.39.4"
+    ],
+    [
       "quick-xml",
       "0.42.0"
     ],
     [
       "quote",
       "1.0.47"
+    ],
+    [
+      "radix_trie",
+      "0.3.0"
+    ],
+    [
+      "rand",
+      "0.8.8"
+    ],
+    [
+      "rand_chacha",
+      "0.3.1"
+    ],
+    [
+      "rand_core",
+      "0.6.4"
     ],
     [
       "raw-window-handle",
@@ -770,6 +1271,10 @@
     [
       "rmcp",
       "3.5.1"
+    ],
+    [
+      "rust_decimal",
+      "1.43.0"
     ],
     [
       "rustc_version",
@@ -888,8 +1393,20 @@
       "0.4.3"
     ],
     [
+      "sha1dc",
+      "0.1.5"
+    ],
+    [
       "sha2",
       "0.10.9"
+    ],
+    [
+      "sha2",
+      "0.11.1"
+    ],
+    [
+      "sharded-slab",
+      "0.1.7"
     ],
     [
       "shlex",
@@ -906,6 +1423,10 @@
     [
       "slab",
       "0.4.12"
+    ],
+    [
+      "slug",
+      "0.1.6"
     ],
     [
       "smallvec",
@@ -926,6 +1447,10 @@
     [
       "stable_deref_trait",
       "1.2.1"
+    ],
+    [
+      "stacker",
+      "0.1.25"
     ],
     [
       "static_vcruntime",
@@ -966,6 +1491,10 @@
     [
       "tao",
       "0.37.1"
+    ],
+    [
+      "tar",
+      "0.4.46"
     ],
     [
       "tauri",
@@ -1012,12 +1541,112 @@
       "0.3.6"
     ],
     [
+      "tectonic",
+      "0.17.0"
+    ],
+    [
+      "tectonic_bridge_core",
+      "0.5.3"
+    ],
+    [
+      "tectonic_bridge_flate",
+      "0.1.10"
+    ],
+    [
+      "tectonic_bridge_fontconfig",
+      "0.1.3"
+    ],
+    [
+      "tectonic_bridge_freetype2",
+      "0.3.2"
+    ],
+    [
+      "tectonic_bridge_graphite2",
+      "0.3.2"
+    ],
+    [
+      "tectonic_bridge_harfbuzz",
+      "0.3.3"
+    ],
+    [
+      "tectonic_bridge_icu",
+      "0.2.4"
+    ],
+    [
+      "tectonic_bridge_png",
+      "0.1.2"
+    ],
+    [
+      "tectonic_bundles",
+      "0.4.2"
+    ],
+    [
+      "tectonic_cfg_support",
+      "0.1.5"
+    ],
+    [
+      "tectonic_dep_support",
+      "0.1.2"
+    ],
+    [
+      "tectonic_engine_bibtex",
+      "0.3.4"
+    ],
+    [
+      "tectonic_engine_spx2html",
+      "0.4.3"
+    ],
+    [
+      "tectonic_engine_xdvipdfmx",
+      "0.4.4"
+    ],
+    [
+      "tectonic_engine_xetex",
+      "0.5.3"
+    ],
+    [
+      "tectonic_errors",
+      "0.3.0"
+    ],
+    [
+      "tectonic_geturl",
+      "0.4.1"
+    ],
+    [
+      "tectonic_io_base",
+      "0.6.0"
+    ],
+    [
+      "tectonic_pdf_io",
+      "0.5.3"
+    ],
+    [
+      "tectonic_status_base",
+      "0.2.2"
+    ],
+    [
+      "tectonic_xdv",
+      "0.3.0"
+    ],
+    [
+      "tectonic_xetex_layout",
+      "0.3.4"
+    ],
+    [
       "tempfile",
       "3.27.0"
     ],
     [
       "tendril",
       "0.5.1"
+    ],
+    [
+      "tera",
+      "1.20.1"
+    ],
+    [
+      "termcolor",
+      "1.4.1"
     ],
     [
       "thin-vec",
@@ -1030,6 +1659,10 @@
     [
       "thiserror-impl",
       "2.0.21"
+    ],
+    [
+      "thread_local",
+      "1.1.10"
     ],
     [
       "time",
@@ -1046,6 +1679,10 @@
     [
       "tinystr",
       "0.8.4"
+    ],
+    [
+      "tinyvec",
+      "1.13.3"
     ],
     [
       "tokio",
@@ -1124,6 +1761,14 @@
       "0.1.36"
     ],
     [
+      "tracing-log",
+      "0.2.0"
+    ],
+    [
+      "tracing-subscriber",
+      "0.3.23"
+    ],
+    [
       "try-lock",
       "0.2.5"
     ],
@@ -1152,8 +1797,16 @@
       "0.15.1"
     ],
     [
+      "ucd-trie",
+      "0.1.7"
+    ],
+    [
       "unicase",
       "2.10.0"
+    ],
+    [
+      "unicode-bom",
+      "2.0.3"
     ],
     [
       "unicode-ident",
@@ -1164,12 +1817,20 @@
       "0.1.0"
     ],
     [
+      "unicode-normalization",
+      "0.1.26"
+    ],
+    [
       "unicode-script",
       "0.5.8"
     ],
     [
       "unicode-segmentation",
       "1.13.3"
+    ],
+    [
+      "unicode-width",
+      "0.1.14"
     ],
     [
       "unscanny",
@@ -1192,8 +1853,20 @@
       "1.0.4"
     ],
     [
+      "utf8-width",
+      "0.1.9"
+    ],
+    [
+      "utf8parse",
+      "0.2.2"
+    ],
+    [
       "uuid",
       "1.28.0"
+    ],
+    [
+      "vcpkg",
+      "0.2.15"
     ],
     [
       "version_check",
@@ -1216,6 +1889,34 @@
       "0.3.2"
     ],
     [
+      "watchexec",
+      "8.4.4"
+    ],
+    [
+      "watchexec-events",
+      "6.1.3"
+    ],
+    [
+      "watchexec-filterer-globset",
+      "8.0.6"
+    ],
+    [
+      "watchexec-filterer-ignore",
+      "7.0.6"
+    ],
+    [
+      "watchexec-signals",
+      "5.1.1"
+    ],
+    [
+      "watchexec-supervisor",
+      "5.4.1"
+    ],
+    [
+      "watchexec-supervisor",
+      "6.0.0"
+    ],
+    [
       "web_atoms",
       "0.2.6"
     ],
@@ -1234,6 +1935,10 @@
     [
       "webview2-com-sys",
       "0.39.1"
+    ],
+    [
+      "which",
+      "8.0.6"
     ],
     [
       "winapi-util",
@@ -1352,6 +2057,10 @@
       "0.8.4"
     ],
     [
+      "zerocopy",
+      "0.8.63"
+    ],
+    [
       "zerofrom",
       "0.1.8"
     ],
@@ -1377,13 +2086,171 @@
     ],
     [
       "zip",
+      "8.6.0"
+    ],
+    [
+      "zip",
       "9.0.3"
+    ],
+    [
+      "zlib-rs",
+      "0.6.8"
     ],
     [
       "zmij",
       "1.0.23"
+    ],
+    [
+      "zopfli",
+      "0.8.4"
     ]
   ],
+  "nativeLibraries": {
+    "schema": 1,
+    "target": "x86_64-pc-windows-msvc",
+    "vcpkgCommit": "a62ce77d56ee07513b4b67de1ec2daeaebfae51a",
+    "triplet": "x64-windows-static-release",
+    "databaseFiles": [
+      {
+        "file": "vcpkg/status",
+        "sha256": "8bba65cfdbb2bb2e53a193f2bb14cd462a2f31e886dcd80b9b56218b0c9b2dbd"
+      }
+    ],
+    "components": [
+      {
+        "name": "brotli",
+        "version": "1.1.0",
+        "portVersion": "1",
+        "abi": "f12459b039e4553d64d6011dc83f8335a0fa74c64eccf581bbedf2a9b31eb600",
+        "declaredLicense": "MIT",
+        "selectedLicense": "MIT",
+        "file": "latex-native-brotli-copyright",
+        "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94",
+        "canonicalSha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94",
+        "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/brotli"
+      },
+      {
+        "name": "bzip2",
+        "version": "1.0.8",
+        "portVersion": "6",
+        "abi": "1fb98a01570c9a13f394f851465c7a8ba720753180e78e5a431bdbc73f57fed7",
+        "declaredLicense": "bzip2-1.0.6",
+        "selectedLicense": "bzip2-1.0.6",
+        "file": "latex-native-bzip2-copyright",
+        "sha256": "c6dbbf828498be844a89eaa3b84adbab3199e342eb5cb2ed2f0d4ba7ec0f38a3",
+        "canonicalSha256": "c6dbbf828498be844a89eaa3b84adbab3199e342eb5cb2ed2f0d4ba7ec0f38a3",
+        "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/bzip2"
+      },
+      {
+        "name": "dirent",
+        "version": "1.26",
+        "portVersion": "0",
+        "abi": "0bd9fccaec9d232100ee9bfb418f1f7fd5c5060aa6d16982825530f0a0b2e82c",
+        "declaredLicense": "MIT",
+        "selectedLicense": "MIT",
+        "file": "latex-native-dirent-copyright",
+        "sha256": "2f414f6c48e8c25ffb5d03cddd6043b3b613187f758d0a6964ca2ad7ed749e50",
+        "canonicalSha256": "2f414f6c48e8c25ffb5d03cddd6043b3b613187f758d0a6964ca2ad7ed749e50",
+        "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/dirent"
+      },
+      {
+        "name": "expat",
+        "version": "2.7.3",
+        "portVersion": "0",
+        "abi": "3c8196eccc555feae7396364432628942871fc181a96cdd63aef89c33de733b8",
+        "declaredLicense": "MIT",
+        "selectedLicense": "MIT",
+        "file": "latex-native-expat-copyright",
+        "sha256": "31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87",
+        "canonicalSha256": "31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87",
+        "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/expat"
+      },
+      {
+        "name": "fontconfig",
+        "version": "2.15.0",
+        "portVersion": "4",
+        "abi": "ed4dba8c33446f0dd7a61e18071e9c841b2070c3aa8654815dcc2586bb45e791",
+        "declaredLicense": "MIT",
+        "selectedLicense": "MIT",
+        "file": "latex-native-fontconfig-copyright",
+        "sha256": "51a51aa9823704fd90bccc616cdd17ebabb5b2b3e9cbde886ca02c7002288067",
+        "canonicalSha256": "51a51aa9823704fd90bccc616cdd17ebabb5b2b3e9cbde886ca02c7002288067",
+        "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/fontconfig"
+      },
+      {
+        "name": "freetype",
+        "version": "2.13.3",
+        "portVersion": "0",
+        "abi": "b9d08a84a65c781102ec231686e9068cf768ae57f19bcc10cefa86044d6a0209",
+        "declaredLicense": "FTL OR GPL-2.0-or-later",
+        "selectedLicense": "FTL",
+        "file": "latex-native-freetype-copyright",
+        "sha256": "eb017f4c45e70b0b4a083109ff262dc9ee001bb433a057574e50416338f152bc",
+        "canonicalSha256": "57e6b185071cbb481589e17b654752d03d731600db0faf3cd07ae9ad8ea435b3",
+        "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/freetype"
+      },
+      {
+        "name": "graphite2",
+        "version": "1.3.14",
+        "portVersion": "4",
+        "abi": "b67d746b65d66e087655420bafe6b99a12497f7429812cb8ee38758d541b1202",
+        "selectedLicense": "GPL-3.0-or-later",
+        "file": "latex-native-graphite2-copyright",
+        "sha256": "26386619310f2404a731bf48731ec66624ad6e8ee4983020aa3efdb4f4136b6f",
+        "canonicalSha256": "06efcedb9ce07473956b72b8669f03ced9f39ca19f3c1216e328b796a36ea6a8",
+        "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/graphite2"
+      },
+      {
+        "name": "harfbuzz",
+        "version": "11.3.3",
+        "portVersion": "0",
+        "abi": "471fed889b6fc0398aaf93c15fb22e59075b053bad23d505fded3e244f1b0065",
+        "declaredLicense": "MIT-Modern-Variant",
+        "selectedLicense": "MIT-Modern-Variant",
+        "file": "latex-native-harfbuzz-copyright",
+        "sha256": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64",
+        "canonicalSha256": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64",
+        "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/harfbuzz"
+      },
+      {
+        "name": "icu",
+        "version": "74.2",
+        "portVersion": "6",
+        "abi": "b5fee6c921957d50ecd7c7c77b7395220a389de24b8e3e8c9d76623fd0edee52",
+        "declaredLicense": "ICU",
+        "selectedLicense": "Unicode-3.0",
+        "licenseNotes": "The installed ICU 74.2 notice starts with Unicode License V3 and retains legacy ICU and other bundled third-party terms in full below.",
+        "file": "latex-native-icu-copyright",
+        "sha256": "17510cf7a58b4879b887ec05a45d72cf1b73544dd9ec7e72f20110ed104229ee",
+        "canonicalSha256": "17510cf7a58b4879b887ec05a45d72cf1b73544dd9ec7e72f20110ed104229ee",
+        "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/icu"
+      },
+      {
+        "name": "libpng",
+        "version": "1.6.50",
+        "portVersion": "0",
+        "abi": "9c732d10ca5dab0ea2834e9f5a68f6d471a9b71842f386cf42c2a848f7accf26",
+        "declaredLicense": "libpng-2.0",
+        "selectedLicense": "libpng-2.0",
+        "file": "latex-native-libpng-copyright",
+        "sha256": "16d9daaafbf63a31a5bdc91d4600972548fef5aaa1244202393288dbd079c49a",
+        "canonicalSha256": "16d9daaafbf63a31a5bdc91d4600972548fef5aaa1244202393288dbd079c49a",
+        "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/libpng"
+      },
+      {
+        "name": "zlib",
+        "version": "1.3.1",
+        "portVersion": "0",
+        "abi": "a9252487a253995f33d46521218a6b82c758a93695f6242e0786e9120e437030",
+        "declaredLicense": "Zlib",
+        "selectedLicense": "Zlib",
+        "file": "latex-native-zlib-copyright",
+        "sha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243",
+        "canonicalSha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243",
+        "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/zlib"
+      }
+    ]
+  },
   "javascriptComponents": [
     {
       "name": "@chenglou/pretext",
@@ -1644,6 +2511,3053 @@
     }
   ],
   "rustNotices": [],
+  "rustSourceNotices": [
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "build.rs",
+      "sourceSha256": "9ac22c5ade621cc33af548c73b8339e04fd556549184ac9faa0df081c15eadfd",
+      "noticeSha256": "e56075011f736343b29cf688261606630f66121c41695f284bf961d47d539645"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/bin/tectonic/compile.rs",
+      "sourceSha256": "61db18370f33ad6d8eb6706b28f472f05046c90bf5a0cdbdc814caff12dc22c8",
+      "noticeSha256": "e56075011f736343b29cf688261606630f66121c41695f284bf961d47d539645"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/bin/tectonic/main.rs",
+      "sourceSha256": "4d0c324d17932eebd87e5ce37add29bab58d1bd393c30b2cbe654f680a5ea54d",
+      "noticeSha256": "2f4857fd4892968b11f034dd20060f6660796c20b5b8d19f1678be7923f57104"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/bin/tectonic/v2cli/mod.rs",
+      "sourceSha256": "83965956ba5e84222e17bb2210c553fe772b97035077cb5e9ab20787e782f13a",
+      "noticeSha256": "33b5bcbfa35a720a68f82a1bf5b9508b7ac4b6e8cce02b8a44ce82fd8ac8a825"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/config.rs",
+      "sourceSha256": "a8a3cc39e399d0c4dee207981e299b40560ba081e5db151dd45e28a0d0d36670",
+      "noticeSha256": "e56075011f736343b29cf688261606630f66121c41695f284bf961d47d539645"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/digest.rs",
+      "sourceSha256": "d15faf9bcfc0ca53cc3ddfb5da04ffd9cbdd0046274a2068fc9a5c1070f05f97",
+      "noticeSha256": "9a8cdb9d2bee9fdb1e49a86aa8820f81cd9cb14956ac960d65075ca21359195a"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/docmodel.rs",
+      "sourceSha256": "1dd42324de4b862b9b23c5abc89789820ccf09103080b2ef59fa9069cccbcc8d",
+      "noticeSha256": "33b5bcbfa35a720a68f82a1bf5b9508b7ac4b6e8cce02b8a44ce82fd8ac8a825"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/driver.rs",
+      "sourceSha256": "f9887f56532836cfcdd253d0fef401c72df79c89f5f276406195519808cdd0d2",
+      "noticeSha256": "2fbd2b887d9a5dfddf299ac534cb4733cc682d7e808d6819653b60362fb1b436"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/engines/bibtex.rs",
+      "sourceSha256": "3f79c21c1b1ca2f5ff9c9280448b965f9f98f17e28e3bdfe748737c0fd9da320",
+      "noticeSha256": "f7d699591dfec77a5d5573bbded93ceec8915eea08d6e62a3fe0758d52cd37d7"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/engines/mod.rs",
+      "sourceSha256": "52ec5b9bdf2d72b75c5b6d7cc1c7976ac3975bbb913abe435cec6f962d136382",
+      "noticeSha256": "e56075011f736343b29cf688261606630f66121c41695f284bf961d47d539645"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/engines/spx2html.rs",
+      "sourceSha256": "ce1424082c3f8eb7d8b92dfce9e8d48868830e150629b3ddc4e0e3de61f5fc40",
+      "noticeSha256": "26dbd771170e9585e6d1e2ee87757f7cdfd61a9ee3c35685fe3c7531d97f7c15"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/engines/tex.rs",
+      "sourceSha256": "3470494eae941825c9b2166a1ec060dc37ef7f60c5fbb7e6705bef245ac5941a",
+      "noticeSha256": "617ad3e01358daa57b93e9f4fd9b87a2c8a54b3ac08e6e0143646672f30de80e"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/engines/xdvipdfmx.rs",
+      "sourceSha256": "d96116e55a8dc5dc6d464ed4a658b3cac42e8ce9013ca2c6116c286407261942",
+      "noticeSha256": "331ffd8ed62a0a4303541f2b91906365986bbba8a7b551cf29f718e859b080f4"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/errors.rs",
+      "sourceSha256": "01e534faffeccb46c0571e827b4a59b4a25057057e0325a1b050c2f34b9e3c6b",
+      "noticeSha256": "80c0f3e67ff72c521e427280209ae63b0583a8b5e15846ec7d17b799e2f09308"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/io/format_cache.rs",
+      "sourceSha256": "d2ae06e9d083ff1aafc5008eaf3fff3105761ce48222e7cc21cb5c0eac1ddf78",
+      "noticeSha256": "1c35953593460452433ec74fd5b66c3f8493222dfbe5b8369589b626ee9bcbb5"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/io/memory.rs",
+      "sourceSha256": "79aa488fc678649d5e282ec654e7d50d67b7a172d136e1e6e5266e7b8944c545",
+      "noticeSha256": "977e217b2f16adc6e1a8849ff7ed7877289342597ce74047a2a28b1a49f8588e"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/io/mod.rs",
+      "sourceSha256": "b4d70fd5046297751b3f116be3c168052849957a028336c4bf9f13102fee41a2",
+      "noticeSha256": "e56075011f736343b29cf688261606630f66121c41695f284bf961d47d539645"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/lib.rs",
+      "sourceSha256": "e2eee8ca3190e0707ba4d60a35b5d14af45778f89ab8a8b13393e9bce0f6a1fa",
+      "noticeSha256": "543e931ffd206cf2b52bbb6e2f8e7982d0e7a4e1d6d44b3180d801e766845cfa"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/status/mod.rs",
+      "sourceSha256": "8f6402eacef4c8be75ff2ef9584c67a9745be11d1031e8a5d0c540750df8ba30",
+      "noticeSha256": "9a8cdb9d2bee9fdb1e49a86aa8820f81cd9cb14956ac960d65075ca21359195a"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/status/termcolor.rs",
+      "sourceSha256": "422a2097b5607efed43ce0894dd134cdc1fbc8c2c37210ca8ef550a6801d2d8a",
+      "noticeSha256": "3225e1ff2772c89ed18ecefaa111c64fccc3081ecbfc6f2a98ef51fb2e28b9f8"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/test_util.rs",
+      "sourceSha256": "59c2fb095ff04a8cab36e1e9fc0d2bf297c2fd9cae0b5d331291355133573a62",
+      "noticeSha256": "80c0f3e67ff72c521e427280209ae63b0583a8b5e15846ec7d17b799e2f09308"
+    },
+    {
+      "name": "tectonic",
+      "version": "0.17.0",
+      "file": "src/unstable_opts.rs",
+      "sourceSha256": "f69fd36eaf77b5ed72ef19abf1ed120fb21f5fed880adb2d6d3d21fb0313a878",
+      "noticeSha256": "6882f8693284f40574b6be844904a16c3b7c877914f5f8e14fbb60344e4e7820"
+    },
+    {
+      "name": "tectonic_bridge_core",
+      "version": "0.5.3",
+      "file": "build.rs",
+      "sourceSha256": "58ff9df28d8c701859811eb69b4994de7ee7adbc3e7698ed190141c013ad2efe",
+      "noticeSha256": "33b5bcbfa35a720a68f82a1bf5b9508b7ac4b6e8cce02b8a44ce82fd8ac8a825"
+    },
+    {
+      "name": "tectonic_bridge_core",
+      "version": "0.5.3",
+      "file": "src/lib.rs",
+      "sourceSha256": "fc269d4728c601d6f0acbc4c2b219af404a5bb020b7d1989060f0830944cf4a6",
+      "noticeSha256": "ef4e04748f6bc66a317146d83e6d75b5b9045380ca8d2fe2760e32a6aa6c08de"
+    },
+    {
+      "name": "tectonic_bridge_core",
+      "version": "0.5.3",
+      "file": "support/support.c",
+      "sourceSha256": "9d06175b3181c582a1899779a8988675036225580ff7030544bdc4952bb71e4c",
+      "noticeSha256": "84130af0a87b1b2c68abcda66b06111814283f6e21c66ee539ce4a5a077952e0"
+    },
+    {
+      "name": "tectonic_bridge_core",
+      "version": "0.5.3",
+      "file": "support/tectonic_bridge_core.h",
+      "sourceSha256": "480aac600686fb17ac3bee57106fb7a7504a0e206df93b4443a5bbd66d5052cf",
+      "noticeSha256": "c0f9ef94980f6c83a26a564486f7339e36043d7ef5ea513bc77aac851fbf721d"
+    },
+    {
+      "name": "tectonic_bridge_flate",
+      "version": "0.1.10",
+      "file": "build.rs",
+      "sourceSha256": "c33e66dc1bed9bd2b5906043f3dbe2a84436cbddc8127312f3224b362cc798da",
+      "noticeSha256": "33b5bcbfa35a720a68f82a1bf5b9508b7ac4b6e8cce02b8a44ce82fd8ac8a825"
+    },
+    {
+      "name": "tectonic_bridge_flate",
+      "version": "0.1.10",
+      "file": "src/lib.rs",
+      "sourceSha256": "3321fcb066457c4980020e6f64d7c9e413386f35f726a16c125dbcbf5d2cdd78",
+      "noticeSha256": "c4727d37a8b6603757361e9021846c559219033841c781bdff48e994f49e8f38"
+    },
+    {
+      "name": "tectonic_bridge_freetype2",
+      "version": "0.3.2",
+      "file": "build.rs",
+      "sourceSha256": "ccdbfd8fad152202780c546bb8ccd44c6b91e7e129f57228f854345061a17969",
+      "noticeSha256": "c4727d37a8b6603757361e9021846c559219033841c781bdff48e994f49e8f38"
+    },
+    {
+      "name": "tectonic_bridge_freetype2",
+      "version": "0.3.2",
+      "file": "src/lib.rs",
+      "sourceSha256": "b6d27f6d545756f8562235d1754f716d2e4ebb429f55e04acb947370ea1aaad4",
+      "noticeSha256": "c4727d37a8b6603757361e9021846c559219033841c781bdff48e994f49e8f38"
+    },
+    {
+      "name": "tectonic_bridge_graphite2",
+      "version": "0.3.2",
+      "file": "build.rs",
+      "sourceSha256": "c9e8f530f4fa985ac7ac3b5d75ff44db52365bc95df021fcb999bc19495dab39",
+      "noticeSha256": "c4727d37a8b6603757361e9021846c559219033841c781bdff48e994f49e8f38"
+    },
+    {
+      "name": "tectonic_bridge_graphite2",
+      "version": "0.3.2",
+      "file": "src/lib.rs",
+      "sourceSha256": "64276d16c56567a54186e49c4862c3b30bade79789fbf1d0c8f1a396895c6961",
+      "noticeSha256": "33b5bcbfa35a720a68f82a1bf5b9508b7ac4b6e8cce02b8a44ce82fd8ac8a825"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "build.rs",
+      "sourceSha256": "67fdc3892615b5350544821ddddb58bc4c2e4a10756aa1a9754775ab8f2f5429",
+      "noticeSha256": "e3cd6ef303c88421fe572566d03d1384dd623fc26de11f2bf8b4b364517f1840"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/failing-alloc.c",
+      "sourceSha256": "f11e0d96c1ffc9615fccc9d6bc579f2f35e28b9f6119346e88bc8c350a480583",
+      "noticeSha256": "63f29a903a08320c848a36599428de39683c225242f0845c537a79bd745db928"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/graph/gsubgpos-context.cc",
+      "sourceSha256": "bc55f636037c8474ac74982b148783ae3c1d5b4407360bf62694af44e009c415",
+      "noticeSha256": "aa1e468f1a1343d9f0f8ef3bdd393d0118066288ede7e8d40ad432f1ad9bed20"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/graph/test-classdef-graph.cc",
+      "sourceSha256": "95775132600bb9f7c783f0b27071d8f1a1b1f2ab9fe47d7913e78a15514f01fa",
+      "noticeSha256": "aa1e468f1a1343d9f0f8ef3bdd393d0118066288ede7e8d40ad432f1ad9bed20"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-aat-layout.cc",
+      "sourceSha256": "7d92201c7766b1588dc6275a31d555a6dc8b2173182cd0e959975df6ea9263e7",
+      "noticeSha256": "05b40337a4399cda7d1fef0cec66ff781a929c6122111180cf08d777be4ceb6f"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-aat-layout.h",
+      "sourceSha256": "19260855effa365dabbea60543813bdb88c67835aa347b7970e416906f3ff392",
+      "noticeSha256": "68dcfa35edb6d38e0ec6dcf2a2d8fd1c8e7b234f7bf742c932bb87ab47cb85f2"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-aat-map.cc",
+      "sourceSha256": "f14ceba631c34766b3deaff1d478327b2f44dce7b900c0b4b294de98bcfa9b21",
+      "noticeSha256": "9aba2412bc79482d065b5f41a58252998a07272de4decee4256e03076404a846"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-aat.h",
+      "sourceSha256": "bce10093cad39cfbd5355d763368b22a04ae2bec9289ef0642e5f752bd6e79ff",
+      "noticeSha256": "68dcfa35edb6d38e0ec6dcf2a2d8fd1c8e7b234f7bf742c932bb87ab47cb85f2"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-blob.cc",
+      "sourceSha256": "316297b1d6de8b79ae52a9dc3d92bd7c4fc84a349a462e49924cbf836d31d520",
+      "noticeSha256": "56f76b1843cd29b26bdc14ba33e938625be82ddaeb1f8f3fd03da886ff11cc25"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-blob.h",
+      "sourceSha256": "710fe0a1be3b3a344154939be9bf6cc30674f6abd4ae0fcc0d3144b9d6b9a6bd",
+      "noticeSha256": "f639be76a1fe603cf922bae61c897e98b9bc05769153be1b201cf2f5e3ccd0ed"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-buffer-serialize.cc",
+      "sourceSha256": "c34b20c7a054b0306fb5ac4c50c1b0d138134ce35d1ee603e6b332824fa74986",
+      "noticeSha256": "7ac7f4288a4fdb402f2a783d7f1098f151e1818de315355b0801c4f8076e523b"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-buffer-verify.cc",
+      "sourceSha256": "1dcbe2bdf92c6a0fc91cb0ad86ad4402678eb62743edbd0e699b8a6c351af1e5",
+      "noticeSha256": "7baa90c49e32db6a370651a6ab2e131574c9de6f668f1f1fa76adf37701dd414"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-buffer.cc",
+      "sourceSha256": "c46e6f2fe1728ebc823ad6788d49926b923207ca515e0936a5b1eadae160d818",
+      "noticeSha256": "76d8104af9de7bb1f47cd1893333f59ee38a98ed3fb3b4f9b1d316038aff2067"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-buffer.h",
+      "sourceSha256": "43b09d72c23f3ce2e5016589d6d1e62791e28147a625575c9c73fcb26f953cac",
+      "noticeSha256": "80d1be0397277c8cde071b51af9efca00a497e58d8a789ac42ab8e6a24462aef"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-cairo-utils.cc",
+      "sourceSha256": "cc23805a3c72ab95467b60b52b2abdf36c2b813ddba37dd2bea9f47ee9706f76",
+      "noticeSha256": "bbf6f2e4150b25f57115dd4154138d8969c7cffd0f788f9c7d667f897742a6d8"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-cairo-utils.cc",
+      "sourceSha256": "cc23805a3c72ab95467b60b52b2abdf36c2b813ddba37dd2bea9f47ee9706f76",
+      "noticeSha256": "a6f9278e6e7f7736362d71ff97f7eb0c1eea1de6b35dabb379b4da887a49862f"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-cairo.cc",
+      "sourceSha256": "02d887fc855eaeb006ea693069bd1a95c49104f55296f60ccb20aafeb9d3b2a5",
+      "noticeSha256": "0ac3ab4e338f0f9b13222f248a61fa2b9f13ad371a6c82d2427c2e3c8935d7eb"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-cairo.h",
+      "sourceSha256": "ca71ef1a2f5210ed65294fb9f96b90973a2baa60e2ef8c2702404e13fd3b186d",
+      "noticeSha256": "57f8b7da21330902a3e50030130d65946a6d7cf22d89cb7513c308ac7bc5522f"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-common.cc",
+      "sourceSha256": "0201f221d4f8295b23adc2da17fe64b8e18c90383493a0a9a17a5383600a427d",
+      "noticeSha256": "49891dc94bab49ab1b8e51b43371dc5c8aba94d30fb48dc5211812f2042e8b01"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-common.h",
+      "sourceSha256": "5dbad3219a807afdc06f9e8b8ac6828e951bb5447b3b4723544b145a7b30f6c4",
+      "noticeSha256": "e5a971e2d0bc82700ab3c71aa42b25343fbfedefa7409aee43f46fb8edb24afe"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-coretext.cc",
+      "sourceSha256": "377168be7cf311b0b8d47d2d8acd0e886d45c80f07158dfe49257c5c47752a4c",
+      "noticeSha256": "29cef416d16b570c4511fb7db104199233452ae40128694c7e89f98bba7996bb"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-coretext.h",
+      "sourceSha256": "40bf8b93f056c11a4d78911f93dfd86d493460c89aed0e33123c1de50d83a618",
+      "noticeSha256": "049cc6c4c243a93eccff03d2e934b107bef4105866b1fb1d8eac6c3dbade5274"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-deprecated.h",
+      "sourceSha256": "ed70e36ecf19a0f6dd27854f56d60e74c84a58a45df4812d8f10ea542b15f9bf",
+      "noticeSha256": "5adc65bdcacdd3278a94713a3b821cd57a9bd15ff59da04fc7fe20cbf238bb80"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-directwrite.cc",
+      "sourceSha256": "0215f982b3bb27e3d91583bb0c2b5515d245623b2da0baaecbe04320c6a75e67",
+      "noticeSha256": "3e728a79380f8c21f7d89cdf5d39a4607bfbf081e7c863658511ea7a02da557d"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-directwrite.cc",
+      "sourceSha256": "0215f982b3bb27e3d91583bb0c2b5515d245623b2da0baaecbe04320c6a75e67",
+      "noticeSha256": "27c320acce13aa0cf1ad356276aaddf131bf16a19d1981a3c8ab96b1fba1757a"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-directwrite.h",
+      "sourceSha256": "f3731eddb54326d71f6f1544e4e8bf354feb52ca1f84204b660a3994c0c7fd1e",
+      "noticeSha256": "3e728a79380f8c21f7d89cdf5d39a4607bfbf081e7c863658511ea7a02da557d"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-draw.cc",
+      "sourceSha256": "9f094d4b8ea3c14f3d520ccf408e00e70c0c11077779798df7facf22088c6197",
+      "noticeSha256": "89de0252fea48d48d4941afb4940e8da3168337ad34ab9b424b98ad4c5078d8f"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-draw.h",
+      "sourceSha256": "5d727bf80f13608c6c9a4fe828200552a65fc0c6ed04d5540cccb2c9dbb78752",
+      "noticeSha256": "89de0252fea48d48d4941afb4940e8da3168337ad34ab9b424b98ad4c5078d8f"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-face-builder.cc",
+      "sourceSha256": "6b413388f918d01da91b263e3a3c5584a18e02f6f7f95b8f80b14a8b5e06dbaf",
+      "noticeSha256": "bd47cdadfa61bd826448602809a8cc3ef31c95bde3fce94a6cc861ec6f76a088"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-face.cc",
+      "sourceSha256": "f2d7cf5b08facf5988f1f43f59bcb8294d687e65d389fa5e376386f5bc5e2dda",
+      "noticeSha256": "bd47cdadfa61bd826448602809a8cc3ef31c95bde3fce94a6cc861ec6f76a088"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-face.h",
+      "sourceSha256": "a62ded74b8cf2117b84f1b886b184e97d1c0d173c8fd75bd31cdeecccd4b9dfc",
+      "noticeSha256": "f639be76a1fe603cf922bae61c897e98b9bc05769153be1b201cf2f5e3ccd0ed"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-fallback-shape.cc",
+      "sourceSha256": "03c6ea4985478a3132ce8447c52fbbaae3b65a3bcf7271d56d3e5713e0f283e0",
+      "noticeSha256": "efc4f4cb5fc24e4e314ee6f86605474d88341138eb7a96f8e1cf57f48b1b4b61"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-font.cc",
+      "sourceSha256": "78aae12f8eccd90cd61ad0819f713eddfdc043e4136cfb33c24ec0cde2b12c26",
+      "noticeSha256": "bd47cdadfa61bd826448602809a8cc3ef31c95bde3fce94a6cc861ec6f76a088"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-font.h",
+      "sourceSha256": "646f1c5d1172b97c0c6a7d3a3def938b61dda8c74ea9972145e6a5a531731a51",
+      "noticeSha256": "f639be76a1fe603cf922bae61c897e98b9bc05769153be1b201cf2f5e3ccd0ed"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ft.cc",
+      "sourceSha256": "7ae748c0f1c89490eb872b42d8af7576e3e9a6d4dd2f864ffc1f30bc3810e8bd",
+      "noticeSha256": "c1c4b78cb5faa027644907ac4cc27d0bed52e9af7b429bf5445b5da1e86e2892"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ft.h",
+      "sourceSha256": "8110b119a57126440838022d20cf2dd3c75cff578ec97a04b9cbac6a09e30ba9",
+      "noticeSha256": "c3ffdbaaa6a7d8b6693519b7f7dcaffb0d78b0165b5f3d8b91ce1615c77342bb"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-gdi.cc",
+      "sourceSha256": "bdb6ef8559d0ea776fc497fddfb998da12bbc757feb3330a84f060d8c4de18fc",
+      "noticeSha256": "2f649c94f0689ff5bf10ccbe8ab11a1b932a7ec25123b4afde055731c75a04e6"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-gdi.h",
+      "sourceSha256": "746f8a752275816dccc24952203b8763305489c4d4f4f1a3ce9180a7eb0945d5",
+      "noticeSha256": "2f649c94f0689ff5bf10ccbe8ab11a1b932a7ec25123b4afde055731c75a04e6"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-glib.cc",
+      "sourceSha256": "172394552a6207ec227c909d4756d6031c46f737e654d34d5e92e84adece7a54",
+      "noticeSha256": "6905bfe102c72e2f8eda7fc83497b20cc6072b0493d99a0d864dd4fc156a0daa"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-glib.h",
+      "sourceSha256": "05402cbae1f44fc2587ea8f59afa235107f9e568e5a4aa93c12ed2727de74aac",
+      "noticeSha256": "6905bfe102c72e2f8eda7fc83497b20cc6072b0493d99a0d864dd4fc156a0daa"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-gobject-structs.cc",
+      "sourceSha256": "b842547a50fd8f4ee86551d32914733cc001e44fa9a25eb34e5a49f79e721b6e",
+      "noticeSha256": "efc4f4cb5fc24e4e314ee6f86605474d88341138eb7a96f8e1cf57f48b1b4b61"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-gobject-structs.h",
+      "sourceSha256": "43eb2a7d5a6ac89b9b1d30df278c9ceae429f4f309a54e3bdc0a4bd86b5fac6b",
+      "noticeSha256": "fea162e98d8597d143a99848bce82e14d8bfba41ea4a1ff61a3800041b082e46"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-gobject.h",
+      "sourceSha256": "98639ef9185189a968e606db6429a024c363809df2b654297f6aecb59236dbc4",
+      "noticeSha256": "fea162e98d8597d143a99848bce82e14d8bfba41ea4a1ff61a3800041b082e46"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-graphite2.cc",
+      "sourceSha256": "60e521e0a805ef23854ed417dc1c9a53f8c193c11e6fc5021838227e33eaec5c",
+      "noticeSha256": "a640f92cfe27551b3ff7baa42a124f23faadb87d988733df07d4e52a592cd3b7"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-graphite2.h",
+      "sourceSha256": "98180c71960325ae9a9c886859547f56899504072da6935ae977cb5e7b2586da",
+      "noticeSha256": "5b65a3cbd8c46296c36369a3010586c2c1364e24c22a6130d416e5011806efda"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-icu.cc",
+      "sourceSha256": "7231c569a201fedeb9e3a5853e36836589f3217e45fda12c64d53128ea8ba01e",
+      "noticeSha256": "43b4d9c26a26d9abdfc10a9536ddbb9ded951c833cf3fa736856c984cbf5bcbb"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-icu.h",
+      "sourceSha256": "f2eaa478e7ecc533be912d75288e6fa8c2157191edbc03b2bd68c302bbcd0f6e",
+      "noticeSha256": "6905bfe102c72e2f8eda7fc83497b20cc6072b0493d99a0d864dd4fc156a0daa"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-map.cc",
+      "sourceSha256": "123f976e0db59c148b6f5e647be0e491a95ddbc90f8358476e25b44ffbb3f303",
+      "noticeSha256": "61734324d65a49d7a23ba47e8001e6f0d65ebc03dcb85d3321ada169f6d1ea96"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-map.h",
+      "sourceSha256": "b073aa19718e43e3535caeddc0015a4e45a89032a76059cc5ab8f3f0d220bece",
+      "noticeSha256": "61734324d65a49d7a23ba47e8001e6f0d65ebc03dcb85d3321ada169f6d1ea96"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-number.cc",
+      "sourceSha256": "6b9fefa647a42ffab352a3ad0413627700bc15e228adde4aaa7be8bfa1eb61f1",
+      "noticeSha256": "b6ae9a6f99b81ba24bedd7459831dca02660cb2d0577aa368aa8b91d2daa577b"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-cff1-table.cc",
+      "sourceSha256": "79212998da09a97202a6424ee8ec27526cdf045f89096a751a06135295cff5e1",
+      "noticeSha256": "9291ef99d1a98a24fef8fe110add05163187abcceeb0a94638539dad02eb84ca"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-cff2-table.cc",
+      "sourceSha256": "54febf90d4492bf1e92c13b1e234a414cf68354c110cff58618614af173ba537",
+      "noticeSha256": "9291ef99d1a98a24fef8fe110add05163187abcceeb0a94638539dad02eb84ca"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-color.cc",
+      "sourceSha256": "cafe306cf2adb004bf449d721ea0c6a18951cadef8ce374336f9da0a67481cb4",
+      "noticeSha256": "ee4f7154ed08820a92fc1f43bb032930974228d9cfc888c6323918a90dfa4485"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-color.h",
+      "sourceSha256": "3216a51aabe5e3961e2c11af854ddad57471009cccd8790e2d26e18eaa1f139c",
+      "noticeSha256": "73bbd16ab4e6f95f838a6fd474866d24f0fe77af448094b875e41a5b097a8b65"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-deprecated.h",
+      "sourceSha256": "c3a9878ac0633d5e6d7e16821114ad4555458a6924100581f0d16fef5728b1c4",
+      "noticeSha256": "61734324d65a49d7a23ba47e8001e6f0d65ebc03dcb85d3321ada169f6d1ea96"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-face.cc",
+      "sourceSha256": "5183d2be5befe58a7e91abc1482643154d3148e3146a3fff3b25fecc5696e103",
+      "noticeSha256": "61734324d65a49d7a23ba47e8001e6f0d65ebc03dcb85d3321ada169f6d1ea96"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-font.cc",
+      "sourceSha256": "2ab1e22ab076b091706d97c2a0adcfab5597f1c039d2b5e713205f1b34db4fa4",
+      "noticeSha256": "fe4c1c7d870f5844751291a199fb45d999fa11d515aa705e4bf77becb52bc16f"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-font.h",
+      "sourceSha256": "e62d178aa73ef9c80b08d3c076db3e99bb8cb4e8219e978e793ef7ffe965f8f1",
+      "noticeSha256": "7b62693509ac29930c26e006245d8b566a41e69a060e89a5b7c9bb104c3871f1"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-layout.cc",
+      "sourceSha256": "c2fb878e1d2ac770fb233c4eae5b52fbc395f1c60962465d0f9abedbcae80f1e",
+      "noticeSha256": "a9b7cf1136340e6004475de132604bcfaa2ca6b3075288fb75a40d116b40b944"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-layout.h",
+      "sourceSha256": "a178b541f07052c97471f4a23a5851d624bcadedd7633c1af7a21a2c294f3c8d",
+      "noticeSha256": "6b6d78bef5636b0fa846a913c7ec95c95e767ace44d888fb5e66908299b73533"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-map.cc",
+      "sourceSha256": "bfbeabaa2b8b1977f20aafa8e96ddcaaacfe17443feb85c00530a1b4cc78e5b7",
+      "noticeSha256": "9aba2412bc79482d065b5f41a58252998a07272de4decee4256e03076404a846"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-math.cc",
+      "sourceSha256": "4809868fe4601b1cfef2cf754805bdddf9824126774d0de6f68591adc641a948",
+      "noticeSha256": "d52f88dd5132918b56d04e19b320a15ee7ddc124fd1ec1c6afedafdb6f7a37e5"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-math.h",
+      "sourceSha256": "4e737e5ed9dcb3db18a64534a1ff2faf638ef720dc30db0ee821324099432f90",
+      "noticeSha256": "d52f88dd5132918b56d04e19b320a15ee7ddc124fd1ec1c6afedafdb6f7a37e5"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-meta.cc",
+      "sourceSha256": "345e857c42009aac9c049478127fa7279f9de1ab95d2a28f2c3021abf6474aca",
+      "noticeSha256": "2f649c94f0689ff5bf10ccbe8ab11a1b932a7ec25123b4afde055731c75a04e6"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-meta.h",
+      "sourceSha256": "1d38c9bcbc0d417f8b7e0e818c2f5f9b83d2abddc39f2f116cc0ae84157a572d",
+      "noticeSha256": "2f649c94f0689ff5bf10ccbe8ab11a1b932a7ec25123b4afde055731c75a04e6"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-metrics.cc",
+      "sourceSha256": "0c8063840b86d0a6646949c0a6895be388d711805d6a7ea389d924f08b6993a3",
+      "noticeSha256": "10751859a96ec1cd68e5623e2e2e053e79e639f5070b4fb0d93b37837ac61809"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-metrics.h",
+      "sourceSha256": "c65239f100590cf1b1f647bba6ccd1a548a4e89cb80978601ca3050e9884e724",
+      "noticeSha256": "68dcfa35edb6d38e0ec6dcf2a2d8fd1c8e7b234f7bf742c932bb87ab47cb85f2"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-name.cc",
+      "sourceSha256": "bdcab8554abf1e7cd36dfd59c157f9e10f371768bdb864dcea0124cde5ff78ab",
+      "noticeSha256": "61734324d65a49d7a23ba47e8001e6f0d65ebc03dcb85d3321ada169f6d1ea96"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-name.h",
+      "sourceSha256": "5be924687f71a0f98149b1987f3de3fd766ed9e84c4e144250e97048a36cb1ac",
+      "noticeSha256": "5c23734000b5562d51a3f6dc95f9c58a002690b3fed6da2a519b87b1646b3df6"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-name.h",
+      "sourceSha256": "5be924687f71a0f98149b1987f3de3fd766ed9e84c4e144250e97048a36cb1ac",
+      "noticeSha256": "1f2a0ab310ca8156c9f62a0103954341c92d5aca017c02d7753171b3ebffd549"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shape-fallback.cc",
+      "sourceSha256": "ff959202ee2997316d860ed92bcebcf0243ca70b084fcd32c51da997bd46a66a",
+      "noticeSha256": "bb5cd066d777fcf974a299c1e6ff77b1f42e95691e0eb0d7dc1188e499566485"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shape-normalize.cc",
+      "sourceSha256": "a1573c48b1acef56ddeeb297802b722d3d6d22ec4acdc3c6de5b7371be5b936b",
+      "noticeSha256": "bb5cd066d777fcf974a299c1e6ff77b1f42e95691e0eb0d7dc1188e499566485"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shape.cc",
+      "sourceSha256": "f40c120672dab7481ccad4fb58c8fe01a81405c498d438a26b1b92bb3064fad7",
+      "noticeSha256": "d1596b8b4bf4e96981b26a68f315e5b02a1937d17ef8dd0291fdaf29fad9a4ec"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shape.h",
+      "sourceSha256": "3b7a14d01eb04ff51ac59f1e0ead8df2a3952e6c7e7d81344c6925cd00d9b52f",
+      "noticeSha256": "16160aca3fbcaa709205f71b6fd4e1e286659a2f3b422e469fa5d4fec046b468"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shaper-arabic.cc",
+      "sourceSha256": "ccf8c7d148970d52253134b04390e07e9b04d70e2fd5444fe9b5a09cdff76ed8",
+      "noticeSha256": "14e468ee783b5bc97680ae833c80d5f278e46687ce17a31f64e346bdb36271f1"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shaper-default.cc",
+      "sourceSha256": "0035a3cf8b359f4b4a59ff59b36998c36578174ba836fa74bf00310754451e66",
+      "noticeSha256": "14e468ee783b5bc97680ae833c80d5f278e46687ce17a31f64e346bdb36271f1"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shaper-hangul.cc",
+      "sourceSha256": "d6430bead756fdc0e04b5ebb7d1ce341e341a1fe96bc19bb09531e552423b60b",
+      "noticeSha256": "5adc65bdcacdd3278a94713a3b821cd57a9bd15ff59da04fc7fe20cbf238bb80"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shaper-hebrew.cc",
+      "sourceSha256": "0162592221ff2e812f91d0b3863632714702bad6004370573d481d08e13cba4b",
+      "noticeSha256": "14e468ee783b5bc97680ae833c80d5f278e46687ce17a31f64e346bdb36271f1"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shaper-indic.cc",
+      "sourceSha256": "4ec42ae235fa2818a753d75ae4927c6215c538a6ca1aa22ed7cdfdd84b38e16e",
+      "noticeSha256": "bb5cd066d777fcf974a299c1e6ff77b1f42e95691e0eb0d7dc1188e499566485"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shaper-khmer.cc",
+      "sourceSha256": "52682486c355c1e04eb562c645e9eb5fdeb8bf55ca173359e09b744e1e545f8c",
+      "noticeSha256": "bb5cd066d777fcf974a299c1e6ff77b1f42e95691e0eb0d7dc1188e499566485"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shaper-myanmar.cc",
+      "sourceSha256": "115f7ca3e0c271d0fbc2a1ae10043af80dc455e30b5f402d9dbe742ba4b91c9b",
+      "noticeSha256": "6023605fdd606b30430a840ba57cc2257446932ee0640e895574aff2784d36c9"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shaper-syllabic.cc",
+      "sourceSha256": "09f5b4e7655231428f8463d7be2462d5e1e0486e2cdfe6aeee9c512bcf83e4c1",
+      "noticeSha256": "8f3d103b2b0c6304be48b786f6a3473352633b379c757df716df9def6ecee2ce"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shaper-thai.cc",
+      "sourceSha256": "73a9281178a3094b838da0046d388b5476032e0539f8186007747a25c660ac8d",
+      "noticeSha256": "14e468ee783b5bc97680ae833c80d5f278e46687ce17a31f64e346bdb36271f1"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-shaper-use.cc",
+      "sourceSha256": "1cf33c4ed82b65c16e02971a7f9bd5a4257423474a8aa347bfdfd11d66ed6db0",
+      "noticeSha256": "e809090de81a2eddde35300d51778a238a08fc310181fd2a793ca71fa8978cb5"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-tag.cc",
+      "sourceSha256": "b6e5fb712cb3ce0fe0dc132a26d6a74d01185b193cd0c9e52ad8fc6f6d5edafe",
+      "noticeSha256": "97246141b2ea93d5c5b2f89e333dc3c6e042b5e897ed840572c64ff3987aef0e"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-var.cc",
+      "sourceSha256": "a1512f7815e0b2c12e76333bef50f325873344e785dc551de72b4a17912fe213",
+      "noticeSha256": "d6d5e22fb923f8c38af0802e851e3c13619360cafe10e2a22584986112c5a68f"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot-var.h",
+      "sourceSha256": "9c438bc34f43afcc95c3f5f390b929903156af93e19473fc29daa650d98cf20e",
+      "noticeSha256": "c5618cdc1c9ce5c6d613350c0b1cfaf289a5aa9bf6188ce63c78b58fbfde07f9"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ot.h",
+      "sourceSha256": "c5c821c47756741bae7a0121f440391a28d5e188824469f2281dd08b8c655a16",
+      "noticeSha256": "f639be76a1fe603cf922bae61c897e98b9bc05769153be1b201cf2f5e3ccd0ed"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-outline.cc",
+      "sourceSha256": "1d62cb9a5e7536cc35bc227fa803400ed4770454d92ee880abbe0dea7cab7875",
+      "noticeSha256": "82a761f0bd0ebc20f8ae18108381b3332627372be1a67d8544ba692977ccad5b"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-outline.cc",
+      "sourceSha256": "1d62cb9a5e7536cc35bc227fa803400ed4770454d92ee880abbe0dea7cab7875",
+      "noticeSha256": "49808b486709c87805d022d6d5b6f7b4c45b91b81c80a567c5a2362fe55676e4"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-paint-extents.cc",
+      "sourceSha256": "8cd627a2018b4452d4b23c3e7f3e71f4ad58ff350245a46104be0824d05e477b",
+      "noticeSha256": "e1b162fc1bc67381f60d1f025d86f5afb5496eccc13b29a912a46c44ed4d585b"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-paint.cc",
+      "sourceSha256": "b8e84ae2556941953138c92e40c3c3b28f182e988d82d5960583370bfa7b640f",
+      "noticeSha256": "d3845b2e06ffa05e0cd078b95c7b91b83ea98e8a17c7f6a9fc765bc09d2ee718"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-paint.h",
+      "sourceSha256": "8afdeb8df3d2f75c93822dc012aee56a20c8e4122335e0b848b15c7159f19126",
+      "noticeSha256": "d3845b2e06ffa05e0cd078b95c7b91b83ea98e8a17c7f6a9fc765bc09d2ee718"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-set.cc",
+      "sourceSha256": "0bd89c0a7120b4c7e6c6e23a1d5593ea1c58874135d75054674789ddc0f2dbc4",
+      "noticeSha256": "4de281e4e31f1db73b010450b932717de870df7000bfb1ea0ab1b53d5dbda0ab"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-set.h",
+      "sourceSha256": "0ee36c1a0926e51bb2a050687930db464b8e719f5823cd93a0c96226b8ccb783",
+      "noticeSha256": "4de281e4e31f1db73b010450b932717de870df7000bfb1ea0ab1b53d5dbda0ab"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-shape-plan.cc",
+      "sourceSha256": "b7d675d8a26e3064eee793c950ee402039715c02958d193bccb149d7a5fc1f80",
+      "noticeSha256": "4de281e4e31f1db73b010450b932717de870df7000bfb1ea0ab1b53d5dbda0ab"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-shape-plan.h",
+      "sourceSha256": "03555c82558fa347e96549ec99698fae790c2cfb9ee795c5ea48ff4134e06224",
+      "noticeSha256": "4de281e4e31f1db73b010450b932717de870df7000bfb1ea0ab1b53d5dbda0ab"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-shape.cc",
+      "sourceSha256": "561b71033896444256e21577d409548fac7756305974ff57ab405c96b9911f50",
+      "noticeSha256": "bd47cdadfa61bd826448602809a8cc3ef31c95bde3fce94a6cc861ec6f76a088"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-shape.h",
+      "sourceSha256": "e9bd1f738210aa884454eadb282633f4b270bb6c78fb3bdb11162c1bba0d54ad",
+      "noticeSha256": "bd47cdadfa61bd826448602809a8cc3ef31c95bde3fce94a6cc861ec6f76a088"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-shaper.cc",
+      "sourceSha256": "9b1d7d4edaae3107424510aeeff21524c1893f7b849abf44461e4c0b5566cd8e",
+      "noticeSha256": "4de281e4e31f1db73b010450b932717de870df7000bfb1ea0ab1b53d5dbda0ab"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-static.cc",
+      "sourceSha256": "813f5cb8040afb69ad3c34d07d432bc4e44630fa8f038b891cef5fef45b37ac8",
+      "noticeSha256": "61734324d65a49d7a23ba47e8001e6f0d65ebc03dcb85d3321ada169f6d1ea96"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-style.cc",
+      "sourceSha256": "9c7567210e071b337e4109f8a04a7813f5230ab607677c4d732ae68d3c6ad30e",
+      "noticeSha256": "2f649c94f0689ff5bf10ccbe8ab11a1b932a7ec25123b4afde055731c75a04e6"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-style.h",
+      "sourceSha256": "6e88aec3ae6db176b37e4d6089923f78859134a26fd12b33b40b772e91673b5a",
+      "noticeSha256": "2f649c94f0689ff5bf10ccbe8ab11a1b932a7ec25123b4afde055731c75a04e6"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-subset-cff-common.cc",
+      "sourceSha256": "b2396a0640147f065e185dbac5383657b088ae007eba788261ad6e5fee6baf98",
+      "noticeSha256": "9291ef99d1a98a24fef8fe110add05163187abcceeb0a94638539dad02eb84ca"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-subset-cff1.cc",
+      "sourceSha256": "c55021db5d2e8e56126f15335f56fed777059af06b05951f042ad121338ed1f4",
+      "noticeSha256": "9291ef99d1a98a24fef8fe110add05163187abcceeb0a94638539dad02eb84ca"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-subset-cff2.cc",
+      "sourceSha256": "a2fc5f091dd4b654871d7f79757fe4f8a1247b20bdb13d8513a8a5f96a708e2d",
+      "noticeSha256": "9291ef99d1a98a24fef8fe110add05163187abcceeb0a94638539dad02eb84ca"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-subset-input.cc",
+      "sourceSha256": "93cca46500b29ffe5fb9af5e20ab69c9e9495f3e35e355194d1b1c2ec18ea8bc",
+      "noticeSha256": "e1082e75cc24d07a406563d3d4efd4323badcc6be30837f90e8a22c58705fa6a"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-subset-instancer-solver.cc",
+      "sourceSha256": "cd045b4a5d56948f528a0292dafd1949ec7a422944c3d9fd1600c499e84ccfe8",
+      "noticeSha256": "e60b040ea173f519db3155fd0088799464962c5594fdab832fbb7a8d5c8a74d1"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-subset-plan.cc",
+      "sourceSha256": "b680021539f0238ba017548e484f38661ddaaddaf250f4a0d967908f3a05e20d",
+      "noticeSha256": "3392fabc3f8ac84076413e79969518604d72d2da683af295f1d096a371f58725"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-subset-repacker.cc",
+      "sourceSha256": "f10f56f1d3d0615f71bb38c1ada432f4063f253202f4377fb8fe6bbceac677e4",
+      "noticeSha256": "2db46304a2ef5fda4bca361a2ff2c9527e534be7071fdaa9fa6ae1dd2028eef3"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-subset-repacker.h",
+      "sourceSha256": "84cd128482a79a3c24ad1ee0b2c4aefde6df8c1dfeb0d3d3578395a913ec19e2",
+      "noticeSha256": "2db46304a2ef5fda4bca361a2ff2c9527e534be7071fdaa9fa6ae1dd2028eef3"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-subset.cc",
+      "sourceSha256": "00f2af90ff0479d24292771bc1beae995ae34b99a5d12f3670b92e1ee273ef4a",
+      "noticeSha256": "e1082e75cc24d07a406563d3d4efd4323badcc6be30837f90e8a22c58705fa6a"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-subset.h",
+      "sourceSha256": "b6d2159cda1bfc190e13a627f1c0a94adfbee507a1fca475af43aaf0d7b06c6b",
+      "noticeSha256": "753da9f4d6675d01b6e2cb0a53d4542a21ad7a2c6bbbd56a5916c6527cb14904"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-ucd.cc",
+      "sourceSha256": "0bb1dc09aee15ca98a2222f7307d1a9d279646c486f8240efd50035c86554420",
+      "noticeSha256": "cb9e465e174d27af52932354c6b1d02fea66afb7b54533d95b95082b98e18549"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-unicode.cc",
+      "sourceSha256": "bb710579e8221b0983c5b341351f3a9c1bda738c9c00940f8eb8478bb40e26eb",
+      "noticeSha256": "6f939f34115b42a1ef2b38f8ac4f006bf47c397c98642f8f494242716590a32f"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-unicode.h",
+      "sourceSha256": "6131f0eb9e411fa392101f58793f4e4347ec3bc6fe45226736b186004cea8038",
+      "noticeSha256": "84cecb63ff39bd484e99259b782011ba92bbe58706b6e987b54bfa3a8af5f51f"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-uniscribe.cc",
+      "sourceSha256": "8a637da99259dc25723bf7e02bf33225d7dacc6a2d1702508681eb2a2a425348",
+      "noticeSha256": "6023605fdd606b30430a840ba57cc2257446932ee0640e895574aff2784d36c9"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-uniscribe.h",
+      "sourceSha256": "fad494ab421c382ef5d0264472e2f1b6527e0af165444103b71cc7447e9dc5e2",
+      "noticeSha256": "efc4f4cb5fc24e4e314ee6f86605474d88341138eb7a96f8e1cf57f48b1b4b61"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-version.h",
+      "sourceSha256": "d51c81a2da3cba3f6bde7f113abf017de06cbd59c76d5e8abdcc76d3f5a54f1b",
+      "noticeSha256": "efc4f4cb5fc24e4e314ee6f86605474d88341138eb7a96f8e1cf57f48b1b4b61"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-wasm-api.cc",
+      "sourceSha256": "8cfbdfbf4d48d54dabd0d50e265d80d6d8999823454e9df37174d97f6cc035c5",
+      "noticeSha256": "e60b040ea173f519db3155fd0088799464962c5594fdab832fbb7a8d5c8a74d1"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-wasm-api.h",
+      "sourceSha256": "2683e5a81de0bd3f52c79126fc04fc91f4e731542b80bf9bd6ac626d8657ea27",
+      "noticeSha256": "e60b040ea173f519db3155fd0088799464962c5594fdab832fbb7a8d5c8a74d1"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb-wasm-shape.cc",
+      "sourceSha256": "b3ab3d48b6c71b9cc2a8af3d813bcb9069646cc07a5e1d4d28dace0ddace5e93",
+      "noticeSha256": "efc4f4cb5fc24e4e314ee6f86605474d88341138eb7a96f8e1cf57f48b1b4b61"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/hb.h",
+      "sourceSha256": "31a1b53db3ee4395916e6d4f105b2c64772b8037bbb97d0e6d1e4a905eb6c6c9",
+      "noticeSha256": "f639be76a1fe603cf922bae61c897e98b9bc05769153be1b201cf2f5e3ccd0ed"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/main.cc",
+      "sourceSha256": "ddf0570d5a006cb017b353a74b760d4f347603526fde6707924a63e60d7394c1",
+      "noticeSha256": "b1d1b2f49d556fd16f27b51cca5037f74fd46c4464b0c7b2f8dcea6ba07e0ca0"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-algs.cc",
+      "sourceSha256": "ae9c7923d916980ecd4c4989ded8410d55fe3b3ac8d44daec70eb3add74ad230",
+      "noticeSha256": "bcfddc7cdd9aab6f7b41781c9080b4d32c259e2268893218f4014abfd5296230"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-array.cc",
+      "sourceSha256": "6027bd23a2ed4eefc1909e7b820796757f1f2398ae327b3b30f8748e3a64a7b7",
+      "noticeSha256": "db68bc76eec38106ba61f9aaaa7d9991b97e78df6cd3ebe8a0e305c4a4439f58"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-bimap.cc",
+      "sourceSha256": "820c425219b0587594f66bc7578e593131f04ec44923fb991e779e82866467ff",
+      "noticeSha256": "2464a89f93be9c0fab9c36bc3f755cb422826815fda0584a70362ecc4b2067e4"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-buffer-serialize.cc",
+      "sourceSha256": "f632af5f76c7633167c493bc5df9c2ac0583285a65a05fcda4437cd0a5ef1b14",
+      "noticeSha256": "e1e57c0604dbcdce54991963cdcfedeaaa169ec6a0649a280adeedae840e8123"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-gpos-size-params.cc",
+      "sourceSha256": "c980f11a3687959c74a89ca1f7de505140a6a7593e92938c3624b18ed1b79a93",
+      "noticeSha256": "6945c75c592224f5de28379dde629c5b9fc78cdfcfa67fdacecd7aefaa82c9c2"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-gsub-get-alternates.cc",
+      "sourceSha256": "10cc94fb858c77b7c7b62f480e569a221bcbc85ea8b65dbc9e1f952bf34a9dc1",
+      "noticeSha256": "6945c75c592224f5de28379dde629c5b9fc78cdfcfa67fdacecd7aefaa82c9c2"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-gsub-would-substitute.cc",
+      "sourceSha256": "8b44c1245b09d62183225e282e084fce223ac99f2224a1184259c89318da2c9f",
+      "noticeSha256": "6945c75c592224f5de28379dde629c5b9fc78cdfcfa67fdacecd7aefaa82c9c2"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-item-varstore.cc",
+      "sourceSha256": "ff45bc673d5f56e19cec5cf4cf00caad47b707184d2c2507a39b18ca8dbecf3c",
+      "noticeSha256": "2551ab275f5654e82fd3609ff2a51e80cd26c62b0e9d489b528af16c9d6f2dc8"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-iter.cc",
+      "sourceSha256": "30ae53e45490bece9669e7fa36cb72f97f20581d125392e40b54b241a62d421a",
+      "noticeSha256": "61734324d65a49d7a23ba47e8001e6f0d65ebc03dcb85d3321ada169f6d1ea96"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-machinery.cc",
+      "sourceSha256": "23a8d5a5c5c483f082e90dc665f192c96a6b19e45c0bdbb121696067656a0131",
+      "noticeSha256": "e6888a8e4b3176177d38b28e7f357c1612ca4aac82f8ee539003cb18b9df3a54"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-map.cc",
+      "sourceSha256": "05f0aa238e1bbc9c86ba7eeb6820b66604557154742c38d4340da0247470d17d",
+      "noticeSha256": "c17dcf05986719e42bcd6c10772e6b940542f8a7b06f66d69ed7e80b4dd9bac8"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-multimap.cc",
+      "sourceSha256": "e4d09061e1c1e6b31216c74e0d2c876250b4dbd97558c1d2456cbe655e4ef6b2",
+      "noticeSha256": "e6888a8e4b3176177d38b28e7f357c1612ca4aac82f8ee539003cb18b9df3a54"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-number.cc",
+      "sourceSha256": "9ea5aef33f152c2e16bdb4ac7452a3fea767e0dfd69f56d641a339ff868fbbca",
+      "noticeSha256": "b6ae9a6f99b81ba24bedd7459831dca02660cb2d0577aa368aa8b91d2daa577b"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-ot-glyphname.cc",
+      "sourceSha256": "45b6007d9d9ef060c2a97bf65720b0d3ee98fdf034c777e2b8586299f9cdbf7d",
+      "noticeSha256": "2464a89f93be9c0fab9c36bc3f755cb422826815fda0584a70362ecc4b2067e4"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-ot-meta.cc",
+      "sourceSha256": "1c08575f7763fd3183b40078051d09db7e1cde07a1d36e7d552afe815cba680d",
+      "noticeSha256": "2f649c94f0689ff5bf10ccbe8ab11a1b932a7ec25123b4afde055731c75a04e6"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-ot-name.cc",
+      "sourceSha256": "1324a4c2d5b2e19fc4075cc85be342532f39cd0b21f1d0e629b12d0ba2f3954a",
+      "noticeSha256": "61734324d65a49d7a23ba47e8001e6f0d65ebc03dcb85d3321ada169f6d1ea96"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-priority-queue.cc",
+      "sourceSha256": "825a472a9775f96a8ee93847836fb0094384d8c2745bbdbfed77708eb8ee06c9",
+      "noticeSha256": "db68bc76eec38106ba61f9aaaa7d9991b97e78df6cd3ebe8a0e305c4a4439f58"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-repacker.cc",
+      "sourceSha256": "a6b24b145c77c2efccf3d0a058a496ae2536ee19fe3d3eb6b3eaf7d67caea59e",
+      "noticeSha256": "db68bc76eec38106ba61f9aaaa7d9991b97e78df6cd3ebe8a0e305c4a4439f58"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-serialize.cc",
+      "sourceSha256": "49e41eda5ccfc4fc6ce44557cb4d2063a5c0deba088138304e41991fe23907d2",
+      "noticeSha256": "8e2e38b5f5d6865af41ee5134155f1a4d4a5b05a909bf9575763a4229418c245"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-set.cc",
+      "sourceSha256": "63e355e57f29e77a6c264398ff3496b1f79a886ec360163c618ad59906a89e4d",
+      "noticeSha256": "c17dcf05986719e42bcd6c10772e6b940542f8a7b06f66d69ed7e80b4dd9bac8"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-subset-instancer-solver.cc",
+      "sourceSha256": "3227802b929135b6abbe3fddb6740c801c09d08ffc2ea994b93025ea50a2d616",
+      "noticeSha256": "893c896bd77b9077ba0767ecb4206e201976943a327bdcb7ce01e25660ed03a9"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-tuple-varstore.cc",
+      "sourceSha256": "eca100fe9917c58eb5ad5c833c75934e0f7671752bd62cf45393d1aa6638b12c",
+      "noticeSha256": "2551ab275f5654e82fd3609ff2a51e80cd26c62b0e9d489b528af16c9d6f2dc8"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-unicode-ranges.cc",
+      "sourceSha256": "6506a4fb714ed4f0a6e383e05254a7da0db3fe18b0b722af38a30926d8149ae8",
+      "noticeSha256": "001843555be4da284e814aaab65eb1bc617a7843a04faa27e9d8447ff944b141"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test-vector.cc",
+      "sourceSha256": "ed1d098c6ee6da8530b460a32e42db6309e1634666ae83e564a1563c6fa1599c",
+      "noticeSha256": "7737d4f549e7547970a168159b67c7aa972b9025caef1341f5c10ff76a6d864d"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/src/test.cc",
+      "sourceSha256": "9f51b48e1c40bb4c99204d7b92d758ab118d1ce698f3aa4aa9c4bcfc26f84a07",
+      "noticeSha256": "6945c75c592224f5de28379dde629c5b9fc78cdfcfa67fdacecd7aefaa82c9c2"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/util/hb-fc-list.c",
+      "sourceSha256": "ebcfa003cbc1523d2d2cfa2862dddbbe5453b43c25d2dc188a3a854a9b7f7590",
+      "noticeSha256": "de3165c9170b2a68bf6264370a322229f6521d2a015660986d69fcd870b55b63"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/util/hb-fc.cc",
+      "sourceSha256": "d998c605c18abdd2e6d2bc0e77d384ca81ed8a54d8610f7648c99d59430e5e91",
+      "noticeSha256": "c05fd5fe6450249235948f2906bfaf17c7d878fcf4440cac2ee3bfd737447f3b"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/util/hb-fc.h",
+      "sourceSha256": "decd6acc1914447150f087518e2ba07b29fc90314ced71172a6ace70085a6ecc",
+      "noticeSha256": "c05fd5fe6450249235948f2906bfaf17c7d878fcf4440cac2ee3bfd737447f3b"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/util/hb-info.cc",
+      "sourceSha256": "3d74a495bba8a1366300018baca0fa53ec0a5ac233c4b90261975557d32b0c7f",
+      "noticeSha256": "a8442846694b26437fee5888d0115bae937a5acba9d60ca4ac13f848c9509085"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/util/hb-ot-shape-closure.cc",
+      "sourceSha256": "188c345ff3d1da2a1ec9fd350ef2db07af93544a8885bc2548661b81129b50e5",
+      "noticeSha256": "4de281e4e31f1db73b010450b932717de870df7000bfb1ea0ab1b53d5dbda0ab"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/util/hb-shape.cc",
+      "sourceSha256": "d504ca93d2edbe3697176f492c6b90d7e6a12cce6d21a3215000af24ea1065b1",
+      "noticeSha256": "cd5ff28ed392340d7fdf3a5cd8ef93587a6e1168b6af33e8496c3312074eff68"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/util/hb-subset.cc",
+      "sourceSha256": "63349266a78b5eb79f3642f688a83b587972ff0d252e82e69ab0c97947d21520",
+      "noticeSha256": "e65d66f3f4aa8b0bcef47a1f9d94b107b37cb0439c65b16b3cff3e8adb554d63"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "harfbuzz/util/hb-view.cc",
+      "sourceSha256": "4be73c6ce68cd6fdd732e1b133157370d3a661b2c0ac152dc44127d1297f28fd",
+      "noticeSha256": "cd5ff28ed392340d7fdf3a5cd8ef93587a6e1168b6af33e8496c3312074eff68"
+    },
+    {
+      "name": "tectonic_bridge_harfbuzz",
+      "version": "0.3.3",
+      "file": "src/lib.rs",
+      "sourceSha256": "50e70dc7d0e31067ee56a3ef6c56437b4a77114782953b1814979e04a6c1ecac",
+      "noticeSha256": "e3cd6ef303c88421fe572566d03d1384dd623fc26de11f2bf8b4b364517f1840"
+    },
+    {
+      "name": "tectonic_bridge_icu",
+      "version": "0.2.4",
+      "file": "build.rs",
+      "sourceSha256": "0289806b1da4ddd5a0e71a38454b180cefb7f25d12e7ef89aa48de12dc2d2cb0",
+      "noticeSha256": "c4727d37a8b6603757361e9021846c559219033841c781bdff48e994f49e8f38"
+    },
+    {
+      "name": "tectonic_bridge_icu",
+      "version": "0.2.4",
+      "file": "src/lib.rs",
+      "sourceSha256": "992b0118f5148073a9d703690f70df95959feb21bcab7e04f855f2f553fe99d4",
+      "noticeSha256": "c4727d37a8b6603757361e9021846c559219033841c781bdff48e994f49e8f38"
+    },
+    {
+      "name": "tectonic_bridge_png",
+      "version": "0.1.2",
+      "file": "src/lib.rs",
+      "sourceSha256": "4fd9d1e706ab42fb14417d59fa68ec3fef853be75ed2082d77b5d4a7bf5abf29",
+      "noticeSha256": "bb1c994e84be4ef4e43fa3793d4ba4d4ad7d51f8257d01fbce2e58c7a51a2c68"
+    },
+    {
+      "name": "tectonic_bundles",
+      "version": "0.4.2",
+      "file": "src/cache/prefetch.rs",
+      "sourceSha256": "619f6ea66f5661219fcfb5f8f4dfea40bb010610e2eab87f918ead6149aba248",
+      "noticeSha256": "f7d699591dfec77a5d5573bbded93ceec8915eea08d6e62a3fe0758d52cd37d7"
+    },
+    {
+      "name": "tectonic_bundles",
+      "version": "0.4.2",
+      "file": "src/cache.rs",
+      "sourceSha256": "e20613b74bfbda7af9d8353a7962c227d89e1a20f201fb71e082c403e427c8cd",
+      "noticeSha256": "f7d699591dfec77a5d5573bbded93ceec8915eea08d6e62a3fe0758d52cd37d7"
+    },
+    {
+      "name": "tectonic_bundles",
+      "version": "0.4.2",
+      "file": "src/dir.rs",
+      "sourceSha256": "80e91f43ef65dcd932786e1bcc0a9b8ac3f0475c5657b7b5f3d0bd07b69ee8d2",
+      "noticeSha256": "f7d699591dfec77a5d5573bbded93ceec8915eea08d6e62a3fe0758d52cd37d7"
+    },
+    {
+      "name": "tectonic_bundles",
+      "version": "0.4.2",
+      "file": "src/itar/batch.rs",
+      "sourceSha256": "4a232dfd0b5882ae56d1440d2393e5a592e248de0bb2467fb5e78d3b293afd30",
+      "noticeSha256": "f7d699591dfec77a5d5573bbded93ceec8915eea08d6e62a3fe0758d52cd37d7"
+    },
+    {
+      "name": "tectonic_bundles",
+      "version": "0.4.2",
+      "file": "src/itar.rs",
+      "sourceSha256": "edcc7142e6ba97dca5049985767a533449c18cddd2560d63515aec5b1839b7e3",
+      "noticeSha256": "f7d699591dfec77a5d5573bbded93ceec8915eea08d6e62a3fe0758d52cd37d7"
+    },
+    {
+      "name": "tectonic_bundles",
+      "version": "0.4.2",
+      "file": "src/lib.rs",
+      "sourceSha256": "286bb3148788e31c41e3e911360b8002bbb9465f15b9aaa621374a8e85546a93",
+      "noticeSha256": "e56075011f736343b29cf688261606630f66121c41695f284bf961d47d539645"
+    },
+    {
+      "name": "tectonic_bundles",
+      "version": "0.4.2",
+      "file": "src/ttb.rs",
+      "sourceSha256": "0665263792dc03643c724e2fc2eb10f4018e786b349f8775b625370c4af26ea4",
+      "noticeSha256": "cc4cefc1c4e0cf29e2dac367a454e5f7446042283337bd33ee60df8481970ce5"
+    },
+    {
+      "name": "tectonic_bundles",
+      "version": "0.4.2",
+      "file": "src/ttb_fs.rs",
+      "sourceSha256": "40f15c7b7392c7210231aa5147c404ed6982dd4fc0553bfa7e6ae45dca78e263",
+      "noticeSha256": "cc4cefc1c4e0cf29e2dac367a454e5f7446042283337bd33ee60df8481970ce5"
+    },
+    {
+      "name": "tectonic_bundles",
+      "version": "0.4.2",
+      "file": "src/ttb_net.rs",
+      "sourceSha256": "87f0ee48437534d35b92dca3c539792169f282d68dbaf0d2a81d74028ab91f25",
+      "noticeSha256": "cc4cefc1c4e0cf29e2dac367a454e5f7446042283337bd33ee60df8481970ce5"
+    },
+    {
+      "name": "tectonic_bundles",
+      "version": "0.4.2",
+      "file": "src/zip.rs",
+      "sourceSha256": "bd485e008aeedd8d46310783130a68ab7f32ae2e1503cf3bef9db13f0a764ef3",
+      "noticeSha256": "e56075011f736343b29cf688261606630f66121c41695f284bf961d47d539645"
+    },
+    {
+      "name": "tectonic_cfg_support",
+      "version": "0.1.5",
+      "file": "src/lib.rs",
+      "sourceSha256": "f895a7b8f38820268202d81f58cdd3c7a77543247f99a73aef1633710f493c54",
+      "noticeSha256": "7b0e2534ad8ff4065472f023b39939a9eb521bd2ecb333de9df46adf12b7b0c5"
+    },
+    {
+      "name": "tectonic_dep_support",
+      "version": "0.1.2",
+      "file": "src/lib.rs",
+      "sourceSha256": "e31f5494f10a02b1a96620fb668d611bfbd9e5c1365c5459e11a0551a721d78f",
+      "noticeSha256": "c4727d37a8b6603757361e9021846c559219033841c781bdff48e994f49e8f38"
+    },
+    {
+      "name": "tectonic_engine_bibtex",
+      "version": "0.3.4",
+      "file": "src/lib.rs",
+      "sourceSha256": "31a70ee6c632b37dbb190de8280a60a003d011ad1f09c7eb80995cd3271db82b",
+      "noticeSha256": "33b5bcbfa35a720a68f82a1bf5b9508b7ac4b6e8cce02b8a44ce82fd8ac8a825"
+    },
+    {
+      "name": "tectonic_engine_spx2html",
+      "version": "0.4.3",
+      "file": "src/assets.rs",
+      "sourceSha256": "5ac0fbee4907eac5ad0d59902ca1f39adaf172cbe7d1004b7d849ee5452be77e",
+      "noticeSha256": "0ffb317d243184083776650d7475b98d39d948084576be653ca9c73c90161eda"
+    },
+    {
+      "name": "tectonic_engine_spx2html",
+      "version": "0.4.3",
+      "file": "src/emission.rs",
+      "sourceSha256": "d252537e175a132e65b9c58374c9f51d1146e9603443cd8d6b022ef0e93997b5",
+      "noticeSha256": "95df7075011e09386d5e1fc69e8b97452e274956d92d2591c218a8abf738ad31"
+    },
+    {
+      "name": "tectonic_engine_spx2html",
+      "version": "0.4.3",
+      "file": "src/finalization.rs",
+      "sourceSha256": "6dac5aedcb36141529462c2be339d49a72a997d346de03d3535593d89cdd3c9c",
+      "noticeSha256": "95df7075011e09386d5e1fc69e8b97452e274956d92d2591c218a8abf738ad31"
+    },
+    {
+      "name": "tectonic_engine_spx2html",
+      "version": "0.4.3",
+      "file": "src/fontfile.rs",
+      "sourceSha256": "91ca4428763c907148c45ca8d688f525f5f32af1b1c9dae5c3c37158026fe165",
+      "noticeSha256": "781cda599309d61aa5a8495d739bcb929372887e7acd66233bcca4f3ccd02570"
+    },
+    {
+      "name": "tectonic_engine_spx2html",
+      "version": "0.4.3",
+      "file": "src/fonts.rs",
+      "sourceSha256": "22cf7ee5a6561dd7ac70d3710c17ab6ce0341ffe2695c4268253594ca01d8ad8",
+      "noticeSha256": "0ffb317d243184083776650d7475b98d39d948084576be653ca9c73c90161eda"
+    },
+    {
+      "name": "tectonic_engine_spx2html",
+      "version": "0.4.3",
+      "file": "src/html.rs",
+      "sourceSha256": "684daa455bcf6b6649eec9c5e79d970ce58251999bdb0eb6750e7e38adb04a2d",
+      "noticeSha256": "781cda599309d61aa5a8495d739bcb929372887e7acd66233bcca4f3ccd02570"
+    },
+    {
+      "name": "tectonic_engine_spx2html",
+      "version": "0.4.3",
+      "file": "src/initialization.rs",
+      "sourceSha256": "81d229aaa529ffafc9605f09aa4901a69c9c0d9d1555d0b53e4edf2e882cc76a",
+      "noticeSha256": "95df7075011e09386d5e1fc69e8b97452e274956d92d2591c218a8abf738ad31"
+    },
+    {
+      "name": "tectonic_engine_spx2html",
+      "version": "0.4.3",
+      "file": "src/lib.rs",
+      "sourceSha256": "1628115e3a397ca0dbd0e86e1d4e59a83284f1a74fd11a93442a3d3363f36d28",
+      "noticeSha256": "95df7075011e09386d5e1fc69e8b97452e274956d92d2591c218a8abf738ad31"
+    },
+    {
+      "name": "tectonic_engine_spx2html",
+      "version": "0.4.3",
+      "file": "src/specials.rs",
+      "sourceSha256": "4895e9650dd09b1af8cc09a73bc46daf2e92ce1ca92e145c0c84d09491abe943",
+      "noticeSha256": "95df7075011e09386d5e1fc69e8b97452e274956d92d2591c218a8abf738ad31"
+    },
+    {
+      "name": "tectonic_engine_spx2html",
+      "version": "0.4.3",
+      "file": "src/templating.rs",
+      "sourceSha256": "af19b7c1069fa01bbc2fcd6e35ebb2609c1631bb083fb2ff4f79c23ad4ed81e9",
+      "noticeSha256": "95df7075011e09386d5e1fc69e8b97452e274956d92d2591c218a8abf738ad31"
+    },
+    {
+      "name": "tectonic_engine_xdvipdfmx",
+      "version": "0.4.4",
+      "file": "build.rs",
+      "sourceSha256": "a9661712bf04df4f5d40b4791cec337490941e82e421158f9bd871a18bec70d3",
+      "noticeSha256": "fba77ea1516f370892af8e53b88e7c089147225c6c2250422a45f0569a77ce74"
+    },
+    {
+      "name": "tectonic_engine_xdvipdfmx",
+      "version": "0.4.4",
+      "file": "src/lib.rs",
+      "sourceSha256": "a81c9c0ad0c399a745d6788a2689271dac2f933723b3290549e6051d361a9710",
+      "noticeSha256": "fba77ea1516f370892af8e53b88e7c089147225c6c2250422a45f0569a77ce74"
+    },
+    {
+      "name": "tectonic_engine_xdvipdfmx",
+      "version": "0.4.4",
+      "file": "xdvipdfmx/dvipdfmx.c",
+      "sourceSha256": "1ac8fb0d6f7d7ff389c55aece5bda77714d27b119d723e157d201a2872c92409",
+      "noticeSha256": "4e4d49b5d5d36ab0332768e7c5972b0e8613ed6683d6c1c1c63bd640d321dcb0"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "build.rs",
+      "sourceSha256": "afc8ef2d8009aec2987bd59e159b7c8156ae9cfc2fb96d44b203c06459c686b3",
+      "noticeSha256": "fba77ea1516f370892af8e53b88e7c089147225c6c2250422a45f0569a77ce74"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "src/lib.rs",
+      "sourceSha256": "deb61477e493a072bc3310cf42aef8ee3fe699e3dc05cd18ef08abbf8876d265",
+      "noticeSha256": "781cda599309d61aa5a8495d739bcb929372887e7acd66233bcca4f3ccd02570"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/teckit-c-Engine.h",
+      "sourceSha256": "89f239df5a46b9a1d1062b323d85f0176bd550a25dbd2c86ec5285866567deaf",
+      "noticeSha256": "55c048a88131685588b5eaaa974ef5d82ce1e284b1ae2d2ccaa8af8f2256aae0"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/teckit-Common.h",
+      "sourceSha256": "bbc9079b26e121b009b596c29d7b9f0cca9e2370ac7a0e3bc3cc6b072d63ae38",
+      "noticeSha256": "922e0935115e4a6814e5b0d4549916e3fb226b72f3a137bf4a18f2dacbcd288b"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/teckit-Compiler.h",
+      "sourceSha256": "9ed9cdfc3cd6781164b02eeb410f48fec40d3a8b3e87e39d1ccf00243366dac6",
+      "noticeSha256": "690c6d7070e8cc4edc45e97292f810f70a256501733e4a42dde86dd6a3aab00f"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/teckit-cxx-Engine.h",
+      "sourceSha256": "2773012c442c658ce097cfa1301a415c1bdb9bd0c5c06e5f0da783b0d6b16991",
+      "noticeSha256": "438b0bcb9ce2b86d0a8c3057193741dc57e9bc311b381d5aa8b12129718d03c8"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/teckit-Engine.cpp",
+      "sourceSha256": "707befff4b320ea0bba1fb548798de39a28f9899717fc325939baa962b39f8b3",
+      "noticeSha256": "9095cdce96276d70dec7ddf5b695885903afc4eac4ae0567617e1bd698a0e540"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/teckit-Format.h",
+      "sourceSha256": "5d62b9d21f0352eccd030956ebd8e7a88eea47dfac6a239049293cd3c54bf7aa",
+      "noticeSha256": "04624af79ee8b50c20815a495abf105a89d80cb1c22dd1c372aad317cc6c2e15"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-constants.h",
+      "sourceSha256": "027b206807621140d62d1f597f4d56a36ead21f7694d05e38f17608f331d2efe",
+      "noticeSha256": "37849ced48882ab5ecbdc7336f1fae8bd1cd7fe59bd7a628b9eb58d54337c2ab"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-core.h",
+      "sourceSha256": "47cb8117b214b0c10a7b25a0cdab49bd1431d101aba3e7c5d4002feffee00781",
+      "noticeSha256": "5dcae1c8fcf14d9a572a0debea5f82dc45a1f8ab3e5b64f4c20bfbd5a53a4ad5"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-engine-interface.c",
+      "sourceSha256": "6d461b2457dc182c6b3cf9f4a2d0af9c8ec8d377d4ae2b8c28f8918863ed28d6",
+      "noticeSha256": "ec5406e99c880cb293f262f94659b87cfe5801965a93a32dff5584466931e69f"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-errors.c",
+      "sourceSha256": "2e83608d129e4e6a8af36ecf15dd0e97c81f877d6017de25b0e079bcdcb5939b",
+      "noticeSha256": "dd3b13b7709f170349c0ee12b5297255e424e5f458e8f90b6952e74f616b1695"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-ext.c",
+      "sourceSha256": "bcbf6677e93eba4f050199efa5d346e75e123c7616ff30ed24d66451d354c682",
+      "noticeSha256": "d706798eceb18f4034f6fad0c93b07c9faebcf00c9b1db434088065beda77d11"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-ext.h",
+      "sourceSha256": "e1d8499fe6e24e585b2fa15f0c473c004b5c97f8a84476875a412417e97aa852",
+      "noticeSha256": "24e2aef0960d5ef5c44f848c2de51522fcd595970437f57e6cce87176a105b0c"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-ini.c",
+      "sourceSha256": "b316df9a8d64c0dd29fe0bf3cf91326d62e0b15458a8d8ac9f61d17e634a38ed",
+      "noticeSha256": "4b1eabddbce3a114ba72dadbafa5adb9041b7c8cb9464c60d8041ead1aa808e9"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-io.c",
+      "sourceSha256": "b0e7f44cb9d568598efc514908ca1fe9cfd81e5168f7573e25a1917e7ddcdcbd",
+      "noticeSha256": "9aaae64c713cea28219173e7e0088f0645fb974f613e235c16d70d784e508088"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-io.h",
+      "sourceSha256": "f7958dff8c5bd4392ce95c4b1cc7de615d5d5d3a12e19ed4d7c04a30f67f544c",
+      "noticeSha256": "a3f1e2e998d0ff41154db4cd28e27267d95efbdebda2fbf6139f9904cca71d5b"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-linebreak.c",
+      "sourceSha256": "75e84a6a7381ecb8a70252a5670dbe089d43f8c920896278023e22746bf00729",
+      "noticeSha256": "ef48480b7e031618b26fbade20e06de2bbc2dce97942be6ee0ab9c611d631fb4"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-macos.c",
+      "sourceSha256": "47b8d97fde1eeea97e02dba732b176695679e8d85351ccadc6323a0a80934357",
+      "noticeSha256": "3a7beade151dd70f24d3c7621fe419a4263775138f9676b6781a7f95273151f7"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-math.c",
+      "sourceSha256": "f85d2a83b123ab48e2d1cd1e9ce0b55eda2c887ea2a6c2413bf17c76f6ffff9d",
+      "noticeSha256": "ef48480b7e031618b26fbade20e06de2bbc2dce97942be6ee0ab9c611d631fb4"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-output.c",
+      "sourceSha256": "98b9eafdc3fb4f81accd90796a24147429f5cbedbf2ceda3b2038ba9d19a7db9",
+      "noticeSha256": "6d8b4a0e3172de79148a77fb983d4dd48c72045269e746ba977e636e4f9e260c"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-pagebuilder.c",
+      "sourceSha256": "ba4b6bfe5d0011f8ab2799da11672c498bc9991125a1abf6e4dd08fbc35d6c92",
+      "noticeSha256": "7139fa19e888d716f5970df12ebc4f6c5ba665d77c7cb754a0582e6b6ec90fc5"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-pic.c",
+      "sourceSha256": "2c7bdf0f851fd4e886fcecf1bcaaa5b6075f7003447afe5be06f275269406b76",
+      "noticeSha256": "99ae0baaf13c13fbf5ba6c4bb9887292e0b84ae0716b7617feeca88651c08010"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-scaledmath.c",
+      "sourceSha256": "1e48375298840c99c4184ebba8c1308e87264ca9cc709d547b1dedc398d708fe",
+      "noticeSha256": "ed2a5fb6ecb54f1e0d26def2fec7bb30c8640cb06c7d1f3ae590ca55ffd9b5b7"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-shipout.c",
+      "sourceSha256": "0047fd38c2f81dec2bdaccbfe73fc0c4ef510a1210c15cbb96394db72f90e01d",
+      "noticeSha256": "ef48480b7e031618b26fbade20e06de2bbc2dce97942be6ee0ab9c611d631fb4"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-stringpool.c",
+      "sourceSha256": "455ab139b760bbc798cf2f3a52132be875e11a0d49c12781a96b566db99ff7c9",
+      "noticeSha256": "55a26124f254a46486454dfe4782cc2c53970214275b18377224ddfb357d6be3"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-stringpool.h",
+      "sourceSha256": "94e319f1c43c45b0aeae6c4721fb6bb952de7fa2ad09d1744cca1fcd68991e5e",
+      "noticeSha256": "cdbdc0f87190835cc595f009743862e313a64f8e1ef1fcbb59e7b80fada973ec"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-swap.h",
+      "sourceSha256": "e459c08bd6220f27b62c54fe07c45a8170bb782bc12a5f590b6b2315b7a9e278",
+      "noticeSha256": "99ae0baaf13c13fbf5ba6c4bb9887292e0b84ae0716b7617feeca88651c08010"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-synctex.c",
+      "sourceSha256": "cf0ebeeb5dcbf6a6bdf2e0fd155e19dda60ebdac844b3f23099f363700f863fb",
+      "noticeSha256": "152b704914904efc93e093633b9453a9708d9b88b12cab2dd65d43998152e4d5"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-synctex.c",
+      "sourceSha256": "cf0ebeeb5dcbf6a6bdf2e0fd155e19dda60ebdac844b3f23099f363700f863fb",
+      "noticeSha256": "9ca90ace933387045302aac5311f46b5b5f814b80233484c77e4a4b6ebe0fce2"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-synctex.h",
+      "sourceSha256": "6cde03e04d25bb428d7a0822dd2275f901e5b7ff1b3b39b8a72d0f96970fb325",
+      "noticeSha256": "1654229b968d2ae5b9f356874db096882faed4f8268de7bff6e4d2b801076c8c"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-texmfmp.c",
+      "sourceSha256": "ef14ae56dfc1eba7c37504a1394e0c9adce6c97e4f9066baea3e0923056ba9ad",
+      "noticeSha256": "9a506002e120abb6bfef3d22298f31238ffdb26d0015b855af9b37dddfc9968e"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-xetex0.c",
+      "sourceSha256": "39806ee94be7e0eef8d29ec58cbb1d339cd8c05804a16559b8ed54242c716418",
+      "noticeSha256": "1ff3ddae662f0c9dc71f47fee22422c8cb49c1c1dd27bf1a466f2749e717194c"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-xetexd.h",
+      "sourceSha256": "a248aebd06e0f6d20d1c5202e43de845a282aa797f6a674b08b626e7c6f222cd",
+      "noticeSha256": "f1d6a8f7b3de6841566c87e1abf94de39628ada5d3c9d03197c9090c186d97fb"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-XeTeXOTMath.cpp",
+      "sourceSha256": "a58bf996f4f23b14d2d52dd1e735d9c0785dab782aef59d6f7bd335c32cdf915",
+      "noticeSha256": "3e6f08c42296ecde25c4242e71d6a9fffb024fd46af945b5d2eb765bfe467c8b"
+    },
+    {
+      "name": "tectonic_engine_xetex",
+      "version": "0.5.3",
+      "file": "xetex/xetex-XeTeXOTMath.h",
+      "sourceSha256": "a45bc8634da7342e2dc2517bc87d78c86b79f3aeab7e1a49603ad9b7373d4b4c",
+      "noticeSha256": "99ae0baaf13c13fbf5ba6c4bb9887292e0b84ae0716b7617feeca88651c08010"
+    },
+    {
+      "name": "tectonic_errors",
+      "version": "0.3.0",
+      "file": "src/lib.rs",
+      "sourceSha256": "98ea6f443825221b3ba3cbd2b3b7cbecbfb18682c3deb9f4e3e1dd74923b51c4",
+      "noticeSha256": "ce44f6b80d64d4b2c5c374e8336f3455b134a0e5d019858ffb099641130f391e"
+    },
+    {
+      "name": "tectonic_geturl",
+      "version": "0.4.1",
+      "file": "src/curl.rs",
+      "sourceSha256": "c6735a4e09c11601f38f9b274c9eaab96c2df052ac7116e8bc6dd4d5bf80bffa",
+      "noticeSha256": "c4727d37a8b6603757361e9021846c559219033841c781bdff48e994f49e8f38"
+    },
+    {
+      "name": "tectonic_geturl",
+      "version": "0.4.1",
+      "file": "src/lib.rs",
+      "sourceSha256": "617d562bfacfd97101b0d84e5a40617c9b5100019ae60ac031c7740993c3c5f4",
+      "noticeSha256": "9088fbf45380717b9cf2b36b89d2b6df66092e213ecba26411d1b3a2ff0cba39"
+    },
+    {
+      "name": "tectonic_geturl",
+      "version": "0.4.1",
+      "file": "src/null.rs",
+      "sourceSha256": "dcefc6599e7046f8a70268710317443d39af26adc97435c7bc78a6c0c60ed8ce",
+      "noticeSha256": "c4727d37a8b6603757361e9021846c559219033841c781bdff48e994f49e8f38"
+    },
+    {
+      "name": "tectonic_geturl",
+      "version": "0.4.1",
+      "file": "src/reqwest.rs",
+      "sourceSha256": "cbe2fb3aaf23b705bfe59ad2dcb31378e18b69c6aa2b7f88259b56c4c57eef85",
+      "noticeSha256": "9a8cdb9d2bee9fdb1e49a86aa8820f81cd9cb14956ac960d65075ca21359195a"
+    },
+    {
+      "name": "tectonic_io_base",
+      "version": "0.6.0",
+      "file": "src/app_dirs.rs",
+      "sourceSha256": "7b0dc0545ebcc52e101ec22dcdd781b7326f06229f81477fcf7a9bed654380c0",
+      "noticeSha256": "883fb346df03202a01fb55b325db80b45def250aee7aa9de63d1a367d2929411"
+    },
+    {
+      "name": "tectonic_io_base",
+      "version": "0.6.0",
+      "file": "src/digest.rs",
+      "sourceSha256": "2c7383667fbb0b4a103f4884bd2a4cd8af69e068f23541502699d44cc032d153",
+      "noticeSha256": "9a8cdb9d2bee9fdb1e49a86aa8820f81cd9cb14956ac960d65075ca21359195a"
+    },
+    {
+      "name": "tectonic_io_base",
+      "version": "0.6.0",
+      "file": "src/filesystem.rs",
+      "sourceSha256": "191a03d18b57778bdd3caf91634ba5a9f8076824b8eca02c43185444b4d556a5",
+      "noticeSha256": "e56075011f736343b29cf688261606630f66121c41695f284bf961d47d539645"
+    },
+    {
+      "name": "tectonic_io_base",
+      "version": "0.6.0",
+      "file": "src/flate2.rs",
+      "sourceSha256": "4d81b05c499fe82d5320afa7d7841a73f069b355b805975886c05e0ae5cd0fa7",
+      "noticeSha256": "80c0f3e67ff72c521e427280209ae63b0583a8b5e15846ec7d17b799e2f09308"
+    },
+    {
+      "name": "tectonic_io_base",
+      "version": "0.6.0",
+      "file": "src/lib.rs",
+      "sourceSha256": "89cbc8db440d6961b4959f4d4e14ee7a7ff32ff29b8aba3db47cebad08ef1464",
+      "noticeSha256": "e56075011f736343b29cf688261606630f66121c41695f284bf961d47d539645"
+    },
+    {
+      "name": "tectonic_io_base",
+      "version": "0.6.0",
+      "file": "src/stack.rs",
+      "sourceSha256": "423d97972aa7dc6fe97c6d4d1da5b9ac7ca524b91d23cd1d27c23f5f5bf15eea",
+      "noticeSha256": "e56075011f736343b29cf688261606630f66121c41695f284bf961d47d539645"
+    },
+    {
+      "name": "tectonic_io_base",
+      "version": "0.6.0",
+      "file": "src/stdstreams.rs",
+      "sourceSha256": "c8f5e110ab7048b5726caa530b1275c9b96f826113fddd8abe1c12834fcf97e3",
+      "noticeSha256": "80c0f3e67ff72c521e427280209ae63b0583a8b5e15846ec7d17b799e2f09308"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "build.rs",
+      "sourceSha256": "6b20aaf574ab1cb087e39b93209f788d38dcde102bab71028a3c4f858c3012c6",
+      "noticeSha256": "fba77ea1516f370892af8e53b88e7c089147225c6c2250422a45f0569a77ce74"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-agl.c",
+      "sourceSha256": "b053526bb1c5b830476ba31f150405a36a82677a5f0b70b2faf67225900b45e5",
+      "noticeSha256": "604e3fae15c595320923f4aab92915a1826733e0e3091d74d75c0d0b0b4d3217"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-agl.h",
+      "sourceSha256": "ecae1f665c98e66bf3505a26eb80ad4c970041f0898c9749a6f7ed625046d980",
+      "noticeSha256": "604e3fae15c595320923f4aab92915a1826733e0e3091d74d75c0d0b0b4d3217"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-bmpimage.c",
+      "sourceSha256": "7385a2d42ad7160176492508fa6cbf4e28d6fb288cc8651ead310c0c05057650",
+      "noticeSha256": "4103c9ec5ec333434c5d07e72170b4687f0f41961d1f76691b9eb780e0b93a91"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-bmpimage.h",
+      "sourceSha256": "80d974aa61fae60404515703cd5bd8fefd5e1377def32d54d2f4f8d0988f89ce",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cff.c",
+      "sourceSha256": "9361950db78b61e32094da0d88a2f2f7f2504da3e94da0f01a5afb2ff53d2318",
+      "noticeSha256": "069ffde8a6ea3491249c17539124bda4aa6db9f34e79fb9b1015aca4765fb481"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cff.h",
+      "sourceSha256": "322fcebc8eb19a7de57b5a985499ba2a7a9f4f59fa658beefda0fc68e9b576ec",
+      "noticeSha256": "069ffde8a6ea3491249c17539124bda4aa6db9f34e79fb9b1015aca4765fb481"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cff_dict.c",
+      "sourceSha256": "1ca4457e569d7a7f70816777b9d2f2acddbd9fd7d61e832ea74408440a68c15c",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cff_dict.h",
+      "sourceSha256": "4c6a570b7f42a20e4394d6f1e1c6148862288bea3e2d09f4ce7e745d625a9984",
+      "noticeSha256": "900b053e1b61b321eee03e48ebcaf9e67414160b8325c121aca532c60f2c2b1e"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cff_limits.h",
+      "sourceSha256": "a28814074f4d1a07e10b24be4437ba02ee29414c3addae5b45852a2e1b0ef4a7",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cff_stdstr.h",
+      "sourceSha256": "115ed60b0552036d5676409f6cb35c362e6413e29f90ea9405d3bd85367d3cac",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cff_types.h",
+      "sourceSha256": "8380a8d3ab0928bdc3e5e29d8ebcf69aa7ae21a12f03f114424a6ab3736323fa",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cid.c",
+      "sourceSha256": "c262ae13fbec362f963c242b9d96aa734089f22231f86efe2a18eaed1dd1f3c3",
+      "noticeSha256": "c5795e6642d5a34d42c17419e2315ee9da1f546918c46cc0a9efbea670138722"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cid.h",
+      "sourceSha256": "f4a229251e9dcd3c4ffebc8fe1f3997c649ec8f7795d19e591574a2532a1c79f",
+      "noticeSha256": "c5795e6642d5a34d42c17419e2315ee9da1f546918c46cc0a9efbea670138722"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cidtype0.c",
+      "sourceSha256": "1adb6cdb15a4c800be93469e9f5c5325a2c644fd4efa7506661b7c2b90b38eae",
+      "noticeSha256": "b123f61408986a4946d5bc937f2afead9bcb7a31996a16d054061d633a1382a1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cidtype0.h",
+      "sourceSha256": "cefff13211008181b6a24c2c65cde45e6a042b5faa95e2aa2be900d077471d3b",
+      "noticeSha256": "c5795e6642d5a34d42c17419e2315ee9da1f546918c46cc0a9efbea670138722"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cidtype2.c",
+      "sourceSha256": "002f43328faeed722abebba063be5fd28bbe0af4120834c44eadcb895572fdf5",
+      "noticeSha256": "de7227e14718abb258e769f9fc58f8de534bd6ab89b63d66e5036fbf84acb539"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cidtype2.h",
+      "sourceSha256": "b8f7318cfd61437dc16cda290204b4c4b969c068289b3ff6aa30a7cb050728bc",
+      "noticeSha256": "c5795e6642d5a34d42c17419e2315ee9da1f546918c46cc0a9efbea670138722"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cid_basefont.h",
+      "sourceSha256": "0b3e82070e24f934a90af74bc98d28c327b4b11e46c173bd6ed237b4ea761dab",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cmap.c",
+      "sourceSha256": "8759c6580ce66ef8d2a38fe0a3324ae9bfc0082fb93cab01a80d30462a3bb46e",
+      "noticeSha256": "0b3a0bc5843ccdac983b30b9ed31ce1af0c794c29ed36f10960ba11dd56098d1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cmap.h",
+      "sourceSha256": "bd6608c591142162b909a55d267382a8b3eb580a6798e179d98cb37be7b3c206",
+      "noticeSha256": "c5795e6642d5a34d42c17419e2315ee9da1f546918c46cc0a9efbea670138722"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cmap_p.h",
+      "sourceSha256": "21bb86e79b79603f226e08e743d97c73244cbc4c8c8a2c2f64417232161f3983",
+      "noticeSha256": "c5795e6642d5a34d42c17419e2315ee9da1f546918c46cc0a9efbea670138722"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cmap_read.c",
+      "sourceSha256": "807a744fe5c2e5a7a7917f6ac184778099ae0f092b55f23fcd784095e9434cee",
+      "noticeSha256": "4103c9ec5ec333434c5d07e72170b4687f0f41961d1f76691b9eb780e0b93a91"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cmap_read.h",
+      "sourceSha256": "05cc7598816bb88861355aa32750ca54b7414c08eea7e62e41f48bcbae37852d",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cmap_write.c",
+      "sourceSha256": "7120289a21366dff6afda0770bcdcd874d73b8ee007551e32ab996c1b5065db1",
+      "noticeSha256": "9a2aa059296be3428f23f21abab507b11b5396ab5c5b5bed3e1391c9d4c19415"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cmap_write.h",
+      "sourceSha256": "2aacc95e1a06a7a46b7a4be8bc758ac679e4d456b9c77b605d054d45e0f8176e",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cs_type2.c",
+      "sourceSha256": "1f4d9e57b5a4a23a1afd4804f34467056bcaa78756c7b4a9c0c1cf12602f0e7d",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-cs_type2.h",
+      "sourceSha256": "78890f3c94b409c3338eb8b4a42fa9483210d12aa15dbc3d33e1ba4e5c131007",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxconf.c",
+      "sourceSha256": "d75a50561e30a5bd0b53ed8ea9d3480ee4934c54b6a1e0cc0ec218bf22004a24",
+      "noticeSha256": "9f7e8b8096d721099149d3da98cad19b243b32eadab25f0f2b6a3accd7b52653"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxconf.h",
+      "sourceSha256": "69b872a08cabfb2975e640427fd16ab94446e4e8ea5f8e4740dfd7b42695ac1f",
+      "noticeSha256": "9f7e8b8096d721099149d3da98cad19b243b32eadab25f0f2b6a3accd7b52653"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxcrypt.c",
+      "sourceSha256": "9cf90def2820184f3ef7c858a14a51699a28b7d260fb4c6026c7d8501169ad4b",
+      "noticeSha256": "aeca282d0d31c2d7a3e2ffb31b707845104bae5d794aa29bae3af9ea589d648d"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxcrypt.c",
+      "sourceSha256": "9cf90def2820184f3ef7c858a14a51699a28b7d260fb4c6026c7d8501169ad4b",
+      "noticeSha256": "cf56701604a618d1e5f33c58c06f56b5f66c65c369bd73785af5689a97fd5f7b"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxcrypt.c",
+      "sourceSha256": "9cf90def2820184f3ef7c858a14a51699a28b7d260fb4c6026c7d8501169ad4b",
+      "noticeSha256": "48c707d66f6857270e84631cf85e406e4c96af9b9a35facc6fe5c3db526332ca"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxcrypt.c",
+      "sourceSha256": "9cf90def2820184f3ef7c858a14a51699a28b7d260fb4c6026c7d8501169ad4b",
+      "noticeSha256": "3be3f8fa8b2606d7cc7f72362b5ec9e7be9d81fd5bd69bd84bb63e33b4018661"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxcrypt.c",
+      "sourceSha256": "9cf90def2820184f3ef7c858a14a51699a28b7d260fb4c6026c7d8501169ad4b",
+      "noticeSha256": "fe0ef964d5e4adafe13908fdaa6aa3a6ee76498c9d366c0186879a2b6d4b5221"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxcrypt.c",
+      "sourceSha256": "9cf90def2820184f3ef7c858a14a51699a28b7d260fb4c6026c7d8501169ad4b",
+      "noticeSha256": "f01328026ed49a009ec0ad5453551744e5c3e2e3fd4cae3c7d5b502d7079fc19"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxcrypt.c",
+      "sourceSha256": "9cf90def2820184f3ef7c858a14a51699a28b7d260fb4c6026c7d8501169ad4b",
+      "noticeSha256": "d1a20534f0d93d3c56594d8aee40f7b25ddbc4d4293451b02f7bc2ba5ea7ee4b"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxcrypt.h",
+      "sourceSha256": "e78bf3c9bbcc933149ac4a45e04d4eefae28b96dcc87d4708bdc4bf705eb3a79",
+      "noticeSha256": "aeca282d0d31c2d7a3e2ffb31b707845104bae5d794aa29bae3af9ea589d648d"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxfile.c",
+      "sourceSha256": "e527f463c94f89e81dcc10e7fcc90991b18324810011b66742366ba8d73a029f",
+      "noticeSha256": "e225c958b2698902db81dcb8c9ec74011a7945a05b35bc661d3d0aef0943b85f"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxfile.h",
+      "sourceSha256": "b6bef961e20d5a48734d736c5233ba5b81513ebc8c6bfd3f631d1e5dbd113afe",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxutil.c",
+      "sourceSha256": "822f090781d63e7c040f5a960fe737e4e013fdf46c17d814c6defb22e12f3d91",
+      "noticeSha256": "0fa69fc816e0006bd35f68bcbf9cd75172d75e0e1da813729ed24316cb3508d1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dpxutil.h",
+      "sourceSha256": "24d7e1afcea1c2ef539f646acd917c484e356991f6dd8e0d8a10c96cd35182bf",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dvi.c",
+      "sourceSha256": "bb6f1b32cdcc6588ee1c8998190162814b6508dd97bf11ce4154b48a631036ed",
+      "noticeSha256": "c9f599415524d3ade51037db3ccd596c98d8f0656f63d24ec59b5754acbb3458"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dvi.h",
+      "sourceSha256": "a1cd3c566025fdb3dbfcf2a0c5d8800ae4b2db77206fb1d7ef8bafb098277ea0",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dvicodes.h",
+      "sourceSha256": "2a2e9105415b192d45da9d2b6dbe2faddfbd9267f6eb0a44f90bb04d4bfa22a0",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dvipdfmx.c",
+      "sourceSha256": "8662766a69ee556bc49b7f6d191774e7272137e4fddd4cd1c12aac556a5e1498",
+      "noticeSha256": "4e4d49b5d5d36ab0332768e7c5972b0e8613ed6683d6c1c1c63bd640d321dcb0"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-dvipdfmx.h",
+      "sourceSha256": "9e7b3d01e376e399c959154d79f544afb9ccf5c5dec0d2c40b2bc5826ddc93dc",
+      "noticeSha256": "811c0d3259b56d4e4d351866178a94c60e70e0bbcc6954871154f20f1a577130"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-epdf.c",
+      "sourceSha256": "911f8d96695e43b145f3266b75e092519baa1e4b0041a84cbb0809e14c9ef879",
+      "noticeSha256": "604e3fae15c595320923f4aab92915a1826733e0e3091d74d75c0d0b0b4d3217"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-epdf.h",
+      "sourceSha256": "2a8bc5794e5f23238ce92897a8e9370482f54c7c4ded93398b23e21dd8a874b7",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-error.c",
+      "sourceSha256": "bcc548423e55c22bf945b47eb57b9a77a1c5a8cd752d1d7376a587f5d8583fe3",
+      "noticeSha256": "53225c1c6322b3ad935241e5bcf38daae94089c8a736d926bc6a835a3ccd1106"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-error.h",
+      "sourceSha256": "7e5bfa53fd0d9f66106533bc260f285a727b044749351ab341dd6b9fb80e0092",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-fontmap.c",
+      "sourceSha256": "14524f3a990e1c963d42b73255445fbc7fcd3f6a2fdb71270dc454c3a641834a",
+      "noticeSha256": "e83c97527581b09dc97ba4b776ee303ea55939592be3f9965253b43d94198bcd"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-fontmap.h",
+      "sourceSha256": "bbe00b2d2356f394ddeed71b0a8eae479603d23eedcb9d5b3c8eb08b1c79b8a7",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-jp2image.c",
+      "sourceSha256": "bf1d3504a7be2f47b7eef9e6755b4a37dfba046d9a6fd82f4ea115605c8f08c5",
+      "noticeSha256": "bcfb24660e38f04dc4739608ae4da34a8ea66709dba826db844602453147b37c"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-jp2image.h",
+      "sourceSha256": "4ca1dd0f1e2cfc873df25bd4ad97fb13c696453a3f97ac9f722981898bd2746a",
+      "noticeSha256": "359a285fe3b152c5dd49840c6fedc9c1aff2a946d1e16992d53d101615e312c8"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-jpegimage.c",
+      "sourceSha256": "0cc02c4e732d19b05a1de076f35364e0a70e47573a4147e3bfc66a4906ebe7f0",
+      "noticeSha256": "4103c9ec5ec333434c5d07e72170b4687f0f41961d1f76691b9eb780e0b93a91"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-jpegimage.h",
+      "sourceSha256": "d5b3477ee91d24300f4b484cb4d23c6c387af9375f8713744b5fdca600c9cb80",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-mem.c",
+      "sourceSha256": "d5f0120ff579d35a2d97748faa0c1316a4b46fa3d2054703183af4e0c536c47a",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-mem.h",
+      "sourceSha256": "33ba2f56807c761d20662d51f23205dfe65926473304b9502325a6748cdaf508",
+      "noticeSha256": "0fa69fc816e0006bd35f68bcbf9cd75172d75e0e1da813729ed24316cb3508d1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-mfileio.c",
+      "sourceSha256": "92c912f63597ca36598bd5bd2ed40d69de93b0763ea7f660e92c83080141d103",
+      "noticeSha256": "53225c1c6322b3ad935241e5bcf38daae94089c8a736d926bc6a835a3ccd1106"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-mfileio.h",
+      "sourceSha256": "bf54c049a4bff3862084657b1da0059cbe673729849d3742f1635ff19058a0e7",
+      "noticeSha256": "0fa69fc816e0006bd35f68bcbf9cd75172d75e0e1da813729ed24316cb3508d1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-mpost.c",
+      "sourceSha256": "cfbbc1ade3e46118025bf0b0030d8f5a35fbc21ef48ca9f91522e2cfb4c8d96b",
+      "noticeSha256": "604e3fae15c595320923f4aab92915a1826733e0e3091d74d75c0d0b0b4d3217"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-mpost.h",
+      "sourceSha256": "68aa5f59ea6fe344e0d07c0caac6716cbf38145e2cb0f7dba085e726c6d3e08d",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-mt19937ar.c",
+      "sourceSha256": "85895770a109261ba49a70d309094c7bea4473e5397c3eb22f619c3af17b5e3f",
+      "noticeSha256": "edd49e519fe8e4095a94dda993c6bed15cef744e81e27f1f82ba1a3eb28e46dd"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-numbers.c",
+      "sourceSha256": "c98ae8c078cb52b9591170a984770c56f2091b3435bf57914e965ea1c016181b",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-numbers.h",
+      "sourceSha256": "c3aa9cd823c09e5a4c614d3ae8e5ded3482d57eb01fa08583b2737c38109ff3b",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-otl_opt.c",
+      "sourceSha256": "c791d000e7de63c4969cb3554542b43f82c12f20a73f37413b397d1341538b8a",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-otl_opt.h",
+      "sourceSha256": "d5218dd57187a2d6c6f8c908d516de7d7efe7ff850de51513a78db364d8f6759",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfcolor.c",
+      "sourceSha256": "2b17f242c491bb8e8eddb1f7c9b0c552d0487519c196b60208ec0bd32ca909a3",
+      "noticeSha256": "0fa69fc816e0006bd35f68bcbf9cd75172d75e0e1da813729ed24316cb3508d1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfcolor.h",
+      "sourceSha256": "a21c4846897ce4f3df303e7e773984eab536683fa6baa6402613012a4262561c",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfdev.c",
+      "sourceSha256": "7d79ac4610d77b1cc9058f6f7df1ad6463a305868e9ac7faf41d0b584dd34484",
+      "noticeSha256": "0fa69fc816e0006bd35f68bcbf9cd75172d75e0e1da813729ed24316cb3508d1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfdev.h",
+      "sourceSha256": "40d1568c2ce721c5935707d1d9b526737899cfd49a8eb20641e62599c5d7cae2",
+      "noticeSha256": "0fa69fc816e0006bd35f68bcbf9cd75172d75e0e1da813729ed24316cb3508d1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfdoc.c",
+      "sourceSha256": "c0e39efc014a50385ffa6fabae8e5de810b0a1b3cc3a4b45204eb1090785124e",
+      "noticeSha256": "29a81ff1672995e0b214d3648c56b6da54f80ebd079b80d4b2659c66ebe1ee81"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfdoc.h",
+      "sourceSha256": "d10a2daf69b675ee54aaed857f55bfe485135a9f5312e3ce0b5130f79b277acb",
+      "noticeSha256": "604e3fae15c595320923f4aab92915a1826733e0e3091d74d75c0d0b0b4d3217"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfdraw.c",
+      "sourceSha256": "4dfc200cf00427d122f1dc0d5ed81401f3e0035d967e4892704b9361dbeb16ff",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfdraw.h",
+      "sourceSha256": "c60671c69b0dac518f28e0a0ccb04a81f5152227204354783936a171850c2ac2",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfencoding.c",
+      "sourceSha256": "5c1e214b084753fc5e293ffca30c8ec4c608cca72cacc094983f3621e0a15a7d",
+      "noticeSha256": "ac39edfca0ab61127d6aeda1614dfca3f2f242845e7c60ff4176b0cedd00b1ca"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfencoding.h",
+      "sourceSha256": "31ef9625dadeb9bbda220d17f11041bb2a62f22c14080ad544f8d4447412895e",
+      "noticeSha256": "604e3fae15c595320923f4aab92915a1826733e0e3091d74d75c0d0b0b4d3217"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfencrypt.c",
+      "sourceSha256": "de8531d1a8e2e766dc8db9e3abb4a903ab9232c633159509672a32b69edfa5a8",
+      "noticeSha256": "c5795e6642d5a34d42c17419e2315ee9da1f546918c46cc0a9efbea670138722"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfencrypt.h",
+      "sourceSha256": "6613541a47d400773b7694671e7c41b06188fad87253948e3c74b25bc65caba8",
+      "noticeSha256": "50b8f314942f2b8fca161188180a176b776711be86f192498c290d301249ec3c"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdffont.c",
+      "sourceSha256": "afb68f5904dee79a7e9c9471987071fd4862df487a957d0c070518a31d31f076",
+      "noticeSha256": "c265e629454de3c11a74ae3f86e53f4a2a1784436e4664b7846840895192f5c2"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdffont.h",
+      "sourceSha256": "0a1d4f7baeb6ca641e3dace918d62a4abbf0bae9c707dda5581ef1d105b9332b",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdflimits.h",
+      "sourceSha256": "0bf7d9e3567d84f3abd5f93c33bf07f501ab92ebb2c64de78e5f61bac63ae6d7",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfnames.c",
+      "sourceSha256": "de523804a64275f4648f7e397613c53e6be95a9c7339865b842c5b21b8270260",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfnames.h",
+      "sourceSha256": "998593690609ef9db3dffb86502bc461521d32652b068bd306065646c51c8cad",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfobj.c",
+      "sourceSha256": "b6f2b4024f448a1def4c88d292d852039b402a28233db43d7ee1e7634c5202ee",
+      "noticeSha256": "b0708ac579ebc06673772a37e7370461814b2ebcf82b57411e3c1f57486cab8d"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfobj.h",
+      "sourceSha256": "b3471fefe54ec962839d0f9664e3e2c7cadfdf6e8dfac323486ec4d22ae695f3",
+      "noticeSha256": "5c9b7fe735881864f06eae153de971644ad1ca2542394814579496506a725040"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfparse.c",
+      "sourceSha256": "0b36ea0f4b7e71e7ba3dc450da8e1a281e0163828e788a484b9e643b6c28a363",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfparse.h",
+      "sourceSha256": "a78558cb5b0a0a5b6dbf3afbb7e6731b7723d37135bf147c3fe6dd17a43e4605",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfresource.c",
+      "sourceSha256": "a1414f851e1b0789110003df3a6229872585c115444bd32fd50b7f5b487a7c3b",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfresource.h",
+      "sourceSha256": "4952da8b0f2ba09542c2ea1d5f4344a0aa44016f57d705a98d11105e80957b85",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfximage.c",
+      "sourceSha256": "5f9eb181a8fa164973874493a6ba685001f80f45a8d04ca74551f70d5fecc750",
+      "noticeSha256": "cff1f5b5f02c52151b6d08ea2448a743b47a577ff892352080da54040d9c163e"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pdfximage.h",
+      "sourceSha256": "31793d3dfc8cbe2738164a90007d914b79412b99922979f6cce8ebf847efaa44",
+      "noticeSha256": "604e3fae15c595320923f4aab92915a1826733e0e3091d74d75c0d0b0b4d3217"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pkfont.c",
+      "sourceSha256": "c6d39ed8f65be78b672cb39c0935b1e4c50ff7a90771bff27e88368af24261ad",
+      "noticeSha256": "239b5e9375c79b6905b9d464ff0b0e318627a8ea488e4c5ca7ecf07341236457"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pkfont.h",
+      "sourceSha256": "fe441bb635cd5f80e90bb01839f224660b3036d7fc3fbd9e30444d51521d4910",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pngimage.c",
+      "sourceSha256": "512420a1a83490720391e7e99a7b00b8a3ca5c479fc6bbd0a225334c72687074",
+      "noticeSha256": "4103c9ec5ec333434c5d07e72170b4687f0f41961d1f76691b9eb780e0b93a91"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pngimage.c",
+      "sourceSha256": "512420a1a83490720391e7e99a7b00b8a3ca5c479fc6bbd0a225334c72687074",
+      "noticeSha256": "165679e21176099f03157209915e9564497d2cd67970817c896daa9b87eb3c5d"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pngimage.h",
+      "sourceSha256": "b8c2b29d9e7d0d6f1ce139f37b0e57e3617b9e541aafd11f7d42a2eb7232d36c",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pst.c",
+      "sourceSha256": "2f7139e6b82f979f6c6f178ba8c83d67368cc97539fb7bdd4ce3d5344dcb6238",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pst.h",
+      "sourceSha256": "aefaf91d7d3f966e819cb3590b9b7acbd37bad35095f5f3341f8fc2da6a3a41a",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pst_obj.c",
+      "sourceSha256": "b28b3d5777350fb3c94d3e76db09c10e19be15d445436c90da693b156d848cb7",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-pst_obj.h",
+      "sourceSha256": "36ce613e562a5f956a13dc1b76741a157eb9c084ecf875fd49e3dbc54e52d699",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-sfnt.c",
+      "sourceSha256": "2697f73bf740955bcf528c154a640b3ee61e52ea6c5ba4d3e1b8d1b23de7ab94",
+      "noticeSha256": "069ffde8a6ea3491249c17539124bda4aa6db9f34e79fb9b1015aca4765fb481"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-sfnt.h",
+      "sourceSha256": "b17e71ec9f82bc44a1b91846fd48074b0ce8bfa282263d6dec458775bb79b3a0",
+      "noticeSha256": "069ffde8a6ea3491249c17539124bda4aa6db9f34e79fb9b1015aca4765fb481"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_color.c",
+      "sourceSha256": "ac1c7d0d948becf459220c8ba9c08ae1f9bb7e33a258a342cc62ed66ee59d939",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_color.h",
+      "sourceSha256": "a0a4d72eaee1fecfb00029da97346541de947ff9b8a6e87b3b3bcdb176dea2ea",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_dvipdfmx.c",
+      "sourceSha256": "07cd37f30310a372220a9bec20f402c283254ea9faf90dead85bbacd64e543ee",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_dvipdfmx.h",
+      "sourceSha256": "173261db61302cd3c30bd3065e1e81f64bcfff8f1367355025a08ee6c500580e",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_dvips.c",
+      "sourceSha256": "12821047190e834398e0bb6bd034528e3b809e367ee346be6e54bbf094081635",
+      "noticeSha256": "791ec0fe0f63d60a97ea74a240300f80b78dd194e5fd6fb9fad78e8735d81f01"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_dvips.h",
+      "sourceSha256": "012f501c27ece95374b23373ea441bff705e63819b92624c8c97b3a243887aee",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_html.c",
+      "sourceSha256": "b1c2ddd062d45733bbfad2fc57413ccb020e70e8b4005b46a20997d0ac0e74cf",
+      "noticeSha256": "f538c03b63119326570af350b12141cea93fb1686a78582a54514ab69ef5906f"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_html.h",
+      "sourceSha256": "76b184a6a5a3d6b9134a40d00a88ea7b7527ef6ba5025977ffb81128b312b569",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_misc.c",
+      "sourceSha256": "3f175e66385814eb61393216a9dfd5d3ea5a23fe20ece2749dd0e5c34546f916",
+      "noticeSha256": "53225c1c6322b3ad935241e5bcf38daae94089c8a736d926bc6a835a3ccd1106"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_misc.h",
+      "sourceSha256": "d188a3f2696fa69ae264e1571d642b5432180867fe978ba438c6837d487ea4bb",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_pdfm.c",
+      "sourceSha256": "f43fdabf0f57a7fd18477f429d0adbd9603bb316754d234d0fcc5e793cc99dce",
+      "noticeSha256": "e107b667caeca17a6e66172a425ebfa953ece4c897deede76a4b24d879156b82"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_pdfm.h",
+      "sourceSha256": "53ebadd8a56dc169f00bc0c80df68ab45109815b8c117aba5adfba19f82b5192",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_tpic.c",
+      "sourceSha256": "10e11e2e8ed63bcb7e4cc2684bb2f3d225d3015ca590d825cd170ccf6f80ebbd",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_tpic.h",
+      "sourceSha256": "006c0739fa4cb2aa3f92ce72fb761154eb0468232b7a46c23b0bb33a795d3094",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_util.c",
+      "sourceSha256": "67035745feb09736c9bd3b07764670be6809aeda9f5ebd3378c12c7c81e4b528",
+      "noticeSha256": "604e3fae15c595320923f4aab92915a1826733e0e3091d74d75c0d0b0b4d3217"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_util.h",
+      "sourceSha256": "4081f3ac9ef322746dee57972444ebc66285fc49671f4cddd6dfc1c78fa43515",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_xtx.c",
+      "sourceSha256": "e33a6b8626b4060653d572013f0de74fb7ea28c87ad0c2da04b1ca7d6cd7742d",
+      "noticeSha256": "6f505633ffdd7352fa324c5908fa7ee11b6821ca06755dc22ca1849533b3a926"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-spc_xtx.h",
+      "sourceSha256": "aebc963a4e3a9c6df3b69146b908b3f20e9398f8787ac42f0eecbb6af150780d",
+      "noticeSha256": "93922887a0af237148cf023909aef2469980d3ea8c6f6dd06278a04a04e0959e"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-specials.c",
+      "sourceSha256": "aec5f1c7c3e98febc522ec91318b7e96c220b5101003448af19ba9e7e04fe0de",
+      "noticeSha256": "0fa69fc816e0006bd35f68bcbf9cd75172d75e0e1da813729ed24316cb3508d1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-specials.h",
+      "sourceSha256": "5cf4f27b847b0c87d80ec4ba6323fa9ac85a4a0eaf7536e4b65d09a67f12f24b",
+      "noticeSha256": "604e3fae15c595320923f4aab92915a1826733e0e3091d74d75c0d0b0b4d3217"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-subfont.c",
+      "sourceSha256": "1a65c5e35a884d7d153bbee51acd88a1fdcfe99fe09809ef7c94f0ac9ec92482",
+      "noticeSha256": "0b3a0bc5843ccdac983b30b9ed31ce1af0c794c29ed36f10960ba11dd56098d1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-subfont.h",
+      "sourceSha256": "0a4f9cd70003c48834a3b3fa4f3360798e5b9867ffdfe3b2c693bd32b96639d4",
+      "noticeSha256": "c5795e6642d5a34d42c17419e2315ee9da1f546918c46cc0a9efbea670138722"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-system.h",
+      "sourceSha256": "154e3f2a5962aeb9a78e927a5e8623e04ea6176360ef296823713a23d8d4c661",
+      "noticeSha256": "0fa69fc816e0006bd35f68bcbf9cd75172d75e0e1da813729ed24316cb3508d1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-t1_char.c",
+      "sourceSha256": "d06418bd46e2bda5a5ba2e64c1dd3d0fa82c1f2d3efec49608a1f862fe093898",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-t1_load.c",
+      "sourceSha256": "a72279a3f6c4a79749f67be23547a707ffa43a1567e625a244eb8f7db11b5dd4",
+      "noticeSha256": "53225c1c6322b3ad935241e5bcf38daae94089c8a736d926bc6a835a3ccd1106"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-t1_load.h",
+      "sourceSha256": "0a21ea0ed4e7e2c6030dc23e5cc339e4b3b1caeb88d2e7422a85f081720f9192",
+      "noticeSha256": "c1a29a48b506810e51dde924b5e8e5e531f0dd2d9ba3a7f2f200122791e15985"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tfm.c",
+      "sourceSha256": "f01e4d6f749bbcc698bcac7dc92febb0134bc2ed8cb4b4299026396fe39f3980",
+      "noticeSha256": "4103c9ec5ec333434c5d07e72170b4687f0f41961d1f76691b9eb780e0b93a91"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tfm.h",
+      "sourceSha256": "d8c35cb1fbe5176ab04ab7be449e57cdbe0f14a89d0aaea4b67c8cfb949f6087",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-truetype.c",
+      "sourceSha256": "5dd9c3d82db87d44d1cb0f44fbe4639e0c5f8a0a393d04a72a65f4e5aab8c78f",
+      "noticeSha256": "b123f61408986a4946d5bc937f2afead9bcb7a31996a16d054061d633a1382a1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-truetype.c",
+      "sourceSha256": "5dd9c3d82db87d44d1cb0f44fbe4639e0c5f8a0a393d04a72a65f4e5aab8c78f",
+      "noticeSha256": "59c1306a66ca33b2a8afe6d7bff974b778321866d9ff4758dbd5d7e5c4bc1439"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-truetype.h",
+      "sourceSha256": "3dd73f1f24c25b7a8dd18ded091b1dd1db22d076fa060c721a270975e4b8e33d",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_aux.c",
+      "sourceSha256": "0ddc521a5c9cebc7ed8e2f557f3708b6b8bc01d7feacf8c8280fc5d23000e865",
+      "noticeSha256": "c5795e6642d5a34d42c17419e2315ee9da1f546918c46cc0a9efbea670138722"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_aux.c",
+      "sourceSha256": "0ddc521a5c9cebc7ed8e2f557f3708b6b8bc01d7feacf8c8280fc5d23000e865",
+      "noticeSha256": "5e0595239e36f14de351693c4c8f2415d37754bb82388cccd2f1a9724c0e2f79"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_aux.c",
+      "sourceSha256": "0ddc521a5c9cebc7ed8e2f557f3708b6b8bc01d7feacf8c8280fc5d23000e865",
+      "noticeSha256": "0b0eb9ee1e35eb6423705d94a8bd40e094d8ef9fd82d830413b56f5f0b02e7a2"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_aux.h",
+      "sourceSha256": "31b8e38d9459500852dd086941e044ac0c2c6e7726dca6f784846da343af39b7",
+      "noticeSha256": "c5795e6642d5a34d42c17419e2315ee9da1f546918c46cc0a9efbea670138722"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_cmap.c",
+      "sourceSha256": "39038331b40fb6e78f9189c59c4ca836d163a54e00cec3ef36d910fef08a87fc",
+      "noticeSha256": "b123f61408986a4946d5bc937f2afead9bcb7a31996a16d054061d633a1382a1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_cmap.h",
+      "sourceSha256": "45d0727e30ecf1a57e852e3b90d4db4b15b0e02e8d89de0a9dc3dc238d874bad",
+      "noticeSha256": "c5795e6642d5a34d42c17419e2315ee9da1f546918c46cc0a9efbea670138722"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_glyf.c",
+      "sourceSha256": "a10190c8948183a265f6ed36bffa1b7caa2dd25f29d206fa3d874910d33e235f",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_glyf.h",
+      "sourceSha256": "94a7f9b57ed4f01bc272f20b049cfc551915c8d10cc7e92e10cc07297cab3bbd",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_gsub.c",
+      "sourceSha256": "919867d28755579681b9983ba8a7643dba07f3aa99a0378187449dd978e8b44b",
+      "noticeSha256": "9a2aa059296be3428f23f21abab507b11b5396ab5c5b5bed3e1391c9d4c19415"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_gsub.h",
+      "sourceSha256": "265d2093dbdcf1102515c6f9ba67291372790cd0ab172474051a5c1dc959093d",
+      "noticeSha256": "9a2aa059296be3428f23f21abab507b11b5396ab5c5b5bed3e1391c9d4c19415"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_post.c",
+      "sourceSha256": "48486243f3696ff8e5fd987efa7e2bc6e41eeea7d16367a05a71f54c86ffa38d",
+      "noticeSha256": "9a2aa059296be3428f23f21abab507b11b5396ab5c5b5bed3e1391c9d4c19415"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_post.h",
+      "sourceSha256": "eb2a6e29406de9807cf649268ab3048568f1c8eb4708ff1c59b6b2e9abb2cd86",
+      "noticeSha256": "cef25b0bf086f3dceb00877cc6981448b04e10fa9cf5e4d201a828a68df4d808"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_table.c",
+      "sourceSha256": "9177526860fc0d1b797f3c463a487f3314a72eca45660cb09e29f5386efdf2a2",
+      "noticeSha256": "9a2aa059296be3428f23f21abab507b11b5396ab5c5b5bed3e1391c9d4c19415"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-tt_table.h",
+      "sourceSha256": "d4406d5a63584f338c05245ca29da779ba913b6bbb7de1e24aad2bbdd512c7d8",
+      "noticeSha256": "900b053e1b61b321eee03e48ebcaf9e67414160b8325c121aca532c60f2c2b1e"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-type0.c",
+      "sourceSha256": "02325da06324b6ebca1425aba48e55135084f80f67cbe417d2a5d63bef07075c",
+      "noticeSha256": "c5795e6642d5a34d42c17419e2315ee9da1f546918c46cc0a9efbea670138722"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-type0.h",
+      "sourceSha256": "69b0f75902c451d436b84a716c6546863500d308db51cf9ebd7b1db5b9a47b69",
+      "noticeSha256": "c5795e6642d5a34d42c17419e2315ee9da1f546918c46cc0a9efbea670138722"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-type1.c",
+      "sourceSha256": "3540c1de8e90cde3ff1a8e740410419275db9bbaac21c2056f8b1742189a76d4",
+      "noticeSha256": "9634d197f93757ebf1f0513cc10078ec18718e4bf530ab153a652c4daacbe7e7"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-type1.c",
+      "sourceSha256": "3540c1de8e90cde3ff1a8e740410419275db9bbaac21c2056f8b1742189a76d4",
+      "noticeSha256": "b594f37fc01045446f116db0d7466e84037e3b6b853672d6a75fe8678d6012e8"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-type1.h",
+      "sourceSha256": "8bc0423d2e0f116a7fbddb3c77358ca42b8238c9c5958597a528e5d83acaa1b8",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-type1c.c",
+      "sourceSha256": "b1824f521546d97b81addb8413cf12b4b47272f3b1ddd278a4f830010b8664c5",
+      "noticeSha256": "9634d197f93757ebf1f0513cc10078ec18718e4bf530ab153a652c4daacbe7e7"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-type1c.c",
+      "sourceSha256": "b1824f521546d97b81addb8413cf12b4b47272f3b1ddd278a4f830010b8664c5",
+      "noticeSha256": "b594f37fc01045446f116db0d7466e84037e3b6b853672d6a75fe8678d6012e8"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-type1c.h",
+      "sourceSha256": "9fa5de82ab5d6deba109bea3690e2d1aebf6ae82e5b01e84587a05a2947106fd",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-unicode.c",
+      "sourceSha256": "a5244b0add2e868e8c43f462b7235383216408888384587822e26334fa48fd0c",
+      "noticeSha256": "0fa69fc816e0006bd35f68bcbf9cd75172d75e0e1da813729ed24316cb3508d1"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-unicode.h",
+      "sourceSha256": "b9a87b6419ef3989bf7ff06076c17b5db57fd36f6e023c9b443493dba2a4abe0",
+      "noticeSha256": "b490edd7680a22d15cccc6ea20b961ec9183e4e0baae015bd290f9883250eb0a"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-vf.c",
+      "sourceSha256": "1cab1e11df05061236c7d5bf0e52f0f1191f67c2bb940607ae9fe617e8653b5d",
+      "noticeSha256": "4306f89c5631609d1a2f064e1338a2095f3349ea7a3d6ccd76ec2a4ce8f2bca7"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "pdf_io/dpx-vf.h",
+      "sourceSha256": "9cd24204edc8e2b13d1da7dfc4fe74a8cbf0247e956633a79315097baf7e8eb9",
+      "noticeSha256": "d52b04fedb1d2251d119eaddc96040c2b9dd6cb5d51a9095257424d358b0a964"
+    },
+    {
+      "name": "tectonic_pdf_io",
+      "version": "0.5.3",
+      "file": "src/lib.rs",
+      "sourceSha256": "719b791287a323417448d12cfc898a759cf8bd1bc548b65f2c644a4b21756f79",
+      "noticeSha256": "fba77ea1516f370892af8e53b88e7c089147225c6c2250422a45f0569a77ce74"
+    },
+    {
+      "name": "tectonic_status_base",
+      "version": "0.2.2",
+      "file": "src/lib.rs",
+      "sourceSha256": "73a39374f6816b8495e1019add538d7c936596dd3bfcc2fbb540366da8575623",
+      "noticeSha256": "9a8cdb9d2bee9fdb1e49a86aa8820f81cd9cb14956ac960d65075ca21359195a"
+    },
+    {
+      "name": "tectonic_status_base",
+      "version": "0.2.2",
+      "file": "src/plain.rs",
+      "sourceSha256": "e01b49b6a3db881ed87a22b5a6d5d1fae2fae29330ead6b312ce9b8fd0646786",
+      "noticeSha256": "9a8cdb9d2bee9fdb1e49a86aa8820f81cd9cb14956ac960d65075ca21359195a"
+    },
+    {
+      "name": "tectonic_xdv",
+      "version": "0.3.0",
+      "file": "examples/xdvdump.rs",
+      "sourceSha256": "0907dbcb0f9f1705f17cf6d0ee9abdcc5cdf982222c48a21beaad0e2bbeec0f9",
+      "noticeSha256": "26dbd771170e9585e6d1e2ee87757f7cdfd61a9ee3c35685fe3c7531d97f7c15"
+    },
+    {
+      "name": "tectonic_xdv",
+      "version": "0.3.0",
+      "file": "src/lib.rs",
+      "sourceSha256": "32cab0a2d9602bf2475bc91c17d6f1f0afc069f1d3a8701eece027101cad2aa5",
+      "noticeSha256": "b427124663d000874762587689d0c49d6ce41bcdbc29b8af2b34637e96aba6c1"
+    },
+    {
+      "name": "tectonic_xetex_layout",
+      "version": "0.3.4",
+      "file": "build.rs",
+      "sourceSha256": "9c2e50e72baab8c1f8cb96589149e67f7eb0c4a06a842ca99d4f6bb631fc31cc",
+      "noticeSha256": "c4727d37a8b6603757361e9021846c559219033841c781bdff48e994f49e8f38"
+    },
+    {
+      "name": "tectonic_xetex_layout",
+      "version": "0.3.4",
+      "file": "src/lib.rs",
+      "sourceSha256": "704f424750714fd68457fc682c32755a45e08768cbbb35bb2195b50355138e9a",
+      "noticeSha256": "33b5bcbfa35a720a68f82a1bf5b9508b7ac4b6e8cce02b8a44ce82fd8ac8a825"
+    }
+  ],
   "rustLicenseTexts": [
     {
       "id": "Apache-2.0",
@@ -1654,9 +5568,34 @@
     },
     {
       "id": "Apache-2.0",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "components": [
+        "miette@7.6.0"
+      ]
+    },
+    {
+      "id": "Apache-2.0",
       "sha256": "268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5",
       "components": [
         "winx@0.36.4"
+      ]
+    },
+    {
+      "id": "Apache-2.0",
+      "sha256": "018b1cb87efdf7a04c2fcc13d57ed63f62149113fb207b27ea13430d64f13513",
+      "components": [
+        "zopfli@0.8.4"
+      ]
+    },
+    {
+      "id": "Apache-2.0",
+      "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+      "components": [
+        "ignore-files@3.0.8",
+        "project-origins@1.4.4",
+        "watchexec-filterer-globset@8.0.6",
+        "watchexec-filterer-ignore@7.0.6",
+        "watchexec@8.4.4"
       ]
     },
     {
@@ -1678,10 +5617,24 @@
     },
     {
       "id": "Apache-2.0",
+      "sha256": "02872c3ff23e11da5a9b3289df11b581be36b4956bfb7cfdc3d8043f92d64794",
+      "components": [
+        "miette-derive@7.6.0"
+      ]
+    },
+    {
+      "id": "Apache-2.0",
       "sha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a",
       "components": [
         "dpi@0.1.2",
         "tao@0.37.1"
+      ]
+    },
+    {
+      "id": "Apache-2.0",
+      "sha256": "34cb75d73943f10a7f9a3b0e3e7bf8ef271065eedcb0d47481e7c831b637aeae",
+      "components": [
+        "unicode-bom@2.0.3"
       ]
     },
     {
@@ -1707,6 +5660,13 @@
     },
     {
       "id": "BSD-3-Clause",
+      "sha256": "2098e4a5792bf962e23b5ab67f87b6e4305b9ff05e71f9d8ebc9822229fd8ea6",
+      "components": [
+        "deunicode@1.6.2"
+      ]
+    },
+    {
+      "id": "BSD-3-Clause",
       "sha256": "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae",
       "components": [
         "alloc-no-stdlib@3.0.0",
@@ -1724,9 +5684,24 @@
     },
     {
       "id": "CC0-1.0",
+      "sha256": "e0456cbab4f7b5e7203e678faff37eadbdfef02e822db3b7a52a1dd9d3dc514a",
+      "components": [
+        "notify@8.2.0"
+      ]
+    },
+    {
+      "id": "CC0-1.0",
       "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
       "components": [
         "dunce@1.0.5"
+      ]
+    },
+    {
+      "id": "GPL-3.0-or-later",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "components": [
+        "tectonic_engine_xdvipdfmx@0.4.4",
+        "tectonic_pdf_io@0.5.3"
       ]
     },
     {
@@ -1755,6 +5730,16 @@
       "sha256": "b50b376e7d24a0598488b730c3034ffcd0b58dd36c0913a24b9903a3cfd04bf7",
       "components": [
         "aws-lc-rs@1.18.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+      "components": [
+        "watchexec-events@6.1.3",
+        "watchexec-signals@5.1.1",
+        "watchexec-supervisor@5.4.1",
+        "watchexec-supervisor@6.0.0"
       ]
     },
     {
@@ -1791,6 +5776,41 @@
     },
     {
       "id": "MIT",
+      "sha256": "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306",
+      "components": [
+        "tectonic@0.17.0",
+        "tectonic_bridge_core@0.5.3",
+        "tectonic_bridge_flate@0.1.10",
+        "tectonic_bridge_fontconfig@0.1.3",
+        "tectonic_bridge_freetype2@0.3.2",
+        "tectonic_bridge_graphite2@0.3.2",
+        "tectonic_bridge_harfbuzz@0.3.3",
+        "tectonic_bridge_icu@0.2.4",
+        "tectonic_bridge_png@0.1.2",
+        "tectonic_bundles@0.4.2",
+        "tectonic_dep_support@0.1.2",
+        "tectonic_engine_bibtex@0.3.4",
+        "tectonic_engine_spx2html@0.4.3",
+        "tectonic_engine_xdvipdfmx@0.4.4",
+        "tectonic_engine_xetex@0.5.3",
+        "tectonic_errors@0.3.0",
+        "tectonic_geturl@0.4.1",
+        "tectonic_io_base@0.6.0",
+        "tectonic_pdf_io@0.5.3",
+        "tectonic_status_base@0.2.2",
+        "tectonic_xdv@0.3.0",
+        "tectonic_xetex_layout@0.3.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "1ab292e7799f94b1b998e7c221c2f9b05f72ba9d593e6dc3ba4930b914eadeee",
+      "components": [
+        "globwalk@0.9.1"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "6226d0632e2e1a80c23597e964da9812ae193c535fe058154afb034e94167aa5",
       "components": [
         "atomic-waker@1.1.2"
@@ -1801,6 +5821,21 @@
       "sha256": "728536b4160e051f86d7c9c388f704866b3d512cd7df97ac3516c65279523c4e",
       "components": [
         "aws-lc-sys@0.46.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "6b7865fa851a101527956f17ad1256fbae502272016ff0733aa94964fdac5341",
+      "components": [
+        "chrono-tz-build@0.3.0",
+        "chrono-tz@0.9.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "4789210f4df8abc03fce1cddd9c2ba517f184840687f2815d741de282c1aa93a",
+      "components": [
+        "parse-zoneinfo@0.3.1"
       ]
     },
     {
@@ -1856,10 +5891,27 @@
         "cc@1.8.0",
         "cfg-if@1.0.5",
         "cmake@0.1.58",
+        "filetime@0.2.29",
         "find-msvc-tools@0.1.14",
         "jobserver@0.1.35",
+        "pkg-config@0.3.34",
         "socket2@0.6.5",
+        "stacker@0.1.25",
         "toml_datetime@0.6.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "34c467b6945a22696d060b8fdd2379d464acb3408d4c599d3dc5fe4fa1b4c84f",
+      "components": [
+        "libz-sys@1.1.30"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "e8146cecb7949e867aa0d2065686ecc09051634694e5f7b592adcdde8290a334",
+      "components": [
+        "humansize@2.1.3"
       ]
     },
     {
@@ -1968,6 +6020,7 @@
       "id": "MIT",
       "sha256": "8b427f5bc501764575e52ba4f9d95673cf8f6d80a86d0d06599852e1a9a20a36",
       "components": [
+        "slug@0.1.6",
         "tempfile@3.27.0"
       ]
     },
@@ -1976,7 +6029,16 @@
       "sha256": "7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0",
       "components": [
         "heck@0.5.0",
-        "unicode-segmentation@1.13.3"
+        "unicode-normalization@0.1.26",
+        "unicode-segmentation@1.13.3",
+        "unicode-width@0.1.14"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "0041560f5d419c30e1594567f3b7ac2bc078ff6a68f437e0348ba85d9cf99112",
+      "components": [
+        "which@8.0.6"
       ]
     },
     {
@@ -2026,6 +6088,13 @@
     },
     {
       "id": "MIT",
+      "sha256": "e4c9b06fa850cb9b540a5e400e9f6394cf15efcf4098144de477d1d3dae10150",
+      "components": [
+        "utf8parse@0.2.2"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "709e3175b4212f7b13aa93971c9f62ff8c69ec45ad8c6532a7e0c41d7a7d6f8c",
       "components": [
         "hyper-rustls@0.27.10",
@@ -2053,7 +6122,8 @@
         "lock_api@0.4.14",
         "parking_lot@0.12.5",
         "parking_lot_core@0.9.12",
-        "rustc_version@0.4.1"
+        "rustc_version@0.4.1",
+        "thread_local@1.1.10"
       ]
     },
     {
@@ -2087,6 +6157,14 @@
     },
     {
       "id": "MIT",
+      "sha256": "831e0f43ad0bf014c1c4fec5767aae470434c1d66d6e671be2d823e729063e25",
+      "components": [
+        "md-5@0.11.0",
+        "sha2@0.11.1"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "9e0dfd2dd4173a530e238cb6adb37aa78c34c6bc7444e0e10c1ab5d8881f63ba",
       "components": [
         "digest@0.10.7"
@@ -2097,6 +6175,34 @@
       "sha256": "65fdb6c76cd61612070c066eec9ecdb30ee74fb27859d0d9af58b9f499fd0c3e",
       "components": [
         "fnv@1.0.7"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "3234ac55816264ee7b6c7ee27efd61cf0a1fe775806870e3d9b4c41ea73c5cb1",
+      "components": [
+        "globwalk@0.9.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "016d20f335060a70e79d9fcf8dfaa6201114d65d592211f4bdfb8ae9ca2bc1dc",
+      "components": [
+        "vcpkg@0.2.15"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "035e70219855119df4273b3c5b97543ae82e0dd60c520416e759107c602f651b",
+      "components": [
+        "heapless@0.8.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "f1e3e65d8df616a4cb0a9b669c0c6d4df37a7e3cd4d582be4d5bb433b61199cc",
+      "components": [
+        "sha1dc@0.1.5"
       ]
     },
     {
@@ -2136,9 +6242,23 @@
     },
     {
       "id": "MIT",
+      "sha256": "af59cea35d7f5e2777a713b8d155d65efa2c339eb43f3c14e868c6ac8506edad",
+      "components": [
+        "digest@0.11.3"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "45f522cacecb1023856e46df79ca625dfc550c94910078bd8aec6e02880b3d42",
       "components": [
         "bytes@1.12.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "c986bcdb83103d4ddf58aeb7b5302359782e54dc4eea14a0cc27c62dcbd50729",
+      "components": [
+        "hash32@0.3.1"
       ]
     },
     {
@@ -2153,6 +6273,13 @@
       "sha256": "0b28172679e0009b655da42797c03fd163a3379d5cfa67ba1f1655e974a2a1a9",
       "components": [
         "smallvec@1.16.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "11955c617c19899b5c36d78c916739d1686f2e7ad8e3cec684c2f0f73b0db950",
+      "components": [
+        "directories@6.0.0"
       ]
     },
     {
@@ -2186,6 +6313,20 @@
     },
     {
       "id": "MIT",
+      "sha256": "42fa16951ce7f24b5a467a40e5b449a1d41e662f97ca779864f053f39e097737",
+      "components": [
+        "getrandom@0.2.17"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "98181e7249d0c01737645ec982499ce99a0f07eb8f7d625b8840d799d10dbc01",
+      "components": [
+        "block-buffer@0.12.1"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "29e9fe5074bd27e0e5d5d110394fbbcd841baee2651a3c4b4560a632702cede4",
       "components": [
         "getrandom@0.3.4"
@@ -2214,10 +6355,40 @@
     },
     {
       "id": "MIT",
+      "sha256": "eafbfa606bc005ed7fd2f623d65af17ffe4ef7c017221ac14405bf4140771ea9",
+      "components": [
+        "sharded-slab@0.1.7"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "a47129d738752a6ae52247fea645b42cb320d19e9327f1eb2d1a7f99d9455ad3",
+      "components": [
+        "matchers@0.2.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "65f94e99ddaf4f5d1782a6dae23f35d4293a9a01444a13135a6887017d353cee",
+      "components": [
+        "bumpalo@3.20.3"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "4cada0bd02ea3692eee6f16400d86c6508bbd3bafb2b65fed0419f36d4f83e8f",
+      "components": [
+        "ppv-lite86@0.2.21"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "898b1ae9821e98daf8964c8d6c7f61641f5f5aa78ad500020771c0939ee0dea1",
       "components": [
         "tracing-attributes@0.1.31",
         "tracing-core@0.1.36",
+        "tracing-log@0.2.0",
+        "tracing-subscriber@0.3.23",
         "tracing@0.1.44"
       ]
     },
@@ -2254,6 +6425,20 @@
     },
     {
       "id": "MIT",
+      "sha256": "74da489b69dcbd3ab41e84e289d66ff9f57f4ee8791de98523550f6f34027766",
+      "components": [
+        "pinot@0.1.5"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "0d25d03b5ab49576178ad0cae7a2648d12c17ad0452fe49c07e55e4b59aa5257",
+      "components": [
+        "memmap2@0.9.11"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "ae9baa7beea910273c2f384c2a6b721fb7bd02bda3436074a1072e4ee689f985",
       "components": [
         "cpufeatures@0.2.17"
@@ -2261,9 +6446,31 @@
     },
     {
       "id": "MIT",
+      "sha256": "73b9dc2e79c7308998dd30296e073aefaefb944a68fb89aa412c23c0edcabcaa",
+      "components": [
+        "const-oid@0.10.2",
+        "cpufeatures@0.3.1"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "3521672491a3479422d5fe1aca6645dd2984090f85da6e5205abfb18fb7a6897",
       "components": [
         "crypto-common@0.1.7"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "d2e7ec5355c96eeade56b09187ceb48a6a30299da3ce7531a66d3d11405ab963",
+      "components": [
+        "crypto-common@0.2.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "70c9d40f1f9545c3f133b8a67206e89da850f6468eed072281bb3701514114a9",
+      "components": [
+        "hybrid-array@0.4.15"
       ]
     },
     {
@@ -2278,6 +6485,13 @@
       "sha256": "070dbc7dda03a29296f2d58bdb9b7331af90f2abc9f31df22875d1eabaf29852",
       "components": [
         "powerfmt@0.2.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "b63e167d61ced1d872a588c5ac764b0dda477d62209dc4f6b6bfea5517d0a24c",
+      "components": [
+        "notify-types@2.1.0"
       ]
     },
     {
@@ -2304,8 +6518,28 @@
     },
     {
       "id": "MIT",
+      "sha256": "8b1803aed4ca12456a93c3e31e87c8821b9efc621629e1c523474e6742e2c398",
+      "components": [
+        "digest-io@0.1.0"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6",
       "components": [
+        "anstream@1.0.0",
+        "anstyle-parse@1.0.0",
+        "anstyle-query@1.1.5",
+        "anstyle-wincon@3.0.11",
+        "anstyle@1.0.14",
+        "clap@4.6.7",
+        "clap_builder@4.6.7",
+        "clap_complete@4.6.11",
+        "clap_derive@4.6.7",
+        "clap_lex@1.1.1",
+        "colorchoice@1.0.5",
+        "is_terminal_polyfill@1.70.2",
+        "once_cell_polyfill@1.70.2",
         "serde_spanned@0.6.9",
         "serde_spanned@1.1.2",
         "toml@0.8.2",
@@ -2348,6 +6582,20 @@
     },
     {
       "id": "MIT",
+      "sha256": "8ca6b96cea9e67c6c5c63f452c31bd396db8bd2406231fdea5d48ef462b48077",
+      "components": [
+        "tar@0.4.46"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "4da95ec4ecb65b738d470b7d762894ad9c97da93e6cbfb18b570fc2c96f4b871",
+      "components": [
+        "arrayvec@0.7.8"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "219920e865eee70b7dcfc948a86b099e7f4fe2de01bcca2ca9a20c0a033f2b59",
       "components": [
         "synstructure@0.14.0"
@@ -2362,6 +6610,15 @@
     },
     {
       "id": "MIT",
+      "sha256": "209fbbe0ad52d9235e37badf9cadfe4dbdc87203179c0899e738b39ade42177b",
+      "components": [
+        "rand@0.8.8",
+        "rand_chacha@0.3.1",
+        "rand_core@0.6.4"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "0463bfa47d6d763d8c824333efb0e6d6df3946c13c3b077c78ed9f23ca50d0f2",
       "components": [
         "softbuffer@0.4.8"
@@ -2369,9 +6626,37 @@
     },
     {
       "id": "MIT",
+      "sha256": "1a2f5c12ddc934d58956aa5dbdd3255fe55fd957633ab7d0d39e4f0daa73f7df",
+      "components": [
+        "zerocopy@0.8.63"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "816f6b910d8e4ef211bd135b113fac1031a7b7a9541688cb69ad7bf891493679",
+      "components": [
+        "enrede@0.2.0"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "3fa4ca83dcc9237839b1bdeb2e6d16bdfb5ec0c5ce42b24694d8bbf0dcbef72c",
       "components": [
         "utf8_iter@1.0.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "3e3714aa69bd874601741fd7d7ad5298740cece37778e279fc1ab4451c5a11af",
+      "components": [
+        "psm@0.1.24"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "f8218253704e32441cafea1b9b3bcb2c6a3c51c5553cd8513d179290202bccb2",
+      "components": [
+        "rust_decimal@1.43.0"
       ]
     },
     {
@@ -2442,6 +6727,13 @@
     },
     {
       "id": "MIT",
+      "sha256": "7e4baa202160a035c769bb83bd994222c74f479ec582624e3aedaa8f553481c7",
+      "components": [
+        "faster-hex@0.10.1"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "61d383b05b87d78f94d2937e2580cce47226d17823c0430fbcad09596537efcf",
       "components": [
         "crc32fast@1.5.2"
@@ -2452,6 +6744,14 @@
       "sha256": "270b0d81891aa44c7e8726cf9432dade9556a01c848bacd2f3ef839c9c1a1859",
       "components": [
         "infer@0.22.0"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "9df9ba60a11af705f2e451b53762686e615d86f76b169cf075c3237730dbd7e2",
+      "components": [
+        "bytemuck@1.25.2",
+        "bytemuck_derive@1.12.1"
       ]
     },
     {
@@ -2481,6 +6781,14 @@
       "sha256": "008c87afcd2e626eaf564093250bed06dd7efb5732113264bba3dda8f1c556a1",
       "components": [
         "axum-core@0.5.6"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "b65c9ac375b3b6c538efe6253131c44a73b50c5ee0c48a34319e766633bfee02",
+      "components": [
+        "html-escape@0.2.15",
+        "utf8-width@0.1.9"
       ]
     },
     {
@@ -2586,6 +6894,13 @@
     },
     {
       "id": "MIT",
+      "sha256": "dd0741aba702705d02da3e18fca5d3a27538fe6c983e9f09946e82ecfc59acab",
+      "components": [
+        "byte-unit@5.2.6"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "049d23c7810a0723f186a193f841378dbc307f62be89bdba21c73126b0df2c52",
       "components": [
         "sse-stream@0.2.6"
@@ -2661,6 +6976,7 @@
         "adler2@2.0.1",
         "ambient-authority@0.0.2",
         "anyhow@1.0.104",
+        "async-priority-channel@0.2.0",
         "atomic-waker@1.1.2",
         "camino@1.2.6",
         "cap-fs-ext@4.0.3",
@@ -2668,20 +6984,30 @@
         "cap-std@4.0.3",
         "cargo-platform@0.1.9",
         "cargo_metadata@0.19.2",
+        "concurrent-queue@2.5.0",
         "displaydoc@0.2.7",
         "dtoa@1.0.11",
         "dyn-clone@1.0.20",
         "erased-serde@0.4.10",
+        "event-listener@4.0.3",
         "fastrand@2.5.0",
         "fs-set-times@0.20.3",
         "io-extras@0.19.0",
         "io-lifetimes@2.0.4",
         "io-lifetimes@3.0.1",
         "itoa@1.0.18",
+        "lazy_static@1.5.1",
+        "normalize-path@0.2.2",
         "once_cell@1.21.4",
+        "parking@2.2.1",
+        "pest@2.9.4",
+        "pest_derive@2.9.4",
+        "pest_generator@2.9.4",
+        "pest_meta@2.9.4",
         "pin-project-lite@0.2.17",
         "portable-atomic@1.15.0",
         "proc-macro2@1.0.107",
+        "process-wrap@9.1.1",
         "quote@1.0.47",
         "semver@1.0.28",
         "serde-untagged@0.1.9",
@@ -2716,6 +7042,25 @@
       "id": "MIT",
       "sha256": "f9c4c77baa3828004ee54b8a4f2db2e88ed44a6237a493965bf551fac0fcb62d",
       "components": [
+        "gix-actor@0.43.0",
+        "gix-config-value@0.20.0",
+        "gix-config@0.61.0",
+        "gix-date@0.17.0",
+        "gix-error@0.4.0",
+        "gix-features@0.50.0",
+        "gix-fs@0.23.0",
+        "gix-glob@0.28.0",
+        "gix-hash@0.27.0",
+        "gix-hashtable@0.17.0",
+        "gix-lock@25.0.0",
+        "gix-object@0.65.0",
+        "gix-path@0.13.0",
+        "gix-ref@0.68.0",
+        "gix-sec@0.15.0",
+        "gix-tempfile@25.0.0",
+        "gix-trace@0.2.0",
+        "gix-utils@0.4.0",
+        "gix-validate@0.12.0",
         "siphasher@1.0.4"
       ]
     },
@@ -2724,6 +7069,13 @@
       "sha256": "bccaa8b6c09f94e81f06696e179dbe058464bbdfbc823b6d49cada1d71e84ac3",
       "components": [
         "ctor@1.0.13"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "fd80a26fbb3f644af1fa994134446702932968519797227e07a1368dea80f0bc",
+      "components": [
+        "tinyvec@1.13.3"
       ]
     },
     {
@@ -2744,6 +7096,7 @@
       "id": "MIT",
       "sha256": "58545fed1565e42d687aecec6897d35c6d37ccb71479a137c0deb2203e125c79",
       "components": [
+        "zip@8.6.0",
         "zip@9.0.3"
       ]
     },
@@ -2758,11 +7111,23 @@
       "id": "MIT",
       "sha256": "0ab4d106b6faac07fb6a051815fd1b4d862d730895e2d7d7358c2f13565e7a38",
       "components": [
+        "phf@0.11.3",
         "phf@0.13.1",
+        "phf_codegen@0.11.3",
         "phf_codegen@0.13.1",
+        "phf_generator@0.11.3",
         "phf_generator@0.13.1",
+        "phf_macros@0.11.3",
         "phf_macros@0.13.1",
+        "phf_shared@0.11.3",
         "phf_shared@0.13.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "2a50d5b85df79a0ad844670b1c93fbbbfa2d243e23109ab04c3b273950efa329",
+      "components": [
+        "endian-type@0.2.0"
       ]
     },
     {
@@ -2778,7 +7143,15 @@
       "components": [
         "aho-corasick@1.1.5",
         "byteorder@1.5.0",
+        "globset@0.4.20",
+        "ignore@0.4.33",
+        "jiff-core@0.1.1",
+        "jiff-tzdb-platform@0.1.3",
+        "jiff-tzdb@0.1.9",
+        "jiff@0.2.38",
         "memchr@2.8.3",
+        "termcolor@1.4.1",
+        "ucd-trie@0.1.7",
         "walkdir@2.5.0"
       ]
     },
@@ -2791,9 +7164,24 @@
     },
     {
       "id": "MIT",
+      "sha256": "e4e06f4bee6b18fbe6ab33b26331739a0b2bda0c1037cfa869e7d97512e9fcf7",
+      "components": [
+        "nibble_vec@0.1.0",
+        "radix_trie@0.3.0"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "4455bf75a91154108304cb283e0fea9948c14f13e20d60887cf2552449dea3b1",
       "components": [
         "shlex@2.0.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "8a51762984f85322bcd303a36eb0108a4bc9314e8f060a6794e2f2777b05eed5",
+      "components": [
+        "tera@1.20.1"
       ]
     },
     {
@@ -2824,6 +7212,20 @@
       "sha256": "1abdbbd4e3f95e56c79d4a8af190254c23ddb14db34aadadfafef9c3af041113",
       "components": [
         "embed-resource@3.0.12"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "6b7374c39a57e57fc2c38eb529c4c88340152b10f51dd5ae2d819dfa67f61715",
+      "components": [
+        "bstr@1.13.1"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "ea14ab5236f052be2bf7d55689f82c2bc74fefbd8a39f01ff5c2d5b3992c659d",
+      "components": [
+        "atomic-take@1.1.0"
       ]
     },
     {
@@ -2860,9 +7262,30 @@
     },
     {
       "id": "MIT",
+      "sha256": "e63690624d604aa626c3c62b6ead1a9f4a916d2260ac8132022acbafe2556045",
+      "components": [
+        "open@5.4.4"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "fd6e8d4faaa8ad5856140481c2d7664ded0c92ddba62bd3d1f84fa50ba026a30",
+      "components": [
+        "prodash@31.0.1"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "b7e650f3fce5c53249d1cdc608b54df156a97edd636cf9d23498d0cfe7aec63e",
       "components": [
         "version_check@0.9.5"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "284465860407420254e39be4e1bdcaaf2e7f2d18e06f9bab75bc75341a5d8501",
+      "components": [
+        "nu-ansi-term@0.50.3"
       ]
     },
     {
@@ -2881,6 +7304,13 @@
     },
     {
       "id": "MIT",
+      "sha256": "5b2c207dcf571267ebe0bbdd5bf321f561ddc22ff597e7b363e96f4539507a29",
+      "components": [
+        "quick-xml@0.39.4"
+      ]
+    },
+    {
+      "id": "MIT",
       "sha256": "3823dda7cf046602f4b4e77ec8e227863dc4736037cc85bb33d9f19febe16bb7",
       "components": [
         "libm@0.2.16"
@@ -2891,6 +7321,13 @@
       "sha256": "9eff396a99bafd208e7126602420d6864f6066c08b84485a5b032320a9c01997",
       "components": [
         "dpi@0.1.2"
+      ]
+    },
+    {
+      "id": "MIT",
+      "sha256": "333c581919654279b8396eb65b6df91bdb29c6a5e64a4f1822076edbc6d40b64",
+      "components": [
+        "tectonic_cfg_support@0.1.5"
       ]
     },
     {
@@ -2927,7 +7364,8 @@
       "id": "Unicode-3.0",
       "sha256": "f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1",
       "components": [
-        "unicode-ident@1.0.27"
+        "unicode-ident@1.0.27",
+        "unicode-normalization@0.1.26"
       ]
     },
     {
@@ -2952,6 +7390,13 @@
         "zerotrie@0.2.5",
         "zerovec-derive@0.11.6",
         "zerovec@0.11.8"
+      ]
+    },
+    {
+      "id": "Zlib",
+      "sha256": "e72111c52b7d96ebe25348dee19f0744f444d3c95ae6b1ecb6ccaecc5bce05ba",
+      "components": [
+        "zlib-rs@0.6.8"
       ]
     },
     {

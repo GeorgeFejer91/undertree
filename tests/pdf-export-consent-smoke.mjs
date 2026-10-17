@@ -1,3 +1,4 @@
+import { consentToFixtureShare } from './context-fixture.mjs';
 // Real native local consent; simulated zrok process, no public-route or OS-window claim.
 import assert from 'node:assert/strict';
 import { createZrokFixture } from './zrok-fixture.mjs';
@@ -32,7 +33,7 @@ try {
     const envelope = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...extra }, body: JSON.stringify(operation) }).then(response => response.json());
     assert.equal(envelope.ok, true, envelope.error?.message); return envelope.result;
   }
-  local = operation => post('/api/review', operation); control = operation => post('/api/control', operation, { 'X-UnderTree-Editor': owner });
+  local = async operation => post('/api/review', await consentToFixtureShare(operation, local)); control = operation => post('/api/control', operation, { 'X-UnderTree-Editor': owner });
   const first = await local({ action: 'add_project', root: firstRoot }), second = await local({ action: 'add_project', root: secondRoot });
   async function share(project) {
     const snapshot = await local({ action: 'open', project: project.id, path: 'main.html' });

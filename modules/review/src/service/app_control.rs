@@ -732,10 +732,12 @@ impl Service {
                     .try_lock()
                     .map_err(|_| Error::new("busy", "A local document operation is running."))?;
                 let mut value = self.read_control_snapshot(&input.document_id)?;
+                super::pdf_annotations::redact(&mut value);
                 if let Some(object) = value.as_object_mut() {
                     object.remove("sourceEpoch");
                     object.remove("expectedRoot");
                     object.remove("sidecarRevision");
+                    object.remove("directEdit");
                 }
                 Ok(value)
             }
@@ -931,6 +933,8 @@ mod tests {
                     project: project.clone(),
                     path: "main.typ".into(),
                     enabled: true,
+                    context_shared: true,
+                    expected_context_scope: service.test_context_scope(&project, "main.typ"),
                 })
                 .unwrap()["documentId"]
                 .as_str()
@@ -940,7 +944,8 @@ mod tests {
             let owner = service
                 .native_editor_owner("main", connect["ownerId"].as_str().unwrap())
                 .unwrap();
-            let child = Command::new("cat")
+            let child = Command::new("git")
+                .args(["hash-object", "--stdin"])
                 .stdin(std::process::Stdio::piped())
                 .stdout(std::process::Stdio::null())
                 .kill_on_drop(true)
@@ -1076,6 +1081,10 @@ mod tests {
                     project: fixture.project.clone(),
                     path: "main.typ".into(),
                     enabled: true,
+                    context_shared: true,
+                    expected_context_scope: fixture
+                        .service
+                        .test_context_scope(&fixture.project, "main.typ"),
                 },
                 source_epoch: 1,
                 expected_root: None,
@@ -1117,6 +1126,10 @@ mod tests {
                     project: fixture.project.clone(),
                     path: "main.typ".into(),
                     enabled: true,
+                    context_shared: true,
+                    expected_context_scope: fixture
+                        .service
+                        .test_context_scope(&fixture.project, "main.typ"),
                 },
                 source_epoch: 1,
                 expected_root: None,
@@ -1142,6 +1155,7 @@ mod tests {
         let mut metadata: Value = serde_json::from_slice(&fs::read(&info).unwrap()).unwrap();
         metadata["source_epoch"] = json!(2);
         fs::write(&info, serde_json::to_vec(&metadata).unwrap()).unwrap();
+        fixture.poll().await;
         assert_eq!(
             fixture
                 .ui(json!({"action":"control_compile","requestId":request,"ackToken":ack}))
@@ -1429,6 +1443,8 @@ mod tests {
                 project: fixture.project.clone(),
                 path: "main.typ".into(),
                 enabled: false,
+                context_shared: false,
+                expected_context_scope: None,
             })
             .unwrap();
         assert!(fixture
@@ -1494,6 +1510,10 @@ mod tests {
             result
         }
         let before = files(fixture.service.publishing_root());
+        fixture
+            .ui(json!({"action":"control_poll","snapshot":snapshot}))
+            .await
+            .unwrap();
         let replay = fixture.ui(operation()).await.unwrap();
         assert_eq!(replay["base64"], first["base64"]);
         assert_eq!(before, files(fixture.service.publishing_root()));
@@ -1504,6 +1524,10 @@ mod tests {
             .await
             .unwrap();
         assert_ne!(replaced["base64"], first["base64"]);
+        fixture
+            .ui(json!({"action":"control_poll","snapshot":snapshot}))
+            .await
+            .unwrap();
         assert_eq!(fixture.ui(operation()).await.unwrap_err().code, "stale");
         fixture.ui(json!({"action":"control_complete","requestId":"build","ackToken":token,"outcome":{"state":"applied","result":{"base64":"must-not-leak"}}})).await.unwrap();
         let receipt = fixture
@@ -1538,6 +1562,8 @@ mod tests {
                 project: fixture.project.clone(),
                 path: "main.typ".into(),
                 enabled: false,
+                context_shared: false,
+                expected_context_scope: None,
             })
             .unwrap();
         let reshared = fixture
@@ -1546,6 +1572,10 @@ mod tests {
                 project: fixture.project.clone(),
                 path: "main.typ".into(),
                 enabled: true,
+                context_shared: true,
+                expected_context_scope: fixture
+                    .service
+                    .test_context_scope(&fixture.project, "main.typ"),
             })
             .unwrap();
         assert_eq!(reshared["documentId"], fixture.id);

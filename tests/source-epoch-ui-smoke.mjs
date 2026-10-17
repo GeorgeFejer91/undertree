@@ -1,3 +1,4 @@
+import { confirmContextShareUi } from './context-fixture.mjs';
 // Real UI + real Rust authority. Epoch replacement is an explicitly stopped-service
 // registry fixture; this never calls/invents a public rotation or qualifies native Move.
 import assert from 'node:assert/strict';
@@ -172,7 +173,7 @@ try {
 
   const dirtyPage = await pageFor('retained-dirty'), cleanPage = await pageFor('retained-clean');
   await open(dirtyPage, 'legacy.html'); await open(cleanPage, 'clean.html'); await cleanPage.locator('#review-toggle').click();
-  await dirtyPage.locator('#review-toggle').click(); await dirtyPage.locator('#manuscript-share').check();
+  await dirtyPage.locator('#review-toggle').click(); await dirtyPage.locator('#manuscript-share').check(); await confirmContextShareUi(dirtyPage);
   await local({ action: 'tunnel', enabled: true, reservation: 'epoch-fixture', public_url: 'https://source-epochs.example.invalid' });
   await dirtyPage.locator('#connection-open').click(); await dirtyPage.locator('#connection-tab-app').click(); await dirtyPage.locator('#connection-app-enabled').check();
   await until(async () => (await local({ action: 'connection' })).appControls.enabled === true, 'The real local App grant did not become enabled.');

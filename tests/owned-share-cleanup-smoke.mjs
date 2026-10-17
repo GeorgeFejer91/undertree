@@ -1,3 +1,4 @@
+import { consentToFixtureShare } from './context-fixture.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -12,6 +13,7 @@ const controller = join(root, 'controller.jsonl'), mode = join(root, 'mode');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 let service, base, log = '';
 async function local(operation, errorCode) {
+  if (!errorCode) operation = await consentToFixtureShare(operation, local);
   const response = await fetch(base + '/api/review', { method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(operation), signal: AbortSignal.timeout(45_000) });

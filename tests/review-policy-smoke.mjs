@@ -1,3 +1,4 @@
+import { confirmContextShareUi } from './context-fixture.mjs';
 // Real Rust policy witness + CodeMirror. File changes below affect only a disposable project.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -69,7 +70,7 @@ try {
   page = await browser.newPage({ viewport: { width: 1440, height: 900 } }); page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => { if (/\/api\/(review|editor)$/.test(request.url())) operations.push(request.postDataJSON()); });
   await page.goto(base + `/manuscript.html#session=${token}`); await page.locator('#project-select').selectOption(project.id); await open('main.html');
-  await page.locator('#review-toggle').click(); await page.locator('#manuscript-share').check();
+  await page.locator('#review-toggle').click(); await page.locator('#manuscript-share').check(); await confirmContextShareUi(page);
   await until(async () => (await call({ action: 'connection' })).shared.some(share => share.documentId === initial.documentId), 'The real local UI did not share the protected source.');
   const nativeWritesBefore = writes().length;
 

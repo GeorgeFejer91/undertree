@@ -1,6 +1,324 @@
 # Reference and qualification evidence
 
+## Word per-color dialogs, native review and window styling — 2026-10-17
+
+The current Word implementation replaces the central highlight/pending window
+with individual color dialogs and native Track Changes. Its windows use the
+approved logo and cream/deep-green palette. Source-bound components pass
+1,136 UI checks / 19 renders plus policy, mapping, COM and transport gates.
+Same-source real Word gates pass 185 review, 80 tracked-protection and 49 direct
+assertions; the exact installed package passes 38 normal-host checks. Comment
+and reply feedback, native Accept/Reject, Undo/Redo, repeated protected reviews,
+rollback and no implicit saves are covered. Native resource counts stay stable.
+
+The installer SHA256 is
+`5bf631c5825ea498a457227589529a95526d956290e9793496165c6daeaf26d2`.
+All 46 package inputs match checked source; configuration, enrollment and saved
+demo bytes were preserved during installation. Exact receipts and retained
+failures are under ignored `artifacts/word/color-review-delivery/`; the
+[verification report](../VERIFICATION.md) records identities and scope. This
+supersedes earlier Word central-window and branding-only package evidence for
+the current delivery. Unsupported comment anchors fail closed. Public ChatGPT,
+actual OS DPI 200% and real OS high contrast remain unqualified for these bytes.
+
+The user now requires one primary development chat. The GitHub source checkpoint
+includes the concurrent work without claiming whole-product release readiness:
+the broader Node run has 528 passes, four Close-fixture failures caused by an
+undefined `setupDialogLayout`, and one skip. Continue from the canonical
+[session notes](../docs/engineering/SESSION.md) and the existing module owners.
+
+## wrAIter shared branding — 2026-10-17
+
+The [branding protocol](PROTOCOLS/branding.md) owns the approved mark and its
+Word/Writer, GitHub and download/installer use. Product assets live in
+`assets/wraiter/`; README/download pages use the same SVG and the repository
+social-preview PNG is prepared locally.
+
+Windows-focused verification: the Writer native layout gate passed **12 dialog
+classes / 108 size, page and font states**, with both native title-bar icon
+handles checked. A focused lifecycle check confirmed restoration of prior
+icons, release of owned handles, repeated-close safety and missing-asset refusal
+without replacing existing icons. An earlier fixture run ended in a host close
+veto; the diagnostic repeat passed. Only the owned disposable fixture profile
+was cleaned up; user Office sessions were preserved.
+
+Word's captured-source native gate passed **513 UI assertions / 10 renders**.
+The DLL's PNG/ICO bytes match shared exports, the ribbon image callback returns
+a native picture without document access, and the shared window class loads its
+ICO. Both independent packages build; their packaged README images resolve to
+included assets. OXT packaging includes its ICO and native branding helper.
+The final OXT was installed in a fresh disposable profile: registration,
+Extension Manager logo, both native dialog icons and packaged ICO identity pass
+without needing the repository's runtime files.
+
+Evidence and exact package receipts: ignored `artifacts/raider-logo/coherent/`.
+These checks qualify branding on this Windows PC, not overall product release
+readiness or other operating systems. Live user-profile updates, public GitHub
+publication and social-preview settings upload are **NOT RUN** for this change.
+The extensive existing working changes were not staged or published as part of
+the branding task.
+
+## Native Word installed-host qualification, 2026-10-17
+
+The requested `modules/word/` native COM/.NET add-in now works in normal desktop
+Microsoft 365 Word on this PC (`Version 16.0`, reported build `16.0.20430`).
+The earlier Safe Mode/activation checkpoint is superseded by actual normal-host
+execution; the initial dispatch-only COM startup failure remains historical
+evidence in `artifacts/word/candidate-20261017/` and was not counted as a pass.
+UnderTree and Writer runtimes/profiles were not used for Word authority.
+
+**VERIFIED installed Word:**
+`artifacts/word/verified-word-20261017/installed-word/result.json` records
+33 passing checks against an exact installer-delivered assembly. They exercise
+real loopback MCP, complete context including header/footnote stories, prior-read
+requirements, pending proposals, local Reject/Accept, italic preservation,
+explicit direct wording, exact surrounding-text preservation, replay protection,
+unmarked/protected denials, one native Undo/Redo, stale post-Undo denial,
+revocation, no implicit saving, DOCX save/reopen with markers/rules and sharing
+off, and hidden-bookmark protection without changing bookmark visibility.
+The synthetic fixture remains under ignored `artifacts/word/`.
+
+**VERIFIED compact native ribbon:** actual Word renders four small color squares
+in a 2-by-2 group on Home, plus three icon-only actions, without visible color
+captions or group copy. Accessible names, tooltips and keytips remain. A real
+native swatch click opened Highlight passage; clicking Add highlight created the
+expected marker. Receipt: `artifacts/word/compact-ribbon-native-ui.json`. This is
+Office-native rendering, not HTML or a Pretext measurement claim. The same
+palette remains available on the wrAIter tab.
+
+Host investigation fixed incorrect metadata `LoadXML` reuse, unsafe external-COM
+editor creation off Word's UI thread, reentrant ribbon getters, premature active
+document pruning during EndNote startup, and metadata updates that polluted the
+native Undo history. Metadata replacement adds the new part before deleting the
+old part; validation discovers hidden bookmarks from bounded Word XML and resolves
+their native ranges without toggling Word settings. Guards still deny rich-text
+structures and mixed-format replacements. The document's main-body Word XML must
+fit within 64 MiB; large embedded-image documents can be refused.
+
+**VERIFIED component gates:**
+`artifacts/word/final-word-components-20261017/result.json` records 117 policy,
+245 COM/ribbon, 80 transport and 53 native-control assertions plus architecture
+validation. The 12 control renders and fake-zrok transport tests remain separate
+from real host evidence. Exact-package COM verification is also recorded under
+`artifacts/word/qualified-candidate-20261017/exact-com/`.
+
+**VERIFIED exact installed package:**
+`artifacts/word/verified-word-20261017/wrAIter-Word_0.1.0_windows-setup.exe`,
+23,383,027 bytes, SHA-256
+`3aeef63b12446e080f024c310fe2719066f2f7051a9349520bec5d14145befed`;
+installed DLL SHA-256
+`d5fe977480230fe0db1ec133579353a76d4517eabe9b7ffb44e57cad06dc61c8`.
+The verified-source ZIP SHA-256 is
+`77b530629e9d3a9b0861f8b8c717295fb7b37f013759245bead359eddb01e3a2`.
+Installation, exact-package COM and completion-audit receipts are in that folder.
+The earlier qualified-candidate checkpoint is retained separately.
+
+Concurrent policy/MCP extensions in another chat changed the main checkout
+during final documentation packaging. They were preserved and excluded from
+this installed snapshot. All 29 original qualified inputs were recovered and
+hash-checked; the only deliberate package change was the icon-only usage note.
+`source-provenance.json` records this boundary. The final snapshot's policy and
+COM gates and its real installed 33-check host gate passed again. These results
+qualify the frozen three-tool installation, not unfinished newer checkout code.
+
+**VERIFIED public HTTPS:** after the user explicitly authorized reuse of Secret
+Tunnel's local zrok account credentials, Word enrolled a distinct environment
+and reserved its own name. The source profile and its identities were not
+overwritten or adopted. `connection-enrollment.json` records same-account and
+distinct-environment checks without credentials. Actual public zrok HTTPS
+initialize/catalogue/context reads, a Codex-written pending suggestion, local
+approval, a Codex-written authorized direct edit, exact surrounding-text and
+protected-number preservation, unchanged on-disk bytes during remote edits,
+protected-write denial, revoked discovery/read, old-endpoint denial, exact owned
+share cleanup and reconnect all passed. Receipts and the saved synthetic DOCX
+are in `public-demo-final/`. Word is left connected with documents unshared.
+This is an actual model-driven public MCP test; it is not proof that the user's
+ChatGPT account has registered Word as an app or invoked that account connector.
+
+**NOT RUN:** ChatGPT account app/connector registration and invocation, public
+release, real installed-host 200% OS-DPI qualification, and exhaustive
+rich-document/story combinations. The verified installed/public-MCP goal does
+not establish those broader gates. No Word release has been published.
+
+## Incremental LaTeX feasibility, 2026-10-17
+
+The user requested applying REA to recreate fast Typst-like editing for `.tex`
+alongside `.typ`. The nested REA source route was used: the complete public
+implementation answers the mechanism questions without decompilation or MCP
+registration. This investigation does not add a shipped LaTeX compiler.
+
+Pinned targets and ignored retained source/hash inventories are under
+`artifacts/reverse-engineering/fast-tex/`: Typst
+`bd5ebec285505889e8ff1d4f68804ab147a699f3`, comemo v0.5.1
+`0eaf0707f37032ad936d6d63bb60755fdd1d2cda`, TeXpresso
+`e8df7709077b2f86f6e16e6c86ceefb86de06f8d`, Tectonic source
+`d2224d9ba4185f952fd3d982eccd1f444dbdf895`. Tectonic release 0.17.0
+peels to `8c0126a9653239a2e6e0a5274af9b8510f643030`; seven relevant
+implementation files are byte-identical between these Tectonic revisions.
+
+**VERIFIED source observations:**
+
+- Typst's `typst-cli/src/watch.rs:30–83` retains a World; syntax
+  `source.rs:79–113` retains stable parsed identities; memoized evaluation and
+  layout track true inputs. comemo requires correct state/dependency hashes and
+  mutation accounting. These properties cannot simply be assumed for arbitrary
+  stateful TeX. PDF export still traverses selected pages; terminal timing can
+  omit initial font discovery. Exact ranges/hashes: `typst-findings.md` and
+  `typst/snapshot.json` in the retained evidence directory.
+- TeXpresso `CHANGELOG.md:17–25` now describes an independent custom XeTeX
+  engine rather than the earlier Tectonic dependency. `src/engine/main/fork.c:31–113`
+  uses Unix fork/socket/fd passing; `src/frontend/engine_tex.c:1369–1408`
+  invalidates checkpoints before the earliest changed observed input byte.
+  This is execution-state reuse, not a faster conventional full-PDF command.
+  Current source lists Linux/macOS; no native Windows checkpoint alternative
+  was reached. The live partial-preview path must be distinguished from a
+  converged whole PDF and bibliography/export qualification.
+- Tectonic `engine_xetex/src/lib.rs:64–85` is a settings proxy, not retained
+  document execution state. `xetex-ini.c:3498–3545,3870–3878` frees engine arrays
+  after each successful pass. A persistent wrapper alone retains resource bytes,
+  not TeXpresso-style checkpoints. Its default high-level builder has no custom
+  project IoProvider slot; a narrow provider extension or lower-level engine
+  orchestration is needed for immutable approved-source inputs.
+- Tectonic release-matched `io_base/src/filesystem.rs:75–80,111–120,171–184`
+  explicitly does not contain reads within its root. `--untrusted` is not a
+  project filesystem sandbox, nor a complete external-tool ban. Source staging
+  or post-build dependency validation cannot prevent an already-performed
+  outside read. Any worker must constrain project input IO and separately
+  disable/contain and qualify external tools, including generated Biber jobs.
+
+**Design inference:** reuse UnderTree's Rust source authority, immutable inputs,
+root/revision/epoch checks, independent editor state, explicit-build queue and
+last-good PDF. Put the persistent engine/checkpoint implementation in the
+compiler owner, with a separate partial-preview protocol only if proven needed.
+Cache invalidation must include macros, includes, bibliography, images, fonts,
+package/bundle identity and external edits. Final exports need a converged full
+pass, compared against the incremental output for the supported corpus.
+
+**License boundary:** Typst is Apache-2.0 and comemo is MIT OR Apache-2.0.
+TeXpresso's root MIT notice does not cover every inherited engine component;
+some files retain GPL notices, and MuPDF has separate licensing. Reuse of ideas
+does not establish permission to redistribute all linked engine/viewer bytes.
+No upstream product code was added to UnderTree by this investigation.
+
+**VERIFIED bounded runtime baseline:** an owned 51-page fixture with 50 included
+sections, math and a shared BibTeX bibliography produced five warm full-PDF
+samples per engine. Tectonic 0.17.0's fresh-process median was 2271 ms
+(1964–2717 ms); Typst 0.15.1's was 442 ms (409–674 ms). Five saved middle-section
+edits in a persistent Typst watch process had a 261 ms median (201–533 ms).
+These are different documented endpoints on a shared host, not a general speed
+guarantee or UnderTree typing/visible-preview measurements. All 18 PDF text/page
+checks passed, including unique edited markers in the 15 edited outputs.
+Resource preparation took 108369 ms separately; timed Tectonic runs used only
+the isolated prepared cache. Exact receipts
+and limitations are in `bench/README.md`, `bench/report-warm.json` and retained
+logs under the investigation directory.
+
+An owned sibling-file probe also confirmed that stock Tectonic `--untrusted`
+can read `../outside/sentinel.tex`; the resulting PDF contained the sentinel.
+The original uncached-10pt failure and subsequent cached-11pt successful probe
+are both retained. No user manuscript or unrelated outside input was accessed.
+
+**Qualification:** source mechanisms and Windows/confinement blockers answered;
+the bounded compiler baseline and resource preparation ran separately from the
+product. The subsequent direct-format goal produced a separate confined Windows
+worker: its immutable binary passed four unit checks, an input-cache mutation
+proof and a real nested/include/BibTeX/project-font PDF. Native integration passed
+19 cases against the recorded candidate service, including outside-file/link,
+ambient-font, external-tool and shell-execution denials, stale inputs, failed
+builds and last-good recovery. Receipts retain exact candidate identities under
+ignored `artifacts/dual-publication/`. Seven real-browser checks then passed,
+including editing while the actual LaTeX child consumed CPU and preserving the
+last good PDF through failures. Exact installed acceptance caught and repaired
+a separate frontend native-report schema mismatch for the required PDF hash.
+The corrected installed app compiles and exports both formats, uses the default
+sibling offline cache without cache/worker overrides, rebuilds the marked TeX
+main after an included-source edit, and switches Smart/Full views. Both exported
+PDFs match native stored hashes and expected text. The owned fixture was retired;
+69 original manuscript/review files and original project settings remain
+unchanged. Exact installed receipt: `installed-state/delivery.json` under that
+ignored evidence directory. This finite Windows qualification does not establish
+all templates, packages, platforms or Typst-speed parity.
+
+Three actual-worker warm-cache fresh-process samples on the same owned 51-page,
+50-include corpus were 1227.9, 1106.0 and 1161.0 ms (median 1161.0 ms), following
+an untimed 3652.1 ms warmup. Every PDF passed page, section, bibliography and
+unique-edit checks outside the timed interval. This endpoint is process spawn
+through close/PDF-pipe drain; project staging, debounce, preview rendering and
+validation are excluded. Different runs/output paths and uncontrolled host load
+prevent causal speed comparisons with the earlier baseline. Exact unchanged
+worker/source/cache identities and samples are in the investigation's
+`worker-benchmark/README.md` and `report.json`.
+
+Windows incremental TeX port, exact LaTeX-output equivalence and Typst-speed
+parity remain **NOT RUN**. See ignored
+`typst-findings.md`, `texpresso-findings.md` and the release-source comparison
+under the investigation directory for exact immutable source links and limits.
+
+## Installed root-logo build, 2026-10-17
+
+Windows local delivery is now observed: final NSIS SHA-256
+`4bb26cda5f541bef852562f001e3031836faa704c41aef2d72bb9ba30c713e1c`
+installed with exit 0; desktop and CLI match the final build, allowing only
+Tauri's exact NSIS bundle marker transformation. The installed executable is
+running with the user's existing project/main manuscript; all 165 inventoried
+source files are unchanged. Windows Computer Use observed the new root logo,
+enabled color slots beside Search, and the custom rule popup, then cancelled
+without saving a rule. A 52-page PDF is visible after Recompile with the existing
+external-package-input verification limitation. See the first section of
+[VERIFICATION.md](../VERIFICATION.md) and ignored
+`artifacts/color-rules-installation/integrity.json`.
+
+The canonical mark is independently drawn in assets/undertree.svg: a green U
+with downward branching roots. The
+[official Overleaf logo](https://www.overleaf.com/for/partners/logos) supplied the
+requested style reference; original path geometry was not copied. Native
+PNG/ICO/ICNS preserve the same paths with a white backplate for dark-taskbar
+contrast. The final native icon outputs and generation provenance are in
+`artifacts/undertree-root-app-icons/`. This qualifies local Windows startup and
+visible branding, not a published release, universal visual parity, other OS
+runtime or a public ChatGPT manuscript exchange. The transparent green browser
+favicon has a remaining dark-tab contrast caveat.
+
 Evidence ledger for the 2026-10-14 Rust/Tauri/Typst migration. This is authored orchestration context, not a runtime input. Source inspection establishes source behavior; only an exercised path establishes integration behavior.
+
+## Toolbar color rules and MCP preservation, 2026-10-17
+
+The source toolbar now places configurable color slots immediately after Search,
+matching the user's supplied location. Per-color settings include wording
+presets, custom instructions and locally owned protect/reject/discard actions.
+The native palette guard rejects stale same-source rule updates. Review remains
+three suggestion-only tools, with acceptance local. The targeted HTTP/MCP gate
+passes 158 adversarial calls across Typst and HTML, and 86 scoped Rust tests
+pass. Raw source/binary identities, original failed runs and a deliberately
+disabled-guard regression are retained under ignored
+`artifacts/qualification/color-policy-mcp/receipt.json`.
+
+The real Typst/PDF.js browser gate verifies exact source marking and colored PDF
+overlays, rejects ambiguous source text, refuses a dirty-source PDF and checks
+an identical quote on an off-screen included page before marking. PDF mapping
+is deliberately limited to a unique exact quote in the active saved source and
+the complete bounded PDF; this is not a compiler source map or support for
+arbitrary PDFs. The source marker is authoritative and export bytes are not
+annotated. Raw receipts are `artifacts/pdf-color-rules-smoke.json` and
+`artifacts/color-rules-smoke.json`; inspect their status and input hashes before
+reusing them.
+
+The connected public manuscript listing was empty. Actual connected
+`read_manuscript` and `suggest_text` calls for an unshared synthetic ID were
+denied. A successful public shared-manuscript proposal/acceptance round trip
+and new native-window/installer qualification remain distinct outstanding
+gates. Local HTTP tests use a synthetic zrok child. Other independently granted
+connectors retain their own authority; custom prose instructions are guidance,
+not a server proof that an agent preserved meaning or followed every prompt.
+
+The [targeted verification report](../VERIFICATION.md#color-rules-pdf-prose-and-academic-model-trials--2026-10-17)
+records final browser groups (7 source, 4 PDF annotation, 4 prose/clipboard),
+the deliberately noncompliant semantic control, broad Windows failures and
+unsupported mapping cases. The actual model produced five initial academic
+suggestions and a sixth after a UI-only prompt change; independent review rates
+five compliant and one introduction partial. All remain pending and source
+bytes stay identical. PDF line-number exclusion requires both an Artifact tag
+and conservative gutter/baseline geometry; ordinary numeric data remains.
 
 ## Shared MCP gateway and discard policies, 2026-10-16
 
@@ -780,3 +1098,69 @@ and architecture check pass. Raw snapshots and receipts are under ignored
 preserved source conflict during its early exact-save fixture. Rust tests and
 the native check encounter another task's Cargo build-directory lock; native
 WebView, full UI, compiler timing and installer qualification remain open.
+# Installed wrAIter bridge and academic trial, 2026-10-17
+
+Normal-profile wrAIter 0.3.2 is installed from OXT SHA256
+`112bc53101318140310d5d3dc5a081a81fb8233df636a69b6a514674b4d78da4`;
+all 22 installed entries match. Its own bridge reconnects across the update
+without Start/settings interaction, preserves its identity/address and migrates
+only its verified bundled executable path. The native suite, public permission
+checks and model-authored academic HTTP MCP trials pass. Actual native UI
+confirms color prompt/access settings, consent, live arrival of two suggestions
+and local revocation. Independent native inspection preserves every other
+passage/policy and the saved ODT bytes. See the detailed target-specific receipts
+and limits in [product verification](../VERIFICATION.md), especially ignored
+`artifacts/qualification/wraiter-academic-031/receipt.json` (installed 0.3.2).
+
+These finite trials do not establish arbitrary semantic prompt compliance,
+registered standalone ChatGPT access or complete two-target UI/pairing parity.
+An observed public catalogue timeout and recovery are retained; continuous public
+availability is not claimed. Separate filesystem/shell connectors remain outside
+wrAIter's MCP authority. The original document is left unshared, and the owned
+synthetic fixture is revoked and closed without saving.
+
+# Direct PDF highlighter and live-review evidence, 2026-10-17
+
+Source-observed direct PDF marking uses exact artifact/page/UTF-16 positions,
+with optional proven unique literal source links. No general formatted-PDF
+source map is claimed. Unlinked restrictive highlights block the project;
+per-annotation PDF excerpts/prompts stay private while owner palette instructions
+retain their existing sharing contract. Real mouse/copy tests against the frozen
+`a3e65b9` service pass 7 direct, 7 source, 4 PDF and 4 prose/clipboard groups;
+archived receipts are under `artifacts/direct-pdf-final-candidate/qa/`.
+
+Five actual model-authored academic proposals, created after real PDF drags and
+MCP reads, preserve original source bytes. Second editorial review judges four
+compliant and one partial because its fact-preserving expansion is repetitive.
+Protection is enforced, while a deliberately incorrect numeric replacement can
+still enter as pending. These finite trials qualify neither arbitrary semantic
+compliance nor a public ChatGPT connection. See
+`artifacts/pdf-academic-review-scenarios.json` and its editorial evaluation.
+
+The `d84a8549` notification service adds only a private authenticated editor
+wait; public Review tools stay unchanged. Four native notification tests, 38
+transport tests and 164 adversarial HTTP calls pass. Eight native proposal/wake
+measurements are 531–1744 ms on this loaded Windows host; two existing editor
+history-receipt tests fail separately. The final UI coalesces invalidations
+received during older reads, preserves dirty drafts and presents original and
+proposed wording with local decisions. Final arrival/install qualification is
+recorded in the leading section of `VERIFICATION.md`, not inferred from these
+source observations or pinned Overleaf review components.
+
+# Integrated Writer project access — 2026-10-17
+
+The user explicitly chose a single Writer add-on with folder/GitHub controls.
+Installed wrAIter 0.4.1 preserves the fixed native Review/peer boundary and adds
+only separately granted project_/github_ tools under
+[the connection protocol](PROTOCOLS/connections.md). Final source-bound tests,
+native controls, installed bytes, normal-profile preservation and actual public
+HTTPS reconnect passed; local Git fixtures do not establish live GitHub login
+or publication. The native UI uses UNO measurement, not HTML Pretext. See
+[product verification](../VERIFICATION.md) and ignored
+`artifacts/writer-connections-redesign/delivery.json` for exact bytes, receipts,
+unchanged-source qualification reuse and bounded limits.
+
+
+# AI-only highlighting and protected units — 2026-10-17
+
+The canonical [connection contract](PROTOCOLS/connections.md#ai-highlighting-and-immutable-protected-passages) now has source/native test evidence for neutral marking and native-identity preservation. UnderTree's exact release CLI passes eight real HTTP MCP/CodeMirror checks, including terminal rejection through a later rewrite's Undo/Redo; its source-frozen installer is installed with matching desktop/CLI/worker hashes and 69 unchanged original manuscript/review files. Its installed WebView2 core five checks and rendered-PDF rule-access check pass, and normal relaunch restores the original Study5/no-file-open/disconnected baseline. Current-publication external-input proof and original WebView profile isolation remain unqualified; artifacts/ai-highlighting/native-qualified.json records those limits and both failed test assumptions. Writer's final cdb6d216 OXT passes 21 HTTP pairing tests, five installed pairing checks and a 406-entry byte audit; its unchanged native authority retains the nine native feature checks, six independent Rust-gateway checks, UI and rejection/Undo/Redo/reopen proofs. Word's native comment follow-up fix passes 166 review, 74 preservation and 27 scalar/anchor assertions; the original threads remain intact and unsupported anchors refuse before effects. Its fresh native Rust gateway passes six checks. The subsequent combined source adds stricter rollback and anchor ownership and passes the component gates, including 1,136 UI checks/19 renders; its added native regression and final installed-host gestures remain open. The c8cf875d candidate is therefore not a qualified final Word delivery. The open normal Word demo has unsaved changes; its save/close choice is pending and no content is discarded. See [product verification](../VERIFICATION.md#ai-only-highlighting-and-protected-passages--2026-10-17) for exact artifact identities, earlier failures and limits. The normal Writer session and credentials were preserved. Synthetic tunnel tests do not qualify live ChatGPT/public behavior; the active goal is not complete.

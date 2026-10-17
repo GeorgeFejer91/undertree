@@ -149,7 +149,7 @@ async function startDesktop(label) {
   const descriptor = await until(async () => JSON.parse(await readFile(descriptorPath, 'utf8')), 'The native authority did not publish CLI discovery.'); secrets.add(descriptor.token);
   assert.equal((await stat(descriptorPath)).mode & 0o777, 0o600);
   const nativeCapabilities = await review({ action: 'capabilities' }), cliCapabilities = runCli(['capabilities']); assert.equal(nativeCapabilities.instanceId, cliCapabilities.instanceId); assert.equal(nativeCapabilities.instanceId, descriptor.instanceId);
-  assert.deepEqual([...nativeCapabilities.review.tools].sort(), ['list_manuscripts', 'read_manuscript', 'suggest_text']); assert.equal(nativeCapabilities.appControls.sourceEditing, false); assert.deepEqual(cliCapabilities.localOperations.filter(value=>value.mutates).map(value=>value.action), ['save_editor']);
+  assert.deepEqual([...nativeCapabilities.review.tools].sort(), ['highlight_text', 'list_manuscripts', 'read_manuscript', 'suggest_text']); assert.equal(nativeCapabilities.appControls.sourceEditing, false); assert.deepEqual(cliCapabilities.localOperations.filter(value=>value.mutates).map(value=>value.action), ['save_editor']);
   const approved = (await review({action:'projects'})).find(value=>value.id===project); assert.equal(approved.mainDocument, 'main.typ', 'The actual native serde roundtrip must retain the configured main.'); assert.equal(approved.autoSync, false); assert.deepEqual(approved.pendingRevisions, JSON.parse(await readFile(registryPath,'utf8')).projects[0].pendingRevisions);
   phases.push({ phase, instanceSha256: hash(descriptor.instanceId), nativePid, sourceEpochs: JSON.parse(await readFile(registryPath, 'utf8')).sourceEpochs[project] });
 }

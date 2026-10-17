@@ -31,13 +31,26 @@ test("CLI discovery uses package identity and rejects unknown or incomplete comm
   }
 });
 
-test("render-html CLI produces a real PDF offline while preserving its source", { timeout: 90000 }, async context => {
+test(process.platform === "win32"
+  ? "render-html CLI truthfully refuses unsupported Windows rendering without changing source or outputs"
+  : "render-html CLI produces a real PDF offline while preserving its source", { timeout: 90000 }, async context => {
   const directory = await mkdtemp(join(tmpdir(), "undertree-cli-render-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
   const source = fileURLToPath(new URL("../examples/html-print-profile.html", import.meta.url));
   const digest = async () => createHash("sha256").update(await readFile(source)).digest("hex");
   const original = await digest();
   const pdf = join(directory, "nested", "print.pdf");
+  if (process.platform === "win32") {
+    await assert.rejects(exec(process.execPath, [cli, "render-html", source, "--pdf", pdf], { env: localOnly, timeout: 85000 }), error => {
+      assert.equal(error.code, 1);
+      assert.match(JSON.parse(error.stderr).error, /requires the Linux WebKitGTK renderer/);
+      return true;
+    });
+    assert.equal(await digest(), original);
+    await assert.rejects(readFile(pdf), { code: "ENOENT" });
+    await assert.rejects(readFile(`${pdf}.manifest.json`), { code: "ENOENT" });
+    return;
+  }
   const { stdout } = await exec(process.execPath, [cli, "render-html", source, "--pdf", pdf], { env: localOnly, timeout: 85000 });
   const result = JSON.parse(stdout);
   assert.equal(result.code, 0);

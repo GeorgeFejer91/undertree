@@ -4,6 +4,72 @@ use undertree_review::service::Service;
 use undertree_review::Operation;
 
 #[tokio::test]
+async fn latex_main_uses_publication_settings_without_expanding_typst_only_compile() {
+    let root = tempfile::tempdir().unwrap();
+    let state = tempfile::tempdir().unwrap();
+    let content =
+        "\\documentclass{article}\n\\begin{document}A local LaTeX document.\\end{document}\n";
+    std::fs::create_dir(root.path().join("chapters")).unwrap();
+    std::fs::write(root.path().join("chapters/main.tex"), content).unwrap();
+    let service = Service::new(state.path().to_owned()).unwrap();
+    let added = service
+        .local(Operation::AddProject {
+            root: root.path().to_string_lossy().into_owned(),
+        })
+        .unwrap();
+    let project = added["id"].as_str().unwrap().to_owned();
+    let selected = service
+        .dispatch(Operation::SetMainDocument {
+            project: project.clone(),
+            path: "chapters/main.tex".into(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(selected["mainDocument"], "chapters/main.tex");
+    assert_eq!(
+        Service::new(state.path().to_owned())
+            .unwrap()
+            .project(&project)
+            .unwrap()
+            .main_document,
+        "chapters/main.tex"
+    );
+    assert_eq!(
+        service.preview_pdf(&project, "chapters/main.tex").unwrap()["available"],
+        false
+    );
+    let opened = service
+        .local(Operation::Open {
+            project: project.clone(),
+            path: "chapters/main.tex".into(),
+        })
+        .unwrap();
+    let revision = opened["review"]["revision"].as_str().unwrap();
+    assert_eq!(
+        service
+            .compile_typst(&project, "chapters/main.tex", revision)
+            .await
+            .unwrap_err()
+            .code,
+        "source"
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("chapters/main.tex")).unwrap(),
+        content
+    );
+    assert_eq!(
+        service
+            .remote(
+                "compile",
+                json!({"project":project,"path":"chapters/main.tex","revision":revision})
+            )
+            .unwrap_err()
+            .code,
+        "scope"
+    );
+}
+
+#[tokio::test]
 async fn main_document_is_persisted_validated_and_local_only() {
     let root = tempfile::tempdir().unwrap();
     let state = tempfile::tempdir().unwrap();
@@ -151,7 +217,7 @@ fn old_projects_default_to_selected_document_compilation() {
     let state = tempfile::tempdir().unwrap();
     std::fs::write(
         state.path().join("projects.json"),
-        serde_json::to_vec(&json!({"projects":[{"id":"old","name":"Old","root":root.path()}]}))
+        serde_json::to_vec(&json!({"projects":[{"id":"old","name":"Old","root":root.path().canonicalize().unwrap()}]}))
             .unwrap(),
     )
     .unwrap();

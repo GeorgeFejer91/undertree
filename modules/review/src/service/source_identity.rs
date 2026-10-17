@@ -444,6 +444,8 @@ mod tests {
                 project: project.id.clone(),
                 path: "main.typ".into(),
                 enabled: false,
+                context_shared: false,
+                expected_context_scope: None,
             })
             .unwrap();
         service
@@ -724,6 +726,8 @@ mod tests {
                 project: project.id.clone(),
                 path: "main.typ".into(),
                 enabled: true,
+                context_shared: true,
+                expected_context_scope: service.test_context_scope(&project.id, "main.typ"),
             })
             .unwrap();
         let old_id = first["documentId"].as_str().unwrap();
@@ -772,6 +776,8 @@ mod tests {
                     project: project.id.clone(),
                     path: "main.typ".into(),
                     enabled: true,
+                    context_shared: true,
+                    expected_context_scope: service.test_context_scope(&project.id, "main.typ"),
                 },
                 2,
             ))
@@ -786,6 +792,25 @@ mod tests {
             "scope"
         );
         let new_id = enrolled["documentId"].as_str().unwrap();
+        service
+            .local_source(bound(
+                Operation::Mark {
+                    project: project.id.clone(),
+                    path: "main.typ".into(),
+                    revision: digest("Original"),
+                    from: 0,
+                    to: 8,
+                    rule: "snappier".into(),
+                    prompt: String::new(),
+                },
+                2,
+            ))
+            .unwrap();
+        let read = service
+            .remote("read_manuscript", json!({"documentId":new_id}))
+            .unwrap();
+        let mut proposal = proposal;
+        proposal["contextId"] = read["contextId"].clone();
         assert_eq!(
             service
                 .remote("read_manuscript", json!({"documentId":new_id}))
@@ -806,6 +831,8 @@ mod tests {
                 project: project.id.clone(),
                 path: "main.typ".into(),
                 enabled: false,
+                context_shared: false,
+                expected_context_scope: None,
             })
             .unwrap();
         assert!(lock(&service.shared).unwrap().is_empty());

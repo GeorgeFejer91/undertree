@@ -31,6 +31,8 @@ impl Fixture {
                 project: project.clone(),
                 path: "main.typ".into(),
                 enabled: true,
+                context_shared: true,
+                expected_context_scope: service.test_context_scope(&project, "main.typ"),
             })
             .unwrap()["documentId"]
             .as_str()
@@ -40,7 +42,14 @@ impl Fixture {
         let owner = service
             .native_editor_owner("main", page["ownerId"].as_str().unwrap())
             .unwrap();
-        let child = Command::new("cat")
+        // Only a live, stdin-held child is needed; use the host's native reader.
+        let reader = if cfg!(windows) {
+            PathBuf::from(std::env::var_os("SystemRoot").expect("Windows system directory"))
+                .join("System32/more.com")
+        } else {
+            PathBuf::from("cat")
+        };
+        let child = Command::new(reader)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::null())
             .kill_on_drop(true)
@@ -98,12 +107,20 @@ impl Fixture {
     fn write_pdf(&self, path: &str, bytes: &[u8]) -> (String, Value) {
         let project = self.service.project(&self.project).unwrap();
         fs::write(project.root.join(path), "Saved.").unwrap();
+        self.service
+            .local(Operation::SetMainDocument {
+                project: self.project.clone(),
+                path: path.into(),
+            })
+            .unwrap();
         let id = self
             .service
             .local(Operation::Share {
                 project: self.project.clone(),
                 path: path.into(),
                 enabled: true,
+                context_shared: true,
+                expected_context_scope: self.service.test_context_scope(&self.project, path),
             })
             .unwrap()["documentId"]
             .as_str()
@@ -221,9 +238,11 @@ async fn standing_export_is_separate_local_generation_bound_permission_with_fixe
     let doc = fixture
         .service
         .local(Operation::Share {
-            project,
+            project: project.clone(),
             path: "main.typ".into(),
             enabled: true,
+            context_shared: true,
+            expected_context_scope: fixture.service.test_context_scope(&project, "main.typ"),
         })
         .unwrap()["documentId"]
         .as_str()
@@ -408,10 +427,11 @@ async fn actual_http_exports_exact_pinned_bytes_without_source_changes_or_artifa
         .unwrap()
         .get("result")
         .is_some());
+    fixture.poll().await;
     let (status,body,_)=http(address,"POST",&path,false,Some(json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_pdf_download","arguments":input}}))).await;
     assert_eq!(status, 200);
     let result: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(result["result"]["isError"], false);
+    assert_eq!(result["result"]["isError"], false, "{result}");
     assert_eq!(result["result"]["content"][1]["type"], "resource_link");
     let download = &result["result"]["structuredContent"]["result"];
     let route = download["downloadUrl"]
@@ -562,6 +582,7 @@ async fn tickets_bound_concurrency_expiry_memory_and_chunk_revocation_without_bl
     fixture.permit(true).await;
     for i in 0..MAX_TICKETS {
         let (_, input) = fixture.write_pdf(&format!("file{i}.typ"), b"%PDF-bounded");
+        fixture.poll().await; // Match the real UI's live heartbeat during bounded file preparation.
         fixture.download(input).unwrap();
     }
     assert_eq!(fixture.download(input).unwrap_err().code, "limit");
@@ -599,6 +620,8 @@ async fn pending_save_root_replacement_owner_rotation_and_unshare_revoke_export_
             project: fixture.project.clone(),
             path: "main.typ".into(),
             enabled: false,
+            context_shared: false,
+            expected_context_scope: None,
         })
         .unwrap();
     fixture
@@ -607,6 +630,10 @@ async fn pending_save_root_replacement_owner_rotation_and_unshare_revoke_export_
             project: fixture.project.clone(),
             path: "main.typ".into(),
             enabled: true,
+            context_shared: true,
+            expected_context_scope: fixture
+                .service
+                .test_context_scope(&fixture.project, "main.typ"),
         })
         .unwrap();
     assert!(fixture.service.pdf_download(&secret, false).is_err());
@@ -657,6 +684,10 @@ async fn downloaded_ticket_and_stream_keep_enrollment_epoch_after_same_path_reen
                 project: fixture.project.clone(),
                 path: "main.typ".into(),
                 enabled: true,
+                context_shared: true,
+                expected_context_scope: fixture
+                    .service
+                    .test_context_scope(&fixture.project, "main.typ"),
             },
             source_epoch: 1,
             expected_root: None,

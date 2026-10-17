@@ -46,7 +46,7 @@ export function createTextDetails(source) {
       if (message.textContent !== text) message.textContent = text;
       const hidden = source.hidden;
       if (slot.hidden !== hidden) slot.hidden = hidden;
-      const next = !hidden && (result === 'no-fit' || (active && result === 'unavailable'));
+      const next = !hidden && (result === 'no-fit' || (active && ['unavailable', 'deferred'].includes(result)));
       if (next && !dialog.isConnected) document.body.append(dialog);
       const error = source.classList.contains('error') || source.getAttribute('role') === 'alert' || Boolean(source.querySelector('.error'));
       const label = error ? 'Error details' : title;

@@ -1,5 +1,6 @@
 [workspace]
-members = ["modules/review", "native/tauri"]
+members = ["modules/review", "modules/compiler/latex-worker", "native/tauri"]
+exclude = ["modules/compiler/vendor/tectonic"]
 default-members = ["modules/review"]
 resolver = "2"
 

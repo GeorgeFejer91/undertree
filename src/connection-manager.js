@@ -1,14 +1,19 @@
 // Rust owns the process and grants. The dialog holds only a transient status snapshot.
 import { setupPdfExportConsent } from './pdf-export-consent.js';
 import { setupMcpHub } from './mcp-hub.js';
+import selectiveEditor from '../modules/review/selective-editor-contract.json' with { type: 'json' };
 export function setupConnectionManager({ request, controlRequest, onRevoked, onShares, status }) {
   const $ = id => document.getElementById(id);
   const dialog = $('connection-dialog');
+  $('connection-context-help').textContent = selectiveEditor.labels.contextHelp;
+  $('connection-context-read-help').textContent = selectiveEditor.labels.contextReadHelp;
+  $('connection-start').textContent = selectiveEditor.labels.startAccess;
+  $('connection-copy').textContent = selectiveEditor.labels.copyAddress;
   dialog.querySelector('.connection-tabs').insertAdjacentHTML('beforeend', '<button id="connection-tab-app" role="tab" aria-label="App controls" aria-controls="connection-panel-app" aria-selected="false" tabindex="-1" data-connection-tab="app" data-measure>App</button>');
   $('connection-tab-shared').textContent = 'Shared';
   $('connection-tab-shared').setAttribute('aria-label', 'Shared manuscripts');
   $('connection-refresh').textContent = 'Refresh';
-  $('tunnel-stop').textContent = 'Stop tunnel';
+  $('tunnel-stop').textContent = selectiveEditor.labels.stopAccess;
   $('tunnel-stop').setAttribute('aria-label', 'Stop tunnel and revoke all access');
   $('connection-panel-shared').insertAdjacentHTML('afterend', `
     <section id="connection-panel-app" role="tabpanel" aria-labelledby="connection-tab-app" hidden>
@@ -18,7 +23,7 @@ export function setupConnectionManager({ request, controlRequest, onRevoked, onS
         <summary data-measure>URL</summary>
         <label><span data-measure>App controls URL</span><textarea id="connection-app-url" readonly rows="2" spellcheck="false"></textarea></label>
         <button id="connection-app-copy" type="button" data-measure>Copy app controls URL</button>
-        <p id="connection-app-url-help" data-measure>Add this separate URL in ChatGPT. Keep it private. Turning off app controls revokes it; the Review URL keeps its three suggestion tools. Client identity and the public route are unverified.</p>
+        <p id="connection-app-url-help" data-measure>Add this separate URL in ChatGPT. Keep it private. Turning off app controls revokes it; the Review URL keeps its separate editing and color-only tools. Client identity and the public route are unverified.</p>
       </details>
       <details><summary data-measure>Help</summary><p data-measure>Enable after starting the tunnel. Control views, selection and preview. Navigation, builds and closing leave local buffers untouched. File editing and suggestion acceptance stay in UnderTree. Access ends when you turn this off or stop the tunnel.</p></details>
     </section>`);
@@ -98,7 +103,7 @@ export function setupConnectionManager({ request, controlRequest, onRevoked, onS
       : appControls.enabled ? 'Enabled' : 'Off';
     $('connection-app-url-help').textContent = gateway
       ? 'Use the shared gateway address in ChatGPT. App controls are included while this local permission is enabled. File editing stays local. The public route is unverified.'
-      : 'Add this separate URL in ChatGPT. Keep it private. Turning off app controls revokes it; the Review URL keeps its three suggestion tools. Client identity and the public route are unverified.';
+      : 'Add this separate URL in ChatGPT. Keep it private. Turning off app controls revokes it; the Review URL keeps its separate editing and color-only tools. Client identity and the public route are unverified.';
     if (!configured || result.running) {
       $('zrok-name').value = result.config?.reservation || '';
       $('zrok-origin').value = result.config?.publicUrl || '';
@@ -115,7 +120,7 @@ export function setupConnectionManager({ request, controlRequest, onRevoked, onS
     if (JSON.stringify(shared) !== sharesKey) $('connection-shares').replaceChildren(...shared.map(share => {
       const item = document.createElement('li');
       const label = document.createElement('span'); label.textContent = `${share.projectName} / ${share.path}`; label.dataset.measure = '';
-      const revoke = document.createElement('button'); revoke.type = 'button'; revoke.textContent = 'Revoke'; revoke.dataset.measure = '';
+      const revoke = document.createElement('button'); revoke.type = 'button'; revoke.textContent = selectiveEditor.labels.revoke; revoke.dataset.measure = '';
       revoke.setAttribute('aria-label', `Revoke access to ${share.path}`);
       revoke.onclick = () => run(async () => {
         await request({ action: 'share', project: share.project, path: share.path, enabled: false });

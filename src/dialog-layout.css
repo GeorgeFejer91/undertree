@@ -1,0 +1,63 @@
+dialog.stretch-popup {
+  --popup-height: 28rem;
+  --popup-gap: clamp(.35rem, min(1.25vw, 1.25vh), .8rem);
+  inline-size: min(36rem, calc(100% - 1rem));
+  max-inline-size: calc(100% - 1rem);
+  block-size: min(var(--popup-height), calc(100dvh - 1rem));
+  max-block-size: calc(100dvh - 1rem);
+  min-inline-size: 0;
+  padding: clamp(.6rem, min(1.6vw, 1.6vh), 1rem);
+  border: 1px solid #afb5c0;
+  border-radius: 3px;
+  background: var(--canvas, #fff);
+  color: var(--ink, #1b222c);
+  overflow: visible;
+}
+dialog.stretch-popup::backdrop { background: #1b222c77; }
+dialog.stretch-popup[open].popup-shell, dialog.stretch-popup[open] > .popup-shell {
+  display: grid;
+  grid-template: auto minmax(0, 1fr) auto auto auto / minmax(0, 1fr);
+  min-block-size: 0;
+  gap: var(--popup-gap);
+}
+dialog.stretch-popup[open] > .popup-shell { block-size: 100%; }
+dialog.stretch-popup :is(.popup-heading, .popup-body, .popup-alerts, .popup-pager, .dialog-actions) { min-inline-size: 0; min-block-size: 0; margin: 0; }
+dialog.stretch-popup .popup-alerts p { margin: 0; overflow-wrap: anywhere; color: var(--danger, #c3092b); }
+dialog.stretch-popup .popup-heading h2 { margin: 0; font-size: clamp(1.05rem, min(2.7vw, 3vh), 1.2rem); line-height: 1.4; color: var(--ink, #1b222c); }
+dialog.stretch-popup .popup-body { display: flex; flex-direction: column; justify-content: space-between; gap: var(--popup-gap); padding: 2px; overflow: visible; }
+dialog.stretch-popup .popup-flow:not([hidden]):not(.popup-page-hidden) { display: contents !important; }
+dialog.stretch-popup .popup-body > *, dialog.stretch-popup .popup-flow > * { flex: none; }
+dialog.stretch-popup .popup-body :is(label, p, blockquote, pre, ul, ol, dl, fieldset, details) { margin-block: 0; min-inline-size: 0; max-inline-size: 100%; }
+dialog.stretch-popup .popup-body :is(p, blockquote, pre) { color: var(--muted, #677283); overflow-wrap: anywhere; }
+dialog.stretch-popup .popup-body :is(blockquote, pre) { max-block-size: none; overflow: visible; }
+dialog.stretch-popup .popup-body :is(input, select, textarea, button) { min-inline-size: 0; max-inline-size: 100%; }
+dialog.stretch-popup .popup-body textarea { resize: none; min-block-size: 2rem; max-block-size: max(2rem, calc(var(--popup-body-height, 20rem) - 5rem)); }
+dialog.stretch-popup :is(button, input, select, textarea) { border-radius: 3px; }
+dialog.stretch-popup button { white-space: normal; overflow-wrap: break-word; min-block-size: 2rem; padding: .3rem .65rem; }
+dialog.stretch-popup .dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--popup-gap); padding-block-start: var(--popup-gap); border-block-start: 1px solid #d6d9df; }
+dialog.stretch-popup .dialog-actions button { flex: 1 1 7rem; }
+dialog.stretch-popup .dialog-actions button[type="submit"] { color: #fff; background: var(--green, #098842); border-color: var(--green, #098842); }
+dialog.stretch-popup .dialog-actions button[type="submit"]:hover { background: var(--green-hover, #1e6b41); }
+dialog.stretch-popup .popup-pager { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--popup-gap); }
+dialog.stretch-popup .popup-pager > span { text-align: center; }
+dialog.stretch-popup .popup-page-hidden { display: none !important; }
+dialog.stretch-popup :is(.connection-tabs, .connection-heading) { margin: 0; padding-block: 0; gap: var(--popup-gap); }
+dialog.stretch-popup .connection-tabs { padding-block-start: var(--popup-gap); border: 0; }
+dialog.stretch-popup .connection-tabs button { flex: 1 1 auto; }
+dialog.stretch-popup .connection-tabs [aria-selected="true"] { color: #fff; background: var(--toolbar, #2f3a4c); border-color: var(--toolbar, #2f3a4c); }
+dialog.stretch-popup .text-details-slot { flex: none; }
+dialog.stretch-popup .text-details-active > [data-text-details] { display: none; }
+dialog.stretch-popup .text-details-button { justify-self: start; }
+dialog.stretch-popup .pdf-export-project { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .5rem; }
+#new-dialog.stretch-popup, #new-folder-dialog.stretch-popup, #project-dialog.stretch-popup { --popup-height: 20rem; }
+#color-rule-dialog.stretch-popup { --popup-height: 40rem; }
+#palette-dialog.stretch-popup { --popup-height: 36rem; }
+dialog.stretch-popup .color-rule-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--popup-gap); min-inline-size: 0; }
+#connection-dialog.stretch-popup { --popup-height: 35rem; inline-size: min(39rem, calc(100% - 1rem)); }
+dialog.text-details-dialog { border-color: #afb5c0; border-radius: 3px; color: var(--ink, #1b222c); background: var(--canvas, #fff); }
+@media (max-width: 480px) {
+  dialog.stretch-popup .color-rule-options { grid-template-columns: minmax(0, 1fr); }
+  dialog.stretch-popup .dialog-actions button { flex-basis: 6rem; }
+  dialog.stretch-popup .connection-tabs button { flex-basis: 3rem; }
+  dialog.stretch-popup #connection-tab-mcp { flex-basis: 3rem; }
+}

@@ -47,6 +47,11 @@ pub enum EditorOperation {
         session_id: String,
     },
     EditorPoll {},
+    ReviewChanges {
+        after: Option<String>,
+        #[serde(default = "super::review_changes::default_wait_ms")]
+        wait_ms: u64,
+    },
     EditorCommit {
         request_id: String,
         ticket: String,
@@ -67,6 +72,39 @@ pub enum EditorOperation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remote_direct_edits_wait_for_pending_editor_save_requests() {
+        let mut book = EditorState::default();
+        let root = RootObservation::new(1, 2);
+        let binding = SourceBinding::new("project", "main.typ", 0).rooted(Some(root));
+        assert!(book.check_remote_edit(binding, &digest("Saved")).is_ok());
+        book.requests.insert(
+            "pending".into(),
+            Request {
+                owner: "local".into(),
+                ticket: "ticket".into(),
+                session_id: "session".into(),
+                project: "project".into(),
+                path: "main.typ".into(),
+                source_epoch: 0,
+                expected_root: Some(root),
+                expires_at: 0,
+            },
+        );
+        assert_eq!(
+            book.check_remote_edit(binding, &digest("Saved"))
+                .unwrap_err()
+                .code,
+            "busy"
+        );
+        assert!(book
+            .check_remote_edit(
+                SourceBinding::new("project", "other.typ", 0),
+                &digest("Saved")
+            )
+            .is_ok());
+    }
 
     #[test]
     fn native_page_epoch_rejects_delayed_registration_and_preserves_receipts() {
@@ -573,6 +611,26 @@ mod tests {
         assert_eq!(fs::read(file).unwrap(), original);
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn windows_receipt_completion_flushes_exact_bytes_without_changing_read_observations() {
+        let (_temp, service, project, _) = fixture();
+        let receipt = pending(&service, &project);
+        service.write_editor_receipt(&receipt).unwrap();
+        let (state, directory) = service.history_receipt_directories().unwrap();
+        let directory = directory.unwrap();
+        let name = format!("{}.json", receipt.request_id);
+        let entry = history_read_receipt(&directory, &name).unwrap();
+        service.history_sync_receipt(&state, &directory, &entry).unwrap();
+        assert_eq!(fs::read(service.receipt_path(&receipt.request_id).unwrap()).unwrap(), entry.bytes);
+
+        // Completion cannot flush or acknowledge different bytes through the retained identity.
+        let foreign = b"Changed independently after the exact receipt observation.";
+        fs::write(service.receipt_path(&receipt.request_id).unwrap(), foreign).unwrap();
+        assert!(service.history_sync_receipt(&state, &directory, &entry).is_err());
+        assert_eq!(fs::read(service.receipt_path(&receipt.request_id).unwrap()).unwrap(), foreign);
+    }
+
     #[test]
     fn history_receipt_absence_is_observational_and_a_resumable_request_blocks_cancellation() {
         let (_temp, service, project, file) = fixture();
@@ -831,7 +889,7 @@ fn history_read_receipt(directory: &Dir, name: &str) -> Result<HistoryReceiptEnt
 }
 
 fn history_sync_receipt_directory(directory: &Dir) -> Result<()> {
-    directory.open(".").and_then(|file| file.sync_all()).map_err(|_| {
+    source_files::complete_directory_publication(directory).map_err(|_| {
         Error::new("outcome_unknown", "Native save receipt durability could not be confirmed. Inspect the same save before retrying.")
     })
 }
@@ -900,6 +958,35 @@ pub(super) struct EditorState {
 }
 
 impl EditorState {
+    pub(super) fn check_remote_edit(
+        &self,
+        binding: SourceBinding<'_>,
+        revision: &str,
+    ) -> Result<()> {
+        if self
+            .import_paths
+            .contains(&(binding.project.into(), binding.path.into()))
+            || self
+                .requests
+                .values()
+                .any(|request| request.project == binding.project && request.path == binding.path)
+            || self.sessions.values().any(|session| {
+                session.project == binding.project
+                    && session.path == binding.path
+                    && (session.source_epoch != binding.epoch
+                        || session.expected_root != binding.root
+                        || session.dirty
+                        || session.composing
+                        || session.conflict
+                        || session.revision != revision
+                        || session.content_digest != revision)
+            })
+        {
+            return Err(Error::new("busy", "Direct edits require current clean editor buffers without composition, conflicts or pending saves. Your text was preserved."));
+        }
+        Ok(())
+    }
+
     pub(super) fn has_source_binding(&self, project: &str, path: &str, epoch: u64) -> bool {
         self.sessions.values().any(|session| {
             session.project == project && session.path == path && session.source_epoch == epoch
@@ -1048,6 +1135,7 @@ impl Service {
             ));
         }
         let mut book = lock(&self.editor)?;
+        let replaces_owner = book.native_owners.contains_key(window_label);
         if let Some(previous) = book.native_owners.get(window_label).cloned() {
             let owner = format!("native:{window_label}:{previous}");
             let retired: Vec<_> = book
@@ -1068,6 +1156,10 @@ impl Service {
         }
         let id = Uuid::new_v4().to_string();
         book.native_owners.insert(window_label.into(), id.clone());
+        drop(book);
+        if replaces_owner {
+            self.review_changes.signal();
+        }
         Ok(json!({"protocolVersion":PROTOCOL_VERSION,"ownerId":id}))
     }
 
@@ -1143,6 +1235,9 @@ impl Service {
                 "The native editor owner is unavailable.",
             ));
         }
+        if let EditorOperation::ReviewChanges { after, wait_ms } = operation {
+            return self.wait_review_changes(owner, after, wait_ms).await;
+        }
         let service = self.clone();
         let owner = owner.to_owned();
         tokio::task::spawn_blocking(move || service.editor_local(&owner, operation))
@@ -1161,6 +1256,10 @@ impl Service {
         owner_id: &str,
         operation: EditorOperation,
     ) -> Result<Value> {
+        if let EditorOperation::ReviewChanges { after, wait_ms } = operation {
+            let owner = self.native_editor_owner(window_label, owner_id)?;
+            return self.wait_review_changes(&owner, after, wait_ms).await;
+        }
         let (service, window, id) = (self.clone(), window_label.to_owned(), owner_id.to_owned());
         tokio::task::spawn_blocking(move || {
             let owner = service.native_editor_owner(&window, &id)?;
@@ -1229,6 +1328,10 @@ impl Service {
         };
         let now = now_ms();
         match operation {
+            EditorOperation::ReviewChanges { .. } => Err(Error::new(
+                "scope",
+                "Review change waits require the asynchronous local editor bridge.",
+            )),
             EditorOperation::EditorRegister {
                 project,
                 path,
@@ -1723,7 +1826,36 @@ impl Service {
         directory: &Dir,
         entry: &HistoryReceiptEntry,
     ) -> Result<()> {
-        entry.file.sync_all().map_err(|_| {
+        #[cfg(windows)]
+        let writable = {
+            let before = entry.file.metadata().map_err(|_| history_receipt_error())?;
+            let mut options = OpenOptions::new();
+            options.read(true).write(true).follow(FollowSymlinks::No);
+            let mut writable = directory
+                .open_with(&entry.name, &options)
+                .map_err(|_| history_receipt_error())?;
+            let metadata = writable.metadata().map_err(|_| history_receipt_error())?;
+            let mut bytes = Vec::new();
+            (&mut writable)
+                .take(16 * 1024 + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|_| history_receipt_error())?;
+            if (before.dev(), before.ino()) != (metadata.dev(), metadata.ino())
+                || !source_files::plain_metadata(&metadata)
+                || !metadata.is_file()
+                || metadata.nlink() != 1
+                || metadata.len() != entry.bytes.len() as u64
+                || bytes != entry.bytes
+            {
+                return Err(history_receipt_error());
+            }
+            writable
+        };
+        #[cfg(windows)]
+        let completion_file = &writable;
+        #[cfg(not(windows))]
+        let completion_file = &entry.file;
+        completion_file.sync_all().map_err(|_| {
             Error::new(
                 "outcome_unknown",
                 "Native save receipt synchronization is uncertain.",
@@ -1762,6 +1894,7 @@ impl Service {
             return Err(history_receipt_error());
         }
         self.history_check_receipt_directories(&state, Some(&directory))?;
+        drop(before);
         self.write_editor_receipt(&current)?;
         let entry = history_read_receipt(&directory, &name)?;
         if entry.receipt != current {
@@ -1817,8 +1950,10 @@ impl Service {
                     json!({"code":"history_aborted","message":"This unapplied native save was cancelled; the manuscript was preserved."}),
                 );
                 self.history_check_receipt_directories(&state, Some(directory))?;
+                let name = entry.name.clone();
+                drop(entry);
                 self.write_editor_receipt(&rejected)?;
-                let confirmed = history_read_receipt(directory, &entry.name)?;
+                let confirmed = history_read_receipt(directory, &name)?;
                 if confirmed.receipt != rejected {
                     return Err(history_receipt_error());
                 }

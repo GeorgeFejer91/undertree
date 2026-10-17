@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "target": "x86_64-pc-windows-msvc",
+  "vcpkgCommit": "a62ce77d56ee07513b4b67de1ec2daeaebfae51a",
+  "triplet": "x64-windows-static-release",
+  "databaseFiles": [
+    {
+      "file": "vcpkg/status",
+      "sha256": "8bba65cfdbb2bb2e53a193f2bb14cd462a2f31e886dcd80b9b56218b0c9b2dbd"
+    }
+  ],
+  "components": [
+    {
+      "name": "brotli",
+      "version": "1.1.0",
+      "portVersion": "1",
+      "abi": "f12459b039e4553d64d6011dc83f8335a0fa74c64eccf581bbedf2a9b31eb600",
+      "declaredLicense": "MIT",
+      "selectedLicense": "MIT",
+      "file": "latex-native-brotli-copyright",
+      "sha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94",
+      "canonicalSha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94",
+      "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/brotli"
+    },
+    {
+      "name": "bzip2",
+      "version": "1.0.8",
+      "portVersion": "6",
+      "abi": "1fb98a01570c9a13f394f851465c7a8ba720753180e78e5a431bdbc73f57fed7",
+      "declaredLicense": "bzip2-1.0.6",
+      "selectedLicense": "bzip2-1.0.6",
+      "file": "latex-native-bzip2-copyright",
+      "sha256": "c6dbbf828498be844a89eaa3b84adbab3199e342eb5cb2ed2f0d4ba7ec0f38a3",
+      "canonicalSha256": "c6dbbf828498be844a89eaa3b84adbab3199e342eb5cb2ed2f0d4ba7ec0f38a3",
+      "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/bzip2"
+    },
+    {
+      "name": "dirent",
+      "version": "1.26",
+      "portVersion": "0",
+      "abi": "0bd9fccaec9d232100ee9bfb418f1f7fd5c5060aa6d16982825530f0a0b2e82c",
+      "declaredLicense": "MIT",
+      "selectedLicense": "MIT",
+      "file": "latex-native-dirent-copyright",
+      "sha256": "2f414f6c48e8c25ffb5d03cddd6043b3b613187f758d0a6964ca2ad7ed749e50",
+      "canonicalSha256": "2f414f6c48e8c25ffb5d03cddd6043b3b613187f758d0a6964ca2ad7ed749e50",
+      "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/dirent"
+    },
+    {
+      "name": "expat",
+      "version": "2.7.3",
+      "portVersion": "0",
+      "abi": "3c8196eccc555feae7396364432628942871fc181a96cdd63aef89c33de733b8",
+      "declaredLicense": "MIT",
+      "selectedLicense": "MIT",
+      "file": "latex-native-expat-copyright",
+      "sha256": "31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87",
+      "canonicalSha256": "31b15de82aa19a845156169a17a5488bf597e561b2c318d159ed583139b25e87",
+      "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/expat"
+    },
+    {
+      "name": "fontconfig",
+      "version": "2.15.0",
+      "portVersion": "4",
+      "abi": "ed4dba8c33446f0dd7a61e18071e9c841b2070c3aa8654815dcc2586bb45e791",
+      "declaredLicense": "MIT",
+      "selectedLicense": "MIT",
+      "file": "latex-native-fontconfig-copyright",
+      "sha256": "51a51aa9823704fd90bccc616cdd17ebabb5b2b3e9cbde886ca02c7002288067",
+      "canonicalSha256": "51a51aa9823704fd90bccc616cdd17ebabb5b2b3e9cbde886ca02c7002288067",
+      "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/fontconfig"
+    },
+    {
+      "name": "freetype",
+      "version": "2.13.3",
+      "portVersion": "0",
+      "abi": "b9d08a84a65c781102ec231686e9068cf768ae57f19bcc10cefa86044d6a0209",
+      "declaredLicense": "FTL OR GPL-2.0-or-later",
+      "selectedLicense": "FTL",
+      "file": "latex-native-freetype-copyright",
+      "sha256": "eb017f4c45e70b0b4a083109ff262dc9ee001bb433a057574e50416338f152bc",
+      "canonicalSha256": "57e6b185071cbb481589e17b654752d03d731600db0faf3cd07ae9ad8ea435b3",
+      "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/freetype"
+    },
+    {
+      "name": "graphite2",
+      "version": "1.3.14",
+      "portVersion": "4",
+      "abi": "b67d746b65d66e087655420bafe6b99a12497f7429812cb8ee38758d541b1202",
+      "selectedLicense": "GPL-3.0-or-later",
+      "file": "latex-native-graphite2-copyright",
+      "sha256": "26386619310f2404a731bf48731ec66624ad6e8ee4983020aa3efdb4f4136b6f",
+      "canonicalSha256": "06efcedb9ce07473956b72b8669f03ced9f39ca19f3c1216e328b796a36ea6a8",
+      "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/graphite2"
+    },
+    {
+      "name": "harfbuzz",
+      "version": "11.3.3",
+      "portVersion": "0",
+      "abi": "471fed889b6fc0398aaf93c15fb22e59075b053bad23d505fded3e244f1b0065",
+      "declaredLicense": "MIT-Modern-Variant",
+      "selectedLicense": "MIT-Modern-Variant",
+      "file": "latex-native-harfbuzz-copyright",
+      "sha256": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64",
+      "canonicalSha256": "ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64",
+      "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/harfbuzz"
+    },
+    {
+      "name": "icu",
+      "version": "74.2",
+      "portVersion": "6",
+      "abi": "b5fee6c921957d50ecd7c7c77b7395220a389de24b8e3e8c9d76623fd0edee52",
+      "declaredLicense": "ICU",
+      "selectedLicense": "Unicode-3.0",
+      "licenseNotes": "The installed ICU 74.2 notice starts with Unicode License V3 and retains legacy ICU and other bundled third-party terms in full below.",
+      "file": "latex-native-icu-copyright",
+      "sha256": "17510cf7a58b4879b887ec05a45d72cf1b73544dd9ec7e72f20110ed104229ee",
+      "canonicalSha256": "17510cf7a58b4879b887ec05a45d72cf1b73544dd9ec7e72f20110ed104229ee",
+      "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/icu"
+    },
+    {
+      "name": "libpng",
+      "version": "1.6.50",
+      "portVersion": "0",
+      "abi": "9c732d10ca5dab0ea2834e9f5a68f6d471a9b71842f386cf42c2a848f7accf26",
+      "declaredLicense": "libpng-2.0",
+      "selectedLicense": "libpng-2.0",
+      "file": "latex-native-libpng-copyright",
+      "sha256": "16d9daaafbf63a31a5bdc91d4600972548fef5aaa1244202393288dbd079c49a",
+      "canonicalSha256": "16d9daaafbf63a31a5bdc91d4600972548fef5aaa1244202393288dbd079c49a",
+      "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/libpng"
+    },
+    {
+      "name": "zlib",
+      "version": "1.3.1",
+      "portVersion": "0",
+      "abi": "a9252487a253995f33d46521218a6b82c758a93695f6242e0786e9120e437030",
+      "declaredLicense": "Zlib",
+      "selectedLicense": "Zlib",
+      "file": "latex-native-zlib-copyright",
+      "sha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243",
+      "canonicalSha256": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243",
+      "source": "https://github.com/microsoft/vcpkg/tree/a62ce77d56ee07513b4b67de1ec2daeaebfae51a/ports/zlib"
+    }
+  ]
+}

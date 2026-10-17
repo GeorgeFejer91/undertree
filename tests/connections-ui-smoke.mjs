@@ -1,3 +1,5 @@
+import { confirmContextShareUi } from './context-fixture.mjs';
+import { consentToFixtureShare } from './context-fixture.mjs';
 import assert from 'node:assert/strict';
 import { createZrokFixture } from './zrok-fixture.mjs';
 import { mkdtemp, mkdir, writeFile, readFile, realpath, chmod, rm } from 'node:fs/promises';
@@ -40,6 +42,7 @@ try {
   assert.ok(port, log);
   base = `http://127.0.0.1:${port}`;
   async function call(operation, rejected = false) {
+    if (!rejected) operation = await consentToFixtureShare(operation, call);
     for (let attempt = 0; attempt < 20; attempt++) {
       const response = await fetch(base + '/api/review', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(operation) });
       const value = await response.json();
@@ -87,7 +90,7 @@ try {
   await page.locator('#connection-configure').click();
   await page.keyboard.press('Escape');
   await page.locator('#review-toggle').click();
-  await page.locator('#manuscript-share').check();
+  await page.locator('#manuscript-share').check(); await confirmContextShareUi(page);
   await until(async () => (await call({ action: 'connection' })).sharedCount === 1, 'initial manuscript sharing committed before tunnel setup');
   await page.getByRole('button', { name: 'Connections', exact: true }).click();
   await dialog.waitFor();
@@ -132,7 +135,7 @@ try {
   const initialized = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'UnderTree connection test', version: '1' } });
   assert.equal((await initialized.json()).result.protocolVersion, '2025-06-18');
   const listed = await rpc('tools/list');
-  assert.deepEqual((await listed.json()).result.tools.map(tool => tool.name), ['list_manuscripts', 'read_manuscript', 'suggest_text']);
+  assert.deepEqual((await listed.json()).result.tools.map(tool => tool.name), ['list_manuscripts', 'read_manuscript', 'suggest_text', 'highlight_text']);
   const manuscripts = await rpc('tools/call', { name: 'list_manuscripts', arguments: {} });
   assert.equal((await manuscripts.json()).result.isError, false);
   await page.locator('#connection-refresh').click();
@@ -275,7 +278,7 @@ try {
   const importedInitialized = await importedRpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'Isolated imported connector fixture', version: '1' } });
   assert.equal((await importedInitialized.json()).result.protocolVersion, '2025-06-18');
   const importedTools = await importedRpc('tools/list');
-  assert.deepEqual((await importedTools.json()).result.tools.map(tool => tool.name), ['list_manuscripts', 'read_manuscript', 'suggest_text']);
+  assert.deepEqual((await importedTools.json()).result.tools.map(tool => tool.name), ['list_manuscripts', 'read_manuscript', 'suggest_text', 'highlight_text']);
   for (const path of [`/mcp/${importedToken}`, `/mcp/control/${importedToken}`, `/t/${importedToken}/mcp/control`, '/api/review', '/api/control', '/api/editor']) {
     const denied = await fetch(importedLocal + path, { method: 'POST', headers: mcpHeaders, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }) });
     assert.equal(denied.status, 404, `imported listener does not mount ${path}`);

@@ -1,3 +1,4 @@
+import { confirmContextShareUi, readFixtureContext } from './context-fixture.mjs';
 import assert from 'node:assert/strict';
 import { createZrokFixture } from './zrok-fixture.mjs';
 import { spawn } from 'node:child_process';
@@ -11,7 +12,7 @@ const selectedBinary = resolve(process.env.UNDERTREE_REVIEW_BINARY || 'target/de
 const selectedAssets = resolve(process.env.UNDERTREE_REVIEW_ASSETS || 'dist');
 const receiptPath = resolve(process.env.UNDERTREE_DISCARD_RECEIPT || 'artifacts/review-discard-smoke.json');
 const root = await mkdtemp(join(tmpdir(), 'undertree-discard-ui-'));
-const projectRoot = join(root, 'project'), binary = join(root, 'undertree-review'), assets = join(root, 'assets');
+const projectRoot = join(root, 'project'), binary = join(root, `undertree-review${process.platform === 'win32' ? '.exe' : ''}`), assets = join(root, 'assets');
 const token = randomBytes(32).toString('hex');
 const original = '<p>Keep this. Discard this idea. Keep the ending.</p>\n';
 const quote = 'Discard this idea.';
@@ -47,6 +48,7 @@ async function clickOperation(selector, expected) {
       const operation = response.request().postDataJSON(); return Object.entries(expected).every(([key, value]) => operation[key] === value);
     });
     await page.locator(selector).click();
+    if (selector === '#manuscript-share') await confirmContextShareUi(page, ['main.html']);
     const value = await (await response).json();
     if (value.error?.code === 'busy' && value.error.message === 'A local document operation is running. Retry this action.' && attempt < 29) { await new Promise(resolve => setTimeout(resolve, 50)); continue; }
     assert.equal(value.ok, true, value.error?.message); return;
@@ -72,7 +74,7 @@ try {
   await page.getByRole('button', { name: 'main.html', exact: true }).click(); await page.locator('.cm-content').waitFor();
   await menuAction('Color rules');
   const row = page.locator('.palette-row').nth(ruleIndex);
-  assert.deepEqual(await row.getByLabel('Rule action').locator('option').evaluateAll(options => options.map(option => option.value)), ['protect', 'prompt', 'discard', 'reject']);
+  assert.deepEqual(await row.getByLabel('Rule action').locator('option').evaluateAll(options => options.map(option => option.value)), ['prompt', 'protect', 'reject', 'discard']);
   await row.getByLabel('Rule action').selectOption('prompt'); await row.getByLabel('Rule action').selectOption('discard');
   await row.locator('input[type="color"]').evaluate(input => { input.value = '#b26a44'; input.dispatchEvent(new Event('input', { bubbles: true })); });
   await page.getByRole('button', { name: 'Save rules', exact: true }).click(); await page.locator('#palette-dialog').waitFor({ state: 'hidden' });
@@ -83,7 +85,7 @@ try {
   for (let index = from; index < to; index++) await page.keyboard.press('Shift+ArrowRight');
   await menuAction('Highlight selection'); assert.equal(await page.locator('#highlight-quote').textContent(), quote);
   await page.locator('#highlight-dialog-rule').selectOption('discard'); await page.locator('#highlight-prompt').fill('This argument is superseded.');
-  assert.match(await page.locator('#highlight-dialog').textContent(), /only your local acceptance removes text/);
+  assert.match(await page.locator('#highlight-dialog').textContent(), /Discard requires local approval/);
   await page.getByRole('button', { name: 'Add highlight', exact: true }).click(); await page.locator('#highlight-dialog').waitFor({ state: 'hidden' });
   if (await page.locator('#review-toggle').getAttribute('aria-pressed') !== 'true') await page.locator('#review-toggle').click();
   await clickOperation('#manuscript-share', { action: 'share', enabled: true });
@@ -102,9 +104,10 @@ try {
   assert.equal((await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }), signal: AbortSignal.timeout(10_000) })).status, 202);
   async function propose(requestId) {
     const snapshot = await call({ action: 'open', project: project.id, path: 'main.html', ...binding });
+    const context = await readFixtureContext(rpc, snapshot.documentId);
     let result;
     await until(async () => {
-      result = await rpc('tools/call', { name: 'suggest_text', arguments: { documentId: snapshot.documentId, proposal: { requestId, revision: snapshot.review.revision, from, to, quote, replacement: '', rationale: 'Remove the superseded argument.' } } });
+      result = await rpc('tools/call', { name: 'suggest_text', arguments: { documentId: snapshot.documentId, proposal: { requestId, revision: snapshot.review.revision, contextId: context.contextId, from, to, quote, replacement: '', rationale: 'Remove the superseded argument.' } } });
       return !result.isError || !result.content?.some(item => item.text?.includes('A local document operation is running. Retry this action.'));
     }, 'The local document operation did not release its lock for the MCP proposal.');
     assert.equal(result.isError, false, JSON.stringify(result)); assert.equal(await readFile(join(projectRoot, 'main.html'), 'utf8'), original);

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<oor:component-data xmlns:oor="http://openoffice.org/2001/registry" xmlns:xs="http://www.w3.org/2001/XMLSchema" oor:name="Addons" oor:package="org.openoffice.Office">
+  <node oor:name="AddonUI">
+    <node oor:name="OfficeMenuBar">
+      <node oor:name="org.undertree.WriterReview.Menu" oor:op="replace">
+        <prop oor:name="Title"><value xml:lang="en-US">wrAIter</value></prop>
+        <node oor:name="Submenu">
+          <node oor:name="Review" oor:op="replace">
+            <prop oor:name="URL"><value>vnd.undertree:review</value></prop>
+            <prop oor:name="Title"><value xml:lang="en-US">Color rules…</value></prop>
+            <prop oor:name="Target"><value>_self</value></prop>
+            <prop oor:name="Context"><value>com.sun.star.text.TextDocument</value></prop>
+          </node>
+          <node oor:name="Connections" oor:op="replace">
+            <prop oor:name="URL"><value>vnd.undertree:connections</value></prop>
+            <prop oor:name="Title"><value xml:lang="en-US">Tunnel and project access…</value></prop>
+            <prop oor:name="Target"><value>_self</value></prop>
+            <prop oor:name="Context"><value>com.sun.star.text.TextDocument</value></prop>
+          </node>
+        </node>
+      </node>
+    </node>
+    <node oor:name="OfficeToolBar">
+      <node oor:name="org.undertree.WriterReview.Toolbar" oor:op="replace">
+        <node oor:name="Palette" oor:op="replace">
+          <prop oor:name="URL"><value>vnd.undertree:palette</value></prop>
+          <prop oor:name="Title"><value xml:lang="en-US">AI highlighter colors</value></prop>
+          <prop oor:name="Target"><value>_self</value></prop>
+          <prop oor:name="Context"><value>com.sun.star.text.TextDocument</value></prop>
+        </node>
+        <node oor:name="Review" oor:op="replace">
+          <prop oor:name="URL"><value>vnd.undertree:review</value></prop>
+          <prop oor:name="Title"><value xml:lang="en-US">wrAIter color rules</value></prop>
+          <prop oor:name="Target"><value>_self</value></prop>
+          <prop oor:name="Context"><value>com.sun.star.text.TextDocument</value></prop>
+        </node>
+        <node oor:name="Connections" oor:op="replace">
+          <prop oor:name="URL"><value>vnd.undertree:connections</value></prop>
+          <prop oor:name="Title"><value xml:lang="en-US">Tunnel and project access</value></prop>
+          <prop oor:name="Target"><value>_self</value></prop>
+          <prop oor:name="Context"><value>com.sun.star.text.TextDocument</value></prop>
+        </node>
+      </node>
+    </node>
+    <node oor:name="Images">
+      <node oor:name="org.undertree.WriterReview.TunnelImage" oor:op="replace">
+        <prop oor:name="URL"><value>vnd.undertree:connections</value></prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL"><value>%origin%/tunnel16.png</value></prop>
+          <prop oor:name="ImageBigURL"><value>%origin%/tunnel24.png</value></prop>
+        </node>
+      </node>
+      <node oor:name="org.undertree.WriterReview.Image" oor:op="replace">
+        <prop oor:name="URL"><value>vnd.undertree:review</value></prop>
+        <node oor:name="UserDefinedImages">
+          <prop oor:name="ImageSmallURL"><value>%origin%/icon.png</value></prop>
+          <prop oor:name="ImageBigURL"><value>%origin%/icon24.png</value></prop>
+        </node>
+      </node>
+    </node>
+  </node>
+</oor:component-data>

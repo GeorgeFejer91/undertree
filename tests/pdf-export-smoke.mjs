@@ -1,3 +1,4 @@
+import { consentToFixtureShare } from './context-fixture.mjs';
 // Real Typst/PDF + local consent + MCP/HTTP. Requires Typst and pdftotext on PATH.
 // zrok is simulated; no public route, ChatGPT client or native OS-window claim.
 import assert from 'node:assert/strict';
@@ -35,6 +36,7 @@ try {
   service.stdout.on('data', bytes => { log = (log + bytes).slice(-16_000); port = Number(log.match(/127\.0\.0\.1:(\d+)/)?.[1]); }); service.stderr.on('data', bytes => { log = (log + bytes).slice(-16_000); });
   await until(() => port, 'The native PDF authority did not start.'); const base = `http://127.0.0.1:${port}`;
   local = async operation => {
+    operation = await consentToFixtureShare(operation, local);
     const envelope = await fetch(base + '/api/review', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(operation) }).then(response => response.json());
     assert.equal(envelope.ok, true, envelope.error?.message); return envelope.result;
   };
@@ -75,7 +77,7 @@ try {
   const tool = (endpoint, name, args = {}) => rpc(endpoint, 'tools/call', { name, arguments: args });
   const value = reply => { assert.equal(reply.isError, false, reply.content?.find(item => item.type === 'text')?.text); return reply.structuredContent.result; };
   let connection = await local({ action: 'connection' }); const reviewEndpoint = connection.endpoint;
-  await initialize(reviewEndpoint); assert.deepEqual((await rpc(reviewEndpoint, 'tools/list')).tools.map(item => item.name), ['list_manuscripts', 'read_manuscript', 'suggest_text']);
+  await initialize(reviewEndpoint); assert.deepEqual((await rpc(reviewEndpoint, 'tools/list')).tools.map(item => item.name), ['list_manuscripts', 'read_manuscript', 'suggest_text', 'highlight_text']);
   const args = { documentId: snapshots[0].documentId, revision: pdf.revision, artifactId };
   assert.equal((await tool(reviewEndpoint, 'get_pdf_download', args)).isError, true);
   await page.locator('#connection-open').click(); await page.locator('#connection-tab-app').click(); await page.locator('#connection-app-enabled').check();
@@ -86,7 +88,7 @@ try {
   let appEndpoint = await appReady();
   assert.equal((await tool(appEndpoint, 'get_pdf_download', args)).isError, true);
   assert.equal(value(await tool(appEndpoint, 'list_manuscripts'))[0].savedPdf, undefined);
-  checks.push('source sharing and App control alone deny PDF export and preserve the three-tool Review catalogue');
+  checks.push('source sharing and App control alone deny PDF export and preserve the closed four-tool Review catalogue');
   const disclosure = page.locator('#connection-pdf-export'), selected = page.locator(`#connection-pdf-export-projects input[value="${first.id}"]`);
   await disclosure.locator(':scope > summary').click();
   async function allow() { await selected.check(); await page.locator('#connection-pdf-export-apply').click(); await until(async () => (await local({ action: 'connection' })).appControls.pdfExport.enabled, 'Explicit local PDF permission did not enable.'); }

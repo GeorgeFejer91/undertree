@@ -1,3 +1,4 @@
+mod common;
 use serde_json::json;
 use std::fs;
 use std::path::Path;
@@ -123,6 +124,8 @@ async fn symlink_swapped_roots_cannot_enumerate_or_mutate_an_unapproved_folder()
             project: project.clone(),
             path: "main.typ".into(),
             enabled: true,
+            context_shared: true,
+            expected_context_scope: common::context_scope(&service, &project, &"main.typ"),
         })
         .unwrap();
     fs::rename(&root, &moved).unwrap();

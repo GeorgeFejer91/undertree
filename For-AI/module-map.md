@@ -2,15 +2,46 @@
 
 | Module | Owns | Existing adapters/assets | Must not own |
 | --- | --- | --- | --- |
+| `modules/word/` | wrAIter for Word: native in-process Windows COM add-in, guarded Word document authority, native selective-editor dialogs, own MCP/zrok profile, one-package installer and installed Word verification | Existing desktop Word, .NET Framework and internally bundled zrok | Separate companion app, runtime dependency on UnderTree/Writer, generic COM/shell/file proxy, remote saves or policy changes |
 | `modules/frontend/` | realtime scheduling, review/save coordination, interaction state, browser-only performance policy | `src/main.js`, `src/styles.css`, `index.html`, `src/manuscript.js`, `src/manuscript.css`, `manuscript.html` | native policy, compiler executable discovery, release scripts, native binaries |
 | `modules/compiler/` | local service process, compiler toolchain discovery, TeX job lifecycle, build coalescing interfaces | `server.mjs`, `layout/`, `native/html_print_renderer.py`, compiler-facing helpers in `src/` | native window lifecycle, installer policy, UI DOM code |
 | `modules/maintenance/` | architecture validation, runtime-package allowlists, release and test policy | `scripts/`, `packaging/`, `.github/` | application request handling or editor behavior |
-| `modules/review/` | Rust manuscript/review authority, project approvals, revision checks, sidecar persistence, narrow MCP tools, Typst process/PDF handling, best-effort TeX import, local GitHub checkpoints and separately granted non-content App controls | `modules/frontend/review-*`, `src/manuscript.js`, `manuscript.html`, local review CLI/browser adapter | remote source/policy mutations, generic filesystem/shell proxies, TeX requirements |
+| `modules/review/` | Rust manuscript/review authority, project approvals, revision checks, sidecar persistence, narrow MCP tools, Typst/optional LaTeX publication admission and PDF handling, best-effort TeX import, local GitHub checkpoints and separately granted non-content App controls | `modules/frontend/review-*`, `src/manuscript.js`, `manuscript.html`, local review CLI/browser adapter | unscoped remote source edits, remote policy mutations, generic filesystem/shell proxies, mandatory TeX dependencies |
 | `native/tauri/` | Tauri window lifecycle, least-privilege commands, native folder selection, packaging | Rust review service and bundled HTML frontend | domain policy in the WebView, privileges for remote content |
+| `modules/libreoffice/` | wrAIter: separately installable Writer toolbar/dialog, native UNO marker/document permissions, full-document context and highlighted-only Review, independent connection/zrok, separately granted project-folder/GitHub tools, optional Review pairing, extension packaging/tests | Existing LibreOffice host and Python UNO; packaged zrok and MinGit runtimes | Runtime dependence on UnderTree/Secret Tunnel, suite fork, shell/arbitrary Git execution, remote permission/account changes, unauthorized disclosure or unmarked native-document mutations |
 
 ## Dependency direction
 
-Connection ownership: `modules/review/src/transport.rs` owns zrok2 supervision, the separate MCP listener, URL capability and observed MCP activity; `service.rs` owns approved shares and non-secret setup persistence. `src/connection-manager.js` is the dialog DOM adapter; it uses `modules/frontend/review-api.js` and never talks to zrok or the MCP endpoint directly. `manuscript.html` and `src/manuscript.css` own the popup structure/geometry. The active product uses Rust/Tauri on every platform. The obsolete `native/windows/` Electron shell and its compiler utility-process entry have been removed; the architecture check rejects their return.
+The [AI highlighting/protected-passage goal](product-goal.md#active-implementation-goal-ai-highlighting-and-protected-rearrangement)
+is owned by the existing native authorities: `modules/review/` for UnderTree,
+`modules/libreoffice/` for Writer and `modules/word/` for Word. Each owns neutral
+color validation, current-context checks, protected-unit reconstruction and
+persistence; transports expose only the explicit closed Review extension.
+UnderTree's `modules/frontend/` and `src/` adapters own toolbar/in-text gestures
+and overlap choice; Writer/Word use native host events and dialogs. Extend the
+existing `modules/review/selective-editor-contract.json` and host tests during
+implementation, keeping generated evidence outside `For-AI/`. A transport or
+UI callback cannot assign color permissions or substitute for native enforcement.
+
+`modules/compiler/latex-worker/` owns the optional confined Tectonic process;
+`modules/compiler/vendor/tectonic/` holds its narrow upstream driver adaptation.
+The worker receives only a private saved project snapshot and writes PDF bytes
+plus bounded dependency metadata. `modules/review/src/publishing.rs` retains
+root/revision/epoch admission, process supervision and last-good-PDF authority;
+`publishing/engine.rs` chooses the local `.typ` or `.tex` command. Existing
+Typst-only remote compile and annotation permissions remain separate. Offline
+resource preparation and native dependency notices belong to maintenance/setup,
+not the editor or the remote tool catalogue. Runtime qualification is tracked in
+[reference-evidence.md](reference-evidence.md).
+
+UnderTree connection ownership: `modules/review/src/transport.rs` owns zrok2 supervision, the separate MCP listener, URL capability and observed MCP activity; `service.rs` owns approved shares and non-secret setup persistence. `src/connection-manager.js` is the dialog DOM adapter; it uses `modules/frontend/review-api.js` and never talks to zrok or the MCP endpoint directly. `manuscript.html` and `src/manuscript.css` own the popup structure/geometry. UnderTree uses Rust/Tauri on every platform. The obsolete `native/windows/` Electron shell and its compiler utility-process entry have been removed; the architecture check rejects their return.
+
+wrAIter connection ownership: `extension/undertree_connection.py` owns its private Writer-profile identity and reconnect intent, `undertree_mcp.py` its bounded HTTP endpoint, `undertree_tunnel.py` its independent zrok child/owned-share lifecycle, and `undertree_peers.py` local persisted pairing with frozen native Review aliases. These files live under `modules/libreoffice/`; legacy internal names remain compatible. Reconnecting does not restore document sharing. The pairing boundary and qualification limits belong to [the connection contract](PROTOCOLS/connections.md).
+
+`extension/undertree_project.py` owns explicit session-only folder grants, bounded
+text reads and hash-checked writes; `undertree_github.py` owns private GitHub
+credentials and fixed Git operations under the additional local GitHub grant.
+Neither is a Review/pairing tool or a way to edit open Writer documents.
 
 `transport/owned_share.rs` owns bounded native controller reads and exact-token retirement for the newly created share. Its private process-local ownership record never enters status, WebView configuration or remote tools. Failed cleanup retains the reserved target and blocks reconnect; it never adopts or removes another current owner.
 
@@ -31,7 +62,7 @@ compiler service       ──> compiler module + layout/render assets
 maintenance commands   ──> module manifests and package configuration
 ```
 
-The typed `Operation` service is the local manuscript boundary; Review MCP exposes a smaller suggestion-only subset. Project approval, policy changes, acceptance, import, content saves and synchronization remain local actions. The requested [App control target](PLANNER/CHATGPT-FULL-CONTROL.md) excludes remote full file editing and indirect autosave. Its separately granted tools use shared Rust authority and acknowledged no-save view actions; never expose `Operation` automatically or confuse planning with runtime permissions.
+The typed `Operation` service is the local manuscript boundary; Review MCP exposes a smaller subset with default suggestions and the locally authorized marked-prompt direct-edit exception in [the connection contract](PROTOCOLS/connections.md). Project approval, policy changes, suggestion acceptance, import, editor-buffer saves and synchronization remain local actions. The requested [App control target](PLANNER/CHATGPT-FULL-CONTROL.md) excludes remote full file editing and indirect autosave. Its separately granted tools use shared Rust authority and acknowledged no-save view actions; never expose `Operation` automatically or confuse planning with runtime permissions.
 
 `service/project_tree.rs` owns bounded local-UI directory/asset inventories and
 single-directory creation through no-follow handles. These operations are

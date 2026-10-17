@@ -25,7 +25,7 @@ let grants = 0, failGrant = false;
 const state = { running:false, endpoint:'', externallyVerified:false, mcpInitialized:false,
   lastActivityMs:0, toolCalls:0, lastError:'', sharedCount:0, shared:[],
   config:{reservation:'undertree-test',publicUrl:'https://review.example.invalid'},protocolVersion:'2025-06-18',
-  tools:['list_manuscripts','read_manuscript','suggest_text'].map(name=>({name})),
+  tools:['list_manuscripts','read_manuscript','suggest_text','highlight_text'].map(name=>({name})),
   appControls:{enabled:false,endpoint:''} };
 const reviewUrl = 'https://review.example.invalid/mcp/review-capability';
 const request = async operation => {
@@ -96,7 +96,7 @@ try {
   }
   async function reviewUnchanged(url) {
     assert.equal(await page.locator('#connection-url').inputValue(), url, 'app grants preserve the Review capability');
-    assert.deepEqual(await page.locator('#connection-tools li').allTextContents(), ['list_manuscripts', 'read_manuscript', 'suggest_text']);
+    assert.deepEqual(await page.locator('#connection-tools li').allTextContents(), ['list_manuscripts', 'read_manuscript', 'suggest_text', 'highlight_text']);
   }
 
   await open('?no-control-wrapper');
@@ -108,6 +108,8 @@ try {
   assert.equal(await page.locator('#connection-tab-mcp').getAttribute('aria-selected'), 'true', 'a restrictive status returns an open App panel to Overview');
   await page.locator('#connection-tab-shared').focus();
   await page.keyboard.press('ArrowRight');
+  assert.equal(await page.locator('#connection-tab-apps').getAttribute('aria-selected'), 'true', 'keyboard reaches the existing Apps tab before skipping unavailable App controls');
+  await page.keyboard.press('ArrowRight');
   assert.equal(await page.locator('#connection-tab-mcp').getAttribute('aria-selected'), 'true', 'keyboard skips unavailable App controls');
   await open();
   assert.equal(await page.getByRole('tab', {name:'App controls',exact:true}).count(), 1, 'compact tabs retain complete accessible names');
@@ -115,7 +117,7 @@ try {
   assert.equal(await page.getByRole('button', {name:'Stop tunnel and revoke all access',exact:true}).count(), 1);
   assert.equal(await page.locator('#connection-app-enabled').isDisabled(), true, 'a stopped tunnel cannot enable controls');
   await page.locator('#connection-tab-zrok').focus();
-  for (const [key, expected] of [['ArrowRight', 'shared'], ['ArrowRight', 'app'], ['Home', 'mcp'], ['ArrowRight', 'zrok'], ['ArrowLeft', 'mcp'], ['ArrowLeft', 'app']]) {
+  for (const [key, expected] of [['ArrowRight', 'shared'], ['ArrowRight', 'apps'], ['ArrowRight', 'app'], ['Home', 'mcp'], ['ArrowRight', 'zrok'], ['ArrowLeft', 'mcp'], ['ArrowLeft', 'app']]) {
     await page.keyboard.press(key);
     assert.equal(await page.locator(`#connection-tab-${expected}`).getAttribute('aria-selected'), 'true');
     assert.equal(await page.locator(`#connection-tab-${expected}`).evaluate(element => document.activeElement === element), true);

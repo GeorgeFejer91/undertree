@@ -1,3 +1,4 @@
+import { confirmNativeContextShare } from './context-fixture.mjs';
 import assert from 'node:assert/strict';
 import { createZrokFixture } from './zrok-fixture.mjs';
 import { spawn, spawnSync } from 'node:child_process';
@@ -168,7 +169,7 @@ try {
   await click('#menu-format-toggle'); await click('#palette-open'); await click('#palette-form button[type="submit"]');
   await until(() => stat(policy), 'Native color-rule setup did not persist.');
   await until(() => execute('return !document.getElementById("palette-dialog").open'), 'Native color-rule setup did not settle.');
-  await click('#review-toggle'); await click('#manuscript-share');
+  await click('#review-toggle'); await click('#manuscript-share'); await confirmNativeContextShare(click, execute, until);
   await click('#connection-open'); await click('#connection-tab-zrok');
   await execute('document.getElementById("zrok-name").value="native-hub-test";document.getElementById("zrok-origin").value="https://native-hub.example.invalid";');
   await click('#tunnel-start');
@@ -214,11 +215,11 @@ try {
   connection = await review({ action: 'connection' });
   assert.equal(connection.gateway.mcpInitialized, true); assert.equal(connection.mcpInitialized, false);
   await rpc(reviewEndpoint, 'initialize', init);
-  assert.deepEqual((await rpc(reviewEndpoint, 'tools/list')).tools.map(tool => tool.name), ['list_manuscripts', 'read_manuscript', 'suggest_text']);
+  assert.deepEqual((await rpc(reviewEndpoint, 'tools/list')).tools.map(tool => tool.name), ['list_manuscripts', 'read_manuscript', 'suggest_text', 'highlight_text']);
   const catalogue = (await rpc(gatewayEndpoint, 'tools/list')).tools;
   const alias = catalogue.find(tool => tool._meta?.['undertree/toolName'] === 'set_state')?.name;
   assert.ok(alias); assert.ok(catalogue.some(tool => tool.name === 'control_set_workspace_view'));
-  checks.push('Actual native gateway and App-control opt-ins plus app registration expose one combined URL while the Review-only endpoint retains exactly three tools.');
+  checks.push('Actual native gateway and App-control opt-ins plus app registration expose one combined URL while the Review-only endpoint retains exactly four Review tools.');
   const wrongOwner = await execute('return window.__TAURI_INTERNALS__.invoke("review_action",{ownerId:"retired-fixture-owner",operation:{action:"hub_enable",enabled:false}}).then(()=>({ok:true}),error=>({ok:false,code:error.code}));');
   assert.equal(wrongOwner.ok, false); assert.equal((await review({ action: 'hub_status' })).enabled, true);
   const cli = JSON.parse(await readFile(join(state, 'cli', 'instance.json'), 'utf8')); secrets.push(cli.token);
@@ -271,7 +272,7 @@ try {
   await until(async () => !(await review({ action: 'connection' })).gateway.enabled, 'Native gateway did not revoke.');
   const revoked = await fetch(gatewayEndpoint, { method: 'POST', headers, body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'ping' }), signal: AbortSignal.timeout(10_000) });
   assert.equal(revoked.status, 401);
-  assert.deepEqual((await rpc(reviewEndpoint, 'tools/list')).tools.map(tool => tool.name), ['list_manuscripts', 'read_manuscript', 'suggest_text']);
+  assert.deepEqual((await rpc(reviewEndpoint, 'tools/list')).tools.map(tool => tool.name), ['list_manuscripts', 'read_manuscript', 'suggest_text', 'highlight_text']);
   assert.equal(hash(await readFile(source)), sourceBefore); assert.equal(hash(await readFile(policy)), policyBefore);
   assert.equal(await execute('return window.__nativeHubSaveAttempts'), savesBefore);
   assert.deepEqual(await execute('return window.__nativeHubErrors'), []); assert.deepEqual(await execute('return window.__nativeHubObservationErrors'), []);

@@ -1,27 +1,56 @@
 # UnderTree
 
-UnderTree is an offline manuscript workspace built around Rust, Tauri and Typst,
+UnderTree is an offline manuscript workspace built around Rust and Tauri,
 with an HTML/CSS interface required to look and feel near identical to the
 open-source Overleaf editor and review workflow. Visual and interaction parity
 are an acceptance requirement; the current workspace has not yet been qualified
 against that reference. See [the UI target](For-AI/overleaf-ui-parity.md).
-Manuscripts remain ordinary text files in your own project: `.typ` or `.html`,
-with small adjacent JSON files for highlights and suggestions. Its name is a
+Manuscripts remain ordinary text files in your own project: `.typ`, `.tex` or `.html`.
+Typst and HTML review data uses small adjacent JSON files for highlights and suggestions. Its name is a
 tongue-in-cheek inverse of Overleaf: the workspace stays under your own tree.
 
-The product stack is fixed: **Rust authority, Tauri v2 native shell, HTML/CSS interface and Typst publishing**. Native delivery on every platform uses Tauri. Electron is excluded from the active dependencies, build and release configuration.
+The product stack is **Rust authority, Tauri v2 native shell, HTML/CSS interface, and Typst or LaTeX publishing**. Native delivery uses Tauri. Electron is excluded from the active dependencies, build and release configuration.
 
 Bounded control panels are required to use the [outside-in accordion stretch and overflow
 prevention standard](For-AI/ui-layout.md) from Uncodixfy Pretext. The native
 window uses an original UnderTree boundary with custom Close and Minimize
 controls; the workspace within it retains the Overleaf parity target.
 
-The new Tauri workspace can edit Typst, compile a PDF through the local Typst
-CLI, and import a supported subset of TeX into a new Typst file. It works
-without LaTeX. The existing TeX and fixed-page HTML tools remain compatibility
-workflows while the Typst migration progresses.
+The Tauri workspace edits Typst and LaTeX sources and compiles PDFs through
+the local Typst CLI or the separate confined `undertree-latex` worker. The
+Windows LaTeX worker has been qualified with a nested manuscript, BibTeX and
+an explicitly referenced project font. Importing a supported TeX subset into
+Typst remains optional; conversion is not required for native LaTeX compilation.
+The fixed-page HTML tools remain available as a separate workflow.
 
 ## Rust/Tauri manuscript workspace
+
+### wrAIter office add-ons
+
+<img src="assets/wraiter/icon.svg" width="80" height="80" alt="wrAIter AI waiter and typewriter logo">
+
+wrAIter uses one shared identity for the [LibreOffice Writer extension](modules/libreoffice/README.md)
+and [Microsoft Word add-in](modules/word/README.md), with independent packages
+and native document authority. See [packages and installation](docs/downloads.md)
+for the appropriate host. Their logo does not change UnderTree's own identity.
+
+### wrAIter for LibreOffice Writer
+
+The same repository includes [wrAIter](modules/libreoffice/README.md), an installable
+Writer extension under `modules/libreoffice/`. It adds a **wrAIter**
+toolbar/menu and a native marker/connection popup to an existing LibreOffice
+installation; rebuilding the office suite is unnecessary. Assign custom colors
+and prompts, mark selected text, and choose suggestions or direct access locally.
+Suggestions wait in the popup for local approval. Explicit sharing supplies the
+complete active document for reading context through three MCP tools. Both
+suggestions and direct edits require a verified complete read and stay inside
+current highlights; unmarked text is read-only context. File access, remote
+policy changes and automatic document saves are unavailable.
+
+wrAIter owns its persistent private MCP/zrok bridge; UnderTree is not required.
+Optional MCP URL pairing works in either direction and retains each target's
+permissions. Remembered connection intent never restores document sharing.
+Install/build/test instructions and qualification limits are in the extension README.
 
 ### Linux installer
 
@@ -51,6 +80,12 @@ It installs UnderTree for the current user, a Start menu shortcut, the native
 are unsigned. Install Typst 0.15.1 separately and put it on PATH, or set
 `UNDERTREE_TYPST` to its executable. Git synchronization uses the user's existing
 Git installation and authentication.
+
+Current Windows source builds also package `undertree-latex.exe`. Build its
+static native dependencies using the [worker build recipe](modules/compiler/latex-worker/README.md#reproducible-windows-build)
+before generating notices or invoking the installer build. LaTeX also needs an
+already prepared offline Tectonic resource cache; package downloads do not run
+inside the app. Published older installers do not acquire these source changes.
 
 ### Build from source
 
@@ -100,15 +135,31 @@ are excluded. HTML estimates exclude code and non-prose subtrees. The dialog
 shows its scope and segmentation locale; it does not report a rendered project
 total. Typst prose analysis requires the desktop app.
 
-Use **File → Set as main document** on a `.typ` file to keep building the
+Use **File → Set as main document** on a `.typ` or `.tex` file to keep building the
 complete manuscript while editing chapters, BibTeX/Hayagriva bibliographies,
 or data files. Recompile saves the project's open buffers before building;
 conflicts retain the buffers for resolution. **Clear main document** restores
-compilation of the selected Typst file. Successful compiler warnings remain in
+compilation of the selected Typst or LaTeX file. Successful compiler warnings remain in
 the compilation log, and changed project inputs make the previous PDF stale.
 Locally prepared packages work offline; UnderTree does not download missing
 packages. Project fonts are loaded from regular local font files. External
 packages/system fonts need separate freshness qualification.
+
+LaTeX uses the ordinary `.bib` format and in-process BibTeX passes. Its offline
+resource cache is selected from `UNDERTREE_TECTONIC_CACHE`, then
+`TECTONIC_CACHE_DIR`, then a `latex-resources` folder beside the worker. The
+cache needs the normal Tectonic `bundles/` and `formats/` layout. Missing
+resources produce a build error while retaining the last good PDF. The worker
+uses conventional XeTeX compilation: Biber, shell escape and external tools
+are disabled. Typst-speed incremental compilation and compatibility with every
+pdfLaTeX/LuaLaTeX template are not established. Linux needs separate native
+qualification, and macOS compilation is unavailable pending confined font access.
+
+LaTeX projects use the full project tree even when a saved Smart preference is
+on; Smart filtering currently applies to Typst sources. Typst insertion and
+PDF annotation actions remain Typst-specific. LaTeX is currently a local
+editing and publishing workflow. Complete AI context and remote Review sharing
+support Typst and self-contained HTML; remote compilation remains Typst-only.
 
 Each build uses a private copy of regular project inputs, limited to 128 MiB
 for the whole project. Linked files/directories, `.git`, `node_modules`,
@@ -129,8 +180,9 @@ the manuscript changes only when you accept it. **Reject agent changes** remains
 a separate rule that blocks proposals. Colors and prompts are editable in
 **Format → Color rules**; existing projects can add a custom Discard idea rule.
 Suggestions appear beside their source passages, with a
-pending count and a cue for new proposals. Only your local Accept action changes
-the manuscript. Protection and rejection rules override prompts. To repair a
+pending count and a cue for new proposals. Each suggestion requires your local
+Accept action; a prompt color can separately authorize direct edits as described
+below. Protection and rejection rules override prompts. To repair a
 stale highlight, select its current passage and use **Reanchor from selection**;
 the confirmation preserves its color rule and custom prompt.
 
@@ -152,10 +204,26 @@ new chat. Refresh the connection after server tool or metadata changes, as
 described in [OpenAI's connection guide](https://developers.openai.com/plugins/deploy/connect-chatgpt).
 Live ChatGPT-to-zrok use still requires qualification.
 
-Review always has suggestion-only authority, including for deletions. It has no
-tool that can switch itself into direct editing. The local **Share** checkbox
-and **Connections → Stop tunnel** control access. The separate **App controls**
-toggle grants non-content controls only.
+Review defaults to suggestions, including discard-idea deletions. In a prompt
+color's settings, choose **Direct edits** to allow replacements entirely inside
+that color's current marked passages. Any overlapping suggestion-only marker
+keeps local approval; protection and rejection block changes. ChatGPT cannot
+change these settings. Dirty or stale editor buffers block direct edits; edited
+markers need local re-marking before granting another direct change. The local
+**Share** checkbox and **Connections → Stop tunnel** control access. The separate
+**App controls** toggle grants non-content controls only.
+
+The shared editing contract requires a complete, current manuscript-context read
+before any proposal. Both suggestions and direct edits are confined to current
+highlights; unmarked text supplies context only. A multi-file manuscript needs
+explicit consent for its main document and necessary chapters. Incomplete or
+stale context must be reread or resolved before changes can be proposed.
+UnderTree shares explicitly saved sources and refuses sharing while buffers are
+dirty. Writer shares its live document, including unsaved text. Neither sharing
+flow saves the document. Unsupported dynamic source dependencies or native text
+containers refuse complete context. The native and local gateway checks are
+recorded in [VERIFICATION.md](VERIFICATION.md); live public connectivity is a
+separate gate.
 
 The **ChatGPT symbol** beside Review, GitHub and Connections opens the **Overview**
 menu directly. On narrow screens, use **Menu → ChatGPT MCP setup**. The menu
@@ -205,8 +273,8 @@ For one ChatGPT connector covering several apps or PCs, use **Connections →
 Apps**. Start the zrok connection, enable the shared app gateway, then link each
 app's existing MCP URL and allow its current tools. Copy the gateway URL from
 Overview into ChatGPT once. The gateway distinguishes apps with matching tool
-names and keeps each app's permissions; UnderTree Review suggestions still
-require local acceptance. Enable UnderTree's separate **App controls** to include its
+names and keeps each app's permissions; UnderTree Review defaults to local
+acceptance and honors explicitly authorized direct prompt markers. Enable UnderTree's separate **App controls** to include its
 non-content controls behind that same URL. Refresh the ChatGPT connection after
 changing linked apps or controls.
 

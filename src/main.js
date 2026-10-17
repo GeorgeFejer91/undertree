@@ -23,6 +23,8 @@ import { LatestCompileScheduler } from "../modules/frontend/latest-compile-sched
 import { insertBoxlet, patchEditableHtml, patchElementAttributes, patchElementStyle, removeVisualElement } from "./html-print-profile.js";
 import { gridTrackRange, parsePixelTracks, pixelDeltaToMillimetres, resizeTrackBoundary, tracksToMillimetres } from "./html-visual-layout.js";
 import { acceptBuildSave, buildTabSnapshot, flushTabSave, markPathEdited, markTabEdited, persistWithConflictRecovery, saveTabSnapshot, tabContent } from "./save-coordinator.js";
+import { createLegacyDialog } from "./legacy-dialog.js";
+import { observeReviewText } from "../modules/frontend/review-text-layout.js";
 
 let pdfjsPromise = null;
 let pretextRuntimePromise = null;
@@ -43,6 +45,8 @@ async function loadPdfjs() {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
+const showLegacyDialog = createLegacyDialog($("#legacy-action-dialog"));
+observeReviewText($("#project-modal"));
 
 const elements = {
   projectPicker: $("#project-picker"),
@@ -288,7 +292,7 @@ function renderProjectDialog(filter = "") {
 }
 
 function openProjectModal(focusSort = false) {
-  elements.projectModal.hidden = false;
+  if (!elements.projectModal.open) elements.projectModal.showModal();
   elements.projectFilter.value = "";
   elements.projectSort.value = state.projectSort;
   renderProjectDialog();
@@ -296,7 +300,7 @@ function openProjectModal(focusSort = false) {
 }
 
 function closeProjectModal() {
-  elements.projectModal.hidden = true;
+  elements.projectModal.close();
 }
 
 async function addProjectFolder() {
@@ -560,8 +564,12 @@ async function discardOpenEntry(entryPath) {
 }
 
 async function renameTreeEntry(node) {
-  const nextName = prompt(`Rename ${node.type === "directory" ? "folder" : "file"}:`, node.name)?.trim();
+  const project = state.currentProject;
+  const tree = state.tree;
+  const path = node.path;
+  const nextName = (await showLegacyDialog(`Rename ${node.type === "directory" ? "folder" : "file"}:`, { value: node.name, action: "Rename" }))?.trim();
   if (!nextName || nextName === node.name) return;
+  if (state.currentProject !== project || state.tree !== tree || node.path !== path) return;
   if ([".", ".."].includes(nextName) || /[\\/\0]/.test(nextName)) throw new Error("Enter a name without slashes");
   const parent = dirnamePath(node.path);
   const newPath = parent ? `${parent}/${nextName}` : nextName;
@@ -585,10 +593,17 @@ async function duplicateTreeEntry(node) {
 }
 
 async function deleteTreeEntry(node) {
+  const project = state.currentProject;
+  const tree = state.tree;
+  const path = node.path;
   const affectedTabs = [...state.tabs.entries()].filter(([path]) => pathIsEntry(path, node.path));
+  const revisions = affectedTabs.map(([, tab]) => tab.revision);
   const dirtyCount = affectedTabs.filter(([, tab]) => tab.dirty).length;
   const warning = dirtyCount ? ` This will also discard unsaved changes in ${dirtyCount} open ${dirtyCount === 1 ? "file" : "files"}.` : "";
-  if (!confirm(`Delete “${node.name}”?${warning}\n\nThis cannot be undone in UnderTree.`)) return;
+  if (!await showLegacyDialog(`Delete “${node.name}”?${warning}\n\nThis cannot be undone in UnderTree.`, { action: "Delete" })) return;
+  if (state.currentProject !== project || state.tree !== tree || node.path !== path
+    || affectedTabs.some(([path, tab], index) => state.tabs.get(path) !== tab || tab.revision !== revisions[index])
+    || [...state.tabs.keys()].filter(path => pathIsEntry(path, node.path)).length !== affectedTabs.length) return;
   for (const [path, tab] of affectedTabs) {
     clearSaveTimer(path);
     if (tab.savePromise) await tab.savePromise.catch(() => {});
@@ -1024,7 +1039,7 @@ async function setHtmlMode(mode) {
   }
 }
 
-function runVisualCommand(command, value) {
+async function runVisualCommand(command, value) {
   const editor = state.visualEditor;
   const element = editor?.element;
   const document = element?.ownerDocument;
@@ -1053,8 +1068,13 @@ function runVisualCommand(command, value) {
   else if (command === "link") {
     const selection = document.getSelection();
     const anchor = selection?.anchorNode?.nodeType === 1 ? selection.anchorNode : selection?.anchorNode?.parentElement;
-    const href = prompt("Link URL", anchor?.closest?.("a")?.getAttribute("href") || "https://");
+    const range = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+    const href = await showLegacyDialog("Link URL", { value: anchor?.closest?.("a")?.getAttribute("href") || "https://", action: "Apply" });
     if (href === null) return;
+    if (state.visualEditor !== editor || !element.isConnected) return;
+    document.defaultView.focus();
+    element.focus();
+    if (range) { selection.removeAllRanges(); selection.addRange(range); }
     if (!href) document.execCommand("unlink"); else document.execCommand("createLink", false, href);
   }
   editor.sync();
@@ -1076,10 +1096,16 @@ async function addVisualBoxlet() {
 }
 
 async function deleteVisualObject() {
+  const project = state.currentProject;
+  const sourcePath = state.activePath;
+  const tab = state.tabs.get(sourcePath);
+  const revision = tab?.revision;
   const element = state.visualSelection;
   if (!element) return toast("Select a boxlet first.", "error");
   const id = element.getAttribute("data-ut-id");
-  if (!confirm(`Delete “${id}”? You can use Undo to restore it.`)) return;
+  if (!await showLegacyDialog(`Delete “${id}”? You can use Undo to restore it.`, { action: "Delete" })) return;
+  if (state.currentProject !== project || state.activePath !== sourcePath || state.tabs.get(sourcePath) !== tab
+    || tab?.revision !== revision || state.visualSelection !== element || !element.isConnected) return;
   try {
     dispatchProfilePatch(removeVisualElement(currentHtmlSource(), id));
     await loadHtmlVisual();
@@ -1270,13 +1296,17 @@ async function refreshOrCompileSelectedTex(path) {
 }
 
 async function closeTab(path) {
+  const project = state.currentProject;
   const tab = state.tabs.get(path);
   if (!tab) return;
   if (tab.dirty) {
     try { await saveFile(tab, { flush: true }); } catch {
-      if (!confirm(`${basenamePath(path)} could not be saved. Close it anyway?`)) return;
+      const revision = tab.revision;
+      if (!await showLegacyDialog(`${basenamePath(path)} could not be saved. Close it anyway?`, { action: "Close anyway" })) return;
+      if (tab.revision !== revision) return;
     }
   }
+  if (state.currentProject !== project || state.tabs.get(path) !== tab) return;
   const paths = [...state.tabs.keys()];
   const index = paths.indexOf(path);
   state.tabs.delete(path);
@@ -1332,7 +1362,7 @@ async function saveFile(tab, { flush = false } = {}) {
     if (tab.path === state.activePath) setSaveState(tab.dirty ? "Unsaved" : "Saved locally", tab.dirty ? "dirty" : "saved");
     renderTabs();
     renderProjectPicker();
-    if (!elements.projectModal.hidden) renderProjectDialog(elements.projectFilter.value);
+    if (elements.projectModal.open) renderProjectDialog(elements.projectFilter.value);
     status(`Saved ${tab.path}`);
     scheduleStatusRefresh();
     return tab;
@@ -1420,11 +1450,17 @@ function firstEditable(nodes, preferred = "") {
 
 async function selectProject(id) {
   if (state.currentProject?.id === id) return;
+  const project = state.currentProject;
+  const path = state.activePath;
+  const tab = state.tabs.get(path);
   try {
     await saveActiveFile();
   } catch {
-    if (!confirm("The active file could not be saved. Switch projects anyway?")) return;
+    const revision = tab?.revision;
+    if (!await showLegacyDialog("The active file could not be saved. Switch projects anyway?", { action: "Switch anyway" })) return;
+    if (tab?.revision !== revision) return;
   }
+  if (state.currentProject !== project || state.activePath !== path || state.tabs.get(path) !== tab) return;
   clearAllSaveTimers();
   clearInterval(state.autoCompileTimer);
   liveCompileScheduler.cancel();
@@ -2243,7 +2279,7 @@ async function compileProject({ clean = false, automatic = false, exportTex = fa
       setSaveState("Saved locally", "saved");
       renderTabs();
       renderProjectPicker();
-      if (!elements.projectModal.hidden) renderProjectDialog(elements.projectFilter.value);
+      if (elements.projectModal.open) renderProjectDialog(elements.projectFilter.value);
       scheduleStatusRefresh();
     }
     elements.compileLog.textContent = result.output || "Compilation finished without output.";
@@ -2452,13 +2488,15 @@ async function runProjectSearch() {
 
 async function createEntry(type, baseDirectory = null) {
   if (!state.currentProject) return;
+  const project = state.currentProject;
   const contextual = typeof baseDirectory === "string";
   const destinationLabel = baseDirectory ? ` in ${baseDirectory}` : " in the project root";
   const label = contextual
     ? `New ${type === "file" ? "file" : "folder"} name${destinationLabel}:`
     : type === "file" ? "New project-relative file path (for example chapters/method.tex):" : "New project-relative folder path:";
-  const input = prompt(label)?.trim();
+  const input = (await showLegacyDialog(label, { value: "", action: "Create" }))?.trim();
   if (!input) return;
+  if (state.currentProject !== project) return;
   const path = contextual && baseDirectory ? `${baseDirectory}/${input}` : input;
   try {
     await api(projectApi("files"), { method: "POST", body: JSON.stringify({ path, type }) });
@@ -2566,7 +2604,11 @@ function bindEvents() {
   $("#add-project-folder-top").addEventListener("click", () => { void addProjectFolder().catch((error) => toast(error.message, "error", 7000)); });
   $("#add-project-folder").addEventListener("click", () => { void addProjectFolder().catch((error) => toast(error.message, "error", 7000)); });
   $("#close-project-modal").addEventListener("click", closeProjectModal);
-  elements.projectModal.addEventListener("click", (event) => { if (event.target === elements.projectModal) closeProjectModal(); });
+  elements.projectModal.addEventListener("click", event => {
+    if (event.target !== elements.projectModal) return;
+    const bounds = elements.projectModal.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) closeProjectModal();
+  });
   elements.projectFilter.addEventListener("input", () => renderProjectDialog(elements.projectFilter.value));
   elements.projectSort.addEventListener("change", () => {
     state.projectSort = normalizeProjectSort(elements.projectSort.value);
@@ -2682,6 +2724,7 @@ function bindEvents() {
   setupResizer($("#right-resizer"), "right");
   setupOutlineResizer($("#outline-resizer"));
   window.addEventListener("keydown", (event) => {
+    if ($("dialog[open]")) return;
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       saveActiveFile();
@@ -2695,7 +2738,6 @@ function bindEvents() {
       openProjectModal();
     }
     if (event.key === "Escape" && !elements.fileContextMenu.hidden) closeTreeContextMenu(true);
-    else if (event.key === "Escape" && !elements.projectModal.hidden) closeProjectModal();
   });
   window.addEventListener("resize", () => closeTreeContextMenu());
   window.addEventListener("beforeunload", (event) => {

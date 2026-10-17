@@ -100,7 +100,7 @@ try {
   assert.equal(await readFile(join(fixture, 'child-activation'), 'utf8'), 'fixture-activation', 'The imported child reads the dedicated synthetic activation metadata.');
   const target = await readFile(targetFile, 'utf8'); endpoint = target + importedPath;
   await rpc('initialize', initialize);
-  const reviewTools = ['list_manuscripts', 'read_manuscript', 'suggest_text'];
+  const reviewTools = ['list_manuscripts', 'read_manuscript', 'suggest_text', 'highlight_text'];
   assert.deepEqual(await names(), reviewTools);
   assert.equal((await tool('list_manuscripts')).isError, false);
   assert.equal((await local({ action: 'connection' })).config.publicUrl, publicUrl);

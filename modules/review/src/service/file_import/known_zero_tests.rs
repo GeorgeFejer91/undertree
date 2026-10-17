@@ -28,6 +28,8 @@ async fn prepared() -> (
             project: project.clone(),
             path: "main.typ".into(),
             enabled: true,
+            context_shared: true,
+            expected_context_scope: service.test_context_scope(&project, "main.typ"),
         })
         .unwrap()["documentId"]
         .as_str()
@@ -162,6 +164,8 @@ async fn explicitly_recorded_zero_import_rotates_after_ephemeral_share_is_revoke
             project: project.clone(),
             path: "main.typ".into(),
             enabled: false,
+            context_shared: false,
+            expected_context_scope: None,
         })
         .unwrap();
     {

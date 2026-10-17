@@ -432,6 +432,15 @@ fn unanchored_initialization_preserves_corrupt_schema_unknown_and_incomplete_evi
         assert_unanchored_refuses(&fixture.state);
         fs::remove_file(&path).unwrap();
     }
+    // Missing-directory recovery represents a restart after the retained store is closed.
+    #[cfg(windows)]
+    {
+        let before = disk(&fixture.state);
+        let error = fs::remove_dir(fixture.state.join("history-v1/blobs")).unwrap_err();
+        assert!(matches!(error.raw_os_error(), Some(5) | Some(32)));
+        assert_eq!(disk(&fixture.state), before);
+    }
+    drop(fixture.store);
     fs::remove_dir(fixture.state.join("history-v1/blobs")).unwrap();
     assert_unanchored_refuses(&fixture.state);
     fs::remove_file(&catalog_path).unwrap();
@@ -1875,6 +1884,25 @@ fn unknown_private_files_and_missing_committed_files_are_preserved_without_reset
         let fixture = Fixture::new();
         let path = fixture.state.join(relative);
         if path.is_dir() {
+            #[cfg(windows)]
+            {
+                let before = disk(&fixture.state);
+                let error = fs::remove_dir(&path).unwrap_err();
+                assert!(matches!(error.raw_os_error(), Some(5) | Some(32)));
+                assert_eq!(disk(&fixture.state), before);
+                drop(fixture.store);
+                fs::remove_dir(&path).unwrap();
+                let before = disk(&fixture.state);
+                let capability =
+                    Dir::open_ambient_dir(&fixture.state, cap_std::ambient_authority()).unwrap();
+                assert_error(
+                    HistoryStore::open(capability, Some(fixture.store_id)),
+                    "history_unavailable",
+                );
+                assert_eq!(disk(&fixture.state), before);
+                continue;
+            }
+            #[cfg(not(windows))]
             fs::remove_dir(path).unwrap();
         } else {
             fs::remove_file(path).unwrap();
@@ -1892,18 +1920,52 @@ fn unknown_private_files_and_missing_committed_files_are_preserved_without_reset
     fs::remove_file(fixture.blob(&reference)).unwrap();
     assert_unavailable_preserves(&fixture);
     let fixture = Fixture::new();
-    fs::rename(
-        fixture.state.join("history-v1"),
-        fixture.temporary.path().join("displaced-history"),
-    )
-    .unwrap();
-    assert_unavailable_preserves(&fixture);
-    assert!(fixture
-        .temporary
-        .path()
-        .join("displaced-history/catalog.json")
-        .is_file());
-    assert!(!fixture.state.join("history-v1").exists());
+    #[cfg(windows)]
+    {
+        let before = disk(&fixture.state);
+        let error = fs::rename(
+            fixture.state.join("history-v1"),
+            fixture.temporary.path().join("displaced-history"),
+        )
+        .unwrap_err();
+        assert!(matches!(error.raw_os_error(), Some(5) | Some(32)));
+        assert_eq!(disk(&fixture.state), before);
+        drop(fixture.store);
+        fs::rename(
+            fixture.state.join("history-v1"),
+            fixture.temporary.path().join("displaced-history"),
+        )
+        .unwrap();
+        let before = disk(&fixture.state);
+        let capability =
+            Dir::open_ambient_dir(&fixture.state, cap_std::ambient_authority()).unwrap();
+        assert_error(
+            HistoryStore::open(capability, Some(fixture.store_id)),
+            "history_unavailable",
+        );
+        assert_eq!(disk(&fixture.state), before);
+        assert!(fixture
+            .temporary
+            .path()
+            .join("displaced-history/catalog.json")
+            .is_file());
+        assert!(!fixture.state.join("history-v1").exists());
+    }
+    #[cfg(not(windows))]
+    {
+        fs::rename(
+            fixture.state.join("history-v1"),
+            fixture.temporary.path().join("displaced-history"),
+        )
+        .unwrap();
+        assert_unavailable_preserves(&fixture);
+        assert!(fixture
+            .temporary
+            .path()
+            .join("displaced-history/catalog.json")
+            .is_file());
+        assert!(!fixture.state.join("history-v1").exists());
+    }
 }
 
 #[test]
@@ -3556,99 +3618,127 @@ fn atomic_source_replacement_keeps_its_slot_but_parent_replacement_never_adopts_
         &reference
     );
     let source_directory = fixture.temporary.path().join("sources");
-    fs::rename(
-        &source_directory,
-        fixture.temporary.path().join("displaced-sources"),
-    )
-    .unwrap();
-    fs::create_dir(&source_directory).unwrap();
-    fs::write(
-        source_directory.join("main.typ"),
-        b"different parent source",
-    )
-    .unwrap();
-    let new_parent =
-        Dir::open_ambient_dir(&source_directory, cap_std::ambient_authority()).unwrap();
-    let new_slot = SourceSlot::from_held_parent(&new_parent, "main.typ").unwrap();
-    assert_ne!(new_slot, fixture.slot);
-    let pending = fixture
-        .store
-        .producer_reservation(&fixture.binding, &new_slot)
-        .unwrap()
+    #[cfg(windows)]
+    {
+        let before = disk(&fixture.state);
+        let error = fs::rename(
+            &source_directory,
+            fixture.temporary.path().join("displaced-sources"),
+        )
+        .unwrap_err();
+        assert!(matches!(error.raw_os_error(), Some(5) | Some(32)));
+        assert_eq!(
+            fixture.source_parent.read("main.typ").unwrap(),
+            b"atomically replaced source"
+        );
+        assert!(!fixture.temporary.path().join("displaced-sources").exists());
+        assert_eq!(
+            SourceSlot::from_held_parent(&fixture.source_parent, "main.typ").unwrap(),
+            fixture.slot
+        );
+        let competing = fixture.capture("old", "competing");
+        assert_error(
+            fixture.store.prepare(&competing, &journal(&competing)),
+            "history_pending",
+        );
+        assert_eq!(disk(&fixture.state), before);
+    }
+    #[cfg(not(windows))]
+    {
+        fs::rename(
+            &source_directory,
+            fixture.temporary.path().join("displaced-sources"),
+        )
         .unwrap();
-    assert_eq!(
-        pending.reference(),
-        &reference,
-        "the exact binding still fences a replaced parent"
-    );
-    let before = disk(&fixture.state);
-    assert_error(
-        fixture
+        fs::create_dir(&source_directory).unwrap();
+        fs::write(
+            source_directory.join("main.typ"),
+            b"different parent source",
+        )
+        .unwrap();
+        let new_parent =
+            Dir::open_ambient_dir(&source_directory, cap_std::ambient_authority()).unwrap();
+        let new_slot = SourceSlot::from_held_parent(&new_parent, "main.typ").unwrap();
+        assert_ne!(new_slot, fixture.slot);
+        let pending = fixture
             .store
-            .arm_source_effects(&pending, &fixture.binding, &new_slot, &journal_bytes),
-        "history_unavailable",
-    );
-    assert_error(
-        fixture
-            .store
-            .abort_unapplied(&pending, &fixture.binding, &new_slot),
-        "history_unavailable",
-    );
-    assert_error(
-        fixture
-            .store
-            .validate_journal(&reference, &fixture.binding, &new_slot, &journal_bytes),
-        "history_unavailable",
-    );
-    assert_error(
-        fixture.store.finalize(
+            .producer_reservation(&fixture.binding, &new_slot)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            pending.reference(),
             &reference,
-            &applied(&fixture.binding, &new_slot, "saved", &hash(OWNERSHIP)),
-            &journal_bytes,
-            false,
-        ),
-        "history_unavailable",
-    );
-    let competing = fixture
-        .store
-        .capture(capture(&fixture.binding, &new_slot, "old"), "competing")
-        .unwrap();
-    assert_error(
-        fixture.store.prepare(&competing, &journal(&competing)),
-        "history_pending",
-    );
-    assert_eq!(disk(&fixture.state), before);
-    let metadata = new_parent.dir_metadata().unwrap();
-    let unrelated = SourceBinding {
-        project_id: Uuid::new_v4().to_string(),
-        root: RootObservation {
-            dev: metadata.dev(),
-            ino: metadata.ino(),
-        },
-        path: "main.typ".into(),
-        source_epoch: 0,
-    };
-    let independent = fixture
-        .store
-        .capture(capture(&unrelated, &new_slot, "old"), "independent")
-        .unwrap();
-    fixture
-        .store
-        .prepare(&independent, &journal(&independent))
-        .unwrap();
-    let before = disk(&fixture.state);
-    assert_error(
+            "the exact binding still fences a replaced parent"
+        );
+        let before = disk(&fixture.state);
+        assert_error(
+            fixture
+                .store
+                .arm_source_effects(&pending, &fixture.binding, &new_slot, &journal_bytes),
+            "history_unavailable",
+        );
+        assert_error(
+            fixture
+                .store
+                .abort_unapplied(&pending, &fixture.binding, &new_slot),
+            "history_unavailable",
+        );
+        assert_error(
+            fixture
+                .store
+                .validate_journal(&reference, &fixture.binding, &new_slot, &journal_bytes),
+            "history_unavailable",
+        );
+        assert_error(
+            fixture.store.finalize(
+                &reference,
+                &applied(&fixture.binding, &new_slot, "saved", &hash(OWNERSHIP)),
+                &journal_bytes,
+                false,
+            ),
+            "history_unavailable",
+        );
+        let competing = fixture
+            .store
+            .capture(capture(&fixture.binding, &new_slot, "old"), "competing")
+            .unwrap();
+        assert_error(
+            fixture.store.prepare(&competing, &journal(&competing)),
+            "history_pending",
+        );
+        assert_eq!(disk(&fixture.state), before);
+        let metadata = new_parent.dir_metadata().unwrap();
+        let unrelated = SourceBinding {
+            project_id: Uuid::new_v4().to_string(),
+            root: RootObservation {
+                dev: metadata.dev(),
+                ino: metadata.ino(),
+            },
+            path: "main.typ".into(),
+            source_epoch: 0,
+        };
+        let independent = fixture
+            .store
+            .capture(capture(&unrelated, &new_slot, "old"), "independent")
+            .unwrap();
         fixture
             .store
-            .producer_reservation(&fixture.binding, &new_slot),
-        "history_unavailable",
-    );
-    assert_eq!(fixture.store.producer_reservations().unwrap().len(), 2);
-    assert_eq!(
-        disk(&fixture.state),
-        before,
-        "two different hits are ambiguous rather than an alias adoption"
-    );
+            .prepare(&independent, &journal(&independent))
+            .unwrap();
+        let before = disk(&fixture.state);
+        assert_error(
+            fixture
+                .store
+                .producer_reservation(&fixture.binding, &new_slot),
+            "history_unavailable",
+        );
+        assert_eq!(fixture.store.producer_reservations().unwrap().len(), 2);
+        assert_eq!(
+            disk(&fixture.state),
+            before,
+            "two different hits are ambiguous rather than an alias adoption"
+        );
+    }
 }
 
 #[test]
@@ -3903,6 +3993,7 @@ fn source_slot_and_capture_share_exact_source_path_byte_and_character_boundaries
     let max_path = format!("{}/{}", directories.join("/"), leaf);
     assert_eq!(max_path.len(), 4073);
     let valid = vec![
+        #[cfg(not(windows))]
         "draft:notes.typ".into(),
         "écriture/🧪.typ".into(),
         leaf.clone(),
@@ -3925,6 +4016,8 @@ fn source_slot_and_capture_share_exact_source_path_byte_and_character_boundaries
             .unwrap();
     }
     let mut invalid = vec![
+        #[cfg(windows)]
+        "draft:notes.typ".into(),
         format!("a{leaf}"),
         format!("a{unicode_leaf}"),
         format!("{}/main.typ", "d".repeat(256)),

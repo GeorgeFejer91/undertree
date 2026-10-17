@@ -64,8 +64,8 @@ export function unwrapNativeCompile(value, operation) {
   }
   require(!Object.hasOwn(value, 'error'));
   const preview = value.preview;
-  keys(preview, ['available', 'base64', 'revision', 'sourceEpoch', 'expectedRoot', 'current', 'diagnostics', 'dependencyCount', 'dependencyCoverage', 'externalDependencyCount']);
-  require(preview.available === true && typeof preview.current === 'boolean'); text(preview.base64); text(preview.diagnostics); hash(preview.revision); integer(preview.sourceEpoch); integer(preview.dependencyCount); integer(preview.externalDependencyCount);
+  keys(preview, ['available', 'base64', 'pdfHash', 'revision', 'sourceEpoch', 'expectedRoot', 'current', 'diagnostics', 'dependencyCount', 'dependencyCoverage', 'externalDependencyCount']);
+  require(preview.available === true && typeof preview.current === 'boolean'); text(preview.base64); hash(preview.pdfHash); text(preview.diagnostics); hash(preview.revision); integer(preview.sourceEpoch); integer(preview.dependencyCount); integer(preview.externalDependencyCount);
   require(sourceRootsEqual(preview, provenance) && preview.sourceEpoch === provenance.sourceEpoch && preview.revision === provenance.mainRevision && preview.dependencyCoverage === 'project');
   require(preview.base64.length <= Math.ceil(16 * 1024 * 1024 / 3) * 4 && preview.base64.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(preview.base64));
   require(preview.base64.length / 4 * 3 - (preview.base64.endsWith('==') ? 2 : preview.base64.endsWith('=') ? 1 : 0) <= 16 * 1024 * 1024);

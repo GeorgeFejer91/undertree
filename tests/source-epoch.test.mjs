@@ -6,12 +6,30 @@ import { ReviewSession, sourceEpoch, sourceRoot, sourceRootsEqual, captureSource
 import { EditorSessionBridge } from '../modules/frontend/editor-session-bridge.js';
 import { capturePublicationInputs, publicationPreviewCurrent } from '../modules/frontend/manuscript-workspace.js';
 import { captureControlState, assertControlState, controlPreviewIdentity } from '../modules/frontend/manuscript-control-state.js';
+import { assertContextShareReady } from '../src/context-sharing.js';
 const manuscript = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
 const identity = { sourceEpoch, sourceRoot, sourceRootsEqual, captureSourceBinding, sourceBindingCurrent, assertSourceBinding, assertSourceSnapshot, localNoSaveClose };
 const snap = (epoch = 0, path = 'main.typ', content = 'same bytes') => ({ path, content, sourceEpoch: epoch, sidecarRevision: null, documentId: path, shared: true, review: { revision: content, markers: [], suggestions: [], rules: [] } });
 const make = (epoch = 0, path = 'main.typ', request = async () => snap(epoch, path)) => new ReviewSession(snap(epoch, path), 'project', request);
 const defer = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const turn = () => new Promise(resolve => setImmediate(resolve));
+test('a live invalidation during a held fallback read is drained instead of lost', async () => {
+  const held = defer(); let reads = 0;
+  const original = snap(), incoming = snap(); incoming.review.suggestions = [{ id: 'arrived-during-read', status: 'pending' }];
+  const session = new ReviewSession(original, 'project', async () => { if (++reads === 1) { await held.promise; return original; } return incoming; });
+  const context = { refreshing: false, reviewRefreshQueued: false, windowClosing: false, active: session, view: null,
+    sessions: new Map([['project/main.typ', session]]), keyFor: (project, path) => `${project}/${path}`,
+    renderReview() {}, decorations() {}, queueSync() {}, reviewPanel() {}, status() {}, pdfStatus() {},
+    publicationPath: () => '', innerWidth: 1600, setTimeout,
+  };
+  const start = manuscript.indexOf('async function refreshLiveReview()');
+  const end = manuscript.indexOf('\nreviewChanges = ', start);
+  runInNewContext(manuscript.slice(start, end) + '\nglobalThis.refresh = refreshLiveReview;', context);
+  const first = context.refresh(); await turn();
+  await context.refresh(); held.resolve(); await first; await turn();
+  assert.equal(reads, 2, 'A native invalidation must schedule a new read after an older in-flight response.');
+  assert.equal(session.snapshot.review.suggestions[0]?.id, 'arrived-during-read');
+});
 // A future native-proved rebind is simulated only to test response ownership; no public rebind API is added.
 const rebind = (session, epoch) => { session.sourceEpoch = epoch; session.snapshot = { ...session.snapshot, sourceEpoch: epoch }; };
 
@@ -122,7 +140,7 @@ test('same-object binding changes invalidate App captures and PDF currentness wi
 function compileFixture({ mainOpen = true } = {}) {
   const main = make(2), chapter = make(7, 'chapter.typ'), operations = [], saves = [], nodes = new Map();
   const sessions = new Map([['project:chapter.typ', chapter], ...(mainOpen ? [['project:main.typ', main]] : [])]);
-  const environment = { ...identity, navigationIntent: 0, setCompileLog() {}, inventoryRoot: () => ({}), sessions, active: chapter, view: null, compiling: false, explicitCompiles: [], keyFor: (project, path) => `${project}:${path}`, publicationPath: () => 'main.typ',
+  const environment = { ...identity, navigationIntent: 0, setCompileLog() {}, inventoryRoot: () => ({}), sessions, active: chapter, view: null, compiling: false, smartFileTree: false, loadFiles: async () => {}, explicitCompiles: [], keyFor: (project, path) => `${project}:${path}`, publicationPath: () => 'main.typ',
     $: id => { if (!nodes.has(id)) nodes.set(id, { textContent: '', dataset: { project: 'project' }, querySelectorAll: () => [{ dataset: { path: 'main.typ', sourceEpoch: '2' } }] }); return nodes.get(id); },
     request: async operation => { operations.push(operation); return operation.action === 'compile' ? { available: true, current: true, revision: 'same bytes', sourceEpoch: 2 } : snap(2); },
     saveSession: async session => { saves.push(session.path); return session.flush(); }, projectInputVersions: () => capturePublicationInputs([...sessions.values()], 0), showPdf: async () => {}, publicationCurrent: () => true, status() {}, pdfStatus() {}, pdfBytes: null, renderReview() {}, task: callback => callback, compileScheduler: { request() {}, release() {} },
@@ -151,13 +169,28 @@ test('actual queued or save-all-held main capture refuses retirement without res
   await assert.rejects(work, error => error.code === 'stale_document'); assert.deepEqual(held.operations, []);
 });
 
-test('actual Share-on cannot cross a held save identity change; restrictive Share-off still sends no epoch/save', async () => {
+test('actual context Share cannot cross a held consent identity change; restrictive Share-off sends no epoch/save', async () => {
   const callback = manuscript.match(/\$\('manuscript-share'\)\.onchange = task\((async \(\) => \{[\s\S]*?\n\})\);/)[1];
   const session = make(3), gate = defer(), operations = [];
-  const environment = { ...identity, active: session, sharingSession: null, $: () => ({ checked: true }), saveSession: async () => gate.promise, request: async operation => { operations.push(operation); return { documentId: 'main.typ', shared: false }; }, sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, connections: { refresh: async () => {} }, renderReview() {} };
+  const environment = { ...identity, assertContextShareReady, active: session, view: null, windowClosing: false, sharingSession: null, contextShareIntent: 0, $: () => ({ checked: true }), saveSession: () => { throw Error('Sharing must not save'); }, contextSharing: { confirm: async ({ assertCurrent }) => { assertCurrent(); await gate.promise; assertCurrent(); return { scopeId: 'scope' }; } }, request: async operation => { operations.push(operation); return { documentId: 'main.typ', shared: false }; }, sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, connections: { refresh: async () => {} }, renderReview() {} };
   const handler = runInNewContext(`(${callback})`, environment), enabling = handler(); rebind(session, 4); gate.resolve(); await assert.rejects(enabling, error => error.code === 'stale_document'); assert.deepEqual(operations, []);
   session.identityProblem = { code: 'stale_document' }; environment.$ = () => ({ checked: false }); environment.saveSession = () => { throw Error('No save for revoke'); }; await handler();
   assert.equal(operations.length, 1); assert.equal(Object.hasOwn(operations[0], 'sourceEpoch'), false); assert.equal(session.snapshot.shared, false);
+});
+
+test('revoking while context confirmation is pending cannot resurrect its earlier share intent', async () => {
+  const callback = manuscript.match(/\$\('manuscript-share'\)\.onchange = task\((async \(\) => \{[\s\S]*?\n\})\);/)[1];
+  const session = make(3), gate = defer(), operations = [];
+  const checkbox = { checked: true };
+  const environment = { ...identity, assertContextShareReady, active: session, view: null, windowClosing: false, sharingSession: null, contextShareIntent: 0, $: () => checkbox,
+    contextSharing: { confirm: async ({ assertCurrent }) => { assertCurrent(); await gate.promise; assertCurrent(); return { scopeId: 'scope' }; } },
+    request: async operation => { operations.push(operation); return { shared: false }; }, sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, connections: { refresh: async () => {} }, renderReview() {},
+  };
+  const handler = runInNewContext(`(${callback})`, environment), enabling = handler();
+  checkbox.checked = false; await handler(); gate.resolve();
+  await assert.rejects(enabling, error => error.code === 'context_changed');
+  assert.equal(operations.length, 1); assert.equal(operations[0].action, 'share'); assert.equal(operations[0].enabled, false);
+  assert.equal(session.snapshot.shared, false); assert.equal(session.content, 'same bytes');
 });
 
 test('actual cached tree Open refuses a new occupant and stale project callback without replacing retained history', async () => {
@@ -216,10 +249,11 @@ test('actual share projection cannot apply a new same-path occupant share to a r
 });
 
 test('actual selected passage retains its dialog-time source identity before entering the policy queue', async () => {
-  const session = make(2), selection = { session, binding: captureSourceBinding(session), version: 0, from: 0, to: 4, quote: 'same' };
+  const session = make(2), editor = { compositionStarted: false }, selection = { session, editor, binding: captureSourceBinding(session), version: 0, from: 0, to: 4, quote: 'same', rules: JSON.stringify(session.snapshot.review.rules) };
   rebind(session, 3); let queued = 0; session.mutate = async () => { queued += 1; };
   const callback = manuscript.match(/\$\('highlight-form'\)\.onsubmit = task\((async event => \{[\s\S]*?\n\})\);/)[1];
-  const submit = runInNewContext(`(${callback})`, { ...identity, selection, active: session });
+  const guard = manuscript.slice(manuscript.indexOf('function assertColorSelection('), manuscript.indexOf('async function applyColorSelection('));
+  const submit = runInNewContext(`${guard}\n(${callback})`, { ...identity, selection, active: session, view: editor, windowClosing: false });
   await assert.rejects(submit({ preventDefault() {} }), error => error.code === 'stale_document'); assert.equal(queued, 0);
 });
 
@@ -288,7 +322,7 @@ test('newly observed PDF of another main epoch cannot parse, paint or become an 
 test('restrictive revoke confirms false without adopting a new occupant document ID', async () => {
   const callback = manuscript.match(/\$\('manuscript-share'\)\.onchange = task\((async \(\) => \{[\s\S]*?\n\})\);/)[1];
   const session = make(2); session.identityProblem = { code: 'stale_document', message: 'Retired.' }; const id = session.snapshot.documentId;
-  const revoke = runInNewContext(`(${callback})`, { ...identity, active: session, sharingSession: null, $: () => ({ checked: false }), request: async () => ({ documentId: 'new-epoch-specific-id', shared: false }), sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, connections: { refresh: async () => {} }, renderReview() {}, saveSession() { throw Error('No Save'); } });
+  const revoke = runInNewContext(`(${callback})`, { ...identity, active: session, sharingSession: null, contextShareIntent: 0, $: () => ({ checked: false }), request: async () => ({ documentId: 'new-epoch-specific-id', shared: false }), sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, connections: { refresh: async () => {} }, renderReview() {}, saveSession() { throw Error('No Save'); } });
   await revoke(); assert.equal(session.snapshot.shared, false); assert.equal(session.snapshot.documentId, id); assert.equal(session.sourceEpoch, 2); assert.ok(session.identityProblem);
 });
 

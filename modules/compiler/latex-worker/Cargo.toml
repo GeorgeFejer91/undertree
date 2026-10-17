@@ -1,0 +1,18 @@
+[package]
+name = "undertree-latex"
+version.workspace = true
+edition.workspace = true
+publish = false
+license = "GPL-2.0-or-later"
+repository.workspace = true
+
+[dependencies]
+tectonic = { path = "../vendor/tectonic", default-features = false }
+tectonic_io_base = "=0.6.0"
+tectonic_bundles = { version = "=0.4.2", default-features = false }
+tectonic_status_base = "=0.2.2"
+tectonic_errors = "=0.3.0"
+serde_json = "1"
+cap-std = "=4.0.3"
+cap-fs-ext = "=4.0.3"
+tempfile = "3"

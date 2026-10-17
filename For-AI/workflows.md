@@ -1,6 +1,59 @@
 # Codex workflows
 
+## wrAIter branding delivery
+
+For Word/Writer application icons, native windows, repository presentation or
+download/install materials, follow [the branding protocol](PROTOCOLS/branding.md).
+Reuse the approved master and existing native owners; apply Uncodixfy without
+redesigning functional controls. Qualify both packages and their windows
+independently, and distinguish source, local builds, live installation and public
+release evidence.
+
+## AI highlighting and protected-passage delivery
+
+The [active implementation goal](product-goal.md#active-implementation-goal-ai-highlighting-and-protected-rearrangement)
+requires all three hosts: UnderTree, LibreOffice Writer and Microsoft Word.
+Read the [canonical connection contract](PROTOCOLS/connections.md#ai-highlighting-and-immutable-protected-passages)
+before changing policy, UI or tool discovery. Its narrow color-only Review
+extension supersedes older fixed-three-tool wording; native preservation of
+whole protected units supersedes blanket overlap rejection only when proven.
+
+Implement in this order: extend the existing shared runtime contract and denial
+cases; add native neutral marking and explicit MCP catalogue/dispatch schemas;
+add local toolbar/in-text rule gestures; implement protected-unit reconstruction
+and reanchoring; run equivalent host cases and qualify each installed package.
+Use the existing ChatDev loop with disjoint authority/UI/QA scopes for delivery.
+Review normal and imported connectors plus frozen pairing aliases explicitly;
+never export a local dispatcher. Keep color-function assignment user-only.
+Earlier installers, mocks or a passing single host do not complete this goal.
+The connection contract owns the acceptance matrix and current qualification
+limit; record new observed results in the existing verification/evidence owners.
+
+## Native Microsoft Word delivery
+
+The user requested implementation, one Windows installer, public release when
+ready, installation on this PC and an actual Word demonstration. Work is owned
+by `modules/word/`. Preserve the existing UnderTree/Writer work and private state.
+Use the shared selective-editor contract and native Word layout/text measurement;
+this COM/.NET host does not require Tauri or an HTML/Pretext rendering claim.
+
+Build with `modules/word/build.ps1`; verify policy, the real loopback endpoint,
+owned child cleanup and native UI independently. Run
+`modules/word/test-com-contract.ps1` against the exact built DLL, including its
+dispatch-only mutation regression. `modules/word/tests/test-installed.ps1`
+requires normally opened, activated desktop Word and exercises a synthetic DOCX.
+Check suggestion/direct/denied/revoked, explicit save/reopen, unchanged surrounding
+text and no implicit save before release. Keep authentication user-owned; an
+Office activation screen is a real host-qualification blocker, not a passed gate.
+Publish/install the exact source-bound installer only after these gates pass.
+
 ## ChatDev 2.0 delivery orchestration
+
+The user's 2026-10-17 coordination direction is to continue development in one
+primary chat for this checkout. Do not run independent chats that edit the same
+working tree concurrently. Scoped internal delegation remains available to that
+one orchestrator. Push a source checkpoint and record qualification limits in
+the existing session and verification documents before handing work over.
 
 The user explicitly requested an active delivery goal and continuous specialist
 delegation until the final product meets [product-goal.md](product-goal.md).
@@ -55,7 +108,24 @@ For artifact/runtime investigations and behavior reconstruction, follow [the Und
 
 ## Changing the Rust/Tauri manuscript workspace
 
-1. Read the installed Ponytail and Tauri Rust skills; use the HTML/Pretext route for touched text-bearing UI, including its accordion stretch reference. Follow [overleaf-ui-parity.md](overleaf-ui-parity.md) and [ui-layout.md](ui-layout.md). Read REA when artifact/runtime evidence is needed; ordinary public-source analysis uses repository tools.
+The 2026-10-17 marked-edit exception in [the connection contract](PROTOCOLS/connections.md)
+supersedes this section's older blanket suggestion-only wording. Review's closed
+catalogue includes the new required color-only extension above; wording changes
+may apply only locally authorized, fully marked direct prompt edits;
+App controls and generic file/policy changes retain their existing exclusions.
+Writer extension work stays under `modules/libreoffice/`, uses native UNO
+authority/measurement, and requires actual installed-extension, ODT reopen,
+authorized full-document context, highlighted-only changes,
+approval/direct/denied/revoked and gateway checks. Apply the
+[three-deliverable parity contract](product-goal.md#three-deliverables-one-selective-ai-editing-contract)
+to every assignment touching selective editing. Run equivalent functional and
+permission scenarios against all three hosts, compare the actual controls/options
+and interaction flow, and qualify each separately installable package. Keep
+target-specific gaps explicit; one host's passing gate cannot stand in for the
+others. Propagate contract changes to active workers before they resume related
+implementation or declare completion.
+
+1. Read the nested [Ponytail](skills/ponytail/SKILL.md) and [Tauri Rust Developer](skills/tauri-rust-developer/SKILL.md) skills, adding the integrated/remote routes only as directed by [skills.md](skills.md). Use the HTML/Pretext route for touched text-bearing UI, including its accordion stretch reference. Follow [overleaf-ui-parity.md](overleaf-ui-parity.md) and [ui-layout.md](ui-layout.md). Read REA when artifact/runtime evidence is needed; ordinary public-source analysis uses repository tools.
 2. Put domain validation, persistence, compilation/import and synchronization in `modules/review/`. Keep `native/tauri/` as a least-privilege adapter; keep save/review coordination in `modules/frontend/` and DOM changes in `src/manuscript.*`.
 3. Check every local caller when changing `Operation`. Review remains a separate fixed catalogue and must never inherit a newly added local operation. Follow [the App control plan](PLANNER/CHATGPT-FULL-CONTROL.md): remote source/tree/policy mutation and implicit autosave are forbidden, and local CLI saves stay local.
 4. Preserve proposal-only Review behavior, policy precedence, UTF-16 ranges, revision/quote checks, stale markers, escaped local acceptance and interrupted-save recovery. App controls use separate authority and explicit no-save UI guards. Test denied/stale/dirty/IME paths alongside success; a tool name is not proof of applied UI state or complete coverage.
@@ -88,6 +158,19 @@ For artifact/runtime investigations and behavior reconstruction, follow [the Und
 2. Keep platform command wrappers in `scripts/` or `native/`.
 3. Run `npm run verify:architecture` before building a release.
 4. Inspect the unpacked package and installer size; do not assume dependency declarations equal shipped contents.
+
+### Local delivery on George's PC
+
+George explicitly requested on 2026-10-17 that completed UnderTree changes
+always reach the installed app running on his PC. After proportionate checks,
+build the current Windows installer, close UnderTree through its normal
+buffer-preserving close path, install the exact verified artifact, and relaunch
+the installed executable. Verify installed binary identities and the requested
+visible behavior; a source change or development build alone is not delivery.
+Preserve manuscripts, settings and connection configuration. If a close/save
+conflict or an installation failure prevents delivery, report the blocker rather
+than force termination or claim the running app is updated. This authorizes
+local UnderTree updates, not publication, signing or unrelated installations.
 
 ## Required handoff
 

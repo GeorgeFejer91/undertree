@@ -1,6 +1,12 @@
 # ChatGPT app control implementation plan
 
-Latest user correction, 2026-10-15 in the Connections chat: control the app via MCP, but **“full editing of files should not be possible.”** This supersedes the 2026-10-14 proposal to expose direct authoring, source/tree mutation, review decisions and policy changes remotely. The historical filename is retained so existing links keep working; it does not authorize the withdrawn content-mutation tools. The final product stack is Rust, Tauri v2, HTML/CSS and Typst.
+The later [AI highlighting and protected-passage requirement](../PROTOCOLS/connections.md#ai-highlighting-and-immutable-protected-passages)
+adds one color-only Review action across UnderTree, Writer and Word. It does not
+expand App controls or permit remote rule assignment. Earlier three-tool and
+blanket suggestion-only wording below describes the preceding boundary; use
+the current connection contract for Review behavior and qualification status.
+
+User direction on 2026-10-17 adds a narrow Review exception: current locally configured prompt markers may authorize direct wording edits through `suggest_text`; suggestions remain the default. See [the connection contract](../PROTOCOLS/connections.md). This does not broaden this non-content App control plan. The earlier 2026-10-15 correction prohibited full file editing and superseded the 2026-10-14 general-authoring proposal. The historical filename does not authorize withdrawn generic mutation tools. The final product stack is Rust, Tauri v2, HTML/CSS and Typst, with a separately installable native UNO Writer extension.
 
 The intended experience is to connect ChatGPT, explicitly enable session-only App controls, then inspect the approved workspace, navigate safe views, adjust bounded presentation settings, build saved snapshots, inspect/export artifacts and invoke guarded native window actions. Review remains a separate suggestion-only capability. Local UI and local CLI editing are not remote permissions.
 
@@ -57,7 +63,7 @@ The local-only editor-save foundation uses a distinct service-enforced `LocalCli
 
 ## Transport and authentication
 
-Keep zrok2 supervision and the dedicated MCP listener. Preserve `/mcp/<secret>` as the existing three-tool Review capability. App controls need their own opt-in authenticated capability and revocation generation; never expose the private CLI/editor API, reuse a Review secret or derive authority from MCP session IDs, client names or forwarded headers. Shares/grants are session-only and stop/restart invalidates them. The configured public HTTPS origin must be exact and validated.
+Keep zrok2 supervision and the dedicated MCP listener. Preserve `/mcp/<secret>` as the closed Review capability, including its narrowly scoped color-only `highlight_text` extension. App controls need their own opt-in authenticated capability and revocation generation; never expose the private CLI/editor API, reuse a Review secret or derive authority from MCP session IDs, client names or forwarded headers. Shares/grants are session-only and stop/restart invalidates them. The configured public HTTPS origin must be exact and validated.
 
 Use supported Streamable HTTP negotiation and truthful tool schemas/annotations. Validate MCP Origins, bound messages/queues/results and keep capability URLs and tokens out of logs, commits and diagnostics. Connection-process status is not proof of public reachability or client identity. Actual ChatGPT/zrok qualification remains mandatory.
 

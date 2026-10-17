@@ -5,6 +5,7 @@ release/
 .tex-build/
 coverage/
 artifacts/
+.codex-remote-attachments/
 __pycache__/
 *.pyc
 *.log

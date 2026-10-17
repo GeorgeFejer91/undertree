@@ -257,6 +257,8 @@ operations! {
         path: String,
         revision: String,
         rules: Vec<document::Rule>,
+        #[serde(rename = "expectedRules", default)]
+        expected_rules: Option<Vec<document::Rule>>,
     } => ("palette", "review_policy", true),
     Mark {
         project: String,
@@ -276,6 +278,32 @@ operations! {
         to: usize,
         quote: String,
     } => ("reanchor", "review_policy", true),
+    PdfMark {
+        project: String,
+        path: String,
+        revision: String,
+        identity: String,
+        #[serde(rename = "pdfPath")]
+        pdf_path: String,
+        segments: Vec<document::PdfSegment>,
+        rule: String,
+        prompt: String,
+        #[serde(rename = "sourceFrom", default)]
+        source_from: Option<usize>,
+        #[serde(rename = "sourceTo", default)]
+        source_to: Option<usize>,
+    } => ("pdf_mark", "review_policy", true),
+    PdfAnnotations {
+        project: String,
+        path: String,
+        identity: String,
+    } => ("pdf_annotations", "review_policy", false),
+    PdfUnmark {
+        project: String,
+        path: String,
+        revision: String,
+        id: String,
+    } => ("pdf_unmark", "review_policy", true),
     Unmark {
         project: String,
         path: String,
@@ -293,7 +321,15 @@ operations! {
         project: String,
         path: String,
         enabled: bool,
+        #[serde(default, rename = "contextShared")]
+        context_shared: bool,
+        #[serde(default, rename = "expectedContextScope")]
+        expected_context_scope: Option<String>,
     } => ("share", "connection", true),
+    ContextPreview {
+        project: String,
+        path: String,
+    } => ("context_preview", "review_context", false),
     Tunnel {
         enabled: bool,
         reservation: String,
@@ -335,10 +371,14 @@ impl Operation {
             | Self::Save { project, path, .. }
             | Self::Palette { project, path, .. }
             | Self::Mark { project, path, .. }
+            | Self::PdfMark { project, path, .. }
+            | Self::PdfUnmark { project, path, .. }
+            | Self::PdfAnnotations { project, path, .. }
             | Self::Unmark { project, path, .. }
             | Self::Reanchor { project, path, .. }
             | Self::Decide { project, path, .. }
             | Self::Share { project, path, .. }
+            | Self::ContextPreview { project, path, .. }
             | Self::Compile { project, path, .. }
             | Self::Pdf { project, path }
             | Self::ImportTex { project, path, .. } => Some((project, path)),
@@ -351,7 +391,10 @@ impl Operation {
         self.source_target().is_some()
             && !matches!(
                 self,
-                Self::Review { .. } | Self::Pdf { .. } | Self::Share { enabled: false, .. }
+                Self::Review { .. }
+                    | Self::Pdf { .. }
+                    | Self::PdfAnnotations { .. }
+                    | Self::Share { enabled: false, .. }
             )
     }
 }
@@ -359,6 +402,13 @@ impl Operation {
 #[cfg(test)]
 mod source_request_tests {
     use super::*;
+
+    #[test]
+    fn share_context_consent_uses_the_actual_camel_case_local_wire_contract() {
+        let request: SourceRequest = serde_json::from_str(r#"{"action":"share","project":"p","path":"main.typ","enabled":true,"contextShared":true,"expectedContextScope":"reviewed-scope","sourceEpoch":0}"#).unwrap();
+        assert!(matches!(&request.operation, Operation::Share { context_shared: true, expected_context_scope: Some(scope), .. } if scope == "reviewed-scope"));
+        assert!(serde_json::from_str::<SourceRequest>(r#"{"action":"share","project":"p","path":"main.typ","enabled":true,"context_shared":true,"expected_context_scope":"reviewed-scope"}"#).is_err());
+    }
 
     #[test]
     fn source_request_keeps_legacy_zero_and_accepts_exact_bounded_epochs() {

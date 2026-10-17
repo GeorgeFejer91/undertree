@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<description xmlns="http://openoffice.org/extensions/description/2006" xmlns:lo="http://libreoffice.org/extensions/description/2011" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <identifier value="org.undertree.WriterReview"/>
+  <version value="0.4.1"/>
+  <display-name><name lang="en">wrAIter</name></display-name>
+  <publisher><name xlink:href="https://github.com/GeorgeFejer91/undertree" lang="en">wrAIter</name></publisher>
+  <icon><default xlink:href="icon64.png"/></icon>
+  <extension-description><src xlink:href="description.txt" lang="en"/></extension-description>
+  <dependencies><lo:LibreOffice-minimal-version value="7.6"/></dependencies>
+</description>

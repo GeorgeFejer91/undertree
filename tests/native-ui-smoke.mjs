@@ -154,7 +154,7 @@ async function chromeGeometry() {
         if (control.scrollWidth > control.clientWidth + 1 || control.scrollHeight > control.clientHeight + 1) failures.push({control:control.id || control.textContent,reason:'control content overflow'});
       }
     }
-    const icons = ['window-minimize','window-close'].map(id => {
+    const icons = ['window-minimize','window-maximize','window-close'].map(id => {
       const button = document.getElementById(id), path = button.querySelector('path'), box = rect(button), ink = path.getBBox(), point = path.ownerSVGElement.createSVGPoint();
       point.x = ink.x + ink.width/2; point.y = ink.y + ink.height/2;
       const center = point.matrixTransform(path.getScreenCTM());
@@ -379,6 +379,13 @@ try {
   checks.push('Native 320 px reflow, 200% text, short-height finite controls and visible frame SVG ink centers pass without page scrolling.');
   await screenshot('native-typst-workspace.png');
   const buffer = await execute('return document.querySelector(".cm-content").textContent');
+  await click('#window-maximize');
+  await waitFor(() => native('xprop', ['-id', nativeWindow, '_NET_WM_STATE']).includes('_NET_WM_STATE_MAXIMIZED_VERT'), 'Custom maximize did not change native window state.');
+  await waitFor(() => execute('return document.getElementById("window-maximize").getAttribute("aria-label") === "Restore window"'), 'Maximize did not update the accessible Restore action.');
+  await click('#window-maximize');
+  await waitFor(() => !native('xprop', ['-id', nativeWindow, '_NET_WM_STATE']).includes('_NET_WM_STATE_MAXIMIZED_VERT'), 'Custom restore left the native window maximized.');
+  assert.equal(await execute('return document.querySelector(".cm-content").textContent'), buffer);
+  checks.push('Custom Maximize/Restore changes native window state and its accessible action without changing the editor buffer.');
   await click('#window-minimize');
   await waitFor(() => native('xprop', ['-id', nativeWindow, 'WM_STATE']).includes('Iconic'), 'Custom minimize did not change native window state.');
   native('wmctrl', ['-ia', nativeWindow]);

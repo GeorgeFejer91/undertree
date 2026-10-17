@@ -808,13 +808,14 @@ impl Service {
                 .into_std()
                 .set_permissions(fs::Permissions::from_mode(0o700))?;
         }
+        let mut output_dir = Some(output_dir);
         let mut outputs: Vec<(String, String, (u64, u64), usize)> = Vec::new();
         let mut created = Vec::new();
         let mut retired = BTreeSet::new();
         let mut directory_retired = false;
-        let check_stage_directory = || -> Result<()> {
+        let check_stage_directory = |directory: &Dir| -> Result<()> {
             self.check_import_location(selection)?;
-            if identity(&output_dir.dir_metadata()?) != output_id
+            if identity(&directory.dir_metadata()?) != output_id
                 || identity(&selection.parent.symlink_metadata(&temporary)?) != output_id
             {
                 return Err(changed());
@@ -822,30 +823,33 @@ impl Service {
             Ok(())
         };
         let result = (|| -> Result<Value> {
+            let stage = output_dir.as_ref().ok_or_else(changed)?;
             for (name, bytes) in payloads {
                 let mut options = OpenOptions::new();
                 options
                     .write(true)
                     .create_new(true)
                     .follow(FollowSymlinks::No);
-                let mut file = output_dir.open_with(&name, &options)?;
+                #[cfg(windows)]
+                options.sync(true);
+                let mut file = stage.open_with(&name, &options)?;
                 let revision = hash(&bytes);
                 let id = identity(&file.metadata()?);
                 outputs.push((name.clone(), revision.clone(), id, bytes.len()));
                 file.write_all(&bytes)?;
                 file.sync_all()?;
-                verify_output(&output_dir, &name, &revision, id, bytes.len(), 1)?;
+                verify_output(stage, &name, &revision, id, bytes.len(), 1)?;
             }
-            output_dir.open(".")?.sync_all()?;
+            source_files::complete_directory_publication(stage)?;
             // Native page retirement and new registrations cannot interleave with publication.
             // This follows editor callbacks' editor -> registry lock order. Bulk copying is done.
             #[cfg(test)]
             if let Some(hook) = lock(&self.import_before_publish)?.take() {
                 hook();
             }
-            check_stage_directory()?;
+            check_stage_directory(stage)?;
             for (name, revision, id, bytes) in &outputs {
-                verify_output(&output_dir, name, revision, *id, *bytes, 1)?;
+                verify_output(stage, name, revision, *id, *bytes, 1)?;
             }
             let editors = lock(&self.editor)?;
             editors.check_import_owner(&selection.owner)?;
@@ -921,14 +925,14 @@ impl Service {
             }
             check_import_aliases(selection, inputs, &registry.projects)?;
             for (name, revision, id, bytes) in &outputs {
-                check_stage_directory()?;
-                verify_output(&output_dir, name, revision, *id, *bytes, 1)?;
-                output_dir.hard_link(name,&selection.parent,name).map_err(|error| {
+                check_stage_directory(stage)?;
+                verify_output(stage, name, revision, *id, *bytes, 1)?;
+                stage.hard_link(name,&selection.parent,name).map_err(|error| {
                     if error.kind() == std::io::ErrorKind::AlreadyExists {Error::new("conflict", "A destination appeared during import. Existing files were preserved.")} else {error.into()}
                 })?;
                 created.push(name.clone());
                 verify_output(&selection.parent, name, revision, *id, *bytes, 2)?;
-                verify_output(&output_dir, name, revision, *id, *bytes, 2)?;
+                verify_output(stage, name, revision, *id, *bytes, 2)?;
             }
             #[cfg(test)]
             {
@@ -937,23 +941,22 @@ impl Service {
                     hook();
                 }
             }
-            #[cfg(unix)]
-            selection.parent.open(".")?.sync_all()?;
+            source_files::complete_directory_publication(&selection.parent)?;
             self.check_import_location(selection)?;
             preflight(selection, inputs, true)?;
             for (name, revision, id, bytes) in &outputs {
-                check_stage_directory()?;
+                check_stage_directory(stage)?;
                 verify_output(&selection.parent, name, revision, *id, *bytes, 2)?;
-                verify_output(&output_dir, name, revision, *id, *bytes, 2)?;
+                verify_output(stage, name, revision, *id, *bytes, 2)?;
                 // Optimistic final check -> unlink; a simultaneous external writer is not a CAS.
-                output_dir.remove_file(name)?;
+                stage.remove_file(name)?;
                 retired.insert(name.clone());
             }
-            output_dir.open(".")?.sync_all()?;
-            check_stage_directory()?;
-            selection.parent.remove_dir(&temporary)?;
+            source_files::complete_directory_publication(stage)?;
+            check_stage_directory(stage)?;
+            output_dir.take().ok_or_else(changed)?.remove_open_dir()?;
             directory_retired = true;
-            selection.parent.open(".")?.sync_all()?;
+            source_files::complete_directory_publication(&selection.parent)?;
             self.check_import_location(selection)?;
             for (name, revision, id, bytes) in &outputs {
                 verify_output(&selection.parent, name, revision, *id, *bytes, 1)?;
@@ -985,37 +988,40 @@ impl Service {
         };
         let mut cleanup_failed = false;
         if !directory_retired {
-            if check_stage_directory().is_err() {
-                cleanup_failed = true;
-            } else {
-                for (name, revision, id, bytes) in &outputs {
-                    if retired.contains(name) {
-                        continue;
-                    }
-                    let links = if created.contains(name) { 2 } else { 1 };
-                    if check_stage_directory().is_err()
-                        || verify_output(&output_dir, name, revision, *id, *bytes, links).is_err()
-                    {
-                        cleanup_failed = true;
-                        continue;
-                    }
-                    // Only the exact observed staging link may retire; unknown replacements stay.
-                    cleanup_failed |= output_dir.remove_file(name).is_err();
-                }
-                cleanup_failed |= output_dir
-                    .open(".")
-                    .and_then(|file| file.sync_all())
-                    .is_err();
-                if check_stage_directory().is_ok() {
-                    cleanup_failed |= selection.parent.remove_dir(&temporary).is_err();
-                    cleanup_failed |= selection
-                        .parent
-                        .open(".")
-                        .and_then(|file| file.sync_all())
-                        .is_err();
-                } else {
+            if let Some(stage) = output_dir.as_ref() {
+                if check_stage_directory(stage).is_err() {
                     cleanup_failed = true;
+                } else {
+                    for (name, revision, id, bytes) in &outputs {
+                        if retired.contains(name) {
+                            continue;
+                        }
+                        let links = if created.contains(name) { 2 } else { 1 };
+                        if check_stage_directory(stage).is_err()
+                            || verify_output(stage, name, revision, *id, *bytes, links).is_err()
+                        {
+                            cleanup_failed = true;
+                            continue;
+                        }
+                        // Only the exact observed staging link may retire; unknown replacements stay.
+                        cleanup_failed |= stage.remove_file(name).is_err();
+                    }
+                    cleanup_failed |= source_files::complete_directory_publication(stage).is_err();
+                    if check_stage_directory(stage).is_ok() {
+                        cleanup_failed |= output_dir
+                            .take()
+                            .ok_or_else(changed)?
+                            .remove_open_dir()
+                            .is_err();
+                        cleanup_failed |=
+                            source_files::complete_directory_publication(&selection.parent)
+                                .is_err();
+                    } else {
+                        cleanup_failed = true;
+                    }
                 }
+            } else {
+                cleanup_failed = true;
             }
         }
         if cleanup_failed {

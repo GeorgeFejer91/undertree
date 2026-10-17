@@ -166,7 +166,7 @@ test('actual Share-off callback sends only restrictive native Share and preserve
   for (const result of ['confirmed', 'failed']) {
     const operations = [], session = new ReviewSession(snapshot('saved'), 'project', async () => { throw Error('No Save'); });
     session.edit('draft'); session.recordReviewProblem(problem()); const blocked = session.reviewProblem;
-    const context = { sourceEpoch, sourceRootsEqual, captureSourceBinding, assertSourceBinding, localNoSaveClose, active: session, sharingSession: null, $: () => ({ checked: false }), sessions: new Map([['project:main.html', session]]), keyFor: (project, path) => `${project}:${path}`,
+    const context = { sourceEpoch, sourceRootsEqual, captureSourceBinding, assertSourceBinding, localNoSaveClose, active: session, sharingSession: null, contextShareIntent: 0, $: () => ({ checked: false }), sessions: new Map([['project:main.html', session]]), keyFor: (project, path) => `${project}:${path}`,
       saveSession: () => { throw Error('Revoke must not save'); }, request: async operation => { operations.push(operation); if (result === 'failed') throw { code: 'busy' }; return { documentId: 'doc', shared: false }; }, connections: { refresh: async () => {} }, renderReview() {} };
     const submit = runInNewContext(`(${callback})`, context);
     if (result === 'failed') await assert.rejects(submit()); else await submit();
@@ -180,7 +180,7 @@ test('actual native-confirmed revoke invalidates a held successful policy retry'
   const gate = deferred(), session = new ReviewSession(snapshot('saved'), 'project', async () => { await gate.promise; return snapshot('saved'); });
   session.recordReviewProblem(problem()); const blocked = session.reviewProblem;
   const checking = session.refresh({ retryProblem: true });
-  const context = { sourceEpoch, sourceRootsEqual, captureSourceBinding, assertSourceBinding, localNoSaveClose, active: session, sharingSession: null, $: () => ({ checked: false }), sessions: new Map([['project:main.html', session]]), keyFor: (project, path) => `${project}:${path}`,
+  const context = { sourceEpoch, sourceRootsEqual, captureSourceBinding, assertSourceBinding, localNoSaveClose, active: session, sharingSession: null, contextShareIntent: 0, $: () => ({ checked: false }), sessions: new Map([['project:main.html', session]]), keyFor: (project, path) => `${project}:${path}`,
     saveSession() { throw Error('Revoke must not save'); }, request: async () => ({ documentId: 'doc', shared: false }), connections: { refresh: async () => {} }, renderReview() {} };
   await runInNewContext(`(${callback})`, context)();
   gate.resolve(); assert.equal(await checking, false);

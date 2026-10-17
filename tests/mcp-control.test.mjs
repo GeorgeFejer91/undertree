@@ -152,7 +152,7 @@ test('uncertain authorization before or after an effect never completes or repla
 test('uncertain Close preparation reports its error without running acknowledged Close', async () => {
   const command = { kind: 'set_window_state', state: 'close' };
   const f = fixture(command);
-  const source = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
+  const source = (await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8')).replaceAll('\r\n', '\n');
   const environment = { pendingRemoteClose: null };
   const onError = runInNewContext(`(${source.match(/  onError: (.*),\n  onRevoked:/)[1]})`, environment);
   let closed = 0;
@@ -255,7 +255,7 @@ test('close lifecycle runs only after acknowledged completion and once after a l
 
 test('an unrelated heartbeat error preserves a prepared Close until its valid acknowledgement', async () => {
   const command = { kind: 'set_window_state', state: 'close' };
-  const source = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
+  const source = (await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8')).replaceAll('\r\n', '\n');
   const environment = { pendingRemoteClose: null };
   const onError = runInNewContext(`(${source.match(/  onError: (.*),\n  onRevoked:/)[1]})`, environment);
   let polls = 0, completions = 0, acknowledge, ready, closed = 0;

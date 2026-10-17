@@ -7,7 +7,7 @@ import { parse } from 'parse5';
 import { setupMenuNavigation } from '../modules/frontend/menu-navigation.js';
 import { ReviewSession } from '../modules/frontend/review-session.js';
 
-const source = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
+const source = (await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8')).replaceAll('\r\n', '\n');
 const html = parse(await readFile(new URL('../manuscript.html', import.meta.url), 'utf8'));
 const commandStart = source.indexOf("for (const button of document.querySelectorAll('[data-command]')) button.onclick = task(async () => {");
 const setupStart = source.indexOf('\n});', commandStart) + '\n});'.length;

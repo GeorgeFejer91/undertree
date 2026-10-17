@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark light" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231b222c'/%3E%3Cpath d='M8 4h11l5 5v19H8z' fill='none' stroke='%2338cc89' stroke-width='2'/%3E%3Cpath d='M12 14h9M16.5 14v9' stroke='%23f4f5f6' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="icon" type="image/svg+xml" href="/assets/undertree.svg" />
     <title>UnderTree</title>
   </head>
   <body>
@@ -12,7 +12,7 @@
       <header class="topbar">
         <div class="brand-and-menu">
           <button class="brand-mark" id="home-button" title="Choose a project" aria-label="Choose a project">
-            <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 3h13l6 6v20H7z"/><path class="fold" d="M20 3v7h6"/><path class="glyph" d="M11 15h11M11 20h8M11 25h6"/></svg>
+            <img src="/assets/undertree.svg" alt="" width="26" height="26" />
           </button>
           <nav class="menubar" aria-label="Application menus">
             <button data-menu="file">File</button>
@@ -226,11 +226,10 @@
 
       <div class="toast-region" id="toast-region" aria-live="polite"></div>
       <div class="file-context-menu" id="file-context-menu" role="menu" aria-label="File tree actions" hidden></div>
-      <div class="modal-backdrop" id="project-modal" hidden>
-        <section class="project-dialog" role="dialog" aria-modal="true" aria-labelledby="project-dialog-title">
-          <div class="dialog-heading"><h2 id="project-dialog-title">Open local TeX project</h2><div><button id="add-project-folder" class="add-project-folder" title="Add a folder from this PC as a project bridge">＋ Add folder</button><button id="close-project-modal">×</button></div></div>
+      <dialog class="project-dialog" id="project-modal" aria-labelledby="project-dialog-title">
+          <div class="dialog-heading"><h2 id="project-dialog-title">Open local TeX project</h2><div><button id="add-project-folder" class="add-project-folder" title="Add a folder from this PC as a project bridge">＋ Add folder</button><button id="close-project-modal" aria-label="Close projects">×</button></div></div>
           <div class="project-dialog-controls">
-            <input id="project-filter" type="search" placeholder="Search local projects by name, topic, or repository" autofocus />
+            <input id="project-filter" type="search" aria-label="Search local projects" placeholder="Search local projects" autofocus />
             <label class="project-sort-control" for="project-sort">
               <span>Sort by</span>
               <select id="project-sort" aria-label="Sort projects">
@@ -243,8 +242,18 @@
             </label>
           </div>
           <div class="project-list" id="project-list"></div>
-        </section>
-      </div>
+      </dialog>
+      <dialog class="legacy-action-dialog" id="legacy-action-dialog" aria-labelledby="legacy-action-title">
+        <form>
+          <header class="dialog-heading"><h2 id="legacy-action-title">UnderTree</h2></header>
+          <div class="legacy-dialog-body">
+            <p data-dialog-message data-measure></p>
+            <label for="legacy-dialog-value" data-measure></label>
+            <input id="legacy-dialog-value" autocomplete="off" />
+          </div>
+          <footer class="legacy-dialog-actions"><button type="button" data-dialog-cancel>Cancel</button><button type="submit" data-dialog-accept>OK</button></footer>
+        </form>
+      </dialog>
     </main>
     <script type="module" src="/src/main.js"></script>
   </body>

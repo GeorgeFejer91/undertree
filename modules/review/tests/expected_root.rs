@@ -54,6 +54,18 @@ impl Fixture {
             .await
             .unwrap()
     }
+    async fn share(&self, root: Value) -> Value {
+        let preview = self
+            .native(json!({"action":"context_preview","path":"main.typ","expectedRoot":root}))
+            .await
+            .unwrap();
+        self.native(
+            json!({"action":"share","path":"main.typ","enabled":true,"expectedRoot":root,
+            "contextShared":true,"expectedContextScope":preview["scopeId"]}),
+        )
+        .await
+        .unwrap()
+    }
     fn registry(&self) -> Vec<u8> {
         fs::read(self._temp.path().join("state/projects.json")).unwrap()
     }
@@ -128,10 +140,7 @@ async fn same_bytes_replacement_refuses_captured_native_effects_and_old_shared_i
     let f = Fixture::new();
     let observed = f.open().await;
     let root = observed["expectedRoot"].clone();
-    let old_share = f
-        .native(json!({"action":"share","path":"main.typ","enabled":true,"expectedRoot":root}))
-        .await
-        .unwrap();
+    let old_share = f.share(root.clone()).await;
     fs::rename(&f.root, f._temp.path().join("old-project")).unwrap();
     fs::create_dir(&f.root).unwrap();
     fs::write(f.root.join("main.typ"), "Original").unwrap();
@@ -162,7 +171,7 @@ async fn same_bytes_replacement_refuses_captured_native_effects_and_old_shared_i
     let new = f.open().await;
     assert_ne!(new["expectedRoot"], root);
     assert_ne!(new["documentId"], observed["documentId"]);
-    let new_share=f.native(json!({"action":"share","path":"main.typ","enabled":true,"expectedRoot":new["expectedRoot"]})).await.unwrap();
+    let new_share = f.share(new["expectedRoot"].clone()).await;
     assert_ne!(new_share["documentId"], old_share["documentId"]);
     assert_eq!(
         f.service

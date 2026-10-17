@@ -120,6 +120,8 @@ async fn active_share_zero_cannot_read_propose_or_execute_old_app_job_after_crea
             project: f.project.clone(),
             path: "main.typ".into(),
             enabled: true,
+            context_shared: true,
+            expected_context_scope: f.service.test_context_scope(&f.project, "main.typ"),
         })
         .await
         .unwrap();
@@ -202,6 +204,8 @@ async fn active_share_zero_cannot_read_propose_or_execute_old_app_job_after_crea
                     project: f.project.clone(),
                     path: "main.typ".into(),
                     enabled: true,
+                    context_shared: true,
+                    expected_context_scope: f.service.test_context_scope(&f.project, "main.typ"),
                 },
                 source_epoch: 1,
                 expected_root: Some(f.root),
@@ -323,6 +327,8 @@ async fn known_zero_create_reserves_before_names_and_keeps_consumed_one_after_la
                 project: f.project.clone(),
                 path: "main.typ".into(),
                 enabled: true,
+                context_shared: true,
+                expected_context_scope: f.service.test_context_scope(&f.project, "main.typ"),
             })
             .await
             .unwrap();
@@ -396,6 +402,8 @@ async fn qualified_legacy_create_retains_editor_guard_and_late_old_registration_
         project: f.project.clone(),
         path: "main.typ".into(),
         enabled: true,
+        context_shared: true,
+        expected_context_scope: f.service.test_context_scope(&f.project, "main.typ"),
     })
     .await
     .unwrap();
@@ -440,6 +448,8 @@ async fn tex_import_rotates_known_zero_target_without_rewriting_input() {
             project: f.project.clone(),
             path: "main.typ".into(),
             enabled: true,
+            context_shared: true,
+            expected_context_scope: f.service.test_context_scope(&f.project, "main.typ"),
         })
         .await
         .unwrap();

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="title desc">
+  <title id="title">Raider — AI writing assistant</title>
+  <desc id="desc">A bow-tied waiter with his arm bent across his waist and an AI-labelled towel draped over his forearm. A small typewriter stands beside him.</desc>
+  <g fill="#203c3b">
+    <circle cx="80" cy="62" r="24"/>
+    <path d="M72 94h16v17H72z"/>
+    <path d="M62 103 80 119l18-16c20 6 32 23 32 46v65H38v-65c0-23 7-39 24-46Z"/>
+  </g>
+  <path d="m62 103 18 10 18-10-18 43Z" fill="#f4f1e9"/>
+  <path d="m70 111 10 5 10-5v13l-10-5-10 5Z" fill="#203c3b"/>
+  <path d="m50 139 11 22h57" fill="none" stroke="#f4f1e9" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M82 153q0-8 8-8h23q8 0 8 8v65q-10 5-19 0t-20 0Z" fill="#9fd6bc" stroke="#203c3b" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M84 157h35m-30 49h25" fill="none" stroke="#203c3b" stroke-width="3" stroke-linecap="round"/>
+  <g fill="none" stroke="#203c3b" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m88 190 6-17 6 17m-10-6h8"/>
+    <path d="M106 173h7m-3.5 0v17m-3.5 0h7"/>
+  </g>
+  <g stroke="#203c3b" stroke-linejoin="round">
+    <path d="M158 103h49v53h-49Z" fill="#f4f1e9" stroke-width="6"/>
+    <path d="M169 117h26m-26 11h19" fill="none" stroke-width="4" stroke-linecap="round"/>
+    <path d="M148 151h69" fill="none" stroke-width="10" stroke-linecap="round"/>
+    <path d="M152 164h60l13 38v11h-86v-11Z" fill="#203c3b" stroke-width="5"/>
+  </g>
+  <path d="M160 178h5m12 0h5m12 0h5m-44 11h5m12 0h5m12 0h5m-36 12h34" fill="none" stroke="#f4f1e9" stroke-width="5" stroke-linecap="round"/>
+</svg>

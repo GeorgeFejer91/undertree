@@ -1,17 +1,22 @@
+import { createTypstObserver } from './typst-observer-fixture.mjs';
+import { markFixturePassage } from './context-fixture.mjs';
+import { readFixtureContext } from './context-fixture.mjs';
+import { confirmContextShareUi } from './context-fixture.mjs';
+import { consentToFixtureShare } from './context-fixture.mjs';
 import assert from 'node:assert/strict';
 import { createZrokFixture } from './zrok-fixture.mjs';
 import { mkdtemp, mkdir, writeFile, readFile, chmod, rm, cp, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join, dirname, basename } from 'node:path';
 import { randomBytes, createHash } from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from 'playwright-core';
 
 const root = await mkdtemp(join(tmpdir(), 'undertree-review-ui-'));
 const selectedAssets = resolve(process.env.UNDERTREE_REVIEW_ASSETS || 'dist');
 const frontendAssets = join(root, 'assets'); await cp(selectedAssets, frontendAssets, {recursive:true});
 const selectedBinary = resolve(process.env.UNDERTREE_REVIEW_BINARY || 'target/debug/undertree-review');
-const reviewBinary = join(root, 'undertree-review'); await cp(selectedBinary, reviewBinary); await chmod(reviewBinary, 0o700);
+const reviewBinary = join(root, `undertree-review${process.platform === 'win32' ? '.exe' : ''}`); await cp(selectedBinary, reviewBinary); await chmod(reviewBinary, 0o700);
 async function snapshotHashes(directory, prefix = '') {
   const hashes = {};
   for (const entry of await readdir(directory, {withFileTypes:true})) {
@@ -46,10 +51,8 @@ const targetFile = join(root,'zrok-target');
 const zrokFixture = await createZrokFixture(root, targetFile, 'review.example.org');
 const token = randomBytes(32).toString('hex');
 const compilerCalls = join(root,'compiler-calls');
-const compiler = join(root,'typst');
-const shellQuote = value => `'${value.replaceAll("'", "'\\''")}'`;
-await writeFile(compiler,`#!/bin/sh\nprintf '1\\n' >> ${shellQuote(compilerCalls)}\nsleep 0.3\nexec ${shellQuote(process.env.UNDERTREE_TYPST || 'typst')} "$@"\n`);await chmod(compiler,0o700);
-const child = spawn(reviewBinary, [], { env: { ...process.env, ...zrokFixture.environment, UNDERTREE_REVIEW_PORT:'0', UNDERTREE_REVIEW_STATE:join(root,'state'), UNDERTREE_REVIEW_ASSETS:frontendAssets, UNDERTREE_REVIEW_TOKEN:token, UNDERTREE_ZROK: zrokFixture.executable, UNDERTREE_TYPST:compiler }, stdio:['ignore','pipe','pipe'] });
+const compilerFixture = await createTypstObserver(root, compilerCalls);
+const child = spawn(reviewBinary, [], { env: { ...process.env, ...zrokFixture.environment, ...compilerFixture.environment, UNDERTREE_REVIEW_PORT:'0', UNDERTREE_REVIEW_STATE:join(root,'state'), UNDERTREE_REVIEW_ASSETS:frontendAssets, UNDERTREE_REVIEW_TOKEN:token, UNDERTREE_ZROK: zrokFixture.executable, UNDERTREE_TYPST:compilerFixture.executable }, stdio:['ignore','pipe','pipe'] });
 let serverLog=''; let port;
 child.stdout.on('data', b=>{serverLog+=b;port=Number(serverLog.match(/127\.0\.0\.1:(\d+)/)?.[1]);});
 child.stderr.on('data', b=>{serverLog+=b;});
@@ -73,18 +76,196 @@ async function menuAction(page, menu, label) {
   await page.locator(`#${id} summary`).click();
   await page.locator(`#${id}`).getByRole('menuitem',{name:label,exact:true}).or(page.locator(`#${id}`).getByRole('button',{name:label,exact:true})).click();
 }
+async function shareFixtureThroughUi(page,project,path,snapshot) {
+  const matches=(response,action)=>response.url().endsWith('/api/review')&&response.request().method()==='POST'&&response.request().postDataJSON()?.action===action&&response.request().postDataJSON()?.project===project&&response.request().postDataJSON()?.path===path;
+  const state=()=>page.evaluate(path=>({
+    project:document.getElementById('project-select').value,
+    tab:document.querySelector('#manuscript-tabs [aria-selected="true"]')?.textContent,
+    content:document.querySelector('.cm-content')?.textContent,
+    epoch:document.querySelector(`.file-button[data-path="${path}"]`)?.dataset.sourceEpoch,
+    saved:document.getElementById('save-label').textContent,
+    inputVersion:window.__fixtureShareCommand.inputVersion,
+  }),path);
+  const responses=[];let initial,firstPreview,firstOperation,expectedScope,guardProblem;
+  const observe=response=>{if(matches(response,'share'))responses.push(response);};
+  const guard=async route=>{
+    const operation=route.request().postDataJSON();
+    if(operation.action!=='share'||operation.enabled!==true)return route.continue();
+    try {
+      assert.deepEqual(await state(),initial,'A refused Share retry retains the exact clean editor and input version.');
+      assert.equal(operation.project,project);assert.equal(operation.path,path);
+      assert.equal(operation.sourceEpoch,snapshot.sourceEpoch);assert.deepEqual(operation.expectedRoot,snapshot.expectedRoot);
+      assert.equal(operation.contextShared,true);assert.equal(operation.expectedContextScope,expectedScope);
+      if(firstOperation)assert.deepEqual(operation,firstOperation,'A refused Share retry retains its complete native consent binding.');
+      else firstOperation=operation;
+    } catch(error){guardProblem=error;await route.abort();return;}
+    return route.continue();
+  };
+  await page.evaluate(()=>{
+    const control=document.getElementById('manuscript-share'),original=control.onchange;
+    const command={control,original,commands:[],inputVersion:0};
+    command.changed=()=>{command.inputVersion++;};
+    document.addEventListener('beforeinput',command.changed,true);document.addEventListener('compositionstart',command.changed,true);
+    control.onchange=function(event){const completion=original.call(this,event);command.commands.push(completion);return completion;};
+    window.__fixtureShareCommand=command;
+  });
+  try {
+    initial=await state();assert.equal(initial.project,project);assert.equal(initial.tab,path);assert.equal(initial.saved,'Saved locally');
+    assert.equal(Number(initial.epoch),snapshot.sourceEpoch);assert.equal(snapshot.path,path);
+    await page.route('**/api/review',guard);page.on('response',observe);
+    for(let attempt=0;attempt<4;attempt++) {
+      await waitForDocumentIdle(page);assert.deepEqual(await state(),initial);
+      assert.equal(await page.locator('#manuscript-share').isChecked(),false);
+      const before=responses.length,count=await page.evaluate(()=>window.__fixtureShareCommand.commands.length);
+      const previewResponse=page.waitForResponse(async response=>matches(response,'context_preview')&&(await response.json()).ok===true);
+      await page.locator('#manuscript-share').check();
+      const preview=(await(await previewResponse).json()).result;
+      assert.equal(preview.complete,true);assert.equal(preview.snapshot,'saved');
+      assert.equal(preview.files.find(file=>file.path===path).sourceEpoch,snapshot.sourceEpoch);
+      assert.equal(preview.files.find(file=>file.path===path).revision,snapshot.review.revision);
+      if(firstPreview)assert.deepEqual(preview,firstPreview,'A refused Share retry retains the complete canonical scope, policy and source inventory.');
+      else firstPreview=preview;
+      expectedScope=preview.scopeId;
+      await confirmContextShareUi(page,preview.files.map(file=>file.path));
+      await page.evaluate(async count=>{
+        const command=window.__fixtureShareCommand;
+        if(command.commands.length!==count+1)throw Error('One Share consent must invoke exactly one actual onchange handler.');
+        await command.commands.at(-1);
+      },count);
+      if(guardProblem)throw guardProblem;
+      const receipts=await Promise.all(responses.slice(before).map(async response=>({operation:response.request().postDataJSON(),reply:await response.json()})));
+      const grants=receipts.filter(receipt=>receipt.operation.enabled===true),revokes=receipts.filter(receipt=>receipt.operation.enabled===false);
+      assert.equal(grants.length,1,'One actual Share command produces one grant attempt.');
+      const {operation,reply}=grants[0];
+      page.__fixtureHeldReceipts.push({action:'share_ui_command',attempt:attempt+1,receipts});
+      assert.equal(operation.expectedContextScope,preview.scopeId);
+      if(reply.ok) {
+        assert.equal(revokes.length,0);assert.equal(reply.result.shared,true);
+        assert.equal(reply.result.sourceEpoch,snapshot.sourceEpoch);assert.deepEqual(reply.result.expectedRoot,snapshot.expectedRoot);
+        assert.equal(typeof reply.result.documentId,'string');assert.ok(reply.result.documentId);
+        return reply.result;
+      }
+      assert.equal(reply.error?.code,'busy');assert.equal(reply.error.message,'A local document operation is running. Retry this action.');
+      assert.equal(revokes.length,1,'A refused actual Share must finish its compensating revocation before another consent.');
+      assert.equal(revokes[0].reply.ok,true);assert.equal(revokes[0].reply.result.shared,false);
+      assert.ok(attempt<3,'Share fixture has at most four explicitly refused commands.');
+    }
+  } finally {
+    page.off('response',observe);await page.unroute('**/api/review',guard);
+    await page.evaluate(()=>{
+      const command=window.__fixtureShareCommand;
+      if(command){command.control.onchange=command.original;document.removeEventListener('beforeinput',command.changed,true);document.removeEventListener('compositionstart',command.changed,true);delete window.__fixtureShareCommand;}
+    });
+  }
+}
+async function setFixtureMain(page,clear=false) {
+  const sourcePath=clear?'chapters/part.typ':'book.typ',targetPath=clear?'':'book.typ';
+  const command=clear?'clear-main-document':'set-main-document',label=clear?'Clear main document':'Set as main document';
+  const state=()=>page.evaluate(path=>({
+    project:document.getElementById('project-select').value,
+    tab:document.querySelector('#manuscript-tabs [aria-selected="true"]')?.textContent,
+    content:document.querySelector('.cm-content')?.textContent,
+    epoch:document.querySelector(`.file-button[data-path="${path}"]`)?.dataset.sourceEpoch,
+    saved:document.getElementById('save-label').textContent,
+  }),sourcePath);
+  const initial=await state(),responses=[];let operation,guardProblem;
+  assert.equal(initial.tab,sourcePath);assert.equal(initial.saved,'Saved locally');
+  const guard=async route=>{
+    const incoming=route.request().postDataJSON();
+    if(incoming.action!=='set_main_document')return route.continue();
+    try {
+      assert.equal(incoming.project,initial.project);assert.equal(incoming.path,targetPath);
+      if(!clear){assert.equal(incoming.sourceEpoch,Number(initial.epoch));assert.ok(incoming.expectedRoot);}
+      if(operation)assert.deepEqual(incoming,operation,'A refused SetMain retry must retain the complete original native binding.');
+      else operation=incoming;
+    } catch(error){guardProblem=error;await route.abort();return;}
+    return route.continue();
+  };
+  const observe=response=>{if(response.url().endsWith('/api/review')&&response.request().method()==='POST'&&response.request().postDataJSON()?.action==='set_main_document')responses.push(response);};
+  await page.route('**/api/review',guard);page.on('response',observe);
+  try {
+    await page.evaluate(command=>{
+      const handlers=[...document.querySelectorAll(`[data-command="${command}"]`)].map(button=>({button,original:button.onclick})),commands=[];
+      for(const {button,original} of handlers)button.onclick=function(event){const completion=original.call(this,event);commands.push(completion);return completion;};
+      window.__fixtureMainCommand={handlers,commands};
+    },command);
+    for(let attempt=0;attempt<4;attempt++) {
+      await waitForDocumentIdle(page);assert.deepEqual(await state(),initial,'SetMain retry preserves the selected clean source and epoch.');
+      const before=responses.length,count=await page.evaluate(()=>window.__fixtureMainCommand.commands.length);
+      await menuAction(page,'file',label);
+      await page.evaluate(async count=>{
+        const command=window.__fixtureMainCommand;
+        if(command.commands.length!==count+1)throw Error('The menu must invoke exactly one actual SetMain handler.');
+        await command.commands.at(-1);
+      },count);
+      if(guardProblem)throw guardProblem;
+      assert.equal(responses.length,before+1,'One actual SetMain command has one native receipt.');
+      const reply=await responses.at(-1).json();
+      if(reply.ok)return;
+      assert.equal(reply.error?.code,'busy');assert.equal(reply.error.message,'A local document operation is running. Retry this action.');
+      assert.ok(attempt<3,'SetMain fixture has at most four explicitly refused commands.');
+    }
+  } finally {
+    page.off('response',observe);await page.unroute('**/api/review',guard);
+    await page.evaluate(()=>{
+      const command=window.__fixtureMainCommand;
+      if(command){for(const {button,original} of command.handlers)button.onclick=original;delete window.__fixtureMainCommand;}
+    });
+  }
+}
 async function waitForSource(page, path) {
-  await page.waitForFunction(path => {
-    const title = document.querySelector('#manuscript-tabs [role="tab"][aria-selected="true"]')?.textContent;
-    return (title === path || title === `${path} •`) && document.querySelector('.cm-content');
-  }, path);
+  const deadline = Date.now() + 30_000; let attempts = 0;
+  while (Date.now() < deadline) {
+    if (await page.evaluate(path => {
+      const title = document.querySelector('#manuscript-tabs [role="tab"][aria-selected="true"]')?.textContent;
+      return (title === path || title === `${path} •`) && !!document.querySelector('.cm-content');
+    }, path)) return;
+    const refused = page.__fixtureOpenReplies?.get(path);
+    if (refused && !refused.body.ok) {
+      assert.equal(refused.body.error?.code, 'busy');
+      assert.equal(refused.body.error.message, 'A local document operation is running. Retry this action.');
+      assert.ok(attempts++ < 4, 'A fixture Open has a bounded number of explicitly refused admission attempts.');
+      await waitForDocumentIdle(page);
+      if(page.__fixtureOpenReplies.get(path)!==refused)continue;
+      assert.equal(await page.locator('#project-select').inputValue(),refused.operation.project,'A refused Open retry retains its original project.');
+      const button = page.locator(`.file-button[data-path="${path}"]`);
+      assert.equal(Number(await button.getAttribute('data-source-epoch')), refused.operation.sourceEpoch, 'A refused Open retry retains its original tree identity.');
+      page.__fixtureOpenReplies.delete(path); await button.click();
+    }
+    await page.waitForTimeout(30);
+  }
+  assert.fail(`The genuine UI Open did not mount ${path}.`);
 }
 
 async function call(operation, expectError=false) {
-  const response=await fetch(base+'/api/review',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify(operation)});
-  const value=await response.json();
+  if (!expectError) operation = await consentToFixtureShare(operation, call);
+  let value;
+  for (let attempt = 0; ; attempt++) {
+    const response=await fetch(base+'/api/review',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify(operation)});
+    value=await response.json();
+    // Explicit fixture marks retain this exact quote/revision/root/epoch. The native
+    // admission-busy response proves the operation has not been dispatched.
+    const replayable = ['open','review','context_preview','pdf','connection','project_tree','projects','mark'].includes(operation.action);
+    if (expectError || !replayable || attempt >= 3 || value.error?.code !== 'busy' || value.error.message !== 'A local document operation is running. Retry this action.') break;
+    if (failurePage) await waitForDocumentIdle(failurePage);
+    await new Promise(resolve => setTimeout(resolve, 40 * (attempt + 1)));
+  }
   if(expectError) {assert.equal(value.ok,false);return value.error;}
   assert.equal(value.ok,true,value.error?.message);return value.result;
+}
+function waitForLateAutosaveReceipt(page, expectedOperation, firstNavigationSaveRequest) {
+  let attempts=0;
+  return page.waitForResponse(async response=>{
+    if(!response.url().endsWith('/api/review')) return false;
+    if(response.request()===firstNavigationSaveRequest) return false;
+    const operation=response.request().postDataJSON();
+    if(operation?.action!=='save'||operation.path!==expectedOperation.path||operation.project!==expectedOperation.project) return false;
+    assert.deepEqual(operation,expectedOperation,'Every product retry retains the exact late autosave source, draft, revision, root and epoch.');
+    const receipt=await response.json();attempts++;
+    const intermediate=receipt.ok===false&&receipt.error?.code==='busy'&&receipt.error.message==='A local document operation is running. Retry this action.'&&attempts<6;
+    page.__fixtureHeldReceipts.push({action:'late_autosave',operation,ok:receipt.ok,error:receipt.error,attempt:attempts,intermediate});
+    return !intermediate;
+  });
 }
 async function saveExactSource(page, project, path, expected) {
   const responses=[];
@@ -95,17 +276,91 @@ async function saveExactSource(page, project, path, expected) {
   };
   page.on('response',observe);
   try {
-    await menuAction(page,'file','Save');
-    await page.waitForFunction(path=>document.getElementById('save-label').textContent==='Saved locally'&&document.querySelector('#manuscript-tabs [role="tab"][aria-selected="true"]')?.textContent===path,path);
+    // Native busy receipts can be intermediate attempts inside one UI Save.
+    await page.evaluate(()=>{
+      const button=document.getElementById('manuscript-save'), original=button.onclick;
+      if(window.__fixtureSaveCommand) throw Error('A fixture Save command is already observed.');
+      const commands=[];
+      const wrapped=function(event){const completion=original.call(this,event);commands.push(completion);return completion;};
+      button.onclick=wrapped;window.__fixtureSaveCommand={button,original,commands};
+    });
+    const draft = await page.locator('.cm-content').textContent();
+    for (let attempt = 0; ; attempt++) {
+      const before = responses.length;
+      const commandBefore=await page.evaluate(()=>window.__fixtureSaveCommand.commands.length);
+      await menuAction(page,'file','Save');
+      await page.evaluate(async count=>{
+        const command=window.__fixtureSaveCommand;
+        if(command.commands.length!==count+1) throw Error('The menu must invoke exactly one real Save handler.');
+        await command.commands.at(-1);
+      },commandBefore);
+      const reply=responses.length>before ? await responses.at(-1).json() : null;
+      const refusal=reply&&!reply.ok ? reply.error : null;
+      if (!refusal) {
+        await page.waitForFunction(path=>document.getElementById('save-label').textContent==='Saved locally'&&document.querySelector('#manuscript-tabs [role="tab"][aria-selected="true"]')?.textContent===path,path);
+        break;
+      }
+      assert.equal(refusal.code,'busy'); assert.equal(refusal.message,'A local document operation is running. Retry this action.');
+      assert.ok(attempt < 3,'Save fixture has at most four explicitly refused admission attempts.');
+      assert.equal(await page.locator('.cm-content').textContent(),draft,'A fixture Save retry cannot replace or alter the local draft.');
+      await page.waitForTimeout(50 * (attempt + 1));
+    }
+    for(let i=0;page.__fixtureFiniteRequests?.size&&i<1000;i++) await page.waitForTimeout(20);
+    assert.equal(page.__fixtureFiniteRequests?.size||0,0,'the saved source verification follows completion of outstanding UI document work');
     const saved=await call({action:'open',project,path});
     assert.equal(saved.content,expected,`native saved source for ${path} preserves the exact expected bytes`);
+    let capturedSave;
     for(const response of responses) {
-      const receipt=await response.json();assert.equal(receipt.ok,true,receipt.error?.message);
+      const operation = response.request().postDataJSON();
+      if (capturedSave) assert.deepEqual(operation,capturedSave,'Only the same source-bound Save may follow an explicit admission refusal.');
+      else capturedSave = operation;
+      const receipt=await response.json();
+      if (!receipt.ok) { assert.equal(receipt.error?.code,'busy'); assert.equal(receipt.error.message,'A local document operation is running. Retry this action.'); continue; }
       assert.equal(receipt.result.content,expected,`save receipt contains the exact expected ${path} source`);
       assert.equal(receipt.result.review.revision,saved.review.revision,`save receipt and authoritative ${path} source share a revision`);
     }
     return saved;
-  } finally { page.off('response',observe); }
+  } finally {
+    page.off('response',observe);
+    await page.evaluate(()=>{
+      const command=window.__fixtureSaveCommand;
+      if(command){command.button.onclick=command.original;delete window.__fixtureSaveCommand;}
+    });
+  }
+}
+async function waitForEditorRevision(page, revision) {
+  if(!page.__fixtureEditorSnapshots) return;
+  const path=(await page.locator('#manuscript-tabs [aria-selected="true"]').textContent()).replace(/ •$/,'');
+  for(let i=0;i<1000;i++) {
+    const published=page.__fixtureEditorSnapshots.get(path);
+    if(published?.revision===revision&&published.contentDigest===revision&&!published.dirty&&!published.composing&&!published.conflict) return;
+    await page.waitForTimeout(20);
+  }
+  assert.fail('The exact saved editor snapshot was not acknowledged clean before reading remote manuscript context.');
+}
+async function waitForDocumentIdle(page, heldRequest) {
+  const pending=()=>[...page.__fixtureFiniteRequests||[]].filter(request=>request!==heldRequest).length;
+  for(let i=0;pending()&&i<1000;i++) await page.waitForTimeout(20);
+  assert.equal(pending(),0,'the next positive local action follows completion of outstanding UI document work');
+}
+async function reloadExactBuffer(page) {
+  const tab = await page.locator('#manuscript-tabs [aria-selected="true"]').textContent();
+  const draft = await page.locator('.cm-content').textContent();
+  let captured;
+  for(let attempt=0;attempt<4;attempt++) {
+    for(let i=0;page.__fixtureFiniteRequests?.size&&i<1000;i++) await page.waitForTimeout(20);
+    assert.equal(await page.locator('#manuscript-tabs [aria-selected="true"]').textContent(),tab);
+    assert.equal(await page.locator('.cm-content').textContent(),draft,'a refused reload preserves the exact recoverable buffer');
+    const replied = page.waitForResponse(response=>response.url().endsWith('/api/review')&&response.request().postDataJSON()?.action==='open');
+    await page.locator('#reload-buffer').click();
+    const response=await replied, operation=response.request().postDataJSON(), receipt=await response.json();
+    if(captured) assert.deepEqual(operation,captured,'only the identical source-bound reload follows an explicit admission refusal');
+    else captured=operation;
+    if(receipt.ok) return;
+    assert.equal(receipt.error?.code,'busy');
+    assert.equal(receipt.error.message,'A local document operation is running. Retry this action.');
+  }
+  assert.fail('The explicit source-bound reload remained refused after four admission attempts.');
 }
 let browser, failurePage, failureStage='main';
 try {
@@ -121,6 +376,45 @@ try {
   browser=await chromium.launch({executablePath:process.env.UNDERTREE_CHROME || '/usr/bin/google-chrome',headless:true,args:['--no-sandbox']});
   const context=await browser.newContext({viewport:{width:1600,height:1000}});
   const page=failurePage=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  const finiteRequests = new Set(), requestHistory = [], editorPaths = new Map(), editorSnapshots = new Map();
+  page.__fixtureFiniteRequests = finiteRequests;
+  page.__fixtureEditorSnapshots = editorSnapshots;
+  page.__fixtureRequestHistory = requestHistory;
+  page.__fixtureMutationHistory = [];
+  page.__fixtureHeldReceipts = [];
+  page.on('framenavigated',frame=>{if(frame===page.mainFrame()) finiteRequests.clear();});
+  page.on('request', request => {
+    if (!/\/api\/(review|editor)$/.test(request.url())) return;
+    if (request.postDataJSON()?.action !== 'review_changes') finiteRequests.add(request);
+  });
+  page.on('requestfinished', request => finiteRequests.delete(request));
+  page.on('requestfailed', request => finiteRequests.delete(request));
+  page.on('response', async response => {
+    if (!/\/api\/(review|editor)$/.test(response.url())) return;
+    const operation=response.request().postDataJSON();
+    if (operation?.action==='review_changes') return;
+    const body=await response.json().catch(()=>null);
+    if(body?.ok&&operation.action==='editor_register') editorPaths.set(body.result.sessionId,operation.path);
+    if(body?.ok&&['editor_register','editor_update'].includes(operation.action)) {
+      const path=operation.path||editorPaths.get(operation.sessionId);
+      if(path) editorSnapshots.set(path,operation);
+    }
+    requestHistory.push({action:operation?.action,path:operation?.path,ok:body?.ok,error:body?.error});
+    if(['save','compile','decide','palette','mark','reanchor','share','import_tex','set_main_document'].includes(operation?.action)) {
+      page.__fixtureMutationHistory.push({action:operation.action,path:operation.path,ok:body?.ok,error:body?.error});
+      if(page.__fixtureMutationHistory.length>500) page.__fixtureMutationHistory.shift();
+    }
+    if(requestHistory.length>40) requestHistory.shift();
+  });
+  page.__fixtureOpenReplies = new Map();
+  page.on('request', request => {
+    if (request.url().endsWith('/api/review') && request.postDataJSON()?.action === 'open') page.__fixtureOpenReplies.delete(request.postDataJSON().path);
+  });
+  page.on('response', async response => {
+    if (!response.url().endsWith('/api/review') || response.request().postDataJSON()?.action !== 'open') return;
+    const operation = response.request().postDataJSON(), body = await response.json().catch(() => null);
+    if (body) page.__fixtureOpenReplies.set(operation.path, {operation, body});
+  });
   await page.goto(base+`/manuscript.html#session=${token}`);
   await page.locator('#project-select').selectOption(project.id);
   assert.equal(await page.locator('#project-select').inputValue(),project.id,'the scenario starts in the intended registered project');
@@ -186,10 +480,13 @@ try {
   await page.setViewportSize({width:1600,height:1000});await page.waitForTimeout(100);
   await page.locator('#files-collapse').click(); assert.equal(await page.locator('.manuscript-files').isVisible(),false);
   await page.locator('#rail-files').click(); assert.equal(await page.locator('.manuscript-files').isVisible(),true);
-  await page.locator('#preview-collapse').click(); assert.equal(await page.locator('.manuscript-preview').isVisible(),false);
+  assert.equal(await page.locator('#preview-collapse,#editor-collapse').count(),0,'content panes have no accidental collapse arrows');
   await page.locator('#rail-preview').click(); assert.equal(await page.locator('.manuscript-preview').isVisible(),true);
   await menuAction(page,'edit','Find and replace');
   assert.equal(await page.locator('.cm-search').isVisible(),true,'editor menu opens the real CodeMirror search');
+  // This ordinary navigation follows the accepted chapter build and its metadata.
+  await page.waitForFunction(()=>document.getElementById('typst-compile').textContent==='Recompile');
+  await waitForDocumentIdle(page);
   await page.getByRole('button',{name:'crlf.html',exact:true}).click();
   await waitForSource(page,'crlf.html');
   await page.locator('.cm-preserved-cr').first().waitFor({state:'attached'});
@@ -219,18 +516,40 @@ try {
   await page.locator('#highlight-prompt').fill('Preserve the approved opening.');
   await page.getByRole('button',{name:'Add highlight',exact:true}).click();
   await page.locator('.review-card h3').getByText('Keep unchanged',{exact:true}).waitFor();
-  await page.locator('#manuscript-share').check();
-  const shared=await call({action:'share',project:project.id,path:'main.html',enabled:true});
+  const source=await call({action:'open',project:project.id,path:'main.html'});
+  const shared=await shareFixtureThroughUi(page,project.id,'main.html',source);
   const tunnel=await call({action:'tunnel',enabled:true,reservation:'test-session',public_url:'https://review.example.org/'});
   const target=await readFile(targetFile,'utf8');const endpoint=target+new URL(tunnel.endpoint).pathname;
   const mcpHeaders = {'Content-Type':'application/json',Accept:'application/json, text/event-stream','MCP-Protocol-Version':'2025-06-18'};
   const initialized=await fetch(endpoint,{method:'POST',headers:mcpHeaders,body:JSON.stringify({jsonrpc:'2.0',id:0,method:'initialize',params:{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'UnderTree review test',version:'1'}}})});
   assert.equal((await initialized.json()).result.protocolVersion,'2025-06-18');
   async function mcp(name,args) {
-    const response=await fetch(endpoint,{method:'POST',headers:mcpHeaders,body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}})});
-    assert.equal(response.status,200);return (await response.json()).result;
+    if (name === 'suggest_text' && !args.proposal.contextId) {
+      await waitForEditorRevision(page,args.proposal.revision);
+      const context = await readFixtureContext((method, params) => mcp(params.name, params.arguments), args.documentId);
+      args = { ...args, proposal: { ...args.proposal, contextId: context.contextId } };
+    }
+    const body=JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name,arguments:args}});
+    for (let attempt = 0; ; attempt++) {
+      const response=await fetch(endpoint,{method:'POST',headers:mcpHeaders,body});
+      if(response.status===429&&['read_manuscript','list_manuscripts'].includes(name)) {
+        await response.arrayBuffer();
+        page.__fixtureMcpErrors ||= [];page.__fixtureMcpErrors.push({name,status:429});
+        if(page.__fixtureMcpErrors.length>40)page.__fixtureMcpErrors.shift();
+        if(attempt<3){await waitForDocumentIdle(page);await new Promise(resolve=>setTimeout(resolve,40*(attempt+1)));continue;}
+      }
+      assert.equal(response.status,200); const result = (await response.json()).result;
+      if(result.isError===true) {
+        page.__fixtureMcpErrors ||= [];
+        page.__fixtureMcpErrors.push({name,requestId:args.proposal?.requestId,result});
+        if(page.__fixtureMcpErrors.length>40)page.__fixtureMcpErrors.shift();
+      }
+      const busy = result.isError===true && result.content?.some(item => item.type==='text' && ['A local document operation is running. Retry this action.','A local editor operation is running. Retry this action.'].includes(item.text));
+      if (!busy || attempt >= 3) return result;
+      await waitForDocumentIdle(page);
+      await new Promise(resolve => setTimeout(resolve, 40 * (attempt + 1)));
+    }
   }
-  const source=await call({action:'open',project:project.id,path:'main.html'});
   const proposal={requestId:'review-1',revision:source.review.revision,from:3,to:8,quote:'Hello',replacement:'Greetings',rationale:'More precise opening.'};
   const blocked=await mcp('suggest_text',{documentId:shared.documentId,proposal});assert.equal(blocked.isError,true);
   assert.equal((await mcp('accept_suggestion',{})).isError,true);
@@ -262,6 +581,7 @@ try {
 
   await page.getByRole('button',{name:'Remove highlight',exact:true}).click();
   await page.locator('.review-card h3').getByText('Keep unchanged',{exact:true}).waitFor({state:'hidden'});
+  await markFixturePassage(call, project.id, await call({action:'open',project:project.id,path:'main.html'}), 'Hello world. This sentence has a clear meaning.');
   await page.locator('#review-toggle').click();
   await page.locator('.cm-content').click(); await page.keyboard.press('Control+Home');
   for(let index=0;index<4;index++) await page.keyboard.press('ArrowRight');
@@ -273,7 +593,8 @@ try {
   await page.waitForFunction(()=>document.getElementById('review-toggle-count').textContent==='3',{},{timeout:10000});
   assert.equal(await page.locator('#review-toggle-count').getAttribute('class'),'review-count has-new');
   assert.equal(await page.evaluate(()=>{const selection=getSelection(),range=document.createRange();range.selectNodeContents(document.querySelector('.cm-content'));range.setEnd(selection.focusNode,selection.focusOffset);return range.toString().length;}),sourceCursor,'incoming suggestions preserve the source caret');
-  await page.locator('#review-toggle').click(); await page.locator('#review-new-cue').click();
+  if (await page.locator('#review-toggle').getAttribute('aria-pressed') !== 'true') await page.locator('#review-toggle').click();
+  await page.locator('#review-new-cue').click();
   await page.waitForTimeout(150);
   const cardBounds=await page.locator('.suggestion-card').evaluateAll(cards=>cards.map(card=>{const rect=card.getBoundingClientRect();return {top:rect.top,bottom:rect.bottom,from:Number(card.dataset.sourcePosition)};}));
   for(let index=1;index<cardBounds.length;index++) {assert.ok(cardBounds[index].from>=cardBounds[index-1].from);assert.ok(cardBounds[index].top>=cardBounds[index-1].bottom+7,'source-linked cards avoid collisions');}
@@ -302,6 +623,7 @@ try {
     if(!response.url().endsWith('/api/review')||response.request().method()!=='POST') return false;
     const operation=response.request().postDataJSON();return operation.action==='decide'&&operation.path==='main.html'&&operation.decision==='accepted';
   });
+  await waitForDocumentIdle(page);
   await page.locator('.suggestion-card').first().getByRole('button',{name:'Accept',exact:true}).click();
   const htmlAccepted=await (await htmlAcceptance).json();assert.equal(htmlAccepted.ok,true,htmlAccepted.error?.message);
   assert.equal(htmlAccepted.result.content,original.replace('Hello','Greetings'),'native HTML acceptance stores the exact expected source');
@@ -321,6 +643,7 @@ try {
   const composingSource=await call({action:'open',project:project.id,path:'composition.html'});
   const composingShare=await call({action:'share',project:project.id,path:'composition.html',enabled:true});
   const composingFrom=composingSource.content.indexOf('composed');
+  await markFixturePassage(call, project.id, composingSource, 'composed');
   assert.equal((await mcp('suggest_text',{documentId:composingShare.documentId,proposal:{requestId:'composition-race',revision:composingSource.review.revision,from:composingFrom,to:composingFrom+'composed'.length,quote:'composed',replacement:'revised',rationale:'Qualify a composition beginning during acceptance.'}})).isError,false);
   await page.locator('#review-refresh').click();await page.locator('.suggestion-card').waitFor();
   let acceptanceHeld;let releaseAcceptance;
@@ -328,9 +651,10 @@ try {
   const holdAcceptance=async route=>{
     const operation=route.request().postDataJSON();
     if(operation.action!=='decide'||operation.path!=='composition.html') return route.continue();
-    const response=await route.fetch();acceptanceHeld();await pendingAcceptance;await route.fulfill({response});
+    const response=await route.fetch();finiteRequests.delete(route.request());acceptanceHeld();await pendingAcceptance;await route.fulfill({response});
   };
   await page.route('**/api/review',holdAcceptance);
+  await waitForDocumentIdle(page);
   await page.locator('.suggestion-card').getByRole('button',{name:'Accept',exact:true}).click();await waitForAcceptance;
   await page.locator('.cm-content').focus();
   await page.locator('.cm-content').evaluate(source=>(source.editContext||source).dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true})));
@@ -340,7 +664,7 @@ try {
   assert.equal(await page.locator('#manuscript-tabs [role="tab"][aria-selected="true"]').textContent(),'composition.html •','the composing buffer remains dirty against the accepted disk source');
   await page.locator('.cm-content').evaluate(source=>(source.editContext||source).dispatchEvent(new CompositionEvent('compositionend',{bubbles:true})));
   await page.unroute('**/api/review',holdAcceptance);
-  await page.locator('#reload-buffer').click();await page.waitForFunction(()=>document.getElementById('review-conflict').hidden);
+  await reloadExactBuffer(page);await page.waitForFunction(()=>document.getElementById('review-conflict').hidden);
   assert.ok((await page.locator('.cm-content').textContent()).includes('A revised manuscript.'),'explicit conflict recovery loads the accepted source after composition finishes');
   await page.getByRole('button',{name:'Close composition.html',exact:true}).click();
   await page.getByRole('tab',{name:'main.html',exact:true}).click();await waitForSource(page,'main.html');
@@ -376,8 +700,8 @@ try {
   await page.evaluate(()=>{document.getElementById('review-app').classList.add('native-window');document.getElementById('window-titlebar').hidden=false;});
   await page.waitForTimeout(100); await assertChrome(page, 'native shell geometry in Editor at 200% text');
   assert.ok(await page.locator('#manuscript-source').evaluate(source=>source.clientHeight>=120),'enlarged native shell retains usable document space');
-  const collapseBounds=await page.locator('#editor-collapse').evaluate(button=>{const r=button.getBoundingClientRect(),p=button.parentElement.getBoundingClientRect();return r.left>=p.left-1&&r.right<=p.right+1&&r.top>=p.top-1&&r.bottom<=p.bottom+1;});
-  assert.ok(collapseBounds,'enlarged editor collapse action stays inside its toolbar');
+  const searchBounds=await page.locator('#editor-search').evaluate(button=>{const r=button.getBoundingClientRect(),p=button.parentElement.getBoundingClientRect();return r.left>=p.left-1&&r.right<=p.right+1&&r.top>=p.top-1&&r.bottom<=p.bottom+1;});
+  assert.ok(searchBounds,'enlarged source search action stays inside its toolbar');
   await page.screenshot({path:resolve('artifacts/review-editor-enlarged.png'),fullPage:true});
   await page.evaluate(()=>{document.getElementById('review-app').classList.remove('native-window');document.getElementById('window-titlebar').hidden=true;});
   await page.getByRole('button',{name:'Review',exact:true}).click();
@@ -388,8 +712,16 @@ try {
   await page.setViewportSize({width:1600,height:1000});
   await page.getByRole('button',{name:'main.typ',exact:true}).click();
   await waitForSource(page,'main.typ');
+  // Tab mounting precedes PDF/annotation reads. Start the queue scenario only
+  // after that navigation has completed, so those reads cannot refuse admission.
+  await page.waitForFunction(()=>document.querySelector('.file-button[data-path="main.typ"]')?.getAttribute('aria-current')==='true');
+  for(let i=0;finiteRequests.size&&i<300;i++) await page.waitForTimeout(20);
+  assert.equal(finiteRequests.size,0,'navigation and editor registrations finish before the explicit compilation scenario');
   const priorCompileCount=(await readFile(compilerCalls,'utf8').catch(()=>'' )).trim().split('\n').filter(Boolean).length;
+  const firstExplicitCompile=page.waitForRequest(request=>request.url().endsWith('/api/review')&&request.postDataJSON()?.action==='compile');
   await page.getByRole('button',{name:'Recompile',exact:true}).click();
+  await firstExplicitCompile;
+  assert.equal(await page.locator('#typst-compile').textContent(),'Compiling…','the second explicit click is made while the first build is in flight');
   await page.locator('#typst-compile').click();
   for(let i=0;i<100;i++) {
     const count=(await readFile(compilerCalls,'utf8').catch(()=>'' )).trim().split('\n').filter(Boolean).length;
@@ -404,19 +736,21 @@ try {
     const operation=route.request().postDataJSON();
     if(operation.action!=='compile'||operation.path!=='main.typ') return route.continue();
     if(delayedCompile) {
-      delayedCompile=false;const response=await route.fetch();firstCompileHeld();await pendingFirstCompile;return route.fulfill({response});
+      delayedCompile=false;await waitForDocumentIdle(page,route.request());const response=await route.fetch();finiteRequests.delete(route.request());
+      const receipt=await response.json();page.__fixtureHeldReceipts.push({action:operation.action,path:operation.path,ok:receipt.ok,error:receipt.error});assert.equal(receipt.ok,true,`the held main build must succeed before its response is delayed: ${JSON.stringify(receipt.error)}`);
+      firstCompileHeld();await pendingFirstCompile;return route.fulfill({response});
     }
-    followupCompileHeld();await pendingFollowupCompile;return route.continue();
+    followupCompileHeld();await pendingFollowupCompile;await waitForDocumentIdle(page,route.request());return route.continue();
   };
   await page.route('**/api/review',holdCompileResponse);
   await page.locator('#typst-compile').click();await waitForFirstCompile;
   const mainBeforeHeldEdit=await call({action:'open',project:project.id,path:'main.typ'});
   const heldMainEdit='// Newer source saved while the compiled PDF response is pending.';
   await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.insertText(heldMainEdit);
-  await page.waitForFunction(()=>document.getElementById('save-label').textContent==='Saved locally');
+  await saveExactSource(page,project.id,'main.typ',mainBeforeHeldEdit.content+heldMainEdit);
   assert.equal((await call({action:'open',project:project.id,path:'main.typ'})).content,mainBeforeHeldEdit.content+heldMainEdit,'the newer main input is authoritatively saved before the old PDF response is released');
   releaseFirstCompile();await waitForFollowupCompile;
-  assert.equal(await page.locator('#typst-preview-status').getAttribute('data-state'),'stale','an older PDF response stays stale after newer source has already autosaved');
+  assert.equal(await page.locator('#typst-preview-status').getAttribute('data-state'),'stale','an older PDF response stays stale after newer source has been explicitly saved');
   assert.ok((await page.locator('#review-status').textContent()).includes('recompile or verify project inputs'),'the compilation receipt uses the same revision-aware current status');
   releaseFollowupCompile();await page.waitForFunction(()=>document.getElementById('typst-preview-status').dataset.state==='current',{},{timeout:10000});
   await page.unroute('**/api/review',holdCompileResponse);
@@ -513,17 +847,18 @@ try {
   assert.equal((await readFile(await downloadedPdf.path())).subarray(0,5).toString(),'%PDF-','icon download exports the actual cached PDF');
   assert.ok((await call({action:'pdf',project:project.id,path:'main.typ'})).available);
   await page.screenshot({path:resolve('artifacts/typst-desktop.png'),fullPage:true});
-  await page.locator('#manuscript-share').check();
-  const typstShare=await call({action:'share',project:project.id,path:'main.typ',enabled:true});
   const typstBefore=await call({action:'open',project:project.id,path:'main.typ'});const typstFrom=typstBefore.content.indexOf('Hello');
+  const typstShare=await shareFixtureThroughUi(page,project.id,'main.typ',typstBefore);
+  await markFixturePassage(call, project.id, typstBefore, 'Hello');
   const typstSuggestion=await mcp('suggest_text',{documentId:typstShare.documentId,proposal:{requestId:'typst-auto-build',revision:typstBefore.review.revision,from:typstFrom,to:typstFrom+5,quote:'Hello',replacement:'Greetings',rationale:'A clearer opening.'}});
-  assert.equal(typstSuggestion.isError,false);await page.locator('.suggestion-card').waitFor({timeout:10000});
+  assert.equal(typstSuggestion.isError,false,JSON.stringify(typstSuggestion));await page.locator('.suggestion-card').waitFor({timeout:10000});
   const acceptanceCompileCount=(await readFile(compilerCalls,'utf8')).trim().split('\n').length;
   const typstAcceptance=page.waitForResponse(response=>{
     if(!response.url().endsWith('/api/review')||response.request().method()!=='POST') return false;
     const operation=response.request().postDataJSON();
     return operation.action==='decide'&&operation.path==='main.typ'&&operation.decision==='accepted';
   });
+  await waitForDocumentIdle(page);
   await page.locator('.suggestion-card').getByRole('button',{name:'Accept',exact:true}).click();
   const acceptedTypst=(await (await typstAcceptance).json());assert.equal(acceptedTypst.ok,true,acceptedTypst.error?.message);
   assert.equal(acceptedTypst.result.content,typstBefore.content.replace('Hello','Greetings'),'native acceptance receipt contains the exact accepted source');
@@ -537,6 +872,13 @@ try {
   assert.equal(acceptedPdf.current,true,'the accepted PDF has a current native publication receipt');
   assert.equal(acceptedPdf.revision,acceptedTypst.result.review.revision,'the PDF receipt matches the authoritative accepted source revision');
   assert.ok((await readFile(join(projectRoot,'main.typ'),'utf8')).includes('Greetings world'));
+  await page.waitForFunction(()=>document.getElementById('typst-compile').textContent==='Recompile');
+  await waitForDocumentIdle(page);
+  await page.locator('.cm-content').click(); await page.keyboard.press('Control+End'); await page.keyboard.insertText('\nPDF cleanup draft.');
+  await saveExactSource(page,project.id,'main.typ',acceptedTypst.result.content+'\nPDF cleanup draft.');
+  await page.waitForFunction(()=>document.getElementById('typst-compile').textContent==='Recompile');
+  for(let i=0;finiteRequests.size&&i<300;i++) await page.waitForTimeout(20);
+  assert.equal(finiteRequests.size,0,'the accepted build finishes before the old-worker termination fixture is installed');
 
   await page.evaluate(() => {
     const postMessage = Worker.prototype.postMessage;
@@ -550,7 +892,6 @@ try {
       for (const send of window.heldPdfTermination.splice(0)) send();
     };
   });
-  await page.locator('.cm-content').click(); await page.keyboard.press('Control+End'); await page.keyboard.insertText('\nPDF cleanup draft.');
   await page.getByRole('button',{name:'main.html',exact:true}).click();
   await page.waitForFunction(() => window.heldPdfTermination.length > 0);
   await page.getByRole('button',{name:'crlf.html',exact:true}).click();
@@ -579,7 +920,7 @@ try {
   const holdOpen = async route => {
     const operation = route.request().postDataJSON();
     if (operation.action !== 'open' || operation.path !== 'delayed.html') return route.continue();
-    const response = await route.fetch(); openHeld(); await pendingOpen; await route.fulfill({response});
+    const response = await route.fetch(); finiteRequests.delete(route.request()); openHeld(); await pendingOpen; await route.fulfill({response});
   };
   await page.route('**/api/review', holdOpen);
   await page.getByRole('button',{name:'delayed.html',exact:true}).click(); await waitForOpen;
@@ -591,25 +932,32 @@ try {
 
   await page.getByRole('button',{name:'autosave-b.html',exact:true}).click();await waitForSource(page,'autosave-b.html');
   await page.getByRole('button',{name:'autosave-a.html',exact:true}).click();await waitForSource(page,'autosave-a.html');
-  let releaseSave;let saveHeld;let holdFirstSave=true;
+  let releaseSave;let saveHeld;let holdFirstSave=true;let firstNavigationSaveOperation;let firstNavigationSaveRequest;let expectedLateNavigationSave;
   const waitForSave=new Promise(resolve=>{saveHeld=resolve;});const pendingSave=new Promise(resolve=>{releaseSave=resolve;});
   const holdNavigationSave=async route=>{
     const operation=route.request().postDataJSON();
+    if(expectedLateNavigationSave&&operation.action==='save'&&operation.path==='autosave-a.html') assert.deepEqual(operation,expectedLateNavigationSave,'A product late autosave retry retains its full original body before native dispatch.');
     if(operation.action!=='save'||operation.path!=='autosave-a.html'||!holdFirstSave) return route.continue();
-    holdFirstSave=false;const response=await route.fetch();saveHeld();await pendingSave;await route.fulfill({response});
+    firstNavigationSaveOperation=operation;
+    firstNavigationSaveRequest=route.request();
+    holdFirstSave=false;await waitForDocumentIdle(page,route.request());const response=await route.fetch();finiteRequests.delete(route.request());
+    const receipt=await response.json();page.__fixtureHeldReceipts.push({action:operation.action,path:operation.path,ok:receipt.ok,error:receipt.error});
+    saveHeld(receipt);await pendingSave;await route.fulfill({response});
   };
   await page.route('**/api/review',holdNavigationSave);
   await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.insertText(' First A draft.');
-  await page.getByRole('tab',{name:'autosave-b.html',exact:true}).click();await waitForSave;
+  await page.getByRole('tab',{name:'autosave-b.html',exact:true}).click();
+  const heldNavigationSave=await waitForSave;
+  if(!heldNavigationSave.ok) releaseSave();
+  assert.equal(heldNavigationSave.ok,true,`the first native navigation Save must commit before late typing is introduced: ${JSON.stringify(heldNavigationSave.error)}`);
   await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.insertText(' Late A draft.');
-  const savedLateDraft=page.waitForResponse(response=>{
-    if(!response.url().endsWith('/api/review')) return false;
-    const operation=response.request().postDataJSON();return operation?.action==='save'&&operation.path==='autosave-a.html'&&operation.content.includes('Late A draft.');
-  });
+  expectedLateNavigationSave={...firstNavigationSaveOperation,revision:heldNavigationSave.result.review.revision,content:'<p>Autosave A.</p>\n First A draft. Late A draft.'};
+  const savedLateDraft=waitForLateAutosaveReceipt(page,expectedLateNavigationSave,firstNavigationSaveRequest);
   releaseSave();await waitForSource(page,'autosave-b.html');
   await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.insertText(' New B draft.');
   const lateDraftReceipt=await (await savedLateDraft).json();assert.equal(lateDraftReceipt.ok,true,lateDraftReceipt.error?.message);
   assert.equal(lateDraftReceipt.result.content,'<p>Autosave A.</p>\n First A draft. Late A draft.','the native autosave receipt includes both versions of the first file’s draft');
+  await waitForDocumentIdle(page);
   assert.equal((await call({action:'open',project:project.id,path:'autosave-a.html'})).review.revision,lateDraftReceipt.result.review.revision,'the autosave receipt matches the saved first-file revision');
   assert.ok((await readFile(join(projectRoot,'autosave-a.html'),'utf8')).includes('Late A draft.'),'newer typing during a navigation save still autosaves after switching and editing another file');
   await saveExactSource(page,project.id,'autosave-b.html','<p>Autosave B.</p>\n New B draft.');
@@ -629,12 +977,14 @@ try {
 
   await page.getByRole('button',{name:'import.tex',exact:true}).click();
   await waitForSource(page,'import.tex');
+  await waitForDocumentIdle(page);
   await menuAction(page,'file','Import to Typst');
   await page.getByRole('tab',{name:'import.typ',exact:true}).waitFor();
   assert.ok((await readFile(join(projectRoot,'import.typ'),'utf8')).includes('#strong[important]'));
   assert.ok((await readFile(join(projectRoot,'import.tex'),'utf8')).includes('\\custom{kept}'));
   await page.getByRole('button',{name:'book.typ',exact:true}).click();await waitForSource(page,'book.typ');
-  await menuAction(page,'file','Set as main document');
+  await waitForDocumentIdle(page);
+  await setFixtureMain(page);
   await page.waitForFunction(()=>document.getElementById('review-status').textContent==='Main document: book.typ');
   assert.equal((await call({action:'projects'})).find(item=>item.id===project.id).mainDocument,'book.typ','main document is stored by the native authority');
   await page.setViewportSize({width:320,height:900});await page.evaluate(()=>{document.documentElement.style.fontSize='28px';});
@@ -652,12 +1002,16 @@ try {
   const bibliographyBuffer=await page.locator('.cm-content').textContent();
   await page.keyboard.press('F5');
   await page.waitForFunction(()=>document.getElementById('typst-preview-status').dataset.state==='current',{},{timeout:15000});
-  await page.waitForFunction(()=>document.getElementById('typst-compile').textContent==='Recompile'&&document.getElementById('compile-log').textContent.includes('unknown font family'),{},{timeout:15000});
+  const completedBibliographyLog=await page.waitForFunction(()=>{
+    const log=document.getElementById('compile-log').textContent;
+    return document.getElementById('typst-compile').textContent==='Recompile'&&document.getElementById('typst-preview-status').dataset.state==='current'&&log.includes('Compiled book.typ successfully.') ? log : null;
+  },{},{timeout:15000});
+  const bibliographyLog=await completedBibliographyLog.jsonValue();
   assert.equal(await page.locator('#manuscript-tabs [role="tab"][aria-selected="true"]').textContent(),'references.bib','compiling the main preserves the selected dependency');
   assert.equal(await page.locator('.cm-content').textContent(),bibliographyBuffer,'compilation preserves bibliography editor content');
   assert.ok((await readFile(join(projectRoot,'references.bib'),'utf8')).includes('An edited bibliography'),'F5 saves the dependency before compiling');
-  assert.ok((await page.locator('#compile-log').textContent()).includes('book.typ'),'build log identifies the actual compiled main');
-  assert.ok((await page.locator('#compile-log').textContent()).includes('unknown font family'),'successful compiler warnings remain available');
+  assert.ok(bibliographyLog.includes('book.typ'),'build log identifies the actual compiled main');
+  assert.ok(bibliographyLog.includes('unknown font family'),'successful compiler warnings remain available');
   assert.ok((await call({action:'pdf',project:project.id,path:'book.typ'})).diagnostics.includes('unknown font family'),'warnings persist with the last successful PDF');
   const mainDownload=page.waitForEvent('download');await page.locator('#export-pdf').click();
   assert.equal((await mainDownload).suggestedFilename(),'book.pdf','export uses the main document filename while a bibliography is selected');
@@ -670,25 +1024,32 @@ try {
   const holdBookCompile=async route=>{
     const operation=route.request().postDataJSON();
     if(operation.action!=='compile'||operation.path!=='book.typ') return route.continue();
-    if(firstBookCompile) {firstBookCompile=false;const response=await route.fetch();bookCompileHeld();await bookPending;return route.fulfill({response});}
-    bookFollowupHeld();await bookNextPending;return route.continue();
+    if(firstBookCompile) {
+      firstBookCompile=false;await waitForDocumentIdle(page,route.request());const response=await route.fetch();finiteRequests.delete(route.request());
+      const receipt=await response.json();page.__fixtureHeldReceipts.push({action:operation.action,path:operation.path,ok:receipt.ok,error:receipt.error});assert.equal(receipt.ok,true,`the held included-main build must succeed before its response is delayed: ${JSON.stringify(receipt.error)}`);
+      bookCompileHeld();await bookPending;return route.fulfill({response});
+    }
+    bookFollowupHeld();await bookNextPending;await waitForDocumentIdle(page,route.request());return route.continue();
   };
   await page.route('**/api/review',holdBookCompile);await page.locator('#typst-compile').click();await bookHeld;
   await page.getByRole('button',{name:'part.typ',exact:true}).click();await waitForSource(page,'chapters/part.typ');
   const includedChapterEdit='An included chapter edit.';
   await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.insertText(includedChapterEdit);
   const chapterBuffer=await page.locator('.cm-content').textContent();
-  await page.waitForFunction(()=>document.getElementById('save-label').textContent==='Saved locally');
+  await saveExactSource(page,project.id,'chapters/part.typ',chapterSource+includedChapterEdit);
   assert.equal((await call({action:'open',project:project.id,path:'chapters/part.typ'})).content,chapterSource+includedChapterEdit,'the included dependency is authoritatively saved before the old main PDF response is released');
   releaseBookCompile();await bookFollowup;
-  assert.equal(await page.locator('#typst-preview-status').getAttribute('data-state'),'stale','a newly opened dependency edited and autosaved after build start invalidates the pending main response');
+  assert.equal(await page.locator('#typst-preview-status').getAttribute('data-state'),'stale','a newly opened dependency edited and saved after build start invalidates the pending main response');
   releaseBookFollowup();await page.waitForFunction(()=>document.getElementById('typst-preview-status').dataset.state==='current',{},{timeout:15000});
   await page.unroute('**/api/review',holdBookCompile);
   assert.equal(await page.locator('.cm-content').textContent(),chapterBuffer,'building the main keeps the chapter buffer and caret owner');
   assert.ok((await readFile(join(projectRoot,'chapters','part.typ'),'utf8')).includes('An included chapter edit.'));
+  await page.waitForFunction(()=>document.getElementById('typst-compile').textContent==='Recompile');
+  await waitForDocumentIdle(page);
   const chapterSnapshot=await call({action:'open',project:project.id,path:'chapters/part.typ'});
   const chapterShare=await call({action:'share',project:project.id,path:'chapters/part.typ',enabled:true});
   const chapterQuote='A nested manuscript.',chapterFrom=chapterSnapshot.content.indexOf(chapterQuote);
+  await markFixturePassage(call, project.id, chapterSnapshot, chapterQuote);
   assert.equal((await mcp('suggest_text',{documentId:chapterShare.documentId,proposal:{requestId:'chapter-after-switch',revision:chapterSnapshot.review.revision,from:chapterFrom,to:chapterFrom+chapterQuote.length,quote:chapterQuote,replacement:'An improved chapter manuscript.',rationale:'Qualify a delayed included-file acceptance.'}})).isError,false);
   await menuAction(page,'view','Show manuscript review');
   await page.locator('.suggestion-card').getByRole('button',{name:'Accept',exact:true}).waitFor({timeout:10000});
@@ -697,9 +1058,9 @@ try {
   const holdChapterDecision=async route=>{
     const operation=route.request().postDataJSON();
     if(operation.action!=='decide'||operation.path!=='chapters/part.typ') return route.continue();
-    const response=await route.fetch();chapterDecisionReply=await response.json();chapterDecisionHeld();await chapterDecisionPending;return route.fulfill({response});
+    const response=await route.fetch();finiteRequests.delete(route.request());chapterDecisionReply=await response.json();chapterDecisionHeld();await chapterDecisionPending;return route.fulfill({response});
   };
-  await page.route('**/api/review',holdChapterDecision);await page.locator('.suggestion-card').getByRole('button',{name:'Accept',exact:true}).click();await chapterDecision;
+  await page.route('**/api/review',holdChapterDecision);await waitForDocumentIdle(page);await page.locator('.suggestion-card').getByRole('button',{name:'Accept',exact:true}).click();await chapterDecision;
   if(!chapterDecisionReply.ok) releaseChapterDecision();
   assert.equal(chapterDecisionReply.ok,true,`the native chapter acceptance must commit before the response is held: ${JSON.stringify(chapterDecisionReply.error)}`);
   assert.equal(chapterDecisionReply.result.content,chapterSnapshot.content.replace(chapterQuote,'An improved chapter manuscript\\.'),'native acceptance returns the exact source with safely escaped Typst punctuation');
@@ -714,6 +1075,8 @@ try {
   const chapterRebuildReceipt=await chapterRebuildResponse.json();assert.equal(chapterRebuildReceipt.ok,true,chapterRebuildReceipt.error?.message);
   assert.equal(chapterRebuildReceipt.result.current,true,'the follow-up main build validates the accepted chapter inputs');
   await page.waitForFunction(()=>document.getElementById('typst-preview-status').dataset.state==='current',{},{timeout:15000});
+  await page.waitForFunction(()=>document.getElementById('typst-compile').textContent==='Recompile');
+  await waitForDocumentIdle(page);
   assert.equal((await call({action:'pdf',project:project.id,path:'book.typ'})).current,true,'the cached main PDF verifies the accepted chapter dependency');
   assert.equal((await call({action:'open',project:project.id,path:'chapters/part.typ'})).review.revision,chapterDecisionReply.result.review.revision,'the accepted chapter revision remains authoritative after the follow-up main build');
   assert.equal(await page.locator('.cm-content').textContent(),bibliographyDuringDecision,'a delayed chapter acceptance keeps the newly selected bibliography buffer');
@@ -727,6 +1090,8 @@ try {
   await page.locator('#reload-buffer').click();
   await page.waitForFunction(()=>document.querySelector('.cm-content')?.textContent.includes('External bibliography edit.'));
   await page.locator('#typst-compile').click();await page.waitForFunction(()=>document.getElementById('typst-preview-status').dataset.state==='current',{},{timeout:15000});
+  await page.waitForFunction(()=>document.getElementById('typst-compile').textContent==='Recompile');
+  await waitForDocumentIdle(page);
   await page.getByRole('button',{name:'part.typ',exact:true}).click();await waitForSource(page,'chapters/part.typ');
   const goodMain=await call({action:'pdf',project:project.id,path:'book.typ'});assert.equal(goodMain.current,true);
   await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.insertText('\n#unknown-chapter-function()\n');
@@ -738,7 +1103,8 @@ try {
   await page.locator('#source-undo').click();
   assert.ok(!(await page.locator('.cm-content').textContent()).includes('#unknown-chapter-function()'),'Undo removes the invalid included source from its live editor');
   await saveExactSource(page,project.id,'chapters/part.typ',chapterDecisionReply.result.content);
-  await menuAction(page,'file','Clear main document');
+  await waitForDocumentIdle(page);
+  await setFixtureMain(page,true);
   await page.waitForFunction(()=>document.getElementById('typst-compile').title==='Compile chapters/part.typ');
   assert.equal((await call({action:'projects'})).find(item=>item.id===project.id).mainDocument,'','clearing main restores selected-source compilation');
   await page.getByRole('button',{name:'references.bib',exact:true}).click();await waitForSource(page,'references.bib');
@@ -778,7 +1144,7 @@ try {
       return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:false,error:{code:'git',message:'Qualification records the sync target without contacting a remote.'}})});
     }
     if(operation.action===metadataAction) {
-      const response=await route.fetch();metadataHeld();await releaseMetadata.promise;return route.fulfill({response});
+      const response=await route.fetch();finiteRequests.delete(route.request());metadataHeld();await releaseMetadata.promise;return route.fulfill({response});
     }
     return route.continue();
   };
@@ -797,7 +1163,8 @@ try {
   await page.waitForFunction(()=>document.getElementById('review-status').textContent.startsWith('Automatic GitHub sync paused:'),{},{timeout:10000});
   assert.deepEqual(syncProjects,[project.id],'a delayed palette response schedules autosync for its original project');
   assert.equal(await page.locator('#manuscript-tabs [role="tab"][aria-selected="true"]').textContent(),'other.html','the palette response leaves the newer editor intact');
-  assert.ok((await call({action:'open',project:project.id,path:'main.html'})).review.rules.some(rule=>rule.label==='Rule belongs to the original project'));
+  const beforeDelayedProjectMark=await call({action:'open',project:project.id,path:'main.html'});
+  assert.ok(beforeDelayedProjectMark.review.rules.some(rule=>rule.label==='Rule belongs to the original project'));
   assert.ok(!(await call({action:'open',project:secondProject.id,path:'other.html'})).review.rules.some(rule=>rule.label==='Rule belongs to the original project'));
   await page.locator('.cm-content').click();await page.keyboard.press('Control+Home');
   for(let index=0;index<3;index++) await page.keyboard.press('ArrowRight');for(let index=0;index<6;index++) await page.keyboard.press('Shift+ArrowRight');
@@ -810,7 +1177,7 @@ try {
   assert.deepEqual(syncProjects,[project.id,secondProject.id],'a delayed highlight response schedules autosync for its original project');
   assert.equal(await page.locator('#manuscript-tabs [role="tab"][aria-selected="true"]').textContent(),'main.html','the highlight response leaves the newer editor intact');
   assert.equal((await call({action:'open',project:secondProject.id,path:'other.html'})).review.markers[0].anchor.quote,'Only B');
-  assert.equal((await call({action:'open',project:project.id,path:'main.html'})).review.markers.length,0,'the delayed highlight does not leak into the newer project');
+  assert.deepEqual((await call({action:'open',project:project.id,path:'main.html'})).review.markers,beforeDelayedProjectMark.review.markers,'the delayed highlight does not leak into or change the newer project');
   await page.unroute('**/api/review',routeMetadata);
   await writeFile(join(projectRoot,'main.html'),'<p>An external author changed the disk source.</p>\n');
   await page.locator('.cm-content').click();await page.keyboard.press('Control+End');await page.keyboard.insertText('\nKeep my newer draft.');
@@ -824,7 +1191,7 @@ try {
   const holdReload=async route=>{
     const operation=route.request().postDataJSON();
     if(operation.action!=='open'||operation.path!=='main.html') return route.continue();
-    const response=await route.fetch();reloadHeld();await new Promise(resolve=>{releaseReload=resolve;});await route.fulfill({response});
+    const response=await route.fetch();finiteRequests.delete(route.request());reloadHeld();await new Promise(resolve=>{releaseReload=resolve;});await route.fulfill({response});
   };
   await page.route('**/api/review',holdReload);
   const waitForReload=new Promise(resolve=>{reloadHeld=resolve;});
@@ -858,11 +1225,12 @@ try {
   await preferencePage.locator('#files-splitter').focus();for(let index=0;index<20;index++) await preferencePage.keyboard.press('ArrowRight');
   await preferencePage.locator('#preview-splitter').focus();await preferencePage.keyboard.press('ArrowRight');await preferencePage.keyboard.press('ArrowRight');
   await preferencePage.locator('#outline-toggle').click();await preferencePage.locator('#review-toggle').click();
-  await preferencePage.locator('#files-collapse').click();await preferencePage.locator('#preview-collapse').click();
+  await preferencePage.locator('#files-collapse').click();
+  await preferencePage.evaluate(()=>{const key='undertree.workspace-preferences';const saved=JSON.parse(localStorage.getItem(key));saved.previewCollapsed=true;localStorage.setItem(key,JSON.stringify(saved));});
   const preferred=await preferencePage.evaluate(()=>JSON.parse(localStorage.getItem('undertree.workspace-preferences')));
   assert.equal(preferred.editorFontSize,14);assert.equal(preferred.wordWrap,false);assert.equal(preferred.filesCollapsed,true);assert.equal(preferred.previewCollapsed,true);assert.equal(preferred.reviewOpen,true);assert.equal(preferred.outlineCollapsed,true);assert.ok(Math.abs(preferred.editorFraction-.6)<1e-9);
   await preferencePage.reload();await preferencePage.locator('#project-select').selectOption(preferenceProject.id);
-  assert.deepEqual(await preferencePage.locator('.review-workspace').evaluate(node=>[node.dataset.filesCollapsed,node.dataset.previewCollapsed,node.dataset.reviewOpen]),['true','true','true'],'explicit pane visibility restores after reloading the application');
+  assert.deepEqual(await preferencePage.locator('.review-workspace').evaluate(node=>[node.dataset.filesCollapsed,node.dataset.previewCollapsed,node.dataset.reviewOpen]),['true','false','true'],'reloading restores the split while preserving file and review visibility');
   assert.equal(await preferencePage.locator('#outline-toggle').getAttribute('aria-expanded'),'false');
   assert.equal(await preferencePage.locator('#preview-splitter').getAttribute('aria-valuenow'),'60');
   await menuAction(preferencePage,'view','Show file panel');await preferencePage.getByRole('button',{name:'settings.html',exact:true}).click();await waitForSource(preferencePage,'settings.html');
@@ -904,15 +1272,26 @@ try {
     const {source,...ui}=observed||{};
     await writeFile(join(output,`${basename(root)}.json`),JSON.stringify({
       snapshotReceipt,snapshotSha256,pageStage:failureStage,error:{name:error.name,message:error.message},ui,
+      requestHistory:failurePage?.__fixtureRequestHistory,
+      mutationHistory:failurePage?.__fixtureMutationHistory,
+      nativeHeldReceipts:failurePage?.__fixtureHeldReceipts,
+      mcpErrors:failurePage?.__fixtureMcpErrors,
+      pendingRequests:[...failurePage?.__fixtureFiniteRequests||[]].map(request=>({action:request.postDataJSON()?.action,path:request.postDataJSON()?.path})),
       sourceSha256:typeof source==='string'?createHash('sha256').update(source).digest('hex'):null,
     },null,2)+'\n');
     await failurePage?.screenshot({path:join(output,`${basename(root)}.png`)});
   })().catch(()=>{});
   throw error;
 } finally {
-  await browser?.close();child.kill('SIGINT');
+  await browser?.close();
+  if (child.exitCode === null) await call({action:'tunnel',enabled:false,reservation:'',public_url:''}).catch(()=>{});
+  if (child.exitCode === null) {
+    if (process.platform === 'win32') spawnSync('taskkill',['/PID',String(child.pid),'/T','/F'],{windowsHide:true});
+    else child.kill('SIGINT');
+  }
   await new Promise(r=>{if(child.exitCode!==null) r();else {child.once('exit',r);setTimeout(r,3000).unref();}});
-  await rm(root,{recursive:true,force:true});
+  assert.ok(resolve(root).startsWith(join(resolve(tmpdir()),'undertree-review-ui-')));
+  await rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});
 }
 const resultReceipt = snapshotReceipt.replace(/\.json$/, '-result.json');
 await writeFile(resultReceipt, JSON.stringify({completedAt:new Date().toISOString(),command:'npm run test:review-ui',exitCode:0,status:'VERIFIED',snapshotReceipt,snapshotSha256,scope:'Real Rust authority and Typst CLI with immutable copied frontend and executable; zrok and final autosync simulated. Full Overleaf parity, live ChatGPT/public tunnel, live GitHub push and native shell are not qualified by this gate.'},null,2)+'\n');

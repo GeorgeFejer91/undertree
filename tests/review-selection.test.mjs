@@ -6,6 +6,7 @@ import { ReviewSession, sourceEpoch, captureSourceBinding, assertSourceBinding, 
 
 const source = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
 const handler = id => source.match(new RegExp(`\\$\\('${id}'\\)\\.onsubmit = task\\((async event => \\{[\\s\\S]*?\\n\\})\\);`))?.[1];
+const selectionGuard = source.slice(source.indexOf('function assertColorSelection('), source.indexOf('async function applyColorSelection('));
 const snapshot = content => ({ path: 'main.typ', content, review: { revision: content, markers: [], rules: [], suggestions: [] } });
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 function fixture({ hold = 'save' } = {}) {
@@ -22,11 +23,12 @@ function fixture({ hold = 'save' } = {}) {
   return { session, operations, markers, gate, seen, disk: () => disk };
 }
 function submitter(session, id = 'highlight-form') {
-  const selected = Object.freeze({ session, version: session.version, from: 6, to: 12, quote: 'target', id: 'marker' });
+  const editor = { compositionStarted: false };
+  const selected = Object.freeze({ session, editor, binding: captureSourceBinding(session), version: session.version, from: 6, to: 12, quote: 'target', id: 'marker', rules: JSON.stringify(session.snapshot.review.rules) });
   const controls = { 'highlight-dialog-rule': { value: 'protect' }, 'highlight-prompt': { value: '' }, 'highlight-dialog': { close() {} }, 'reanchor-dialog': { close() {} } };
-  const context = { sourceEpoch, captureSourceBinding, assertSourceBinding, localNoSaveClose, active: session, selection: selected, reanchorSelection: selected, $: id => controls[id], saveSession: value => value.flush(), renderReview() {}, decorations() {}, reviewPanel() {}, queueSync() {}, markSelectedReview() {}, scheduleReviewPositions() {}, status() {} };
+  const context = { sourceEpoch, captureSourceBinding, assertSourceBinding, localNoSaveClose, active: session, view: editor, windowClosing: false, selection: selected, reanchorSelection: selected, $: id => controls[id], saveSession: value => value.flush(), renderReview() {}, decorations() {}, reviewPanel() {}, queueSync() {}, markSelectedReview() {}, scheduleReviewPositions() {}, status() {} };
   assert.ok(handler(id), 'The actual selection callback must be found.');
-  const callback = runInNewContext(`(${handler(id)})`, context);
+  const callback = runInNewContext(`${selectionGuard}\n(${handler(id)})`, context);
   return { context, submit: () => callback({ preventDefault() {} }) };
 }
 
@@ -39,6 +41,23 @@ test('queued Protect refuses typing after submission before its queued save begi
   await saving; await assert.rejects(marking, error => /selection changed/i.test(error.message));
   assert.deepEqual(operations.map(operation => operation.action), ['save']); assert.deepEqual(markers, []);
   assert.equal(disk(), 'Alpha target.\n\n'); assert.equal(session.content, 'XAlpha target.\n\n'); assert.equal(session.dirty, true);
+});
+
+test('Protect refuses active IME composition before saving or changing review metadata', async () => {
+  const { session, operations, markers } = fixture();
+  session.edit(session.content + '\n');
+  const { submit, context } = submitter(session);
+  context.view.compositionStarted = true;
+  await assert.rejects(submit(), error => /selection changed/i.test(error.message));
+  assert.deepEqual(operations, []); assert.deepEqual(markers, []); assert.equal(session.dirty, true);
+});
+
+test('Protect refuses changed color-rule semantics instead of marking with another instruction', async () => {
+  const { session, operations, markers } = fixture();
+  const { submit } = submitter(session);
+  session.snapshot.review.rules = [{ id: 'protect', label: 'Now editable', color: '#123456', action: 'prompt', prompt: 'Rewrite' }];
+  await assert.rejects(submit(), error => /color rules changed/i.test(error.message));
+  assert.deepEqual(operations, []); assert.deepEqual(markers, []);
 });
 
 test('Protect rechecks captured selection after its own awaited save', async () => {

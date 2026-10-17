@@ -6,6 +6,7 @@ import { ReviewSession, sourceEpoch, sourceRoot, sourceRootsEqual, captureSource
 import { EditorSessionBridge } from '../modules/frontend/editor-session-bridge.js';
 import { capturePublicationInputs, publicationPreviewCurrent, manuscriptTree } from '../modules/frontend/manuscript-workspace.js';
 import { captureControlState, assertControlState, controlPreviewIdentity, assertControlPreview } from '../modules/frontend/manuscript-control-state.js';
+import { assertContextShareReady } from '../src/context-sharing.js';
 
 const manuscript = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
 const identity = { sourceEpoch, sourceRoot, sourceRootsEqual, captureSourceBinding, sourceBindingCurrent, assertSourceBinding, assertSourceSnapshot, localNoSaveClose };
@@ -136,7 +137,7 @@ test('root changes invalidate captured App and publication state, and legacy art
 function compileFixture() {
   const main = make(), chapter = make(root0, 'chapter.typ', async () => snap(root0, 'chapter.typ', 'same bytes', 7), 7), operations = [], saves = [], nodes = new Map();
   const sessions = new Map([['project:chapter.typ', chapter], ['project:main.typ', main]]);
-  const environment = { ...identity, navigationIntent: 0, setCompileLog() {}, sessions, active: chapter, view: null, compiling: false, explicitCompiles: [], keyFor: (p, path) => `${p}:${path}`, publicationPath: () => 'main.typ', inventoryRoot: () => ({ expectedRoot: root0 }),
+  const environment = { ...identity, navigationIntent: 0, setCompileLog() {}, sessions, active: chapter, view: null, compiling: false, explicitCompiles: [], smartFileTree: false, keyFor: (p, path) => `${p}:${path}`, publicationPath: () => 'main.typ', inventoryRoot: () => ({ expectedRoot: root0 }),
     $: id => { if (!nodes.has(id)) nodes.set(id, { textContent: '', dataset: { project: 'project' }, querySelectorAll: () => [{ dataset: { path: 'main.typ', sourceEpoch: '2' } }] }); return nodes.get(id); },
     request: async operation => { operations.push(operation); return operation.action === 'compile' ? { available: true, current: true, revision: 'same bytes', sourceEpoch: 2, expectedRoot: root0 } : snap(); }, saveSession: async session => { saves.push(session); return session.flush(); }, projectInputVersions: () => capturePublicationInputs([...sessions.values()], 0), showPdf: async () => {}, publicationCurrent: () => true, status() {}, pdfStatus() {}, pdfBytes: null, renderReview() {}, task: callback => callback, compileScheduler: { request() {}, release() {} } };
   const helpers = manuscript.slice(manuscript.indexOf('function observedSourceTarget('), manuscript.indexOf('async function setMainDocument('));
@@ -185,9 +186,9 @@ test('actual cached tree and held Open cannot adopt a changed root or replace ol
 });
 
 test('actual rendered tree captures the envelope root once and preserves clicked identity without row root copies', async () => {
-  const container = { dataset: {}, children: [], replaceChildren() { this.children = []; }, append(node) { this.children.push(node); } }, opened = [], roots = new WeakMap();
+  const container = { dataset: {}, children: [], replaceChildren() { this.children = []; }, append(node) { this.children.push(node); } }, toggle = { setAttribute() {} }, opened = [], roots = new WeakMap();
   const code = manuscript.slice(manuscript.indexOf('function renderFiles('), manuscript.indexOf('function openNewFolder('));
-  const environment = { ...identity, $: () => container, fileInventoryRoots: roots, manuscriptTree, active: null, actionButton: (name, callback) => ({ name, callback, dataset: {}, setAttribute() {} }), openFile: (...args) => opened.push(args) };
+  const environment = { ...identity, $: id => id === 'files-smart' ? toggle : container, fileInventoryRoots: roots, manuscriptTree, active: null, smartFileTree: false, usesLatexPublication: () => false, actionButton: (name, callback) => ({ name, callback, dataset: {}, setAttribute() {} }), openFile: (...args) => opened.push(args) };
   const render = runInNewContext(code + '\nrenderFiles;', environment), expectedRoot = { ...root0 };
   render({ project: 'project', expectedRoot, entries: [{ path: 'main.typ', kind: 'source', editable: true, sourceEpoch: 2 }] }, 'project');
   expectedRoot.ino = root1.ino; container.children[0].callback();
@@ -235,7 +236,8 @@ test('actual held Open retains source binding before saving the previous editor 
 
 test('actual Share-off stays restrictive across stale root while Share-on cannot cross an awaited rebind', async () => {
   const session = make(), gate = deferred(), operations = [];
-  const environment = { ...identity, active: session, sharingSession: null, $: () => ({ checked: true }), saveSession: async () => gate.promise, request: async operation => { operations.push(operation); return { shared: false, documentId: 'replacement-id' }; }, sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, connections: { refresh: async () => {} }, renderReview() {} };
+  const contextSharing = { confirm: async ({ assertCurrent }) => { await gate.promise; assertCurrent(); return { scopeId: 'a'.repeat(64) }; } };
+  const environment = { ...identity, assertContextShareReady, contextSharing, contextShareIntent: 0, view: null, windowClosing: false, active: session, sharingSession: null, $: () => ({ checked: true }), saveSession: () => { throw Error('Sharing must not save'); }, request: async operation => { operations.push(operation); return { shared: false, documentId: 'replacement-id' }; }, sessions: new Map([['project:main.typ', session]]), keyFor: (p, path) => `${p}:${path}`, connections: { refresh: async () => {} }, renderReview() {} };
   const share = runInNewContext(`(${callback('manuscript-share', 'onchange')})`, environment), enabling = share(); rebind(session, root1); gate.resolve(); await assert.rejects(enabling, error => error.code === 'stale_root'); assert.deepEqual(operations, []);
   session.identityProblem = { code: 'stale_root', message: 'Native root changed.' }; const id = session.snapshot.documentId; environment.$ = () => ({ checked: false }); environment.saveSession = () => { throw Error('No implicit save'); }; await share();
   assert.equal(operations.length, 1); assert.equal(Object.hasOwn(operations[0], 'expectedRoot'), false); assert.equal(Object.hasOwn(operations[0], 'sourceEpoch'), false); assert.equal(session.snapshot.shared, false); assert.equal(session.snapshot.documentId, id); assert.ok(session.identityProblem);

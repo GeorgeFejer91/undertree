@@ -2,6 +2,9 @@ use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
+mod preservation;
+#[cfg(test)]
+mod preservation_tests;
 
 pub const MAX_TEXT: usize = 2 * 1024 * 1024;
 pub const MAX_ITEMS: usize = 500;
@@ -30,13 +33,22 @@ pub fn digest(text: &str) -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Action {
+    Neutral,
     Protect,
     Prompt,
     Reject,
     Discard,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum AccessMode {
+    #[default]
+    Suggestions,
+    Direct,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Rule {
     pub id: String,
@@ -44,6 +56,8 @@ pub struct Rule {
     pub color: String,
     pub action: Action,
     pub prompt: String,
+    #[serde(default)]
+    pub access_mode: AccessMode,
 }
 
 impl Rule {
@@ -52,17 +66,19 @@ impl Rule {
             || !valid_id(&self.label, 100)
             || self.prompt.len() > 4000
             || !valid_color(&self.color)
+            || (self.access_mode == AccessMode::Direct && self.action != Action::Prompt)
+            || (self.action == Action::Neutral && !self.prompt.is_empty())
         {
             return Err(Error::new(
                 "rule",
-                "Use a named rule, a hex color, and a prompt shorter than 4,000 bytes.",
+                "Use a named rule, a hex color, and a prompt shorter than 4,000 bytes. Only prompt rules can allow direct edits.",
             ));
         }
         Ok(())
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Anchor {
     pub from: usize,
@@ -196,6 +212,61 @@ pub struct Marker {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PdfSegment {
+    pub page: usize,
+    pub from: usize,
+    pub to: usize,
+    pub quote: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PdfAnnotation {
+    pub id: String,
+    pub identity: String,
+    pub pdf_path: String,
+    pub segments: Vec<PdfSegment>,
+    pub rule: String,
+    pub prompt: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_marker_id: Option<String>,
+}
+
+impl PdfAnnotation {
+    pub fn validate(&self) -> Result<()> {
+        let path = std::path::Path::new(&self.pdf_path);
+        if !valid_id(&self.id, 100) || !valid_digest(&self.identity)
+            || self.source_marker_id.as_ref().is_some_and(|id| !valid_id(id, 100))
+            || self.prompt.len() > 4000 || self.pdf_path.len() > 4096
+            || self.pdf_path.contains('\\') || path.extension().and_then(|value| value.to_str()) != Some("typ")
+            || path.components().any(|component| !matches!(component, std::path::Component::Normal(name) if !name.to_string_lossy().starts_with('.')))
+            || self.segments.is_empty() || self.segments.len() > 128
+        {
+            return Err(Error::new("format", "Invalid PDF annotation. Review data was preserved."));
+        }
+        let mut bytes = 0usize;
+        let mut previous = (0, 0);
+        for segment in &self.segments {
+            bytes = bytes.saturating_add(segment.quote.len());
+            if segment.page == 0
+                || segment.page > 10_000
+                || segment.from >= segment.to
+                || segment.to > MAX_TEXT
+                || segment.quote.encode_utf16().count() != segment.to - segment.from
+                || bytes > 32_000
+                || segment.page < previous.0
+                || (segment.page == previous.0 && segment.from < previous.1)
+            {
+                return Err(Error::new("range", "Use ordered PDF passages with valid page text offsets and at most 32 KB of quoted text."));
+            }
+            previous = (segment.page, segment.to);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Decision {
     Accepted,
@@ -223,17 +294,46 @@ pub struct Suggestion {
     pub prompt: String,
     #[serde(default)]
     pub fingerprint: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replacement_parts: Option<Vec<ReplacementPart>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preservation_policy: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_scope: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ReplacementPart {
+    Text(ReplacementText),
+    Protected(ProtectedReference),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReplacementText {
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProtectedReference {
+    pub protected_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Proposal {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_id: Option<String>,
     pub request_id: String,
     pub revision: String,
     pub from: usize,
     pub to: usize,
     pub quote: String,
     pub replacement: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replacement_parts: Option<Vec<ReplacementPart>>,
     pub rationale: String,
 }
 
@@ -245,6 +345,10 @@ pub struct Review {
     pub rules: Vec<Rule>,
     pub markers: Vec<Marker>,
     pub suggestions: Vec<Suggestion>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pdf_annotations: Vec<PdfAnnotation>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub preservations: Vec<preservation::PreservationReceipt>,
 }
 
 impl Review {
@@ -254,12 +358,15 @@ impl Review {
             revision: digest(text),
             markers: vec![],
             suggestions: vec![],
+            pdf_annotations: vec![],
+            preservations: vec![],
             rules: vec![
                 Rule {
                     id: "protect".into(),
                     label: "Keep unchanged".into(),
                     color: "#74b9a4".into(),
                     action: Action::Protect,
+                    access_mode: AccessMode::Suggestions,
                     prompt: String::new(),
                 },
                 Rule {
@@ -267,6 +374,7 @@ impl Review {
                     label: "Make snappier".into(),
                     color: "#e5be50".into(),
                     action: Action::Prompt,
+                    access_mode: AccessMode::Suggestions,
                     prompt: "Keep the content and meaning; make the wording snappier.".into(),
                 },
                 Rule {
@@ -274,6 +382,7 @@ impl Review {
                     label: "Reject changes".into(),
                     color: "#d86e6e".into(),
                     action: Action::Reject,
+                    access_mode: AccessMode::Suggestions,
                     prompt: String::new(),
                 },
                 Rule {
@@ -281,6 +390,7 @@ impl Review {
                     label: "Discard idea".into(),
                     color: "#bc8fc7".into(),
                     action: Action::Discard,
+                    access_mode: AccessMode::Suggestions,
                     prompt: DISCARD_PROMPT.into(),
                 },
             ],
@@ -292,6 +402,9 @@ impl Review {
             || !valid_digest(&self.revision)
             || self.markers.len() > MAX_ITEMS
             || self.suggestions.len() > MAX_ITEMS
+            || self.pdf_annotations.len() > MAX_ITEMS
+            || self.preservations.len() > 32
+            || serde_json::to_vec(&self.preservations)?.len() > preservation::MAX_RECEIPT_BYTES
             || self.rules.is_empty()
             || self.rules.len() > 24
         {
@@ -306,11 +419,15 @@ impl Review {
                 return Err(Error::new("rule", "Rule IDs must be unique."));
             }
         }
+        for receipt in &self.preservations {
+            receipt.validate()?;
+        }
         for (index, marker) in self.markers.iter().enumerate() {
             self.rule(&marker.rule)?;
             marker.anchor.validate()?;
             if !valid_id(&marker.id, 100)
                 || marker.prompt.len() > 4000
+                || (self.rule(&marker.rule)?.action == Action::Neutral && !marker.prompt.is_empty())
                 || self.markers[..index].iter().any(|m| m.id == marker.id)
             {
                 return Err(Error::new(
@@ -319,8 +436,32 @@ impl Review {
                 ));
             }
         }
+        for (index, annotation) in self.pdf_annotations.iter().enumerate() {
+            annotation.validate()?;
+            self.rule(&annotation.rule)?;
+            if self.rule(&annotation.rule)?.action == Action::Neutral
+                && !annotation.prompt.is_empty()
+            {
+                return Err(Error::new(
+                    "format",
+                    "Neutral PDF colors cannot carry passage prompts.",
+                ));
+            }
+            if self.pdf_annotations[..index]
+                .iter()
+                .any(|previous| previous.id == annotation.id)
+            {
+                return Err(Error::new(
+                    "format",
+                    "Duplicate PDF annotations. Review data was preserved.",
+                ));
+            }
+        }
         for (index, suggestion) in self.suggestions.iter().enumerate() {
             suggestion.anchor.validate()?;
+            if let Some(parts) = &suggestion.replacement_parts {
+                preservation::validate_parts(parts)?;
+            }
             if !valid_id(&suggestion.id, 100)
                 || !valid_id(&suggestion.request_id, 100)
                 || !valid_color(&suggestion.color)
@@ -328,6 +469,14 @@ impl Review {
                 || suggestion.rationale.len() > 4000
                 || suggestion.prompt.len() > MAX_POLICY_PROMPT
                 || (!suggestion.fingerprint.is_empty() && !valid_digest(&suggestion.fingerprint))
+                || suggestion
+                    .preservation_policy
+                    .as_ref()
+                    .is_some_and(|value| !valid_digest(value))
+                || suggestion
+                    .context_scope
+                    .as_ref()
+                    .is_some_and(|value| !valid_digest(value))
                 || self.suggestions[..index]
                     .iter()
                     .any(|s| s.id == suggestion.id || s.request_id == suggestion.request_id)
@@ -414,8 +563,19 @@ impl Review {
     }
 
     pub fn reconcile(&mut self, old: &str, new: &str) {
+        let restored = self.preservation_transition(old, new);
         for marker in &mut self.markers {
             marker.anchor.reconcile(old, new);
+        }
+        if let Some(anchors) = restored {
+            for marker in &mut self.markers {
+                if let Some(position) = anchors
+                    .iter()
+                    .find(|position| position.id == marker.id && position.rule == marker.rule)
+                {
+                    marker.anchor = position.anchor.clone();
+                }
+            }
         }
         for suggestion in &mut self.suggestions {
             if suggestion.status == Status::Pending {
@@ -441,18 +601,38 @@ impl Review {
     }
 
     pub fn policy(&self, from: usize, to: usize) -> Result<(String, String)> {
+        self.policy_preserving(from, to, false)
+    }
+
+    fn policy_preserving(
+        &self,
+        from: usize,
+        to: usize,
+        preserving: bool,
+    ) -> Result<(String, String)> {
         let mut color = "#8ba8cc".to_owned();
         let mut discard_color = None;
         let mut prompts = Vec::new();
         for marker in &self.markers {
             let rule = self.rule(&marker.rule)?;
-            if marker.anchor.stale && rule.action != Action::Prompt {
+            if marker.anchor.stale
+                && matches!(
+                    rule.action,
+                    Action::Protect | Action::Reject | Action::Discard
+                )
+            {
                 return Err(Error::new("protected", "A protected marker is stale. The user must reanchor or remove it before agent suggestions resume."));
             }
             if marker.anchor.stale || from >= marker.anchor.to || to <= marker.anchor.from {
                 continue;
             }
+            if rule.action == Action::Neutral {
+                continue;
+            }
             if matches!(rule.action, Action::Protect | Action::Reject) {
+                if preserving {
+                    continue;
+                }
                 return Err(Error::new(
                     "protected",
                     "This passage is marked against agent changes.",
@@ -479,18 +659,89 @@ impl Review {
         Ok((discard_color.unwrap_or(color), prompt))
     }
 
+    pub fn allows_direct(&self, from: usize, to: usize) -> Result<bool> {
+        self.allows_direct_preserving(from, to, false)
+    }
+
+    pub fn allows_suggestion_direct(&self, suggestion: &Suggestion) -> Result<bool> {
+        self.allows_direct_preserving(
+            suggestion.anchor.from,
+            suggestion.anchor.to,
+            suggestion.replacement_parts.is_some(),
+        )
+    }
+
+    fn allows_direct_preserving(&self, from: usize, to: usize, preserving: bool) -> Result<bool> {
+        self.policy_preserving(from, to, preserving)?;
+        let mut ranges = Vec::new();
+        for marker in &self.markers {
+            if marker.anchor.stale || from >= marker.anchor.to || to <= marker.anchor.from {
+                continue;
+            }
+            let rule = self.rule(&marker.rule)?;
+            if rule.action == Action::Neutral
+                || (preserving && matches!(rule.action, Action::Protect | Action::Reject))
+            {
+                continue;
+            }
+            if rule.action != Action::Prompt || rule.access_mode != AccessMode::Direct {
+                return Ok(false);
+            }
+            ranges.push((marker.anchor.from, marker.anchor.to));
+        }
+        ranges.sort_unstable();
+        let mut covered = from;
+        for (start, end) in ranges {
+            if start > covered {
+                break;
+            }
+            covered = covered.max(end);
+        }
+        Ok(from < to && covered >= to)
+    }
+
     fn suggestion_policy(
         &self,
         from: usize,
         to: usize,
         replacement: &str,
+        preserving: bool,
     ) -> Result<(String, String)> {
-        let policy = self.policy(from, to)?;
+        let policy = self.policy_preserving(from, to, preserving)?;
+        let mut ranges: Vec<_> = self
+            .markers
+            .iter()
+            .filter(|marker| {
+                !marker.anchor.stale
+                    && marker.anchor.from < to
+                    && marker.anchor.to > from
+                    && self.rules.iter().any(|rule| {
+                        rule.id == marker.rule
+                            && (rule.action == Action::Prompt
+                                || (!preserving && rule.action == Action::Discard))
+                    })
+            })
+            .map(|marker| (marker.anchor.from, marker.anchor.to))
+            .collect();
+        ranges.sort_unstable();
+        let mut covered = from;
+        for (start, end) in ranges {
+            if start > covered {
+                break;
+            }
+            covered = covered.max(end);
+        }
+        if from >= to || covered < to {
+            return Err(Error::new("highlight_required", "Every character of a change must be inside current source highlights; unmarked text is read-only context."));
+        }
         for marker in &self.markers {
             if from < marker.anchor.to
                 && to > marker.anchor.from
                 && self.rule(&marker.rule)?.action == Action::Discard
-                && (!replacement.is_empty() || from > marker.anchor.from || to < marker.anchor.to)
+                && (preserving
+                    || !replacement.is_empty()
+                    || from > marker.anchor.from
+                    || to < marker.anchor.to)
             {
                 return Err(Error::new(
                     "discard",
@@ -548,26 +799,51 @@ impl Review {
                 "The quoted passage does not match the manuscript.",
             ));
         }
-        let allowed = if typst {
+        let allowed = if proposal.replacement_parts.is_some() {
+            self.protected_prose_scope(text, proposal.from, proposal.to, typst)?
+        } else if typst {
             is_typst_text(text, proposal.from, proposal.to)?
         } else {
             is_html_text(text, proposal.from, proposal.to)?
         };
         if !allowed {
-            return Err(Error::new("scope", "Agents may suggest manuscript prose only, not markup, attributes, scripts, styles, Typst code, or equations."));
+            return Err(Error::new("scope", "Agents may change manuscript prose only, not markup, attributes, scripts, styles, Typst code, or equations."));
         }
-        let (color, prompt) =
-            self.suggestion_policy(proposal.from, proposal.to, &proposal.replacement)?;
+        let (color, prompt) = self.suggestion_policy(
+            proposal.from,
+            proposal.to,
+            &proposal.replacement,
+            proposal.replacement_parts.is_some(),
+        )?;
+        let preservation = if let Some(parts) = &proposal.replacement_parts {
+            if !proposal.replacement.is_empty() {
+                return Err(Error::new(
+                    "preservation",
+                    "Use empty replacement with protected-unit references.",
+                ));
+            }
+            Some(self.reconstruct(text, proposal.from, proposal.to, parts, typst)?)
+        } else {
+            None
+        };
         let suggestion = Suggestion {
             id: Uuid::new_v4().to_string(),
             request_id: proposal.request_id,
             anchor,
-            replacement: proposal.replacement,
+            replacement: preservation
+                .as_ref()
+                .map_or(proposal.replacement, |value| value.display.clone()),
             rationale: proposal.rationale,
             status: Status::Pending,
             color,
             prompt,
             fingerprint,
+            preservation_policy: preservation
+                .as_ref()
+                .map(|_| self.preservation_policy())
+                .transpose()?,
+            replacement_parts: proposal.replacement_parts,
+            context_scope: None,
         };
         self.suggestions.push(suggestion.clone());
         Ok(suggestion)
@@ -597,7 +873,7 @@ impl Review {
             .iter()
             .position(|s| s.id == id)
             .ok_or_else(|| Error::new("missing", "Suggestion not found."))?;
-        let suggestion = &self.suggestions[index];
+        let suggestion = self.suggestions[index].clone();
         if suggestion.status != Status::Pending {
             return Err(Error::new(
                 "decided",
@@ -617,7 +893,9 @@ impl Review {
                 "The original passage has changed. Ask for a new suggestion.",
             ));
         }
-        let allowed = if typst {
+        let allowed = if suggestion.replacement_parts.is_some() {
+            self.protected_prose_scope(text, suggestion.anchor.from, suggestion.anchor.to, typst)?
+        } else if typst {
             is_typst_text(text, suggestion.anchor.from, suggestion.anchor.to)?
         } else {
             is_html_text(text, suggestion.anchor.from, suggestion.anchor.to)?
@@ -632,10 +910,39 @@ impl Review {
             suggestion.anchor.from,
             suggestion.anchor.to,
             &suggestion.replacement,
+            suggestion.replacement_parts.is_some(),
         )?;
         let start = byte_offset(text, suggestion.anchor.from)?;
         let end = byte_offset(text, suggestion.anchor.to)?;
-        let replacement = if typst {
+        let preservation = if let Some(parts) = &suggestion.replacement_parts {
+            if suggestion.preservation_policy.as_deref()
+                != Some(self.preservation_policy()?.as_str())
+            {
+                return Err(Error::new(
+                    "protected",
+                    "The protected-unit policy changed. Request a new proposal.",
+                ));
+            }
+            let reconstructed = self.reconstruct(
+                text,
+                suggestion.anchor.from,
+                suggestion.anchor.to,
+                parts,
+                typst,
+            )?;
+            if reconstructed.display != suggestion.replacement {
+                return Err(Error::new(
+                    "preservation",
+                    "The replacement no longer matches its native preservation mapping.",
+                ));
+            }
+            Some(reconstructed)
+        } else {
+            None
+        };
+        let replacement = if let Some(value) = &preservation {
+            value.raw.clone()
+        } else if typst {
             escape_typst(&suggestion.replacement)
         } else {
             escape_html(&suggestion.replacement)
@@ -660,8 +967,43 @@ impl Review {
                         .any(|rule| rule.id == marker.rule && rule.action == Action::Discard)
             });
         }
+        let preservation_before = preservation.as_ref().map(|_| self.preservation_positions());
+        let preservation_policy_before = preservation
+            .as_ref()
+            .map(|_| self.preservation_policy())
+            .transpose()?;
+        let before_preservation = preservation.as_ref().map(|_| self.clone());
+        let reanchored = preservation
+            .as_ref()
+            .map(|value| {
+                self.preserved_anchors(
+                    text,
+                    &changed,
+                    suggestion.anchor.from,
+                    suggestion.anchor.to,
+                    value,
+                )
+            })
+            .transpose()?;
         self.suggestions[index].status = Status::Accepted;
         self.reconcile(text, &changed);
+        if let Some(anchors) = reanchored {
+            for (id, anchor) in anchors {
+                if let Some(marker) = self.markers.iter_mut().find(|marker| marker.id == id) {
+                    marker.anchor = anchor;
+                }
+            }
+        }
+        if let (Some(before), Some(before_policy)) =
+            (preservation_before, preservation_policy_before)
+        {
+            if let Err(error) = self.record_preservation(text, &changed, before, before_policy) {
+                if let Some(original) = before_preservation {
+                    *self = original;
+                }
+                return Err(error);
+            }
+        }
         Ok(changed)
     }
 }
@@ -821,14 +1163,24 @@ pub fn is_html_text(text: &str, from: usize, to: usize) -> Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn highlight(review: &mut Review, text: &str, from: usize, to: usize) {
+        review.markers.push(Marker {
+            id: format!("highlight-{}", review.markers.len()),
+            anchor: Anchor::new(text, from, to).unwrap(),
+            rule: "snappier".into(),
+            prompt: String::new(),
+        });
+    }
     fn proposal(text: &str, from: usize, to: usize) -> Proposal {
         Proposal {
+            context_id: None,
             request_id: "request-1".into(),
             revision: digest(text),
             from,
             to,
             quote: selected(text, from, to).unwrap().into(),
             replacement: "Better <script>".into(),
+            replacement_parts: None,
             rationale: "Clearer".into(),
         }
     }
@@ -836,6 +1188,7 @@ mod tests {
     fn suggestions_do_not_edit_and_acceptance_escapes_html() {
         let text = "<p>Hello world</p>";
         let mut review = Review::new(text);
+        highlight(&mut review, text, 3, 8);
         let s = review.propose(text, proposal(text, 3, 8)).unwrap();
         assert_eq!(review.revision, digest(text));
         assert_eq!(
@@ -1018,6 +1371,7 @@ mod tests {
     fn discard_is_rechecked_at_acceptance_and_rejection_preserves_markers() {
         let text = "<p>Hello world</p>";
         let mut review = Review::new(text);
+        highlight(&mut review, text, 3, 8);
         let rewritten = review.propose(text, proposal(text, 3, 8)).unwrap();
         review.markers.push(Marker {
             id: "discarded-idea".into(),
@@ -1056,7 +1410,7 @@ mod tests {
             .find(|rule| rule.id == "discard")
             .unwrap()
             .action = Action::Discard;
-        review.markers[0].anchor = Anchor::new(text, 3, 14).unwrap();
+        review.markers[1].anchor = Anchor::new(text, 3, 14).unwrap();
         assert_eq!(
             review
                 .decide(text, &digest(text), &suggestion.id, Decision::Accepted)
@@ -1155,7 +1509,9 @@ mod tests {
 
             // Old sidecars may already contain a proposal admitted by the former classifier.
             let ordinary = "<p>Hello</p>";
-            let mut legacy = Review::new(ordinary)
+            let mut legacy_review = Review::new(ordinary);
+            highlight(&mut legacy_review, ordinary, 3, 8);
+            let mut legacy = legacy_review
                 .propose(ordinary, proposal(ordinary, 3, 8))
                 .unwrap();
             legacy.anchor = Anchor::new(&text, from, from + 5).unwrap();
@@ -1210,7 +1566,9 @@ mod tests {
         ] {
             let from = text.find("Hello").unwrap();
             assert!(is_html_text(text, from, from + 5).unwrap(), "{text}");
-            Review::new(text)
+            let mut review = Review::new(text);
+            highlight(&mut review, text, from, from + 5);
+            review
                 .propose(text, proposal(text, from, from + 5))
                 .unwrap();
         }
@@ -1220,6 +1578,7 @@ mod tests {
     fn stale_revision_replay_and_reject() {
         let text = "<p>Hello</p>";
         let mut review = Review::new(text);
+        highlight(&mut review, text, 3, 8);
         let s = review.propose(text, proposal(text, 3, 8)).unwrap();
         assert_eq!(review.propose(text, proposal(text, 3, 8)).unwrap().id, s.id);
         assert_eq!(
@@ -1241,6 +1600,7 @@ mod tests {
         let text = "#set text(size: 11pt)\n\n= Heading\n\nHello world.\n";
         let from = text.find("Hello").unwrap();
         let mut review = Review::new(text);
+        highlight(&mut review, text, from, from + 11);
         assert!(is_typst_text(text, from, from + 11).unwrap());
         assert!(!is_typst_text(text, 5, 9).unwrap());
         let mut p = proposal(text, from, from + 11);
@@ -1405,6 +1765,14 @@ mod tests {
                 .code,
             "protected"
         );
+        assert_eq!(
+            review
+                .propose(current, proposal(current, 11, 16))
+                .unwrap_err()
+                .code,
+            "highlight_required"
+        );
+        highlight(&mut review, current, 11, 16);
         assert!(review.propose(current, proposal(current, 11, 16)).is_ok());
         assert_eq!(review.revision, digest(current));
     }

@@ -70,7 +70,7 @@ impl Fixture {
     }
 
     fn registry_path(&self) -> PathBuf {
-        self.temp.path().join("state/projects.json")
+        self.service.state.join("projects.json")
     }
 
     fn record(

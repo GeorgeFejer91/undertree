@@ -131,21 +131,35 @@ export class ReviewSession {
   }
   mutate(action, payload = {}, assertCurrent) {
     const binding = captureSourceBinding(this);
+    const pdfAnnotation = action === 'pdf_mark' || action === 'pdf_unmark';
     return this.enqueue(async () => {
     assertSourceBinding(this, binding);
     assertCurrent?.();
     const version = this.version;
-    await this.saveCurrent(binding);
+    if (!pdfAnnotation) await this.saveCurrent(binding);
     assertSourceBinding(this, binding);
     assertCurrent?.();
     const snapshot = this.snapshot;
     let response;
-    try { response = await this.request({ action, ...payload, ...binding, revision: snapshot.review.revision }); }
+    try {
+      for (let attempt = 0; ; attempt += 1) {
+        assertSourceBinding(this, binding);
+        assertCurrent?.();
+        if (attempt && version !== this.version) throw { code: 'stale_buffer', message: 'The editor changed while waiting to apply this review action. Select the passage again.' };
+        try { response = await this.request({ action, ...payload, ...binding, revision: snapshot.review.revision }); break; }
+        catch (error) {
+          // This exact native refusal occurs before dispatch; uncertain mutation failures must never replay.
+          if (attempt >= 3 || error?.code !== 'busy' || error.message !== 'A local document operation is running. Retry this action.') throw error;
+          await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1)));
+        }
+      }
+    }
     catch (error) { if (sourceBindingCurrent(this, binding)) this.recordReviewProblem(error); this.recordIdentityProblem(error, binding); throw error; }
     this.checkSnapshot(response, binding);
+    if (pdfAnnotation && response.content !== snapshot.content) throw { code: 'conflict', message: 'The saved source changed while annotating the PDF. Your editor buffer is preserved.' };
     if (response.content !== undefined) {
       this.snapshot = snapshot.shared !== this.snapshot.shared ? { ...response, shared: this.snapshot.shared } : response;
-      if (version === this.version) {
+      if (!pdfAnnotation && version === this.version) {
         if (this.content !== response.content) this.generation += 1;
         this.content = response.content;
         this.savedVersion = this.version;
@@ -200,13 +214,13 @@ export class ReviewSession {
       return { result, current: isCurrent() && !isBusy() && !this.conflict && !this.reviewProblem && !this.identityProblem && this.generation === captured.generation && this.content === captured.content };
     });
   }
-  async refresh({ retryProblem = false, isCurrent = () => true } = {}) {
+  async refresh({ retryProblem = false, metadataOnly = false, directEdits = false, isCurrent = () => true } = {}) {
     if (this.identityProblem) throw this.identityProblem;
     const binding = captureSourceBinding(this);
     assertSourceBinding(this, binding);
     const problem = this.reviewProblem;
     const retry = retryProblem && !!problem;
-    if ((this.dirty || this.conflict || problem) && !retry) return false;
+    if (((this.dirty && !metadataOnly) || this.conflict || problem) && !retry) return false;
     const version = this.version;
     const snapshot = this.snapshot;
     const conflict = this.conflict;
@@ -217,7 +231,7 @@ export class ReviewSession {
       if (isCurrent() && sourceBindingCurrent(this, binding) && snapshot === this.snapshot && problem === this.reviewProblem) { this.recordReviewProblem(error); this.recordIdentityProblem(error, binding); }
       throw error;
     }
-    if (!isCurrent() || !sourceBindingCurrent(this, binding) || project !== this.project || path !== this.path || version !== this.version || snapshot !== this.snapshot || problem !== this.reviewProblem || conflict !== this.conflict) return false;
+    if (!isCurrent() || !sourceBindingCurrent(this, binding) || project !== this.project || path !== this.path || (!metadataOnly && version !== this.version) || snapshot !== this.snapshot || problem !== this.reviewProblem || conflict !== this.conflict) return false;
     this.checkSnapshot(response, binding);
     if (retry) {
       this.reviewProblem = null;
@@ -226,7 +240,16 @@ export class ReviewSession {
       this.onChange?.();
       return true;
     }
-    if (response.content !== this.content) { this.conflict = response; this.onChange?.(); return false; }
+    if (response.content !== (metadataOnly ? snapshot.content : this.content)) {
+      if (metadataOnly && this.pending) return false;
+      const receipt = response.directEdit;
+      if (!directEdits || !metadataOnly || this.dirty || this.pending || version !== this.version || this.content !== snapshot.content
+        || !receipt || receipt.fromRevision !== snapshot.review.revision || receipt.toRevision !== response.review.revision) {
+        this.conflict = response; this.onChange?.(); return false;
+      }
+      this.content = response.content;
+      this.version += 1; this.generation += 1; this.savedVersion = this.version;
+    }
     this.snapshot = response;
     this.onChange?.();
     return true;

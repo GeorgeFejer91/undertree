@@ -23,7 +23,7 @@ try {
     await import('/src/manuscript.css');
     const { setupConnectionManager } = await import('/src/connection-manager.js');
     const { observeReviewText } = await import('/modules/frontend/review-text-layout.js');
-    const reviewTools = ['list_manuscripts', 'read_manuscript', 'suggest_text'].map(name => ({ name }));
+    const reviewTools = ['list_manuscripts', 'read_manuscript', 'suggest_text', 'highlight_text'].map(name => ({ name }));
     window.fixture = { operations: [], holdEnable: true, failLink: false, messages: [], state: { running: true, enabled: false, apps: [] } };
     const gateway = () => ({ enabled: fixture.state.enabled, mcpInitialized: Boolean(fixture.state.gatewayInitialized), endpoint: fixture.state.enabled ? 'https://gateway.example/mcp/private-gateway-capability' : '', apps: structuredClone(fixture.state.apps), tools: fixture.state.enabled ? [...reviewTools, { name: 'list_connected_apps' }, ...fixture.state.apps.flatMap(app => [{ name: `app_${app.id}_read` }, { name: `app_${app.id}_suggest` }])] : [] });
     const connection = () => ({ running: fixture.state.running, endpoint: fixture.state.running ? fixture.state.sameAddress && fixture.state.enabled ? gateway().endpoint : 'https://review.example/mcp/private-review-capability' : '', textOnlyConnector: true, mcpInitialized: false, sharedCount: 0, shared: [], lastError: '', config: {}, protocolVersion: '2025-06-18', tools: reviewTools, appControls: { enabled: false }, gateway: gateway() });
@@ -69,7 +69,7 @@ try {
   await page.evaluate(async () => { fixture.state.sameAddress = true; await fixture.manager.refresh(); });
   assert.equal(await page.locator('#connection-review-address').isVisible(), false, 'a shared imported address is not mislabeled as Review-only');
   await page.evaluate(async () => { fixture.state.sameAddress = false; await fixture.manager.refresh(); });
-  assert.deepEqual(await page.locator('#connection-tools li').allTextContents(), ['list_manuscripts', 'read_manuscript', 'suggest_text', 'list_connected_apps']);
+  assert.deepEqual(await page.locator('#connection-tools li').allTextContents(), ['list_manuscripts', 'read_manuscript', 'suggest_text', 'highlight_text', 'list_connected_apps']);
   await page.locator('#connection-tab-apps').click();
   const label = 'Forschungsnotizen mit ausführlicher deutscher Bezeichnung 🧑‍🔬';
   const upstream = 'https://remote.example/mcp/private-upstream-capability';
@@ -83,7 +83,7 @@ try {
   assert.match(await page.locator('#connection-error').textContent(), /Copy the selected URL/);
   assert.deepEqual(await page.locator('#connection-hub-url').evaluate(input => [input.selectionStart, input.selectionEnd]), [0, 'https://gateway.example/mcp/private-gateway-capability'.length]);
   await page.locator('#connection-tab-mcp').click();
-  assert.deepEqual(await page.locator('#connection-tools li').allTextContents(), ['list_manuscripts', 'read_manuscript', 'suggest_text', 'list_connected_apps', 'app_notes_read', 'app_notes_suggest']);
+  assert.deepEqual(await page.locator('#connection-tools li').allTextContents(), ['list_manuscripts', 'read_manuscript', 'suggest_text', 'highlight_text', 'list_connected_apps', 'app_notes_read', 'app_notes_suggest']);
   await page.locator('#connection-tab-apps').click();
   for (const [width, height, text] of [[1440, 900, 14], [1100, 480, 14], [901, 480, 28], [320, 900, 28], [667, 375, 14], [1440, 900, 14]]) {
     await page.setViewportSize({ width, height }); await page.evaluate(text => { document.documentElement.style.fontSize = `${text}px`; }, text);
@@ -116,7 +116,7 @@ try {
   assert.equal(await page.locator('#connection-tab-app').isDisabled(), true); assert.equal(await page.locator('#connection-app-enabled').isDisabled(), true);
   assert.equal(await page.locator('#connection-overview-mcp').textContent(), 'No initialization observed');
   assert.equal(await page.locator('#connection-review-address').isVisible(), false);
-  assert.deepEqual(await page.locator('#connection-tools li').allTextContents(), ['list_manuscripts', 'read_manuscript', 'suggest_text']);
+  assert.deepEqual(await page.locator('#connection-tools li').allTextContents(), ['list_manuscripts', 'read_manuscript', 'suggest_text', 'highlight_text']);
   await page.locator('#tunnel-stop').click(); await page.locator('#connection-tab-apps').click();
   assert.equal(await page.locator('#connection-hub-enabled').isDisabled(), true); assert.equal(await page.locator('#connection-hub-url').inputValue(), '');
   assert.deepEqual(errors, []);

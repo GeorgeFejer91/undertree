@@ -44,4 +44,18 @@ test('architecture rejects Electron dependencies, commands, entrypoints, packagi
     await rm(join(root, asset), { recursive: true, force: true });
   }
   assert.deepEqual(await architectureErrors(root), [], 'removing obsolete assets restores the valid stack');
+
+  for (const name of ['for-ai', 'ponytail', 'ponytail-audit', 'ponytail-review',
+    'tauri-rust-developer', 'tauri-remote-app-builder', 'tauri-browser-remote-control']) {
+    const path = `For-AI/skills/${name}/SKILL.md`;
+    const content = await readFile(join(root, path));
+    await rm(join(root, path));
+    assert.ok((await architectureErrors(root)).includes(`Required architecture asset is missing: ${path}`), name);
+    await writeFile(join(root, path), content);
+  }
+  const executable = 'For-AI/skills/ponytail/runner.js';
+  await writeFile(join(root, executable), '');
+  assert.ok((await architectureErrors(root)).some(error => error.startsWith('For-AI must remain Markdown-only:')));
+  await rm(join(root, executable));
+  assert.deepEqual(await architectureErrors(root), [], 'restoring Markdown snapshots restores the valid control plane');
 });

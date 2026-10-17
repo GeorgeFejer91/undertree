@@ -33,6 +33,7 @@ impl Fixture {
                 .unwrap(),
         )
         .unwrap();
+        let file = project.root.join("main.typ");
         let owner = service.connect_native_editor("main").unwrap()["ownerId"]
             .as_str()
             .unwrap()
@@ -158,6 +159,10 @@ impl Fixture {
             project: self.project.id.clone(),
             path: "main.typ".into(),
             enabled: true,
+            context_shared: true,
+            expected_context_scope: self
+                .service
+                .test_context_scope(&self.project.id, "main.typ"),
         })
         .await
         .unwrap()["documentId"]
@@ -227,7 +232,7 @@ impl Fixture {
     ) -> Result<serde_json::Value> {
         self.service.remote("suggest_text", serde_json::json!({
             "documentId": document_id,
-            "proposal": {"requestId":request,"revision":crate::document::digest(text),"from":0,"to":text.encode_utf16().count(),"quote":text,"replacement":replacement,"rationale":"Native History fixture"}
+            "proposal": {"requestId":request,"contextId":self.service.remote("read_manuscript",serde_json::json!({"documentId":document_id}))?["contextId"],"revision":crate::document::digest(text),"from":0,"to":text.encode_utf16().count(),"quote":text,"replacement":replacement,"rationale":"Native History fixture"}
         }))
     }
 }
@@ -353,6 +358,18 @@ async fn native_history_queries_are_pure_before_initialization_and_reject_owners
 #[tokio::test]
 async fn native_acceptance_is_captured_while_metadata_rejection_and_legacy_save_are_excluded() {
     let fixture = Fixture::new("Original");
+    fixture
+        .native(Operation::Mark {
+            project: fixture.project.id.clone(),
+            path: "main.typ".into(),
+            revision: crate::document::digest("Original"),
+            from: 0,
+            to: 8,
+            rule: "snappier".into(),
+            prompt: String::new(),
+        })
+        .await
+        .unwrap();
     let document_id = fixture.share().await;
     let suggestion = fixture
         .proposal(&document_id, "Original", "Accepted", "native-acceptance")
@@ -377,6 +394,18 @@ async fn native_acceptance_is_captured_while_metadata_rejection_and_legacy_save_
         Some(accepted_id.as_str())
     );
     assert_eq!(fixture.read_version(&versions[0]).await.content, "Accepted");
+    fixture
+        .native(Operation::Mark {
+            project: fixture.project.id.clone(),
+            path: "main.typ".into(),
+            revision: crate::document::digest("Accepted"),
+            from: 0,
+            to: 8,
+            rule: "snappier".into(),
+            prompt: String::new(),
+        })
+        .await
+        .unwrap();
     let suggestion = fixture
         .proposal(&document_id, "Accepted", "Rejected", "native-rejection")
         .unwrap();
@@ -398,6 +427,7 @@ async fn native_acceptance_is_captured_while_metadata_rejection_and_legacy_save_
             path: "main.typ".into(),
             revision: crate::document::digest("Accepted"),
             rules: review.rules,
+            expected_rules: None,
         })
         .await
         .unwrap();
@@ -935,11 +965,34 @@ async fn physical_project_alias_and_new_epoch_cannot_bypass_unarmed_metadata_wri
     let nested = fixture.project.root.join("nested");
     fs::create_dir(&nested).unwrap();
     fs::write(nested.join("main.typ"), "Nested original").unwrap();
+    fixture
+        .service
+        .local(Operation::SetMainDocument {
+            project: fixture.project.id.clone(),
+            path: "nested/main.typ".into(),
+        })
+        .unwrap();
+    fixture
+        .native(Operation::Mark {
+            project: fixture.project.id.clone(),
+            path: "nested/main.typ".into(),
+            revision: crate::document::digest("Nested original"),
+            from: 0,
+            to: 15,
+            rule: "snappier".into(),
+            prompt: String::new(),
+        })
+        .await
+        .unwrap();
     let parent_grant = fixture
         .native(Operation::Share {
             project: fixture.project.id.clone(),
             path: "nested/main.typ".into(),
             enabled: true,
+            context_shared: true,
+            expected_context_scope: fixture
+                .service
+                .test_context_scope(&fixture.project.id, "nested/main.typ"),
         })
         .await
         .unwrap()["documentId"]
@@ -966,6 +1019,10 @@ async fn physical_project_alias_and_new_epoch_cannot_bypass_unarmed_metadata_wri
                     project: child.id.clone(),
                     path: "main.typ".into(),
                     enabled: true,
+                    context_shared: true,
+                    expected_context_scope: fixture
+                        .service
+                        .test_context_scope(&child.id, "main.typ"),
                 },
                 source_epoch: 0,
                 expected_root: Some(child_root),
@@ -1110,7 +1167,7 @@ async fn legacy_approved_app_state_overlap_refuses_history_before_any_source_or_
         let mut registry = crate::service::lock(&fixture.service.registry).unwrap();
         let mut overlapping = fixture.project.clone();
         overlapping.id = uuid::Uuid::new_v4().to_string();
-        overlapping.root = fixture.temporary.path().to_owned();
+        overlapping.root = fixture.temporary.path().canonicalize().unwrap();
         registry.projects.push(overlapping);
         fixture.service.save_registry(&registry).unwrap();
     }

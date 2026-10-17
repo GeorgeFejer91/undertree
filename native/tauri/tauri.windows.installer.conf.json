@@ -5,7 +5,7 @@
     "publisher": "GeorgeFejer91",
     "homepage": "https://github.com/GeorgeFejer91/undertree",
     "category": "Productivity",
-    "shortDescription": "Offline Typst manuscript and review workspace",
+    "shortDescription": "Offline Typst and LaTeX manuscript and review workspace",
     "windows": {
       "nsis": {
         "installMode": "currentUser",

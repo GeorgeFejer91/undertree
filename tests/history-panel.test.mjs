@@ -7,7 +7,7 @@ import { sourceRoot } from '../modules/frontend/review-session.js';
 import { createHash } from 'node:crypto';
 import { captureControlState, assertControlState } from '../modules/frontend/manuscript-control-state.js';
 
-const code = (await readFile(new URL('../src/history-panel.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '').replace('export class HistoryPanel', 'class HistoryPanel');
+const code = (await readFile(new URL('../src/history-panel.js', import.meta.url), 'utf8')).replace(/^import .*;\r?\n/gm, '').replace('export class HistoryPanel', 'class HistoryPanel');
 const id = n => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const root = { dev: '9007199254740993', ino: '18446744073709551615' }, project = id(1), namespace = id(2), source = id(3);
 const summary = (n, content) => ({ versionId: id(n), namespaceId: namespace, sourceId: source, binding: { projectId: project, root, path: 'chapter.typ', sourceEpoch: 7 }, sha256: createHash('sha256').update(content).digest('hex'), bytes: Buffer.byteLength(content), sequence: String(n), capturedAtMs: null, recordedAtMs: null, clockAdjusted: false, afterRecovery: false, cause: 'native_save', suggestionId: null });

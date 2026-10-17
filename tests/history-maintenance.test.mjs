@@ -20,7 +20,7 @@ function ui(active) {
   const nodes = new Map(), queued = [];
   const node = id => { if (!nodes.has(id)) nodes.set(id, { textContent: '', scrollTop: 0, querySelector: () => null, contains: () => false, replaceChildren() {} }); return nodes.get(id); };
   const env = { active, $: node, document: { activeElement: null }, currentCompileContext: null,
-    historyPanel: { changed() {} }, renderProjectExport() {}, reviewCue() {}, renderTabs() {},
+    historyPanel: { changed() {} }, colorRules: { render() {} }, colorPdfHighlights() {}, renderProjectExport() {}, reviewCue() {}, renderTabs() {},
     renderedReviewSession: active, restoreReviewScroll: null, reviewCardsObserved: new Set(), reviewGeometry: { unobserve() {} }, sharingSession: null,
     queueSync: project => queued.push(project) };
   const adapter = runInNewContext(labelCode + renderPrefix + '\n}\nconst onSaved = ({' + onSavedCode + '}).onSaved;\n({saveLabel,renderReview,onSaved});', env);

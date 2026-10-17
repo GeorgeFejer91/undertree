@@ -1,3 +1,4 @@
+import { confirmNativeContextShare } from './context-fixture.mjs';
 // Real packaged Tauri -> native IPC -> Rust MCP -> renderer -> native window controls.
 // Requires Linux WebKitGTK/WebDriver, Xvfb, xfwm4, xdotool and wmctrl. zrok alone is simulated.
 import assert from 'node:assert/strict';
@@ -109,7 +110,7 @@ try{
   await click('#menu-format-toggle');await click('#palette-open');await click('#palette-form button[type="submit"]');
   await until(()=>stat(policy),'The native policy setup did not persist its default color rules.');
   await until(()=>execute('return !document.getElementById("palette-dialog").open'),'The native policy save did not finish.');
-  await click('#review-toggle');await click('#manuscript-share');await until(async()=>(await review({action:'open',project:'11111111-1111-4111-8111-111111111111',path:'main.typ'})).shared===true,'Actual native UI did not share the manuscript.');
+  await click('#review-toggle');await click('#manuscript-share'); await confirmNativeContextShare(click, execute, until);await until(async()=>(await review({action:'open',project:'11111111-1111-4111-8111-111111111111',path:'main.typ'})).shared===true,'Actual native UI did not share the manuscript.');
   await click('#connection-open');await execute('document.getElementById("zrok-name").value="native-app-test";document.getElementById("zrok-origin").value="https://native-app.example.invalid";');await click('#tunnel-start');
   await until(async()=>(await review({action:'connection'})).running,'The isolated fake-zrok tunnel did not start.');
   await click('#connection-tab-app');assert.equal(await execute('return document.getElementById("connection-app-enabled").checked'),false);
@@ -122,9 +123,9 @@ try{
   const headers={'Content-Type':'application/json',Accept:'application/json, text/event-stream','MCP-Protocol-Version':'2025-06-18'};
   async function rpc(endpoint,method,params={}){const response=await fetch(endpoint,{method:'POST',headers,body:JSON.stringify({jsonrpc:'2.0',id:1,method,params}),signal:AbortSignal.timeout(10_000)});assert.equal(response.status,200,`${method} HTTP status`);const result=await response.json();assert.equal(result.error,undefined);return result.result;}
   for(const endpoint of[reviewEndpoint,appEndpoint])await rpc(endpoint,'initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'UnderTree native App qualification',version:'1'}});
-  const reviewTools=(await rpc(reviewEndpoint,'tools/list')).tools.map(tool=>tool.name);assert.deepEqual(reviewTools,['list_manuscripts','read_manuscript','suggest_text']);
+  const reviewTools=(await rpc(reviewEndpoint,'tools/list')).tools.map(tool=>tool.name);assert.deepEqual(reviewTools,['list_manuscripts','read_manuscript','suggest_text','highlight_text']);
   const appTools=(await rpc(appEndpoint,'tools/list')).tools.map(tool=>tool.name);for(const forbidden of['save','save_editor','replace_source','suggest_text','set_policy','accept','sync'])assert.equal(appTools.includes(forbidden),false,forbidden);
-  checks.push('Actual native UI explicitly enables a separate App capability; the Review catalogue retains exactly its three suggestion tools and App exposes no source-save/policy tools.');
+  checks.push('Actual native UI explicitly enables a separate App capability; the Review catalogue retains its closed Review tools and App exposes no source-save/policy tools.');
   const safeMessage=reply=>{let message=reply.content?.map(item=>item.text||'').join(' ')||'';for(const secret of secrets.filter(Boolean))message=message.replaceAll(secret,'[redacted]');return message;};
   const tool=async(name,args={})=>{const reply=await rpc(appEndpoint,'tools/call',{name,arguments:args});if(reply.isError)evidence.lastToolFailure={name,message:safeMessage(reply)};return reply;};
   const value=reply=>{assert.equal(reply.isError,false,safeMessage(reply));return reply.structuredContent.result;};

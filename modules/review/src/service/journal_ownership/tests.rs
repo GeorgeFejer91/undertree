@@ -446,11 +446,26 @@ fn rooted_create_publishes_complete_payloads_without_clobbering_late_metadata_or
         let old = f.project.root.clone();
         let retained = f.project.root.with_file_name("held-project");
         let metadata = sidecar(&f.project.root.join("new.typ"));
+        #[cfg(windows)]
+        let original = fs::read(&f.file).unwrap();
         *lock(&f.service.create_after_publish).unwrap() = Some(Box::new(move || {
             if retarget {
-                fs::rename(&old, &retained)?;
-                fs::create_dir(&old)?;
-                fs::write(old.join("sentinel"), "Replacement root")?;
+                #[cfg(windows)]
+                {
+                    let error = fs::rename(&old, &retained).unwrap_err();
+                    assert!(matches!(error.raw_os_error(), Some(5) | Some(32)));
+                    println!(
+                        "held_root_retarget_denied={}",
+                        error.raw_os_error().unwrap()
+                    );
+                    return Err(error.into());
+                }
+                #[cfg(not(windows))]
+                {
+                    fs::rename(&old, &retained)?;
+                    fs::create_dir(&old)?;
+                    fs::write(old.join("sentinel"), "Replacement root")?;
+                }
             } else {
                 fs::write(metadata, "External metadata")?;
             }
@@ -474,17 +489,31 @@ fn rooted_create_publishes_complete_payloads_without_clobbering_late_metadata_or
             before
         );
         if retarget {
-            assert_eq!(
-                fs::read_to_string(f.project.root.join("sentinel")).unwrap(),
-                "Replacement root"
-            );
-            assert!(!f.project.root.join("new.typ").exists());
-            assert!(f
-                .project
-                .root
-                .with_file_name("held-project")
-                .join("new.typ")
-                .exists());
+            #[cfg(windows)]
+            {
+                assert_eq!(RootedRoot::observe(&f.project.root).unwrap(), root);
+                assert_eq!(fs::read(&f.file).unwrap(), original);
+                assert!(!f.project.root.join("sentinel").exists());
+                assert!(!f.project.root.with_file_name("held-project").exists());
+                assert_eq!(fs::read_to_string(f.project.root.join("new.typ")).unwrap(), "#set page(paper: \"a4\")\n#set text(size: 11pt)\n\n= Manuscript\n\nStart writing here.\n");
+                assert!(!sidecar(&f.project.root.join("new.typ")).exists());
+                assert!(!journal_path(&f.project.root.join("new.typ")).exists());
+                assert!(f.service.project(&f.project.id).unwrap().pending.is_empty());
+            }
+            #[cfg(not(windows))]
+            {
+                assert_eq!(
+                    fs::read_to_string(f.project.root.join("sentinel")).unwrap(),
+                    "Replacement root"
+                );
+                assert!(!f.project.root.join("new.typ").exists());
+                assert!(f
+                    .project
+                    .root
+                    .with_file_name("held-project")
+                    .join("new.typ")
+                    .exists());
+            }
         } else {
             assert_eq!(
                 fs::read_to_string(sidecar(&f.project.root.join("new.typ"))).unwrap(),
@@ -579,6 +608,8 @@ fn reused_source_epoch_is_durable_before_create_names_and_cannot_revive_old_gran
                     project: f.project.id.clone(),
                     path: "main.typ".into(),
                     enabled: true,
+                    context_shared: true,
+                    expected_context_scope: f.service.test_context_scope(&f.project.id, "main.typ"),
                 },
                 source_epoch: 1,
                 expected_root: None,

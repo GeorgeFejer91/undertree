@@ -130,6 +130,53 @@ test('manuscript bounded text reflows without losing source space or full messag
     page.on('pageerror', error => scriptErrors.push(error.message));
     page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/')) backendRequests.push(request.url()); });
 
+    await t.test('maximize control follows native state and preserves keyboard order', async () => {
+      await reset(page, url);
+      await page.evaluate(async () => {
+        const { mockIPC, mockWindows } = await import('/node_modules/@tauri-apps/api/mocks.js');
+        const { setupWindowChrome } = await import('/modules/frontend/window-chrome.js');
+        window.chromeState = { maximized: false, failure: false, saves: 0 };
+        mockWindows('main');
+        mockIPC(command => {
+          if (command === 'plugin:window|is_maximized') return window.chromeState.maximized;
+          if (command === 'plugin:window|toggle_maximize') {
+            if (window.chromeState.failure) throw new Error('Window action denied');
+            window.chromeState.maximized = !window.chromeState.maximized;
+            return;
+          }
+          throw new Error(`Unexpected native action: ${command}`);
+        }, { shouldMockEvents: true });
+        window.isTauri = true;
+        await setupWindowChrome({ beforeClose: () => { window.chromeState.saves++; }, canClose: () => true, status: () => {}, onClosing: () => {} });
+      });
+      const button = page.locator('#window-maximize');
+      const originalIcon = await button.locator('path').getAttribute('d');
+      await page.locator('#window-titlebar').screenshot({ path: join(artifacts, 'window-maximize.png') });
+      await page.locator('#window-minimize').focus();
+      await page.keyboard.press('Tab');
+      assert.equal(await button.evaluate(element => element === document.activeElement), true);
+      await page.keyboard.press('Enter');
+      await page.waitForFunction(() => document.getElementById('window-maximize').title === 'Restore window');
+      assert.equal(await button.getAttribute('aria-label'), 'Restore window');
+      assert.notEqual(await button.locator('path').getAttribute('d'), originalIcon);
+      await page.keyboard.press('Space');
+      await page.waitForFunction(() => document.getElementById('window-maximize').title === 'Maximize window');
+      assert.equal(await button.locator('path').getAttribute('d'), originalIcon);
+      await page.keyboard.press('Tab');
+      assert.equal(await page.locator('#window-close').evaluate(element => element === document.activeElement), true);
+      await page.evaluate(() => { window.chromeState.maximized = true; window.dispatchEvent(new Event('resize')); });
+      await page.waitForFunction(() => document.getElementById('window-maximize').getAttribute('aria-label') === 'Restore window');
+      await page.evaluate(() => { window.chromeState.failure = true; });
+      await button.click();
+      await page.waitForFunction(() => document.getElementById('window-error').textContent === 'Window action denied');
+      assert.equal(await button.getAttribute('aria-label'), 'Restore window');
+      assert.equal(await page.evaluate(() => window.chromeState.saves), 0);
+      for (const [width, height, font] of [[320,480,14], [320,900,28], [1440,480,14], [1440,900,28]]) {
+        await reset(page, url, width, height, font);
+        await assertChrome(page, `three window controls at ${width}x${height}, ${font}px text`);
+      }
+    });
+
     await t.test('long German pane headings stay within the resized sidebar', async () => {
       await reset(page, url);
       await page.locator('#files-heading').evaluate(element => { element.textContent = 'Datenverzeichnisübersicht'; });

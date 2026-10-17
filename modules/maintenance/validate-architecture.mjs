@@ -25,6 +25,10 @@ export async function architectureErrors(root = repositoryRoot) {
   for (const required of [
     "AGENTS.md", "For-AI/README.md", "For-AI/constraints.md", "For-AI/module-map.md", "For-AI/workflows.md",
     "For-AI/product-goal.md", "For-AI/skills.md", "For-AI/reference-evidence.md", "For-AI/overleaf-ui-parity.md", "For-AI/ui-layout.md",
+    "For-AI/skills/for-ai/SKILL.md", "For-AI/skills/for-ai/references/for-ai-standard.md",
+    "For-AI/skills/ponytail/SKILL.md", "For-AI/skills/ponytail-audit/SKILL.md", "For-AI/skills/ponytail-review/SKILL.md",
+    "For-AI/skills/tauri-rust-developer/SKILL.md", "For-AI/skills/tauri-remote-app-builder/SKILL.md",
+    "For-AI/skills/tauri-browser-remote-control/SKILL.md",
     "modules/frontend/README.md", "modules/compiler/README.md",
     "modules/maintenance/runtime-package-policy.json",
     "Cargo.toml", "modules/review/README.md", "modules/review/Cargo.toml",
@@ -89,11 +93,11 @@ export async function architectureErrors(root = repositoryRoot) {
   const transport = await readFile(join(root, "modules/review/src/transport.rs"), "utf8");
   const catalogue = transport.slice(transport.indexOf("pub fn tool_catalogue"), transport.indexOf("fn same_secret"));
   const tools = [...catalogue.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map(match => match[1]).sort();
-  if (tools.join() !== "list_manuscripts,read_manuscript,suggest_text") {
-    errors.push("The agent MCP catalogue must contain exactly list/read/suggest tools");
+  if (tools.join() !== "highlight_text,list_manuscripts,read_manuscript,suggest_text") {
+    errors.push("The agent MCP catalogue must contain exactly list/read/suggest and color-only highlight tools");
   }
   const reviewPolicy = await readFile(join(root, "modules/review/src/document.rs"), "utf8");
-  if (!reviewPolicy.includes("pub fn policy") || !reviewPolicy.includes("self.policy(from, to)?") || [...reviewPolicy.matchAll(/self\.suggestion_policy\(/g)].length < 2) {
+  if (!reviewPolicy.includes("pub fn policy") || !reviewPolicy.includes("let policy = self.policy_preserving(from, to, preserving)?") || [...reviewPolicy.matchAll(/self\.suggestion_policy\(/g)].length < 2) {
     errors.push("Rust must recheck review policy at proposal submission and acceptance");
   }
   return errors;

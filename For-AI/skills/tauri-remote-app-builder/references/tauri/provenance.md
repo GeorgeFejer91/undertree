@@ -1,0 +1,132 @@
+# Provenance and License Notices
+
+This skill is an original synthesis of permissively licensed skill and application repositories plus independently reviewed, unlicensed Tauri source repositories. It consolidates compatible ideas, resolves overlaps into one workflow, and adds explicit live-documentation guards where Tauri tooling is version-sensitive.
+
+## Contents
+
+- [Source Snapshot](#source-snapshot)
+- [Application and Architecture Sources](#application-and-architecture-sources)
+- [Research Corpus](#research-corpus)
+- [Synthesis Decisions](#synthesis-decisions)
+- [MIT License Notice: leonardomso/rust-skills](#mit-license-notice-leonardomsorust-skills)
+- [MIT License Notice: stuffbucket/skills](#mit-license-notice-stuffbucketskills)
+- [MIT License Notice: glebis/claude-skills](#mit-license-notice-glebisclaude-skills)
+
+## Source Snapshot
+
+| Source | Local clone | Commit | License | Primary influence |
+|---|---|---|---|---|
+| [leonardomso/rust-skills](https://github.com/leonardomso/rust-skills) | `sources/rust-skills` | `fd2a861ab0406a4ac536a55274d14ea6fd1ca9c9` | MIT | Idiomatic ownership, errors, async safety, serialization, logging, project structure, tests, and lint gates |
+| [stuffbucket/skills](https://github.com/stuffbucket/skills) | `sources/stuffbucket-skills` | `ef6df09e5c0eb9639276760f8d74b29ad4ef54e7` | MIT | Tauri v2 architecture, command/event/channel/state patterns, capabilities, permissions, scopes, CSP, and debugging |
+| [glebis/claude-skills](https://github.com/glebis/claude-skills) | `sources/claude-skills` | `46edb03cc915adbd78ee81e3406bc4480aefcaba` | MIT | Tauri application initialization, modular feature planning, and incremental build gates |
+| [Takazudo/zudo-tauri-wisdom](https://github.com/Takazudo/zudo-tauri-wisdom) | `sources/zudo-tauri-wisdom` | `a3ba300cf4829c2f0735942193a715084fd82de3` | No reuse license found; README says personal notes/use at own risk | Independently synthesized lifecycle, watcher, testing, deployment, and iOS lessons; no source prose or templates copied |
+| [dseirz-rgb/worker: tauri-v2-dev](https://github.com/dseirz-rgb/worker/tree/main/.kiro/skills/tauri-v2-dev) | `sources/dseirz-tauri-v2-dev` (sparse) | `5c0a3621c1adf090f4317676a4e498d4082e1898` | No reuse license found | Fully reviewed and rejected as stale/unsafe/placeholder-heavy; retained only as auditable negative evidence, with no content copied |
+
+The clone paths refer to the local research workspace used to construct this skill; they are not included in the published skill repository. They are evidence sources, not runtime dependencies: `tauri-rust-developer` remains usable if copied or installed by itself.
+
+## Application and Architecture Sources
+
+| Source | Commit | License | Primary influence and boundary |
+|---|---|---|---|
+| [GeorgeFejer91/browser-remote-sync-protocol](https://github.com/GeorgeFejer91/browser-remote-sync-protocol/tree/62ff66c6df724847c1e54161feabb470b67b1192) | `62ff66c6df724847c1e54161feabb470b67b1192` | MIT | Transport-neutral BRSP/1 authority model, mutual HMAC proof, narrow scopes, reliable control versus replaceable state, VDO.Ninja data-only adapter, reusable application-integration starter, Marionette companion profile, and qualification discipline |
+| [GeorgeFejer91/affect-tracker-web](https://github.com/GeorgeFejer91/affect-tracker-web) | `9e45c4cdc987a91a8cdb00ec3b52cc335ebcf8cb` | BSD-3-Clause | Tauri settings-WebView plus external-browser Flubber Party architecture, shared-scene fan-out, native-snapshot outbound flow, presentation-only return path, smartphone-local camera, exact CSP/service boundary, and the documented physical-test gap |
+| [GeorgeFejer91/pps-kit](https://github.com/GeorgeFejer91/pps-kit/tree/74a081b0289d3bf0597d06a4a093aa9c7d4cf364) | `74a081b0289d3bf0597d06a4a093aa9c7d4cf364` | MIT | Primary Tauri/browser Runner candidate with pure Rust contracts/core, a bounded single-owner authority actor, canonical semantic remote control, exact-MSRV and generated-artifact gates, staged Python migration, content-bound native PCM preparation, and a separately qualified optional native Quest/JNI application context |
+| [rustdesk/rustdesk](https://github.com/rustdesk/rustdesk/tree/03a7fc5992069cc5bc9f7c36b872483dddf4f472) | `03a7fc5992069cc5bc9f7c36b872483dddf4f472` | AGPL-3.0 | Architecture-only evidence for rendezvous versus direct/relay paths, per-session lifecycle and stale cleanup, bounded admission/backpressure, and platform-service adapters; raw input, unbounded channels, source code, and source prose were not adopted |
+| [GeorgeFejer91/zuradio](https://github.com/GeorgeFejer91/zuradio/tree/89d927439d532cdc5e2ef420d8e939a2db30d4b8) | `89d927439d532cdc5e2ef420d8e939a2db30d4b8` | MIT | Audited application case study for a static browser companion controlling a loopback Rust authority through WebRTC: password-only rendezvous, scoped grants, trusted-browser reconnect, local-priority playback, timeline reconciliation, upload integrity, installed/public browser qualification, and the residual security/reliability gaps recorded in `browser-companion-reliability.md`; no application code or prose copied |
+
+The Marionette, browser-companion, and optional native-platform references are original compact syntheses; they do not embed source code or prose from these case-study repositories. Affect Tracker is cited only as a qualified architecture case study. Its experimental Party uses a public fixed room with `password: false` and does not implement BRSP mutual proof or scope negotiation, so it is not presented as BRSP/1 conformance or a production authentication design. RustDesk was reviewed only for general architecture questions: this skill independently states the resulting constraints and does not copy, vendor, or translate its AGPL-3.0 implementation. PPS Kit is also qualified evidence: its host-side Rust, browser, Tauri, and Android builds passed, but the Python/PySide V1 remains the validated scientific authority and physical phone/Quest plus macOS/Linux timing qualification remain open. Zuradio is similarly qualified: its pinned Linux/public-browser release evidence is strong, while physical-phone, forced-TURN, multi-listener, endurance, malformed-media, Windows WebView2, and macOS WKWebView behavior remain open. Quest/XR is therefore an optional application context, not a generic Tauri requirement.
+
+The latency-critical reference was reconciled line-for-line on 2026-08-30 from the then-installed `tauri-rust-developer` skill into this canonical repository. Its linked Tauri, operating-system, LSL, and PsychoPy documentation remains subject to the skill's live-documentation rule when implementing platform-specific timing behavior.
+
+## Research Corpus
+
+The parent workspace also preserves pinned official-document and community indexes under `research-sources/`, 21 downloaded Tauri YouTube caption/metadata sets, the official 270-page community PDF plus extracted text and representative renders, snapshots of selected written tutorials, and the application, architecture, and protocol repositories above. These are research evidence, not redistributed skill dependencies. Exact Tauri source decisions are in [source-ledger.md](source-ledger.md).
+
+A separate 2026-08-22 research pass reviewed 23 complete English YouTube caption tracks about Python-to-Rust migration, PyO3, Pydantic, Polars and scientific/data workloads, plus current primary Rust, PyO3, maturin, Arrow, Polars, DataFusion, CPython and production-case-study documentation. Captions and source prose are not included. The source-by-source decisions and saturation boundary are published in [python-migration-source-ledger.md](python-migration-source-ledger.md).
+
+## Synthesis Decisions
+
+- Tauri v2 is the default target; pinned project versions always take precedence.
+- Rust domain logic is kept independent from thin Tauri adapters for testability.
+- Commands, events, channels, and managed state are presented as one boundary-design system.
+- Security guidance is mandatory for new IPC or privileged plugins, not an optional appendix.
+- Current official documentation overrides embedded source advice for mobile APIs, automated testing, plugins, bundling, signing, notarization, and stores.
+- No upstream boilerplate application or generated project asset is embedded in this skill.
+
+## MIT License Notice: leonardomso/rust-skills
+
+```text
+MIT License
+
+Copyright (c) 2025 Leonardo Maldonado
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## MIT License Notice: stuffbucket/skills
+
+```text
+MIT License
+
+Copyright (c) 2025 Stuffbucket
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## MIT License Notice: glebis/claude-skills
+
+```text
+MIT License
+
+Copyright (c) 2025-2026 Gleb Kalinin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

@@ -334,3 +334,257 @@ checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
 path = "license-apache-2.0"
 license = "Apache-2.0"
 checksum = "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b"
+
+# Locked LaTeX worker dependencies: exact upstream texts omitted from crate archives.
+
+[chrono-tz.clarify]
+license = "MIT OR Apache-2.0"
+[[chrono-tz.clarify.files]]
+path = "@LICENSE_ROOT@/chrono-tz-LICENSE"
+license = "MIT OR Apache-2.0"
+checksum = "6b7865fa851a101527956f17ad1256fbae502272016ff0733aa94964fdac5341"
+
+[chrono-tz-build.clarify]
+license = "MIT OR Apache-2.0"
+[[chrono-tz-build.clarify.files]]
+path = "@LICENSE_ROOT@/chrono-tz-LICENSE"
+license = "MIT OR Apache-2.0"
+checksum = "6b7865fa851a101527956f17ad1256fbae502272016ff0733aa94964fdac5341"
+
+[ignore-files.clarify]
+license = "Apache-2.0"
+[[ignore-files.clarify.files]]
+path = "@LICENSE_ROOT@/watchexec-LICENSE"
+license = "Apache-2.0"
+checksum = "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+
+[parse-zoneinfo.clarify]
+license = "MIT"
+[[parse-zoneinfo.clarify.files]]
+path = "@LICENSE_ROOT@/parse-zoneinfo-LICENSE"
+license = "MIT"
+checksum = "4789210f4df8abc03fce1cddd9c2ba517f184840687f2815d741de282c1aa93a"
+
+[project-origins.clarify]
+license = "Apache-2.0"
+[[project-origins.clarify.files]]
+path = "@LICENSE_ROOT@/watchexec-LICENSE"
+license = "Apache-2.0"
+checksum = "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+
+[tectonic_bridge_core.clarify]
+license = "MIT"
+[[tectonic_bridge_core.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_bridge_flate.clarify]
+license = "MIT"
+[[tectonic_bridge_flate.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_bridge_fontconfig.clarify]
+license = "MIT"
+[[tectonic_bridge_fontconfig.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_bridge_freetype2.clarify]
+license = "MIT"
+[[tectonic_bridge_freetype2.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_bridge_graphite2.clarify]
+license = "MIT"
+[[tectonic_bridge_graphite2.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_bridge_harfbuzz.clarify]
+license = "MIT"
+[[tectonic_bridge_harfbuzz.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_bridge_icu.clarify]
+license = "MIT"
+[[tectonic_bridge_icu.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_bridge_png.clarify]
+license = "MIT"
+[[tectonic_bridge_png.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_bundles.clarify]
+license = "MIT"
+[[tectonic_bundles.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_dep_support.clarify]
+license = "MIT"
+[[tectonic_dep_support.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_docmodel.clarify]
+license = "MIT"
+[[tectonic_docmodel.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_engine_bibtex.clarify]
+license = "MIT"
+[[tectonic_engine_bibtex.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_engine_spx2html.clarify]
+license = "MIT"
+[[tectonic_engine_spx2html.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_engine_xdvipdfmx]
+accepted = ["GPL-3.0-or-later"]
+
+[tectonic_engine_xdvipdfmx.clarify]
+license = "MIT AND GPL-3.0-or-later"
+[[tectonic_engine_xdvipdfmx.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+[[tectonic_engine_xdvipdfmx.clarify.files]]
+path = "@LICENSE_ROOT@/GNU-GPL-3.0"
+license = "GPL-3.0-or-later"
+checksum = "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+
+[tectonic_engine_xetex.clarify]
+license = "MIT"
+[[tectonic_engine_xetex.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_errors.clarify]
+license = "MIT"
+[[tectonic_errors.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_geturl.clarify]
+license = "MIT"
+[[tectonic_geturl.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_io_base.clarify]
+license = "MIT"
+[[tectonic_io_base.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_pdf_io]
+accepted = ["GPL-3.0-or-later"]
+
+[tectonic_pdf_io.clarify]
+license = "MIT AND GPL-3.0-or-later"
+[[tectonic_pdf_io.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+[[tectonic_pdf_io.clarify.files]]
+path = "@LICENSE_ROOT@/GNU-GPL-3.0"
+license = "GPL-3.0-or-later"
+checksum = "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+
+[tectonic_status_base.clarify]
+license = "MIT"
+[[tectonic_status_base.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_xdv.clarify]
+license = "MIT"
+[[tectonic_xdv.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[tectonic_xetex_layout.clarify]
+license = "MIT"
+[[tectonic_xetex_layout.clarify.files]]
+path = "@LICENSE_ROOT@/Tectonic-LICENSE"
+license = "MIT"
+checksum = "814a258f76e420b25cb3c07172eb2b3956f34cefbf0a650413b78e65c425f306"
+
+[watchexec.clarify]
+license = "Apache-2.0"
+[[watchexec.clarify.files]]
+path = "@LICENSE_ROOT@/watchexec-LICENSE"
+license = "Apache-2.0"
+checksum = "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+
+[watchexec-events.clarify]
+license = "Apache-2.0 OR MIT"
+[[watchexec-events.clarify.files]]
+path = "@LICENSE_ROOT@/watchexec-LICENSE"
+license = "Apache-2.0 OR MIT"
+checksum = "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+
+[watchexec-filterer-globset.clarify]
+license = "Apache-2.0"
+[[watchexec-filterer-globset.clarify.files]]
+path = "@LICENSE_ROOT@/watchexec-LICENSE"
+license = "Apache-2.0"
+checksum = "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+
+[watchexec-filterer-ignore.clarify]
+license = "Apache-2.0"
+[[watchexec-filterer-ignore.clarify.files]]
+path = "@LICENSE_ROOT@/watchexec-LICENSE"
+license = "Apache-2.0"
+checksum = "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+
+[watchexec-signals.clarify]
+license = "Apache-2.0 OR MIT"
+[[watchexec-signals.clarify.files]]
+path = "@LICENSE_ROOT@/watchexec-LICENSE"
+license = "Apache-2.0 OR MIT"
+checksum = "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+
+[watchexec-supervisor.clarify]
+license = "Apache-2.0 OR MIT"
+[[watchexec-supervisor.clarify.files]]
+path = "@LICENSE_ROOT@/watchexec-LICENSE"
+license = "Apache-2.0 OR MIT"
+checksum = "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+
+[windows-registry.clarify]
+license = "MIT OR Apache-2.0"
+[[windows-registry.clarify.files]]
+path = "@LICENSE_ROOT@/windows-registry-LICENSE-MIT"
+license = "MIT OR Apache-2.0"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"

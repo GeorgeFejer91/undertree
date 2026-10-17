@@ -72,7 +72,7 @@ async fn native_import_captures_exact_sources_assets_and_replays_receipt_without
     fs::write(text, "changed after immutable capture").unwrap();
     let request = Uuid::new_v4().to_string();
     let result = commit(&service, &owner, &id, &request).await;
-    assert_eq!(result["status"], "committed");
+    assert_eq!(result["status"], "committed", "{result}");
     assert_eq!(result["gitOwnership"], "undertree");
     assert_eq!(
         fs::read(project.root.join("inputs/picture.png")).unwrap(),
@@ -752,15 +752,47 @@ async fn delayed_picker_staging_failure_releases_ticket_and_preserves_swapped_de
         .unwrap()
         .to_owned();
     let captured = service.capture_import(std::slice::from_ref(&source));
-    fs::rename(project.root.join("inputs"), project.root.join("old")).unwrap();
-    fs::create_dir(project.root.join("inputs")).unwrap();
-    assert_eq!(
-        service
-            .finish_import_staging(&owner, &id, captured)
-            .unwrap_err()
-            .code,
-        "path"
-    );
+    #[cfg(windows)]
+    {
+        let before = project_tree::root_identity(&project.root.join("inputs")).unwrap();
+        let error = fs::rename(project.root.join("inputs"), project.root.join("old")).unwrap_err();
+        assert!(matches!(error.raw_os_error(), Some(5) | Some(32)));
+        assert_eq!(
+            project_tree::root_identity(&project.root.join("inputs")).unwrap(),
+            before
+        );
+        assert_eq!(
+            fs::read_dir(project.root.join("inputs")).unwrap().count(),
+            0
+        );
+        assert_eq!(fs::read(&source).unwrap(), [255, 0]);
+        assert!(!project.root.join("old").exists());
+        // A failed picker still retires its ticket; the held destination cannot be swapped.
+        assert_eq!(
+            service
+                .finish_import_staging(
+                    &owner,
+                    &id,
+                    Err(Error::new("picker_cancelled", "Fixture picker failed."))
+                )
+                .unwrap_err()
+                .code,
+            "picker_cancelled"
+        );
+        drop(captured);
+    }
+    #[cfg(not(windows))]
+    {
+        fs::rename(project.root.join("inputs"), project.root.join("old")).unwrap();
+        fs::create_dir(project.root.join("inputs")).unwrap();
+        assert_eq!(
+            service
+                .finish_import_staging(&owner, &id, captured)
+                .unwrap_err()
+                .code,
+            "path"
+        );
+    }
     assert!(!lock(&service.file_import)
         .unwrap()
         .selections
@@ -939,6 +971,8 @@ async fn reused_import_reserves_all_retired_epochs_before_names_and_preserves_re
                     project: project.id.clone(),
                     path: "main.typ".into(),
                     enabled: true,
+                    context_shared: true,
+                    expected_context_scope: service.test_context_scope(&project.id, "main.typ"),
                 },
                 source_epoch: 1,
                 expected_root: None,

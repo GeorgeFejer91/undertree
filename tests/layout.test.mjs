@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { copyFile, readFile, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -27,6 +27,23 @@ function run(program, args, cwd) {
     child.stderr.on("data", (chunk) => { output += chunk; });
     child.on("close", (code) => resolve({ code, output }));
   });
+}
+
+async function fixtureDirectory(context, prefix) {
+  // Expand Windows 8.3 temp aliases: latexmk rejects the '~' spelling.
+  const directory = await realpath(await mkdtemp(join(tmpdir(), prefix)));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  // Optional test dependency: a directory containing these four exact Noto Sans
+  // styles. Without it, the existing system-font prerequisite remains required.
+  // This local scan neither installs OS fonts nor substitutes another typeface.
+  if (process.env.UNDERTREE_TEST_NOTO_FONT_DIR) {
+    for (const style of ["Regular", "Italic", "Bold", "BoldItalic"]) {
+      const name = `NotoSans-${style}.ttf`;
+      await copyFile(join(process.env.UNDERTREE_TEST_NOTO_FONT_DIR, name), join(directory, name));
+    }
+    await writeFile(join(directory, "luaotfload.conf"), "[db]\nscan-local = true\n");
+  }
+  return directory;
 }
 
 test("semantic layout validates and emits physical HTML and LuaLaTeX targets", () => {
@@ -60,8 +77,7 @@ test("validator rejects overlapping boxes and minimum sizes above maximum sizes"
 });
 
 test("compiler writes both targets and the generated LuaLaTeX produces one A4 PDF", async (context) => {
-  const temporary = await mkdtemp(join(tmpdir(), "localtex-layout-test-"));
-  context.after(() => rm(temporary, { recursive: true, force: true }));
+  const temporary = await fixtureDirectory(context, "localtex-layout-test-");
   const source = join(temporary, "fixture.layout.xml");
   const output = join(temporary, "output");
   await writeFile(source, VALID_LAYOUT);
@@ -77,8 +93,7 @@ test("compiler writes both targets and the generated LuaLaTeX produces one A4 PD
 });
 
 test("content below the declared minimum is reported instead of silently over-shrunk", async (context) => {
-  const temporary = await mkdtemp(join(tmpdir(), "localtex-layout-overflow-"));
-  context.after(() => rm(temporary, { recursive: true, force: true }));
+  const temporary = await fixtureDirectory(context, "localtex-layout-overflow-");
   const source = join(temporary, "overflow.layout.xml");
   const output = join(temporary, "output");
   const repeated = Array.from({ length: 12 }, (_, index) => `<p>Paragraph ${index + 1} contains deliberately excessive text for this physically constrained region.</p>`).join("");

@@ -35,7 +35,7 @@ async function fixture(t) {
   let nextTimer = 0, now = 0, revision = 0, failSave = false;
   const environment = {
     ...review, sessions: new Map(), active: null, windowClosing: false, windowFocus: null,
-    compiling: false, explicitCompiles: [], localRequests: 0, localRequestsVersion: 0,
+    compiling: false, explicitCompiles: [], localRequests: 0, localRequestsVersion: 0, smartFileTree: false,
     navigationIntent: 0, saveTimers: new Map(), pdfBytes: null, windowChrome: null,
     fileImport: { pendingCount: 0 }, projectExport: { pendingCount: 0 },
     keyFor: (project, path) => `${project}:${path}`,

@@ -2,6 +2,34 @@ use super::*;
 use cap_fs_ext::{DirExt, MetadataExt};
 use cap_std::fs::{Dir, Metadata};
 
+mod typst_sources;
+
+pub(super) fn context_paths(
+    root: &Arc<RootedRoot>,
+    project: &Project,
+    active: &str,
+) -> Result<(String, BTreeSet<String>)> {
+    if active.ends_with(".typ") {
+        let main = if project.main_document.is_empty() {
+            active
+        } else {
+            &project.main_document
+        };
+        let (main, paths) = typst_sources::discover_context(root, main).complete_paths()?;
+        if !paths.contains(active) {
+            return Err(Error::new("context_scope", "The active source is outside the selected main manuscript. Choose its main document locally."));
+        }
+        Ok((main, paths))
+    } else if active.ends_with(".html") || active.ends_with(".htm") {
+        Ok((active.into(), BTreeSet::from([active.into()])))
+    } else {
+        Err(Error::new(
+            "context_incomplete",
+            "Complete review context is supported for Typst and self-contained HTML sources.",
+        ))
+    }
+}
+
 #[derive(Clone, Copy, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Limits {
@@ -270,8 +298,16 @@ impl Service {
         let observation = expected.map_or_else(|| RootedRoot::observe(&approved.root), Ok)?;
         let held = RootedRoot::acquire(&approved.root, &observation)?;
         let root = held.directory()?;
-        let mut inventory = Inventory::new(LIMITS);
+        let mut inventory = Inventory::new(Limits {
+            max_response_bytes: LIMITS.max_response_bytes - 12 * 1024,
+            ..LIMITS
+        });
         inventory.walk(&root, &root, "", 0)?;
+        let compiled =
+            self.current_typst_dependency_paths(project, &approved.main_document, observation);
+        let mut typst_sources = compiled
+            .and_then(|paths| typst_sources::from_compiler(&held, &approved.main_document, paths))
+            .unwrap_or_else(|| typst_sources::discover(&held, &approved.main_document));
         self.check_tree_root(&approved, &root)?;
         let registry = lock(&self.registry)?;
         for entry in &mut inventory.entries {
@@ -280,8 +316,13 @@ impl Service {
                     Some(source_identity::epoch_in(&registry, project, &entry.path)?);
             }
         }
-        let value = json!({"project":project,"entries":inventory.entries,"truncated":inventory.truncated,
+        let mut value = json!({"project":project,"entries":inventory.entries,"truncated":inventory.truncated,
             "omittedNonUtf8":inventory.omitted_non_utf8,"limits":LIMITS,"expectedRoot":observation});
+        let available = LIMITS
+            .max_response_bytes
+            .saturating_sub(serde_json::to_vec(&value)?.len() + 16);
+        typst_sources.fit_budget(available)?;
+        value["typstSources"] = serde_json::to_value(typst_sources)?;
         if serde_json::to_vec(&value)?.len() > LIMITS.max_response_bytes {
             return Err(Error::new(
                 "limit",
@@ -400,14 +441,29 @@ mod tests {
             .to_owned();
         let approved = service.project(&id).unwrap();
         let root = open_root(&approved.root).unwrap();
-        fs::rename(&root_path, temporary.path().join("moved")).unwrap();
-        fs::create_dir(&root_path).unwrap();
-        assert_eq!(
-            service.check_tree_root(&approved, &root).unwrap_err().code,
-            "path"
-        );
-        root.create_dir("held-handle-only").unwrap();
-        assert!(!root_path.join("held-handle-only").exists());
-        assert!(temporary.path().join("moved/held-handle-only").is_dir());
+        #[cfg(windows)]
+        {
+            let before = root.dir_metadata().unwrap();
+            let error = fs::rename(&root_path, temporary.path().join("moved")).unwrap_err();
+            assert!(matches!(error.raw_os_error(), Some(5) | Some(32)));
+            let after = root.dir_metadata().unwrap();
+            assert_eq!((after.dev(), after.ino()), (before.dev(), before.ino()));
+            service.check_tree_root(&approved, &root).unwrap();
+            root.create_dir("held-handle-only").unwrap();
+            assert!(root_path.join("held-handle-only").is_dir());
+            assert!(!temporary.path().join("moved").exists());
+        }
+        #[cfg(not(windows))]
+        {
+            fs::rename(&root_path, temporary.path().join("moved")).unwrap();
+            fs::create_dir(&root_path).unwrap();
+            assert_eq!(
+                service.check_tree_root(&approved, &root).unwrap_err().code,
+                "path"
+            );
+            root.create_dir("held-handle-only").unwrap();
+            assert!(!root_path.join("held-handle-only").exists());
+            assert!(temporary.path().join("moved/held-handle-only").is_dir());
+        }
     }
 }

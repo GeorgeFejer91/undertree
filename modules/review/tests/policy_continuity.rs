@@ -1,3 +1,4 @@
+mod common;
 use serde_json::{json, Value};
 use std::{fs, path::PathBuf, sync::Arc};
 use undertree_review::{
@@ -72,6 +73,12 @@ impl Fixture {
             project: self.project.clone(),
             path: "main.html".into(),
             enabled,
+            context_shared: true,
+            expected_context_scope: common::context_scope(
+                &self.service,
+                &self.project,
+                &"main.html",
+            ),
         })
     }
     fn journal(&self, prior: Option<Value>) -> Vec<u8> {
@@ -99,6 +106,7 @@ impl Fixture {
 fn known_policy_loss_denies_local_writes_and_remote_proposals_without_resetting_it() {
     let f = Fixture::new();
     let document = f.share(true).unwrap()["documentId"].clone();
+    let scope = common::context_scope(&f.service, &f.project, "main.html").unwrap();
     fs::remove_file(&f.metadata).unwrap();
     let before = f.group();
     for operation in [
@@ -110,17 +118,22 @@ fn known_policy_loss_denies_local_writes_and_remote_proposals_without_resetting_
         json!({"action":"reanchor","revision":digest(ORIGINAL),"id":"protected","from":3,"to":12,"quote":"Protected"}),
         json!({"action":"unmark","revision":digest(ORIGINAL),"id":"protected"}),
         json!({"action":"decide","revision":digest(ORIGINAL),"id":"proposal","decision":"accepted"}),
-        json!({"action":"share","enabled":true}),
+        json!({"action":"share","enabled":true,"contextShared":true,"expectedContextScope":scope}),
     ] {
         let mut operation = operation;
         operation["project"] = json!(f.project);
         operation["path"] = json!("main.html");
+        let expected = if operation["action"] == "decide" {
+            "pdf_policy" // The project-wide PDF policy guard runs before the active-source guard.
+        } else {
+            "policy_missing"
+        };
         assert_eq!(
             f.service
                 .local(serde_json::from_value(operation).unwrap())
                 .unwrap_err()
                 .code,
-            "policy_missing"
+            expected
         );
         assert_eq!(f.group(), before);
     }

@@ -13,20 +13,31 @@ use tokio::process::{Child, Command};
 use uuid::Uuid;
 
 pub mod app_control;
+mod direct_edits;
 pub mod editor;
 pub mod file_import;
+mod highlighting;
 pub(crate) mod history;
 mod history_native;
 mod journal_ownership;
 #[cfg(all(test, unix))]
 mod known_zero_repair_tests;
+#[cfg(test)]
+mod palette_tests;
+mod pdf_annotations;
 pub(crate) mod pdf_exports;
 mod policy_continuity;
 pub mod project_export;
 mod project_tree;
+#[cfg(test)]
+mod publication_guard_tests;
+mod review_changes;
+mod review_context;
 pub(crate) mod source_files;
 mod source_identity;
 mod source_path;
+#[cfg(test)]
+mod test_context;
 pub use history::{HistoryQuery, HistoryReply};
 use source_files::{Member, ReadEntry, ReplaceOutcome, RootedRoot, SourceGroup};
 
@@ -105,12 +116,21 @@ pub struct Service {
     #[cfg(test)]
     fail_after_journal: Mutex<bool>,
     #[cfg(test)]
+    share_before_commit: Mutex<Option<PublicationHook>>,
+    #[cfg(test)]
+    context_after_discovery: Mutex<Option<PublicationHook>>,
+    #[cfg(test)]
+    highlight_after_commit: Mutex<Option<PublicationHook>>,
+    #[cfg(test)]
     create_after_publish: Mutex<Option<PublicationHook>>,
     #[cfg(test)]
     git_before_push: Mutex<Option<PublicationHook>>,
     app_control: Mutex<app_control::AppControlState>,
     pdf_exports: Mutex<pdf_exports::PdfExportState>,
     policy_continuity: Mutex<policy_continuity::PolicyContinuity>,
+    review_changes: review_changes::ReviewChanges,
+    direct_edits: Mutex<BTreeMap<String, direct_edits::Receipt>>,
+    review_context: Mutex<review_context::ContextState>,
 }
 
 pub struct Tunnel {
@@ -221,7 +241,7 @@ fn editable_source(path: &Path) -> bool {
     .any(|suffix| name.ends_with(suffix))
         && [
             "html", "htm", "typ", "css", "md", "txt", "tex", "bib", "yaml", "yml", "json", "csv",
-            "tsv", "xml", "svg",
+            "tsv", "xml", "svg", "csl",
         ]
         .contains(
             &path
@@ -247,6 +267,30 @@ impl Service {
             .documents
             .try_lock()
             .map_err(|_| Error::new("busy", "Another source operation is running."))?;
+        Ok(SourceEffectGuard {
+            _editor: editor,
+            _documents: documents,
+        })
+    }
+
+    // Only called on publication's blocking workers. Wait without holding the
+    // editor book so heartbeats and revocation can proceed, then check the
+    // current owner. Other book holders use try_lock on documents and release
+    // on contention, so they cannot wait on this documents -> book acquisition.
+    pub(crate) fn publication_source_effect_guard(
+        &self,
+        owner: Option<&(String, String)>,
+    ) -> Result<SourceEffectGuard<'_>> {
+        let documents = tokio::runtime::Handle::current().block_on(async {
+            tokio::time::timeout(std::time::Duration::from_secs(5), self.documents.lock()).await
+        }).map_err(|_| Error::new("busy", "The document barrier remained busy. Your source and last good PDF are kept; retry compilation when the local operation finishes."))?;
+        let editor = if let Some((window, id)) = owner {
+            let book = lock(&self.editor)?;
+            book.check_native_owner(window, id)?;
+            Some(book)
+        } else {
+            None
+        };
         Ok(SourceEffectGuard {
             _editor: editor,
             _documents: documents,
@@ -291,12 +335,21 @@ impl Service {
             #[cfg(test)]
             fail_after_journal: Mutex::new(false),
             #[cfg(test)]
+            share_before_commit: Mutex::new(None),
+            #[cfg(test)]
+            context_after_discovery: Mutex::new(None),
+            #[cfg(test)]
             create_after_publish: Mutex::new(None),
             #[cfg(test)]
             git_before_push: Mutex::new(None),
             app_control: Mutex::new(app_control::AppControlState::default()),
             pdf_exports: Mutex::new(pdf_exports::PdfExportState::default()),
             policy_continuity: Mutex::new(policy_continuity::PolicyContinuity::default()),
+            review_changes: review_changes::ReviewChanges::default(),
+            direct_edits: Mutex::new(BTreeMap::new()),
+            review_context: Mutex::new(review_context::ContextState::default()),
+            #[cfg(test)]
+            highlight_after_commit: Mutex::new(None),
         }))
     }
 
@@ -465,11 +518,19 @@ impl Service {
         let projects = lock(&self.registry)?.projects.clone();
         for project in projects {
             if let Ok(relative) = path.strip_prefix(&project.root) {
-                if let Some(relative) = relative.to_str() {
+                let relative = relative
+                    .components()
+                    .map(|component| match component {
+                        std::path::Component::Normal(name) => name.to_str(),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()
+                    .map(|parts| parts.join("/"));
+                if let Some(relative) = relative {
                     return self.acquire_group(SourceBinding::new(
                         &project.id,
-                        relative,
-                        self.source_epoch(&project.id, relative)?,
+                        &relative,
+                        self.source_epoch(&project.id, &relative)?,
                     ));
                 }
             }
@@ -975,7 +1036,11 @@ impl Service {
                 let _ = producer.abort_failed_unarmed(self, document, book);
             }
         }
-        result.map_err(|error| if effected { Error::new("outcome_unknown", "The save may have published files or its receipt. Pending data and staging were preserved; inspect them before retrying.") } else { error })
+        let result = result.map_err(|error| if effected { Error::new("outcome_unknown", "The save may have published files or its receipt. Pending data and staging were preserved; inspect them before retrying.") } else { error });
+        if result.is_ok() {
+            self.review_changes.signal();
+        }
+        result
     }
 
     fn create_document_rooted(
@@ -1197,6 +1262,7 @@ impl Service {
         if document.history_maintenance_pending {
             value["historyMaintenancePending"] = json!(true);
         }
+        self.direct_edit_snapshot(binding, document.group.observation(), &mut value)?;
         Ok(value)
     }
 
@@ -1221,7 +1287,14 @@ impl Service {
         let _editor = if native_owner.is_some()
             || matches!(
                 &request.operation,
-                Operation::Create { .. } | Operation::ImportTex { .. }
+                Operation::Create { .. }
+                    | Operation::ImportTex { .. }
+                    | Operation::ContextPreview { .. }
+                    | Operation::Decide {
+                        decision: crate::document::Decision::Accepted,
+                        ..
+                    }
+                    | Operation::Share { enabled: true, .. }
             ) {
             let book = lock(&self.editor)?;
             if let Some((window, owner)) = native_owner {
@@ -1324,13 +1397,8 @@ impl Service {
                 let approved = self.project(&project)?;
                 let mut selection = None;
                 if !path.is_empty() {
-                    let file = self.path(&approved, &path, false)?;
-                    if file.extension().and_then(|extension| extension.to_str()) != Some("typ") {
-                        return Err(Error::new(
-                            "source",
-                            "Choose an existing Typst main document.",
-                        ));
-                    }
+                    self.path(&approved, &path, false)?;
+                    crate::publishing::require_publication_source(&path)?;
                     let group = self.acquire_group(
                         SourceBinding::new(&project, &path, source_epoch).rooted(expected_root),
                     )?;
@@ -1540,6 +1608,7 @@ impl Service {
                 path,
                 revision,
                 rules,
+                expected_rules,
             } => {
                 let p = self.project(&project)?;
                 let file = self.path(&p, &path, false)?;
@@ -1550,6 +1619,12 @@ impl Service {
                 let text = document.content.clone();
                 let mut review = document.review.clone();
                 review.check_revision(&revision, &text)?;
+                if expected_rules
+                    .as_ref()
+                    .is_some_and(|expected| expected != &review.rules)
+                {
+                    return Err(Error::new("conflict", "The color rules changed while this dialog was open. Reopen it to review the current rules before saving."));
+                }
                 review.rules = rules;
                 self.persist_observed(binding, &file, &document, &text, &review, None)?;
                 self.snapshot_binding(binding, &file, true)
@@ -1591,6 +1666,50 @@ impl Service {
                 self.persist_observed(binding, &file, &document, &text, &review, None)?;
                 self.snapshot_binding(binding, &file, true)
             }
+            Operation::PdfMark {
+                project,
+                path,
+                revision,
+                identity,
+                pdf_path,
+                segments,
+                rule,
+                prompt,
+                source_from,
+                source_to,
+            } => self.mark_pdf_annotation(
+                SourceBinding::new(&project, &path, source_epoch)
+                    .rooted(expected_root)
+                    .guarded(native),
+                &revision,
+                crate::document::PdfAnnotation {
+                    id: Uuid::new_v4().to_string(),
+                    identity,
+                    pdf_path,
+                    segments,
+                    rule,
+                    prompt,
+                    source_marker_id: None,
+                },
+                (source_from, source_to),
+            ),
+            Operation::PdfUnmark {
+                project,
+                path,
+                revision,
+                id,
+            } => self.unmark_pdf_annotation(
+                SourceBinding::new(&project, &path, source_epoch)
+                    .rooted(expected_root)
+                    .guarded(native),
+                &revision,
+                &id,
+            ),
+            Operation::PdfAnnotations {
+                project,
+                path,
+                identity,
+            } => self.local_pdf_annotations(&project, &path, &identity, expected_root),
             Operation::Reanchor {
                 project,
                 path,
@@ -1639,6 +1758,11 @@ impl Service {
                 decision,
             } => {
                 let p = self.project(&project)?;
+                let pdf_policy = if decision == crate::document::Decision::Accepted {
+                    Some(self.pdf_annotation_policy(&p, expected_root)?)
+                } else {
+                    None
+                };
                 let file = self.path(&p, &path, false)?;
                 let binding = SourceBinding::new(&project, &path, source_epoch)
                     .rooted(expected_root)
@@ -1653,6 +1777,34 @@ impl Service {
                     .then(|| history::NativeCause::Acceptance {
                         suggestion_id: id.clone(),
                     });
+                let protected_context = (decision == crate::document::Decision::Accepted)
+                    .then(|| {
+                        review
+                            .suggestions
+                            .iter()
+                            .find(|suggestion| {
+                                suggestion.id == id && suggestion.replacement_parts.is_some()
+                            })
+                            .and_then(|suggestion| suggestion.context_scope.clone())
+                    })
+                    .flatten();
+                if decision == crate::document::Decision::Accepted {
+                    if let Some(suggestion) = review.suggestions.iter().find(|suggestion| {
+                        suggestion.id == id && suggestion.replacement_parts.is_some()
+                    }) {
+                        let editor = _editor.as_deref().ok_or_else(|| {
+                            Error::new(
+                                "busy",
+                                "The current manuscript context guard is unavailable.",
+                            )
+                        })?;
+                        if suggestion.context_scope.as_deref()
+                            != Some(self.current_context_scope(binding, editor)?.as_str())
+                        {
+                            return Err(Error::new("context_stale", "The complete manuscript context changed after this protected rewrite was proposed. Request a new proposal."));
+                        }
+                    }
+                }
                 let changed = review.decide_format(
                     &text,
                     &revision,
@@ -1660,6 +1812,17 @@ impl Service {
                     decision,
                     path.ends_with(".typ"),
                 )?;
+                if let Some(policy) = pdf_policy {
+                    policy.check()?;
+                }
+                if let Some(scope) = protected_context {
+                    let editor = _editor.as_deref().ok_or_else(|| {
+                        Error::new("busy", "The current context guard is unavailable.")
+                    })?;
+                    if self.current_context_scope(binding, editor)? != scope {
+                        return Err(Error::new("context_stale", "Complete manuscript context changed before committing the accepted protected rewrite."));
+                    }
+                }
                 let maintenance_pending = self.persist_observed_cause(
                     binding,
                     &file,
@@ -1670,10 +1833,18 @@ impl Service {
                 )?;
                 self.snapshot_after_persist(binding, &file, maintenance_pending)
             }
+            Operation::ContextPreview { project, path } => self.context_preview(
+                SourceBinding::new(&project, &path, source_epoch).rooted(expected_root),
+                _editor.as_deref().ok_or_else(|| {
+                    Error::new("state", "The editor context guard is unavailable.")
+                })?,
+            ),
             Operation::Share {
                 project,
                 path,
                 enabled,
+                context_shared,
+                expected_context_scope,
             } => {
                 let id = source_identity::document_id(
                     &project,
@@ -1681,6 +1852,16 @@ impl Service {
                     self.source_epoch(&project, &path).unwrap_or(source_epoch),
                 );
                 if !enabled {
+                    for old in self
+                        .current_shared()?
+                        .iter()
+                        .filter_map(|(id, (p, source, _, _))| {
+                            (p == &project && source == &path).then_some(id.clone())
+                        })
+                        .collect::<Vec<_>>()
+                    {
+                        self.revoke_review_context(&old)?;
+                    }
                     lock(&self.shared)?
                         .retain(|_, (p, source, _, _)| *p != project || *source != path);
                     **revocation.as_mut().ok_or_else(|| {
@@ -1690,6 +1871,9 @@ impl Service {
                     return Ok(json!({"documentId":id,"shared":false}));
                 }
                 let p = self.project(&project)?;
+                if !context_shared {
+                    return Err(Error::new("context_consent", "Explicitly approve complete manuscript context sharing; edit permission remains limited to highlights."));
+                }
                 let file = self.path(&p, &path, false)?;
                 if !["html", "htm", "typ"]
                     .contains(&file.extension().and_then(|x| x.to_str()).unwrap_or(""))
@@ -1713,15 +1897,44 @@ impl Service {
                         .guarded(native),
                     document.group.observation(),
                 );
+                let binding = SourceBinding::new(&project, &path, source_epoch)
+                    .rooted(Some(document.group.observation()));
+                let editor = _editor.as_deref().ok_or_else(|| {
+                    Error::new("state", "The editor context guard is unavailable.")
+                })?;
+                let grant = self.prepare_context_consent(
+                    binding,
+                    expected_context_scope.as_deref(),
+                    editor,
+                )?;
+                #[cfg(test)]
+                if let Some(hook) = lock(&self.share_before_commit)?.take() {
+                    hook()?;
+                }
                 let mut shared = lock(&self.shared)?;
-                shared.retain(|_, (p, source, _, _)| *p != project || *source != path);
-                if shared.len() >= 20 {
+                let mut context = lock(&self.review_context)?;
+                if shared
+                    .iter()
+                    .filter(|(_, (p, source, _, _))| *p != project || *source != path)
+                    .count()
+                    >= 20
+                {
                     return Err(Error::new(
                         "limit",
                         "At most 20 manuscripts can be shared in one session.",
                     ));
                 }
+                self.check_context_consent(binding, &grant, editor)?;
+                document
+                    .group
+                    .verify(Member::Source, document.source.expectation())?;
+                document
+                    .group
+                    .verify(Member::Review, document.metadata.expectation())?;
                 document.group.check_current()?;
+                let current = shared.keys().cloned().collect();
+                context.commit_grant(&id, grant, &current);
+                shared.retain(|_, (p, source, _, _)| *p != project || *source != path);
                 shared.insert(
                     id.clone(),
                     (project, path, source_epoch, document.group.observation()),
@@ -1739,6 +1952,12 @@ impl Service {
     }
 
     pub fn remote(&self, tool: &str, arguments: Value) -> Result<Value> {
+        let editor = self.editor.try_lock().map_err(|_| {
+            Error::new(
+                "busy",
+                "A local editor operation is running. Retry this action.",
+            )
+        })?;
         let _documents = self.documents.try_lock().map_err(|_| {
             Error::new(
                 "busy",
@@ -1746,6 +1965,7 @@ impl Service {
             )
         })?;
         match tool {
+            "highlight_text" => self.highlight_remote(arguments, &editor),
             "list_manuscripts" => {
                 if arguments.as_object().is_none_or(|a| !a.is_empty()) {
                     return Err(Error::new("arguments", "This tool takes no arguments."));
@@ -1782,10 +2002,28 @@ impl Service {
                     let binding =
                         SourceBinding::new(&project, &path, source_epoch).rooted(Some(root));
                     let document = self.held_document(binding, &file, false)?;
+                    let pdf_policy = self.pdf_annotation_policy(&p, Some(root))?;
                     let text = document.content.clone();
                     let mut review = document.review.clone();
-                    let suggestion =
+                    let existed = review.suggestions.iter().any(|item| item.request_id == proposal.request_id);
+                    if !existed {
+                        self.require_review_context(&id, binding, proposal.context_id.as_deref(), &editor)?;
+                    }
+                    let protected_scope = if !existed && proposal.replacement_parts.is_some() { Some(self.current_context_scope(binding, &editor)?) } else { None };
+                    let mut suggestion =
                         review.propose_format(&text, proposal, path.ends_with(".typ"))?;
+                    if existed {
+                        if suggestion.replacement_parts.is_some() && suggestion.context_scope.as_deref() != Some(self.current_context_scope(binding, &editor)?.as_str()) { return Err(Error::new("context_stale", "The protected proposal no longer belongs to the current complete manuscript context.")); }
+                        return Ok(json!({"suggestion":suggestion,"manuscriptChanged":false}));
+                    }
+                    if let Some(scope) = protected_scope {
+                        suggestion.context_scope = Some(scope.clone());
+                        if let Some(stored) = review.suggestions.iter_mut().find(|item| item.id == suggestion.id) { stored.context_scope = Some(scope); }
+                    }
+                    pdf_policy.check()?;
+                    if !existed && review.allows_suggestion_direct(&suggestion)? {
+                        return self.apply_direct_edit(binding, &file, &document, review, &suggestion.id, &editor);
+                    }
                     self.persist_observed(binding, &file, &document, &text, &review, None)?;
                     Ok(json!({"suggestion":suggestion,"manuscriptChanged":false}))
                 } else {
@@ -1794,15 +2032,14 @@ impl Service {
                         &file,
                         false,
                     )?;
-                    let (content, review) = (document.content, document.review);
-                    Ok(
-                        json!({"documentId":id,"path":path,"content":content,"review":review,"shared":true}),
-                    )
+                    let mut value = json!({"documentId":id,"path":path,"content":document.content,"review":document.review,"shared":true});
+                    pdf_annotations::redact(&mut value);
+                    self.read_review_context(&id, SourceBinding::new(&project, &path, source_epoch).rooted(Some(root)), &editor, &document, value)
                 }
             }
             _ => Err(Error::new(
                 "scope",
-                "Agents can only list shared manuscripts, read them, and submit suggestions.",
+                "Agents may list/read shared manuscripts and submit prose changes through suggest_text. Direct application requires locally authorized prompt markers.",
             )),
         }
     }
@@ -1813,7 +2050,7 @@ impl Service {
 
     pub fn capabilities(&self, caller: CallerContext) -> Result<Value> {
         if caller == CallerContext::Review {
-            return Err(Error::new("scope", "Use the three granted Review tools."));
+            return Err(Error::new("scope", "Use the four granted Review tools."));
         }
         let review_tools: Vec<_> = crate::transport::tool_catalogue()
             .as_array()
@@ -1825,8 +2062,10 @@ impl Service {
             .iter()
             .filter(|operation| {
                 caller != CallerContext::LocalCli
-                    || (!matches!(operation.action, "project_tree" | "create_directory")
-                        && !operation.action.starts_with("hub_")
+                    || (!matches!(
+                        operation.action,
+                        "project_tree" | "create_directory" | "pdf_annotations" | "context_preview"
+                    ) && !operation.action.starts_with("hub_")
                         && (!operation.mutates || operation.action == "save_editor"))
             })
             .collect();
@@ -1886,7 +2125,7 @@ impl Service {
                 Error::new("stale_root", "Capture the project folder before compiling.")
             })?;
             return self
-                .compile_typst_rooted(
+                .compile_document_rooted(
                     project,
                     path,
                     revision,
@@ -1966,7 +2205,10 @@ impl Service {
         if caller != CallerContext::Local
             && matches!(
                 operation,
-                Operation::ProjectTree { .. } | Operation::CreateDirectory { .. }
+                Operation::ProjectTree { .. }
+                    | Operation::CreateDirectory { .. }
+                    | Operation::PdfAnnotations { .. }
+                    | Operation::ContextPreview { .. }
             )
         {
             return Err(Error::new(
@@ -2042,7 +2284,7 @@ impl Service {
                 path,
                 revision,
             } => {
-                self.compile_typst_rooted(
+                self.compile_document_rooted(
                     &project,
                     &path,
                     &revision,
@@ -2765,6 +3007,17 @@ mod tests {
             })
             .unwrap();
         let id = p["id"].as_str().unwrap().to_owned();
+        service
+            .local(Operation::Mark {
+                project: id.clone(),
+                path: "main.html".into(),
+                revision: digest("<p>Hello</p>"),
+                from: 3,
+                to: 8,
+                rule: "snappier".into(),
+                prompt: String::new(),
+            })
+            .unwrap();
         assert!(service
             .local(Operation::Open {
                 project: id.clone(),
@@ -2805,16 +3058,32 @@ mod tests {
             })
             .unwrap();
         let id = p["id"].as_str().unwrap().to_owned();
+        service
+            .local(Operation::Mark {
+                project: id.clone(),
+                path: "main.html".into(),
+                revision: digest("<p>Hello</p>"),
+                from: 3,
+                to: 8,
+                rule: "snappier".into(),
+                prompt: String::new(),
+            })
+            .unwrap();
         let share = service
             .local(Operation::Share {
                 project: id.clone(),
                 path: "main.html".into(),
                 enabled: true,
+                context_shared: true,
+                expected_context_scope: service.test_context_scope(&id, "main.html"),
             })
             .unwrap();
         let doc = share["documentId"].as_str().unwrap();
         assert!(service.remote("save", json!({})).is_err());
-        service.remote("suggest_text",json!({"documentId":doc,"proposal":{"requestId":"1","revision":digest("<p>Hello</p>"),"from":3,"to":8,"quote":"Hello","replacement":"Hi","rationale":"Concise"}})).unwrap();
+        let context = service
+            .remote("read_manuscript", json!({"documentId":doc}))
+            .unwrap();
+        service.remote("suggest_text",json!({"documentId":doc,"proposal":{"requestId":"1","contextId":context["contextId"],"revision":digest("<p>Hello</p>"),"from":3,"to":8,"quote":"Hello","replacement":"Hi","rationale":"Concise"}})).unwrap();
         assert_eq!(
             fs::read_to_string(root.join("main.html")).unwrap(),
             "<p>Hello</p>"
@@ -2825,6 +3094,8 @@ mod tests {
                 project: id,
                 path: "main.html".into(),
                 enabled: false,
+                context_shared: false,
+                expected_context_scope: None,
             })
             .unwrap();
         assert!(service
@@ -2845,6 +3116,7 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
+        let file = project.root.join("main.html");
         let mut journal = Journal {
             old_revision: digest("<p>Hello</p>"),
             content: "<p>Hi</p>".into(),
@@ -2892,6 +3164,9 @@ mod tests {
         .await
         .unwrap();
         git(&root, &["init", "-b", "main"]).await.unwrap();
+        git(&root, &["config", "core.autocrlf", "false"])
+            .await
+            .unwrap();
         git(&root, &["config", "user.name", "UnderTree Fixture"])
             .await
             .unwrap();
@@ -3713,15 +3988,31 @@ mod tests {
                 })
                 .unwrap();
             assert_eq!(saved["review"]["markers"][0]["anchor"]["stale"], true);
+            service
+                .local(Operation::Mark {
+                    project: project.clone(),
+                    path: filename.into(),
+                    revision: digest(current),
+                    from: world_from,
+                    to: world_to,
+                    rule: "snappier".into(),
+                    prompt: String::new(),
+                })
+                .unwrap();
             let shared = service
                 .local(Operation::Share {
                     project: project.clone(),
                     path: filename.into(),
                     enabled: true,
+                    context_shared: true,
+                    expected_context_scope: service.test_context_scope(&project, filename),
                 })
                 .unwrap();
             let document_id = shared["documentId"].as_str().unwrap();
-            let request = json!({"documentId":document_id,"proposal":{"requestId":"after-reanchor","revision":digest(current),"from":world_from,"to":world_to,"quote":"world","replacement":"reader","rationale":"Clearer wording."}});
+            let context = service
+                .remote("read_manuscript", json!({"documentId":document_id}))
+                .unwrap();
+            let mut request = json!({"documentId":document_id,"proposal":{"requestId":"after-reanchor","contextId":context["contextId"],"revision":digest(current),"from":world_from,"to":world_to,"quote":"world","replacement":"reader","rationale":"Clearer wording."}});
             assert_eq!(
                 service
                     .remote("suggest_text", request.clone())
@@ -3759,7 +4050,7 @@ mod tests {
                 })
                 .unwrap();
             assert_eq!(updated["review"]["rules"], saved["review"]["rules"]);
-            assert_eq!(updated["review"]["markers"].as_array().unwrap().len(), 1);
+            assert_eq!(updated["review"]["markers"].as_array().unwrap().len(), 2);
             let marker = &updated["review"]["markers"][0];
             assert_eq!(marker["id"], id);
             assert_eq!(marker["rule"], "protect");
@@ -3768,6 +4059,10 @@ mod tests {
             assert_eq!(marker["anchor"]["quote"], "Changed");
             assert_eq!(updated["review"]["revision"], digest(current));
             assert_eq!(service.remote("reanchor",json!({"documentId":document_id,"id":id,"from":from,"to":to,"quote":"Changed"})).unwrap_err().code,"scope");
+            request["proposal"]["contextId"] = service
+                .remote("read_manuscript", json!({"documentId":document_id}))
+                .unwrap()["contextId"]
+                .clone();
             assert!(service.remote("suggest_text", request).is_ok());
             assert_eq!(fs::read_to_string(&file).unwrap(), current);
             assert_eq!(
@@ -3848,10 +4143,19 @@ mod tests {
                 project: project.id.clone(),
                 path: "main.typ".into(),
                 enabled: true,
+                context_shared: true,
+                expected_context_scope: service.test_context_scope(&project.id, "main.typ"),
             })
             .unwrap();
         let from = external.find("paragraph").unwrap();
-        let suggestion = service.remote("suggest_text",json!({"documentId":shared["documentId"],"proposal":{"requestId":"external-review","revision":digest(external),"from":from,"to":from+9,"quote":"paragraph","replacement":"passage","rationale":"Clearer wording."}})).unwrap();
+        let context = service
+            .remote(
+                "read_manuscript",
+                json!({"documentId":shared["documentId"]}),
+            )
+            .unwrap();
+        let proposal_from = external.find("External").unwrap();
+        let suggestion = service.remote("suggest_text",json!({"documentId":shared["documentId"],"proposal":{"requestId":"external-review","contextId":context["contextId"],"revision":digest(external),"from":proposal_from,"to":proposal_from+8,"quote":"External","replacement":"New external","rationale":"Clearer wording."}})).unwrap();
         assert_owner();
         let rules = serde_json::from_value(marked["review"]["rules"].clone()).unwrap();
         service
@@ -3860,6 +4164,7 @@ mod tests {
                 path: "main.typ".into(),
                 revision: digest(external),
                 rules,
+                expected_rules: None,
             })
             .unwrap();
         assert_owner();
@@ -3970,6 +4275,7 @@ mod tests {
                 path: "main.typ".into(),
                 revision: digest(external),
                 rules,
+                expected_rules: None,
             })
             .unwrap();
         let project = service.project(&project.id).unwrap();

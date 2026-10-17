@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:net";
-import { access, chmod, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { access, chmod, copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -57,10 +57,18 @@ function storedZipEntries(buffer) {
 }
 
 test("authenticated API safely edits, searches, compiles, and serves a local TeX project", async (context) => {
-  const temporaryRoot = await mkdtemp(join(tmpdir(), "localtex-test-"));
+  const temporaryRoot = await realpath(await mkdtemp(join(tmpdir(), "localtex-test-")));
   const library = join(temporaryRoot, "library");
   const project = join(library, "fixture-project");
   await mkdir(join(project, "scripts"), { recursive: true });
+  // Use the same optional, process-local font prerequisite as layout.test.mjs.
+  if (process.env.UNDERTREE_TEST_NOTO_FONT_DIR) {
+    for (const style of ["Regular", "Italic", "Bold", "BoldItalic"]) {
+      const name = `NotoSans-${style}.ttf`;
+      await copyFile(join(process.env.UNDERTREE_TEST_NOTO_FONT_DIR, name), join(project, name));
+    }
+    await writeFile(join(project, "luaotfload.conf"), "[db]\nscan-local = true\n");
+  }
   await writeFile(join(project, "main.tex"), String.raw`\documentclass{article}
 \begin{document}
 Offline fixture text.
@@ -89,7 +97,7 @@ This source intentionally does not end.
   );
   await writeFile(join(project, "scripts", "tex-sync"), bridgeWithClean);
   await chmod(join(project, "scripts", "tex-sync"), 0o755);
-  const previewNormalizer = join(temporaryRoot, "preview-normalizer");
+  let previewNormalizer = join(temporaryRoot, "preview-normalizer");
   await writeFile(previewNormalizer, `#!/usr/bin/env bash
 set -euo pipefail
 output=""
@@ -106,23 +114,41 @@ printf '\n%%%% LocalTeX preview normalized\n' >> "$output"
   await chmod(previewNormalizer, 0o755);
   const codexInvocation = join(temporaryRoot, "codex-invocation.txt");
   const codexDesktopRequest = join(temporaryRoot, "codex-desktop-request.txt");
-  const fakeCodex = join(temporaryRoot, "codex");
+  let fakeCodex = join(temporaryRoot, "codex");
   await writeFile(fakeCodex, String.raw`#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' 'unexpected Codex invocation' > "$LOCALTEX_TEST_CODEX_INVOCATION"
 exit 2
 `);
   await chmod(fakeCodex, 0o755);
-  const fakeCodexDesktop = join(temporaryRoot, "codex-desktop");
+  let fakeCodexDesktop = join(temporaryRoot, "codex-desktop");
   await writeFile(fakeCodexDesktop, String.raw`#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$1" > "$LOCALTEX_TEST_CODEX_DESKTOP_REQUEST"
 `);
   await chmod(fakeCodexDesktop, 0o755);
   const fileManagerRequest = join(temporaryRoot, "file-manager-request.txt");
-  const fakeFileManager = join(temporaryRoot, "file-manager");
+  let fakeFileManager = join(temporaryRoot, "file-manager");
   await writeFile(fakeFileManager, `#!/usr/bin/env bash\nset -euo pipefail\nprintf '%s' "$1" > "${fileManagerRequest}"\n`);
   await chmod(fakeFileManager, 0o755);
+  const childEnvironment = { ...process.env };
+  if (process.platform === "win32") {
+    const executable = join(temporaryRoot, "server-hook.exe");
+    const compiled = spawnSync("rustc", ["--edition=2021", fileURLToPath(new URL("./server-helper-fixture.rs", import.meta.url)), "-o", executable], { encoding: "utf8", windowsHide: true, timeout: 60_000 });
+    assert.equal(compiled.status, 0, compiled.stderr || compiled.error?.message);
+    [previewNormalizer, fakeCodex, fakeCodexDesktop, fakeFileManager] = await Promise.all(["preview-normalizer", "codex", "codex-desktop", "file-manager"].map(async name => {
+      const target = join(temporaryRoot, `${name}.exe`);
+      await copyFile(executable, target);
+      return target;
+    }));
+    const gitBin = join(process.env.ProgramFiles || "C:\\Program Files", "Git", "bin");
+    const gitPerlBin = join(gitBin, "..", "usr", "bin");
+    await access(join(gitBin, "bash.exe"));
+    await access(join(gitPerlBin, "perl.exe"));
+    const pathKey = Object.keys(childEnvironment).find(key => key.toLowerCase() === "path") || "PATH";
+    // Use real Bash and Perl; an unrelated user perl.cmd can mask TeX failure codes.
+    childEnvironment[pathKey] = [gitBin, gitPerlBin, childEnvironment[pathKey] || ""].join(delimiter);
+  }
   await writeFile(join(library, "PROJECTS.tsv"), `type\tname\tlocalPath\trepository\tbranch\troot\tengine\toverleafUrl\nactive-overleaf\tFixture Project\t${project}\texample/fixture\tmain\tmain.tex\tpdflatex\thttps://www.overleaf.com/project/fixture\n`);
   await writeFile(join(library, "PROJECT_DOMAINS.tsv"), `id\ttype\tname\tprojectTitle\tsemanticDomain\tthemes\tdocumentFunction\tprojectFamily\treuseRole\tlocalPath\trepository\troot\tengine\toverleafUrl\nfixture\tactive-overleaf\tFixture Project\tFixture\ttesting\toffline\tverification\tfixture\ttest\t${project}\texample/fixture\tmain.tex\tpdflatex\thttps://www.overleaf.com/project/fixture\n`);
 
@@ -145,7 +171,7 @@ printf '%s\n' "$1" > "$LOCALTEX_TEST_CODEX_DESKTOP_REQUEST"
   const server = spawn(process.execPath, [join(APP_ROOT, "server.mjs")], {
     cwd: APP_ROOT,
     env: {
-      ...process.env,
+      ...childEnvironment,
       UNDERTREE_PORT: String(port),
       UNDERTREE_TOKEN: token,
       UNDERTREE_LIBRARY_ROOT: library,
@@ -156,6 +182,7 @@ printf '%s\n' "$1" > "$LOCALTEX_TEST_CODEX_DESKTOP_REQUEST"
       UNDERTREE_STATE_ROOT: join(temporaryRoot, "state"),
       LOCALTEX_TEST_CODEX_INVOCATION: codexInvocation,
       LOCALTEX_TEST_CODEX_DESKTOP_REQUEST: codexDesktopRequest,
+      LOCALTEX_TEST_FILE_MANAGER_REQUEST: fileManagerRequest,
     },
   });
   let serverOutput = "";
@@ -453,7 +480,7 @@ Failed build source must remain unchanged.
   });
   assert.equal(failedBuildResponse.status, 200, serverOutput);
   const failedBuild = await failedBuildResponse.json();
-  assert.notEqual(failedBuild.code, 0, "a real failed TeX build remains a failed build when recovery is disabled");
+  assert.notEqual(failedBuild.code, 0, `a real failed TeX build remains a failed build when recovery is disabled\n${JSON.stringify(failedBuild)}`);
   assert.equal(failedBuild.pdfAvailable, false);
   assert.equal(Object.hasOwn(failedBuild, "codexRecovery"), false, "the unsupported recovery flag must not create an agent task");
   assert.equal(await readFile(join(project, "recover.tex"), "utf8"), failedSource, "failed compilation must not rewrite manuscript source");

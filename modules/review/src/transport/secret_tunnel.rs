@@ -338,7 +338,7 @@ mod tests {
         let status = gateway::gateway_status(&service).await.unwrap();
         assert_eq!(status["enabled"], true);
         assert_eq!(status["appCount"], 1);
-        assert_eq!(status["tools"].as_array().unwrap().len(), 5);
+        assert_eq!(status["tools"].as_array().unwrap().len(), 6);
         assert_no_grants(&service);
         rollback(&service, id, "existing_private_token")
             .await

@@ -31,6 +31,10 @@ test('notice verification needs no build tools and refuses changed payloads or l
     await mkdir(dirname(join(fixture, path)), { recursive: true });
     await cp(join(root, path), join(fixture, path));
   }
+  for (const directory of ['modules/compiler/latex-worker', 'modules/compiler/vendor', 'packaging/licenses/upstream']) {
+    await mkdir(dirname(join(fixture, directory)), { recursive: true });
+    await cp(join(root, directory), join(fixture, directory), { recursive: true });
+  }
   const fixtureNotices = join(fixture, 'custom-notices');
   await cp(notices, fixtureNotices, { recursive: true });
   const check = () => exec(process.execPath, [join(fixture, 'modules/maintenance/generate-notices.mjs'), '--check'],

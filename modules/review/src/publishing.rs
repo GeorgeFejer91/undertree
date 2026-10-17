@@ -16,7 +16,13 @@ use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 mod compiler_capture;
 pub(crate) mod diagnostics;
+mod engine;
 mod pdf_spool;
+use engine::PublicationEngine;
+
+pub(crate) fn require_publication_source(path: &str) -> Result<()> {
+    PublicationEngine::for_source(path).map(|_| ())
+}
 
 const MAX_PDF: usize = 16 * 1024 * 1024;
 const MAX_DIAGNOSTICS: usize = 64 * 1024;
@@ -675,6 +681,8 @@ impl NativeBuild {
             "XDG_CACHE_HOME",
             "TYPST_PACKAGE_PATH",
             "TYPST_PACKAGE_CACHE_PATH",
+            "UNDERTREE_TECTONIC_CACHE",
+            "TECTONIC_CACHE_DIR",
         ] {
             if let Some(path) = std::env::var_os(key)
                 .map(PathBuf::from)
@@ -805,6 +813,58 @@ impl NativeBuild {
 }
 
 impl Service {
+    pub(crate) fn current_typst_dependency_paths(
+        &self,
+        project: &str,
+        main: &str,
+        expected_root: RootObservation,
+    ) -> Option<BTreeSet<String>> {
+        if main.is_empty() {
+            return None;
+        }
+        let approved = self.project(project).ok()?;
+        let observed = RootedRoot::observe(self.publishing_root()).ok()?;
+        let state = RootedRoot::acquire(self.publishing_root(), &observed).ok()?;
+        let previews = state.directory().ok()?.open_dir_nofollow("pdfs").ok()?;
+        let id = digest(&format!("{project}:{main}"));
+        let bytes = read_input(&previews, &format!("{id}.json"), MAX_PREVIEW_INFO).ok()?;
+        let receipt: Preview = serde_json::from_slice(&bytes).ok()?;
+        if receipt.compiler_capture_version != 1
+            || receipt.expected_root != Some(expected_root)
+            || !dependencies_current(&approved.root, &receipt)
+        {
+            return None;
+        }
+        let dependencies = receipt.dependencies.as_ref()?;
+        if !dependencies
+            .iter()
+            .any(|dependency| dependency.path == main && dependency.revision == receipt.revision)
+        {
+            return None;
+        }
+        let epochs = self.source_epochs(project).ok()?;
+        if epochs.get(main).copied().unwrap_or(0) != receipt.source_epoch
+            || dependencies.iter().any(|dependency| {
+                epochs.get(&dependency.path).copied().unwrap_or(0) != dependency.source_epoch
+            })
+        {
+            return None;
+        }
+        state.check_current().ok()?;
+        Some(
+            dependencies
+                .iter()
+                .filter(|dependency| {
+                    Path::new(&dependency.path)
+                        .extension()
+                        .and_then(|extension| extension.to_str())
+                        == Some("typ")
+                })
+                .map(|dependency| dependency.path.clone())
+                .collect(),
+        )
+    }
+
     /// Native Compile projection only. Reply selection never substitutes for source authority.
     pub async fn compile_typst_native_report(
         self: &Arc<Self>,
@@ -831,14 +891,14 @@ impl Service {
             (self.clone(), owner.clone(), project.clone(), path.clone());
         let epoch = request.source_epoch;
         tokio::task::spawn_blocking(move || {
-            let _authority = service.source_effect_guard(Some(&admission_owner))?;
+            let _authority = service.publication_source_effect_guard(Some(&admission_owner))?;
             service.require_source_epoch(&key, &source, epoch)?;
             RootedRoot::acquire(&service.project(&key)?.root, &root)?;
             Ok::<_, Error>(())
         })
         .await
         .map_err(|_| Error::new("state", "Native compile admission stopped."))??;
-        let executable = std::env::var_os("UNDERTREE_TYPST").unwrap_or_else(|| "typst".into());
+        let engine = PublicationEngine::for_source(&path)?;
         self.compile_typst_admit(
             SourceBinding::new(&project, &path, epoch)
                 .rooted(Some(root))
@@ -846,7 +906,7 @@ impl Service {
             Some(owner),
             &revision,
             CompilerInvocation {
-                command: tokio::process::Command::new(executable),
+                command: engine.command()?,
                 timeout: std::time::Duration::from_secs(45),
                 native_report: true,
             },
@@ -865,7 +925,7 @@ impl Service {
         let service = self.clone();
         tokio::task::spawn_blocking(move || {
             let report = build.report(&capture, complete)?;
-            let _authority = service.source_effect_guard(owner.as_ref())?;
+            let _authority = service.publication_source_effect_guard(owner.as_ref())?;
             build.require_delivery(&service, &report)?;
             build.reply(Err(error), report)
         })
@@ -876,17 +936,14 @@ impl Service {
     fn pdf_paths(&self, project: &str, path: &str) -> Result<(PathBuf, PathBuf)> {
         let project_info = self.project(project)?;
         let relative = input_path(path)?;
+        require_publication_source(path)?;
         if relative
-            .extension()
-            .and_then(|extension| extension.to_str())
-            != Some("typ")
-            || relative
                 .components()
                 .any(|component| component.as_os_str().to_string_lossy().starts_with('.'))
         {
             return Err(Error::new(
                 "path",
-                "Choose a Typst source inside this project.",
+                "Choose a Typst or LaTeX source inside this project.",
             ));
         }
         project_directory(&project_info.root)?;
@@ -963,7 +1020,8 @@ impl Service {
                 && source_matches
                 && identity_matches
                 && dependencies_current(&project_info.root, &metadata);
-            let mut result = json!({"available":true,"base64":base64::engine::general_purpose::STANDARD.encode(bytes),"revision":metadata.revision,"sourceEpoch":metadata.source_epoch,"expectedRoot":metadata.expected_root,"current":current,
+            let pdf_hash = format!("{:x}", Sha256::digest(&bytes));
+            let mut result = json!({"available":true,"base64":base64::engine::general_purpose::STANDARD.encode(bytes),"pdfHash":pdf_hash,"revision":metadata.revision,"sourceEpoch":metadata.source_epoch,"expectedRoot":metadata.expected_root,"current":current,
                 "diagnostics":metadata.diagnostics,"dependencyCount":metadata.dependencies.as_ref().map_or(0, Vec::len),
                 "dependencyCoverage":"project","externalDependencyCount":metadata.external_dependency_count});
             if metadata.expected_root.is_none() {
@@ -1004,14 +1062,29 @@ impl Service {
         root: Option<RootObservation>,
         owner: Option<(String, String)>,
     ) -> Result<Value> {
-        let executable = std::env::var_os("UNDERTREE_TYPST").unwrap_or_else(|| "typst".into());
+        if PublicationEngine::for_source(path)? != PublicationEngine::Typst {
+            return Err(Error::new("source", "This operation compiles only Typst sources."));
+        }
+        self.compile_document_rooted(project, path, revision, source_epoch, root, owner).await
+    }
+
+    pub(crate) async fn compile_document_rooted(
+        self: &Arc<Self>,
+        project: &str,
+        path: &str,
+        revision: &str,
+        source_epoch: u64,
+        root: Option<RootObservation>,
+        owner: Option<(String, String)>,
+    ) -> Result<Value> {
+        let engine = PublicationEngine::for_source(path)?;
         self.compile_typst_with_owner(
             SourceBinding::new(project, path, source_epoch)
                 .rooted(root)
                 .guarded(owner.is_some()),
             owner,
             revision,
-            tokio::process::Command::new(executable),
+            engine.command()?,
             std::time::Duration::from_secs(45),
         )
         .await
@@ -1079,7 +1152,7 @@ impl Service {
         let compile_guard = self.compile_lock.clone().try_lock_owned().map_err(|_| {
             Error::new(
                 "busy",
-                "A Typst compilation is already running; editing remains available.",
+                "A document compilation is already running; editing remains available.",
             )
         })?;
         let service = self.clone();
@@ -1104,7 +1177,7 @@ impl Service {
                 .await
         })
         .await
-        .map_err(|_| Error::new("state", "Typst supervision stopped unexpectedly."))?
+        .map_err(|_| Error::new("state", "Document compilation supervision stopped unexpectedly."))?
     }
 
     async fn compile_typst_owned(
@@ -1127,6 +1200,7 @@ impl Service {
             root: expected_root,
             guarded: _,
         } = binding;
+        let engine = PublicationEngine::for_source(path)?;
         let service = self.clone();
         let project_key = project.to_owned();
         let source_path = path.to_owned();
@@ -1150,16 +1224,14 @@ impl Service {
             let path = source_path.as_str();
             let revision = source_revision.as_str();
             let _authority = if stage_owner.is_some() {
-                Some(service.source_effect_guard(stage_owner.as_ref())?)
+                Some(service.publication_source_effect_guard(stage_owner.as_ref())?)
             } else {
                 None
             };
             let captured_epochs = service.capture_source_epochs(project, path, source_epoch)?;
             let project_info = service.project(project)?;
             let source = service.path(&project_info, path, false)?;
-            if source.extension().and_then(|s| s.to_str()) != Some("typ") {
-                return Err(Error::new("source", "Choose a Typst source to compile."));
-            }
+            require_publication_source(path)?;
             let (legacy_pdf, info) = service.pdf_paths(project, path)?;
             let previous = read_limited(&info, MAX_PREVIEW_INFO)
                 .ok()
@@ -1180,7 +1252,7 @@ impl Service {
                         "Native compile reports require a captured owner and project folder.",
                     ));
                 }
-                let qualified = qualified_compiler(&mut command);
+                let qualified = engine == PublicationEngine::Typst && qualified_compiler(&mut command);
                 Some(Arc::new(NativeBuild::prepare(
                     &service,
                     SourceBinding::new(project, path, source_epoch)
@@ -1200,7 +1272,7 @@ impl Service {
                 None
             };
             {
-                let _authority = service.source_effect_guard(stage_owner.as_ref())?;
+                let _authority = service.publication_source_effect_guard(stage_owner.as_ref())?;
                 snapshot.original.check_current()?;
                 service.require_source_epoch(project, path, source_epoch)?;
                 service.record_compiler_source_capture(
@@ -1226,28 +1298,12 @@ impl Service {
             ))
         })
         .await
-        .map_err(|_| Error::new("state", "Typst input preparation stopped unexpectedly."))??;
+        .map_err(|_| Error::new("state", "Document input preparation stopped unexpectedly."))??;
         let staged_source = snapshot.root.path().join(path);
-        if native.as_ref().is_some_and(|build| build.qualified) {
-            compiler.arg("--color").arg("never");
-        }
-        compiler
-            .arg("compile")
-            .arg("--root")
-            .arg(snapshot.root.path())
-            .arg(&staged_source)
-            .arg("-")
-            .arg("--format")
-            .arg("pdf")
-            .arg("--deps")
-            .arg(dependency_list.path())
-            .arg("--deps-format")
-            .arg("json")
-            .arg("--font-path")
-            .arg(snapshot.root.path());
-        if native.as_ref().is_some_and(|build| build.qualified) {
-            compiler.arg("--diagnostic-format").arg("short");
-        }
+        engine.prepare(&mut compiler, snapshot.root.path(), path, dependency_list.path(),
+            native.as_ref().is_some_and(|build| build.qualified));
+        #[cfg(windows)]
+        compiler.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
         let spawned = compiler
             // Typst 0.15's downloader respects these variables; port zero refuses downloads.
             .envs([
@@ -1269,7 +1325,7 @@ impl Service {
         let mut child = match spawned {
             Ok(child) => child,
             Err(_) => {
-                let error = Error::new("typst", "Install Typst or set UNDERTREE_TYPST to its executable. No LaTeX installation is needed.");
+                let error = engine.unavailable();
                 return if let Some(build) = native {
                     self.native_compile_failure(
                         build,
@@ -1290,10 +1346,10 @@ impl Service {
         let work =
             async {
                 let mut stderr = child.stderr.take().ok_or_else(|| {
-                    Error::new("typst", "The compiler did not provide diagnostics.")
+                    Error::new(engine.code(), "The compiler did not provide diagnostics.")
                 })?;
                 let mut stdout = child.stdout.take().ok_or_else(|| {
-                    Error::new("typst", "The compiler did not provide a PDF stream.")
+                    Error::new(engine.code(), "The compiler did not provide a PDF stream.")
                 })?;
                 tokio::try_join!(
                     pdf_spool::spool(&mut stdout, &mut pdf_output),
@@ -1304,7 +1360,7 @@ impl Service {
                 if status.success() {
                     Ok(())
                 } else {
-                    Err(Error::new("typst", ""))
+                    Err(Error::new(engine.code(), ""))
                 }
             };
         let result = tokio::time::timeout(timeout, work)
@@ -1312,7 +1368,7 @@ impl Service {
             .unwrap_or_else(|_| {
                 Err(Error::new(
                     "timeout",
-                    "Typst took too long. The last good PDF is preserved.",
+                    format!("{} took too long. The last good PDF is preserved.", engine.name()),
                 ))
             });
         let complete = normal_wait && capture.eof() && !capture.clipped() && !capture.read_failed();
@@ -1347,15 +1403,15 @@ impl Service {
                     drop(pdf_output);
                 });
                 // No diagnostics formatting precedes the owned reaper's admission.
-                let error = if error.code == "typst" && error.message.is_empty() {
+                let error = if error.code == engine.code() && error.message.is_empty() {
                     if String::from_utf8_lossy(capture.bytes())
                         .contains("failed to download package")
                     {
                         Error::new("offline", "This manuscript needs a Typst package that is not available locally. Prepare its packages outside UnderTree, then compile again. The last good preview is preserved.")
                     } else if native.is_some() {
                         Error::new(
-                            "typst",
-                            "Typst compilation failed. The last good PDF is preserved.",
+                            engine.code(),
+                            format!("{} compilation failed. The last good PDF is preserved.", engine.name()),
                         )
                     } else {
                         let message = diagnostics(
@@ -1366,9 +1422,9 @@ impl Service {
                             path,
                         );
                         Error::new(
-                            "typst",
+                            engine.code(),
                             format!(
-                                "Typst compilation failed. Last good preview preserved.\n{message}"
+                                "{} compilation failed. Last good preview preserved.\n{message}", engine.name()
                             ),
                         )
                     }
@@ -1423,7 +1479,7 @@ impl Service {
             if reported.inputs.len() > MAX_DEPENDENCIES {
                 return Err(Error::new(
                     "limit",
-                    "Typst has more than 1000 inputs. The last good PDF is preserved.",
+                    "The document has more than 1000 inputs. The last good PDF is preserved.",
                 ));
             }
             let mut paths = BTreeSet::new();
@@ -1436,30 +1492,30 @@ impl Service {
                         external_dependency_count += 1;
                         continue;
                     }
-                    input.strip_prefix(snapshot.root.path()).map_err(|_| Error::new("path", "Invalid staged Typst dependency."))?
+                    input.strip_prefix(snapshot.root.path()).map_err(|_| Error::new("path", "Invalid staged document dependency."))?
                 } else { input };
-                let relative = relative.to_str().ok_or_else(|| Error::new("path", "Typst input paths must be valid UTF-8."))?
+                let relative = relative.to_str().ok_or_else(|| Error::new("path", "Document input paths must be valid UTF-8."))?
                     .replace(std::path::MAIN_SEPARATOR, "/");
                 input_path(&relative)?;
                 if !snapshot.inputs.contains_key(&relative) {
-                    return Err(Error::new("path", "Typst reported an input outside its prepared project. The last good PDF is preserved."));
+                    return Err(Error::new("path", "The compiler reported an input outside its prepared project. The last good PDF is preserved."));
                 }
                 paths.insert(relative);
             }
             paths.insert(path.replace(std::path::MAIN_SEPARATOR, "/"));
             paths.extend(snapshot.inputs.keys().filter(|path| is_font(path)).cloned());
             if paths.len() > MAX_DEPENDENCIES {
-                return Err(Error::new("limit", "Typst has more than 1000 project inputs. The last good PDF is preserved."));
+                return Err(Error::new("limit", "The document has more than 1000 project inputs. The last good PDF is preserved."));
             }
             let dependencies = paths.iter().map(|path| {
-                let revision = snapshot.inputs.get(path).cloned().ok_or_else(|| Error::new("path", "Typst reported an input outside its prepared project."))?;
+                let revision = snapshot.inputs.get(path).cloned().ok_or_else(|| Error::new("path", "The compiler reported an input outside its prepared project."))?;
                 Ok(Dependency { revision, path: path.clone(), source_epoch: captured_epochs.get(path).copied().unwrap_or(0) })
             }).collect::<Result<Vec<_>>>()?;
             let pdf_bytes = read_limited(temporary.path(), MAX_PDF)?;
             if !pdf_bytes.starts_with(b"%PDF-") {
                 return Err(Error::new(
-                    "typst",
-                    "Typst did not produce a valid PDF. The last good preview is preserved.",
+                    engine.code(),
+                    format!("{} did not produce a valid PDF. The last good preview is preserved.", engine.name()),
                 ));
             }
             let pdf_hash = format!("{:x}", Sha256::digest(&pdf_bytes));
@@ -1487,10 +1543,10 @@ impl Service {
             if metadata_bytes.len() > MAX_PREVIEW_INFO {
                 return Err(Error::new(
                     "limit",
-                    "Typst preview metadata exceeds 1 MB. The last good PDF is preserved.",
+                    "Document preview metadata exceeds 1 MB. The last good PDF is preserved.",
                 ));
             }
-            let _authority = service.source_effect_guard(owner.as_ref())?;
+            let _authority = service.publication_source_effect_guard(owner.as_ref())?;
             snapshot.original.check_current()?;
             if snapshot.original.has_pending(path)? { return Err(Error::new("busy", "A pending save appeared during compilation. The last good PDF was preserved.")); }
             service.require_source_epochs(project, &captured_epochs, &paths)?;
@@ -1545,7 +1601,7 @@ impl Service {
             (Err(error), Some(build), Some(report)) => {
                 let service = self.clone();
                 tokio::task::spawn_blocking(move || {
-                    let _authority = service.source_effect_guard(delivery_owner.as_ref())?;
+                    let _authority = service.publication_source_effect_guard(delivery_owner.as_ref())?;
                     build.require_delivery(&service, &report)?;
                     build.reply(Err(error), report)
                 })

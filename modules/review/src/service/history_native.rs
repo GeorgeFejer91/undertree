@@ -236,7 +236,7 @@ impl Service {
         journal: &mut Journal,
         cause: NativeCause,
     ) -> Result<Producer> {
-        // This method is reached only from authenticated native Save/local acceptance.
+        // Called by native Save/acceptance or locally authorized direct prompt application.
         if !binding.guarded || binding.root != Some(document.group.observation()) {
             return Err(unavailable());
         }

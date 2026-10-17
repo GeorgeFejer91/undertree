@@ -484,3 +484,40 @@ test('a newly published document while hidden is painted on unchanged-size revea
   assert.equal(replacement.renders.length, 1);
   assert.equal(viewer.pdf, replacement);
 });
+
+test('PDF passage verification checks offscreen pages, respects page boundaries and reuses bounded text', async t => {
+  const { viewer } = viewerFixture(t);
+  const base = pdfFixture(3); let reads = 0;
+  const text = ['Unique phrase. Repeated phrase.', 'Repeated phrase. Page ending', 'Page beginning.'];
+  const pdf = { ...base, getPage: async number => ({ ...base.page(number), getTextContent: async () => { reads += 1; return { items: [{ str: text[number - 1] }] }; } }) };
+  await viewer.setDocument(pdf);
+  assert.equal(await viewer.isUniqueText('Unique phrase.'), true);
+  assert.equal(await viewer.isUniqueText('Repeated phrase.'), false);
+  assert.equal(await viewer.isUniqueText('Page endingPage beginning.'), false);
+  assert.equal(await viewer.isUniqueText('missing'), false);
+  assert.equal(reads, 3, 'subsequent passages reuse one complete index');
+  const enormous = pdfFixture(513); await viewer.setDocument(enormous);
+  assert.equal(await viewer.isUniqueText('anything'), false, 'a document beyond the scan bound requires source selection');
+  const oversized = pdfFixture();
+  oversized.getPage = async () => ({ ...oversized.page(1), getTextContent: async () => ({ items: [{ str: 'x'.repeat(2_000_001) }] }) });
+  await viewer.setDocument(oversized);
+  assert.equal(await viewer.isUniqueText('x'), false);
+  assert.equal(viewer.verifiedText, null, 'oversized extracted text is not retained');
+});
+
+test('a held PDF text verification cannot authorize a selection after changing documents', async t => {
+  const { viewer } = viewerFixture(t);
+  let release, ready;
+  const gate = new Promise(resolve => { release = resolve; });
+  const entered = new Promise(resolve => { ready = resolve; });
+  const old = pdfFixture();
+  old.getPage = async () => ({ ...old.page(1), getTextContent: async () => { ready(); await gate; return { items: [{ str: 'Retired passage.' }] }; } });
+  await viewer.setDocument(old);
+  const checking = viewer.isUniqueText('Retired passage.'); await entered;
+  const replacement = pdfFixture();
+  replacement.getPage = async () => ({ ...replacement.page(1), getTextContent: async () => ({ items: [{ str: 'Current passage.' }] }) });
+  await viewer.setDocument(replacement); release();
+  assert.equal(await checking, false);
+  assert.equal(await viewer.isUniqueText('Current passage.'), true);
+  assert.equal(viewer.verifiedText, 'Current passage.');
+});

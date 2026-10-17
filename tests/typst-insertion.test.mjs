@@ -125,7 +125,7 @@ test('generated complete LF and CRLF examples compile with real Typst and contai
   assert.match(version, /^typst 0\.15\.1\b/, 'this gate qualifies the pinned compiler and cannot silently skip it');
   const directory = await mkdtemp(join(tmpdir(), 'undertree-typst-insertion-'));
   const { getDocument, OPS } = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const key = 'DBLP:books/lib/Knuth86a', path = 'quoted "plot" 😀.svg', url = 'https://example.org/authoring?quoted=%22';
+  const key = 'DBLP:books/lib/Knuth86a', path = process.platform === 'win32' ? "quoted 'plot' 😀.svg" : 'quoted "plot" 😀.svg', url = 'https://example.org/authoring?quoted=%22';
   try {
     await writeFile(join(directory, path), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 30"><rect x="1" y="1" width="198" height="28" fill="red"/></svg>');
     await writeFile(join(directory, 'references.bib'), `@article{${key}, title={Citation sentinel}, author={UnderTree, Reviewer}, journal={Authoring fixture}, year={2026}}`);

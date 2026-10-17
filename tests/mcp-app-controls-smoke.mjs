@@ -1,3 +1,4 @@
+import { consentToFixtureShare } from './context-fixture.mjs';
 // Strengthened artifact-only runner; the canonical test and copied snapshots stay frozen.
 // Real Rust MCP -> rendered workspace. The zrok process is simulated; no public route claim.
 import assert from 'node:assert/strict';
@@ -37,6 +38,7 @@ try {
   await until(() => !!port, 'The Rust authority did not start.');
   const base = `http://127.0.0.1:${port}`;
   async function local(operation) {
+    operation = await consentToFixtureShare(operation, local);
     const body = await fetch(base + '/api/review', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(operation) }).then(response => response.json());
     assert.equal(body.ok, true, body.error?.message); return body.result;
   }
@@ -147,7 +149,7 @@ try {
   const initialize = endpoint => rpc(endpoint, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'UnderTree app controls fixture', version: '1' } });
   await initialize(reviewEndpoint); await initialize(appEndpoint);
   const reviewTools = (await rpc(reviewEndpoint, 'tools/list')).tools.map(tool => tool.name);
-  assert.deepEqual(reviewTools, ['list_manuscripts', 'read_manuscript', 'suggest_text']);
+  assert.deepEqual(reviewTools, ['list_manuscripts', 'read_manuscript', 'suggest_text', 'highlight_text']);
   const appTools = (await rpc(appEndpoint, 'tools/list')).tools.map(tool => tool.name);
   for (const forbidden of ['suggest_text', 'save', 'save_editor', 'replace_source', 'edit_file', 'decide', 'accept', 'set_policy', 'sync', 'create', 'import_tex', 'review_action']) assert.equal(appTools.includes(forbidden), false, forbidden);
   const tool = (name, args = {}) => rpc(appEndpoint, 'tools/call', { name, arguments: args });

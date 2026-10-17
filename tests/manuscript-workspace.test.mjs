@@ -36,6 +36,20 @@ test('pane dragging reserves working editor and preview room', () => {
   assert.equal(clampPaneWidth(-10, 1000), 150);
 });
 
+test('opening either content pane restores the desktop split without touching the editor', async () => {
+  const source = await readFile(new URL('../src/manuscript.js', import.meta.url), 'utf8');
+  const showPane = source.slice(source.indexOf('function showPane(name)'), source.indexOf('function renderOutline()'));
+  for (const pane of ['editor', 'preview']) {
+    const workspace = { dataset: { editorCollapsed: 'true', previewCollapsed: 'true', filesCollapsed: 'true' } };
+    let selected, remembered = 0;
+    runInNewContext(showPane + '\nshowPane(pane);', { workspace, pane, mobileView: name => { selected = name; }, rememberWorkspace: () => { remembered += 1; } });
+    assert.equal(workspace.dataset.editorCollapsed, 'false');
+    assert.equal(workspace.dataset.previewCollapsed, 'false');
+    assert.equal(workspace.dataset.filesCollapsed, 'true');
+    assert.equal(selected, pane); assert.equal(remembered, 1);
+  }
+});
+
 test('file pane clamping reserves visible rail, review and splitters without consuming the content minimum', () => {
   const preferred = 1200, width = 1100, fixed = 40 + 240 + 7 + 7;
   const effective = clampPaneWidth(preferred, width, 150, 400, fixed);

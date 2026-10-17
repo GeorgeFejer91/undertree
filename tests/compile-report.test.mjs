@@ -15,10 +15,20 @@ const envelope = (status = 'succeeded') => ({
   report: { captureComplete: true, truncated: false, text: '<script>untrusted compiler output</script>', rows: [{ severity: 'error', message: '<img onerror=evil()> missing name', locationCandidate: { ...point } }],
     sourceCandidates: [{ projectPath: point.projectPath, sourceDigest: revision, sourceEpoch: 7 }],
     provenance: { project: id, path: 'main.typ', sourceEpoch: 2, expectedRoot: { ...root }, sourceDigest: operation().revision, mainRevision: operation().revision, nativeBuildId: id, instanceId: id } },
-  ...(status === 'succeeded' ? { preview: { available: true, base64: 'JVBERi0=', revision: operation().revision, sourceEpoch: 2, expectedRoot: { ...root }, current: true, diagnostics: '', dependencyCount: 2, dependencyCoverage: 'project', externalDependencyCount: 0 } } : { error: { code: status === 'outcome_unknown' ? status : 'typst', message: 'Compilation failed; previous PDF retained.' } }),
+  ...(status === 'succeeded' ? { preview: { available: true, base64: 'JVBERi0=', pdfHash: hash(Buffer.from('JVBERi0=', 'base64')), revision: operation().revision, sourceEpoch: 2, expectedRoot: { ...root }, current: true, diagnostics: '', dependencyCount: 2, dependencyCoverage: 'project', externalDependencyCount: 0 } } : { error: { code: status === 'outcome_unknown' ? status : 'typst', message: 'Compilation failed; previous PDF retained.' } }),
 });
 const defer = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const turn = () => new Promise(resolve => setImmediate(resolve));
+test('native success admits its PDF identity and refuses malformed or missing identities', () => {
+  const value = envelope(); value.preview.pdfHash = hash(Buffer.from(value.preview.base64, 'base64'));
+  assert.equal(unwrapNativeCompile(value, operation()).pdfHash, value.preview.pdfHash);
+  for (const identity of [undefined, null, '', 'A'.repeat(64), 'a'.repeat(63), 'a'.repeat(65), 'g'.repeat(64), 42]) {
+    const invalid = envelope();
+    if (identity === undefined) delete invalid.preview.pdfHash;
+    else invalid.preview.pdfHash = identity;
+    assert.throws(() => unwrapNativeCompile(invalid, operation()), error => error.code === 'compile_report_format');
+  }
+});
 function setup() {
   const result = unwrapNativeCompile(envelope(), operation()), compilation = result.compileReport;
   const snapshot = { path: point.projectPath, documentId: 'chapter-7', expectedRoot: { ...root }, sourceEpoch: 7, content, sidecarRevision: null, review: { revision, markers: [], rules: [], suggestions: [] } };
@@ -166,7 +176,7 @@ test('held actual Compile followed by actual committed Import retires the report
     const mainSnapshot = { ...f.snapshot, path: 'main.typ', sourceEpoch: 2, content: 'main inputs', review: { ...f.snapshot.review, revision: operation().revision } };
     const main = new ReviewSession(mainSnapshot, id, async () => {}), sessions = new Map([[`${id}:main.typ`, main], [`${id}:${f.session.path}`, f.session]]), bytes = new Uint8Array([1, 2, 3]);
     const environment = {
-      active: f.session, view: f.view, navigationIntent: 4, projectEditVersions: epochs, currentCompileReport: null, compiling: false, explicitCompiles: [], sessions, pdfBytes: bytes, pdfProject: id,
+      active: f.session, view: f.view, navigationIntent: 4, projectEditVersions: epochs, currentCompileReport: null, compiling: false, explicitCompiles: [], smartFileTree: false, sessions, pdfBytes: bytes, pdfProject: id,
       publicationPath: () => 'main.typ', inventoryRoot: () => ({ expectedRoot: treeRoot }), currentProject: () => ({ id }), keyFor: (project, path) => `${project}:${path}`,
       $: id => { if (!nodes.has(id)) nodes.set(id, { textContent: '' }); return nodes.get(id); },
       captureSourceBinding, assertSourceBinding, sourceBindingCurrent, assertSourceSnapshot, sourceRootsEqual, sourceRoot,
@@ -206,7 +216,7 @@ test('actual successful-but-stale publication keeps report text and gives it no 
   const code = source.slice(start, source.indexOf('\n  } catch (error)', start));
   for (const current of [false, true]) {
     const f = setup(), calls = [], reportCurrent = () => true, bytes = new Uint8Array([1, 2, 3]);
-    const run = runInNewContext('(function(){' + code + '\n});', { result: f.result, session: f.session, path: 'main.typ', inputs: {}, reportCurrent, publicationCurrent: () => current, setCompileLog: (...args) => calls.push(args), status() {}, pdfBytes: bytes });
+    const run = runInNewContext('(function(){' + code + '\n});', { result: f.result, session: f.session, path: 'main.typ', inputs: {}, reportCurrent, treeRefreshError: null, publicationCurrent: () => current, setCompileLog: (...args) => calls.push(args), status() {}, pdfBytes: bytes });
     run(); assert.equal(calls[0][1], f.compilation); assert.equal(calls[0][2], current ? reportCurrent : null);
     assert.match(calls[0][0], current ? /PDF matches/ : /Source changes are newer/);
     assert.deepEqual([...bytes], [1, 2, 3]);

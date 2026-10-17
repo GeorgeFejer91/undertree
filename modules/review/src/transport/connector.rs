@@ -113,6 +113,11 @@ pub(super) fn load(state: &Path, settings: &ConnectionSettings) -> Result<Option
             return Err(invalid());
         }
         #[cfg(windows)]
+        let identity = |dir: &Dir| -> Result<(u64, u64)> {
+            let metadata = dir.dir_metadata().map_err(|_| invalid())?;
+            Ok((metadata.dev(), metadata.ino()))
+        };
+        #[cfg(windows)]
         let canonical_state = {
             if home.components().any(|part| {
                 matches!(
@@ -128,7 +133,9 @@ pub(super) fn load(state: &Path, settings: &ConnectionSettings) -> Result<Option
                 .ok_or_else(invalid)?
                 .canonicalize()
                 .map_err(|_| invalid())?;
-            if parent != native_state {
+            let parent = Dir::open_ambient_dir(&parent, cap_std::ambient_authority())
+                .map_err(|_| invalid())?;
+            if identity(&parent)? != identity(&directory)? {
                 return Err(invalid());
             }
             native_state
@@ -148,7 +155,12 @@ pub(super) fn load(state: &Path, settings: &ConnectionSettings) -> Result<Option
                 .join(name)
                 .canonicalize()
                 .map_err(|_| invalid())?;
-            if canonical_home.parent() != Some(canonical_state.as_path()) {
+            let parent = Dir::open_ambient_dir(
+                canonical_home.parent().ok_or_else(invalid)?,
+                cap_std::ambient_authority(),
+            )
+            .map_err(|_| invalid())?;
+            if identity(&parent)? != identity(&directory)? {
                 return Err(invalid());
             }
             let named_state = Dir::open_ambient_dir(&canonical_state, cap_std::ambient_authority())
@@ -156,10 +168,6 @@ pub(super) fn load(state: &Path, settings: &ConnectionSettings) -> Result<Option
             let named_home = named_state
                 .open_dir_nofollow(canonical_home.file_name().ok_or_else(invalid)?)
                 .map_err(|_| invalid())?;
-            let identity = |dir: &Dir| -> Result<(u64, u64)> {
-                let metadata = dir.dir_metadata().map_err(|_| invalid())?;
-                Ok((metadata.dev(), metadata.ino()))
-            };
             if identity(&directory)? != identity(&named_state)?
                 || identity(&home)? != identity(&named_home)?
             {
@@ -237,6 +245,14 @@ mod tests {
         for path in [&home, &outside, &nested] {
             std::fs::create_dir_all(path.join(".zrok2")).unwrap();
         }
+        let state_dir = Dir::open_ambient_dir(&state, cap_std::ambient_authority()).unwrap();
+        let outside_dir = Dir::open_ambient_dir(&outside, cap_std::ambient_authority()).unwrap();
+        let state_metadata = state_dir.dir_metadata().unwrap();
+        let outside_metadata = outside_dir.dir_metadata().unwrap();
+        assert_ne!(
+            (state_metadata.dev(), state_metadata.ino()),
+            (outside_metadata.dev(), outside_metadata.ino())
+        );
         let mut value = profile();
         for path in [&outside, &nested, &home.join("nested/../")] {
             value["zrokHome"] = json!(path);

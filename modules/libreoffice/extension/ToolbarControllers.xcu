@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<oor:component-data xmlns:oor="http://openoffice.org/2001/registry" oor:name="Controller" oor:package="org.openoffice.Office.UI">
+  <node oor:name="Registered"><node oor:name="ToolBar">
+    <node oor:name="org.undertree.WriterPalette" oor:op="replace">
+      <prop oor:name="Command"><value>vnd.undertree:palette</value></prop>
+      <prop oor:name="Module"><value>com.sun.star.text.TextDocument</value></prop>
+      <prop oor:name="Controller"><value>org.undertree.WriterPaletteController</value></prop>
+    </node>
+  </node></node>
+</oor:component-data>

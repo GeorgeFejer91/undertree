@@ -20,7 +20,7 @@ export function setupMcpHub({ dialog, request, run, copyUrl }) {
       <ul id="connection-hub-apps" aria-label="Linked apps"></ul>
       <p data-measure>Stopping the tunnel or restarting UnderTree clears the gateway and every app link.</p>
     </section>`);
-  $('connection-result').insertAdjacentHTML('beforeend', '<details id="connection-review-address" hidden><summary data-measure>Review-only address</summary><label><span data-measure>Suggestion-only manuscript review</span><textarea id="connection-review-url" readonly rows="3" spellcheck="false"></textarea></label></details>');
+  $('connection-result').insertAdjacentHTML('beforeend', '<details id="connection-review-address" hidden><summary data-measure>Review-only address</summary><label><span data-measure>Marked-text review access</span><textarea id="connection-review-url" readonly rows="3" spellcheck="false"></textarea></label></details>');
   let snapshot = null, running = false, busy = false, pending = null, appsKey = '';
   function controls() {
     $('connection-hub-enabled').disabled = busy || !running || !snapshot;

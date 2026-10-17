@@ -1,5 +1,738 @@
 # Verification report
 
+## Word per-color dialogs and native review — 2026-10-17
+
+Word now marks selections directly from ribbon colors and opens an individual
+color-rule dialog by double-clicking a swatch or marked passage. The shared
+native windows use the approved wrAIter logo, cream surfaces and deep-green
+labels. Preserve text disables conflicting options and retains authority over
+overlapping prompts. Suggestions use native Word Track Changes, with paragraph
+units, complete-context comment/reply feedback and no separate pending window.
+
+The source-bound component gate passes 179 policy, 24 native-review policy,
+35 text-map, 536 COM, 93 transport and 1,136 native UI assertions / 19 renders.
+Three real isolated Word gates pass 185 review, 80 tracked-protection and
+49 direct/protection assertions. These include edited comments and replies,
+save/reopen follow-ups, native Accept/Reject and Undo/Redo, repeated protected
+review ownership, denied partial authority and exact rollback. All three gates
+match the package's 30 runtime/contract inputs; all 46 package inputs remained
+unchanged. Native font/icon/bitmap lifecycle checks show no accumulated handles.
+
+The exact installer is 23,809,418 bytes, SHA256
+`5bf631c5825ea498a457227589529a95526d956290e9793496165c6daeaf26d2`;
+the installed DLL is SHA256
+`57e8e94718d782ba0a51c1e5e65a1191578fef195b6a48535b28c61c635cca78`.
+Exact-package COM verification passes 536 assertions. After the user closed
+Word, installation preserved every payload identity, existing connection setup,
+enrollment and saved demonstration bytes. Normally opened Word 16.0.20430
+passes 38 installed checks, including native review, direct edits, protection,
+replay, formatting, Undo/Redo, revocation and no implicit saves. Its test-owned
+connection is stopped and the saved synthetic qualification document is open.
+
+Earlier failed receipts are retained: an owned stale-share cleanup barrier
+required native Stop; the initial installed emoji fixture had a distinct complex
+script font property. The corrected fixture explicitly sets both font names;
+the runtime's mixed-format refusal remains intact. Earlier comment-loss and
+GDI-handle failures are superseded by the successful current-source gates.
+For prior inserted comment anchors, every affected comment must intersect an
+unchanged ending outside protected units; unsupported anchors are refused
+before editing. OS high contrast was simulated; actual OS DPI 200%, the public
+tunnel and a ChatGPT client were not requalified for this new package.
+
+Exact receipts: ignored `artifacts/word/color-review-delivery/release-final/`,
+`release-components/`, `native-review-suffix-integrated/`,
+`native-highlighting-ownership-regressions-shared/`, `release-native-direct/`
+and `release-installed-format-consistent/` under that delivery directory.
+
+## Development source checkpoint — 2026-10-17
+
+The user requested a GitHub checkpoint and one primary development chat after
+concurrent work in this checkout. The checkpoint includes the current UnderTree,
+Writer and Word source work; it is not a new all-platform release qualification.
+Local attachments, private profiles, generated evidence and installers remain
+excluded. Architecture and the three shared-contract parity tests pass.
+The broader Node run has 528 passes, four failures and one skip across 533 tests.
+All four failures are in `tests/window-close-auto-compile.test.mjs`: its VM fixture
+does not define `setupDialogLayout`. This remains follow-up work for the single
+development chat; the complete suite is not reported as passing.
+
+## Public Windows dual-format installer — 2026-10-17
+
+The public [v0.3.0 preview](https://github.com/GeorgeFejer91/undertree/releases/tag/v0.3.0)
+now includes `UnderTree_0.3.0_x64-setup.exe`, SHA256
+`1cafa7be23afed478955cef6b5f8632c001df4cc8c953a89f4b2f2cce873c40b`.
+These are the exact previously installed and qualified bytes; neither the native
+binaries nor installer were rebuilt for promotion. The current installed desktop,
+CLI and LaTeX worker hashes still match that candidate. Anonymous public download
+of the installer, setup ZIP, qualification JSON and Windows checksums matches the
+local full-content hashes. GitHub's full-content source-archive digest matches;
+anonymous source HEAD succeeds. Existing Linux assets, their checksums, the tag
+target and prerelease status remain unchanged.
+
+Promotion checks pass architecture, notices (487 Rust/27 JavaScript components),
+19 LaTeX integration cases, 35 frontend publication/report cases and 14 real Typst
+checks with three explicit Windows platform skips. The separate setup ZIP has
+actual PowerShell 5.1 empty-cache qualification: nine article/report/book variants,
+graphics, cached OpenType font, bibliography, default sibling-cache worker PDF
+and optional Typst installation/PDF. Existing-cache preservation and bad-archive
+rejection pass. Setup generates a finite 347-file resource cache locally; the cache
+is not redistributed and ordinary app compilation has no download backend.
+
+The Windows source ZIP contains 448 frozen product files, 684 locked Cargo source
+archives, 14 native source archives and the pinned vcpkg source/overlay. Independent
+verification passes all 1,192 listed member hashes. Windows uses that corresponding
+source asset; the automatic tag source remains the earlier Linux source. Full
+native rebuilding, bit reproducibility and a contemporaneous complete original
+worker input-hash manifest are not established. The unsigned installer still needs
+the separately provisioned Typst/compiler resources; it does not install Writer.
+Portable qualification is attached to the release. Local publication/download
+receipt: `artifacts/public-windows-release/published-delivery.json`.
+
+## Direct LaTeX and Typst publication — installed Windows, 2026-10-17
+
+Local source/main-document selection, guarded compilation, preview and PDF
+download now accept `.tex` and `.typ`. LaTeX uses the separate confined worker;
+Typst retains its existing compiler route. Both keep the existing saved-input,
+root, epoch, revision, conflict, supervision and last-good-PDF checks. Existing
+format-specific authoring, PDF marking, Smart filtering and remote
+compile/context restrictions have not been broadened.
+
+- Worker SHA256 `921c492008e2d23a3f2b04aefc5a99261a22d7112d998e2159857a36ab47bb03`
+  passes four unit tests and an immutable-input-cache mutation check. A real
+  nested main, include, BibTeX bibliography and explicitly owned font produced a
+  text-verified PDF with zero diagnostics. Its static executable imports only
+  Windows system DLLs.
+- Native integration passes **19/19**, repeated against the corrected private
+  CLI SHA256 `690311f614cfe81ffd3f25a19924068d82dc1c18dfdad1fb5d3f0ac9da0ce07e`.
+  Cases include changed chapter/bibliography, image and owned font, ordinary
+  in-root parent paths, missing-worker recovery, stale requests, failed builds,
+  identical last-good retention, and outside-file/link/system-font/external-tool
+  refusals. No generated files appeared in the authored project.
+- Real browser attempts exposed native document-barrier contention, while
+  preserving drafts and last-good output. Publication now waits at its existing
+  blocking stage boundaries for up to five seconds, with owner/source checks
+  afterward. The editor book stays free during the wait. Native tests prove
+  owner replacement remains live and the waiting stage refuses that retired
+  owner. Save retries only the exact native pre-dispatch refusal, with bounded
+  backoff and captured source/policy/context checks; an identical metadata
+  refresh does not invalidate that source receipt. Compile preflight Open has
+  the same narrowly scoped refusal handling and stops on new typing without
+  creating an external conflict. Generic busy, IO and uncertain outcomes are
+  not retried; the core Compile request is never replayed. All 104 focused
+  frontend cases pass, including 21 Save and nine Open cases; ten artifact-only
+  mutants are rejected. The seven real-browser publication checks pass on the
+  corrected immutable service/assets, including typing while the LaTeX child
+  consumes CPU, bibliography edits targeting the marked main, composition
+  admission, failed-build PDF retention and external conflicts. These HTTP
+  checks do not exercise the native sealed-report projection.
+- Initial installed acceptance caught a native report contract mismatch:
+  `preview_pdf` includes the PDF identity hash, while the frontend's closed
+  report schema rejected it. The adapter now requires and validates `pdfHash`
+  while retaining its closed keys and provenance checks. The regression failed
+  before the fix; focused unit/API tests pass 19/19 for both formats, and two
+  isolated schema mutants are rejected. The corrected installed app passes
+  native compilation and visible PDF painting for both formats. A typed LaTeX
+  chapter edit autosaved and reached the marked-main PDF. Both exported PDFs
+  match their native stored PDF hashes and contain the expected main, included
+  source, citation and bibliography text. Smart/Full/Smart transitions pass.
+- The unchanged real-Typst regression harness passed 14 checks with three
+  explicit Windows POSIX/symlink skips. This is bounded semantic/publication
+  evidence, not universal template or platform equivalence.
+
+The actual worker's three warm-cache fresh-process runs on the owned 51-page,
+50-include corpus had a 1161.0 ms median. Process startup, PDF pipe drain and
+dependency output are timed; staging, debounce, preview and validation are not.
+Uncontrolled host load and differing earlier endpoints prevent Typst-speed
+parity or causal speedup claims.
+
+Exact evidence is under ignored `artifacts/dual-publication/` and
+`artifacts/reverse-engineering/fast-tex/worker-benchmark/`. Resources are prepared
+explicitly in a local offline cache; no runtime download or redistributed cache
+seed is introduced. Installed discovery passes with both cache overrides and
+the worker override absent; 350 prepared resource files were hash-verified.
+The first complete dual-format acceptance used installer SHA256
+`a85f47418e7e3efb4a85352135ab22166f260f0ddee9be9d3a7f39a37a01bb2e`;
+installed desktop SHA256 is
+`a1ff45fbc1e3a81f931aba3f96e7afb3528455f1948de0d2e3d7597376121cb3`.
+The owned test-project registration was retired without replacing other state.
+All 69 original manuscript/review files and the original project object remain
+unchanged. Study5's main tab, Smart preference and cached 52-page PDF were
+restored. Final receipt: `artifacts/dual-publication/installed-state/delivery.json`.
+
+A later connector-only rebuild was installed successfully: installer SHA256
+`1cafa7be23afed478955cef6b5f8632c001df4cc8c953a89f4b2f2cce873c40b`,
+desktop `dbb16afa290f940fb664d25237822002469d3f39d2e7ad353f63bc5dc0acf80a`
+and CLI `4dbe81de420c03a6a94f8f5726510a59243b392450eac46a247bcaa8c3cffcf6`.
+Across 197 checked product inputs, only the reviewed Windows connector guard
+changed. The frontend, publication source, worker and offline resources retain
+the prior complete acceptance. Bounded native F5 checks on active `.tex` and
+`.typ` sources pass again, with includes, equations and shared bibliography in
+the visible, independently text-verified PDFs. The 350 resource files match,
+cache/worker overrides are absent, and the 69 original files/project settings
+remain unchanged. The original saved main tab, Smart preference and 52-page
+preview were restored before the native UI was handed back for independent
+connection qualification. Receipt:
+`artifacts/dual-publication/connector-installed-state/delivery.json`.
+
+External-resource freshness remains unverified and labeled as such.
+Biber/shell execution and ambient font discovery are
+disabled. macOS compilation fails closed; Linux runtime is unqualified. No
+public release or Git push has been performed.
+
+## Selective AI editing and Writer extension — Windows, 2026-10-17
+
+The current installed Writer package is **wrAIter 0.3.2**, SHA256
+`112bc53101318140310d5d3dc5a081a81fb8233df636a69b6a514674b4d78da4`.
+All 22 installed entries match the audited archive. The independent bridge
+reconnects before opening MCP settings, preserving its complete connection
+identity and public address. Only its saved executable path changes to the
+verified current extension bundle. Both reconnect preferences remain enabled;
+document sharing remains off. Native Connections shows running without the old
+retry error, and the main panel no longer makes a fixed stopped-status claim.
+The complete installed native smoke and all 11 shared contract groups pass.
+Receipts: `artifacts/libreoffice/wraiter-032-installed-audit.json`,
+`wraiter-032-upgrade-after.json` and `wraiter-032-native-qualification.json`.
+
+The tunnel fixes pass 77 pure tests and two assertion-catching negative controls;
+removing the upgrade hook or error clearing makes its regression fail. The first
+73-test run exposed an artificial test-response gate racing the existing
+two-second command deadline. Removing that unnecessary gate preserved the
+failure/retry assertions and all timeout limits. Evidence:
+`artifacts/qualification/wraiter-tunnel-recovery/upgrade-receipt.json`.
+The final 0.3.2 archive differs from the qualified 0.3.1 archive only in its
+initial status label and two version fields; authority bytes are identical.
+Audit: `artifacts/libreoffice/releases/0.3.2/package-audit.json`.
+
+Actual 0.3.2 public HTTPS qualification passes 23 checks without Start/settings
+interaction. An earlier catalogue request timed out at five seconds while the
+local catalogue returned in 30 ms. Public initialize/catalogue then recovered
+without lifecycle/configuration changes, and the unchanged-timeout full probe
+passed. Retain both attempts and diagnostics; this does not establish uninterrupted
+public availability. Receipts:
+`artifacts/qualification/wraiter-public/actual-installed-20261017-121557/receipt.json`
+and `actual-installed-20261017-121704/receipt.json`; diagnostics:
+`artifacts/libreoffice/wraiter-032-catalogue-diagnostic.json` and
+`wraiter-032-public-diagnostic.json`.
+
+Final installed academic trials pass through the actual public bridge: 15 native
+tool calls, four complete-context reads, three model-authored editorial cases
+and six authorization negatives. The direct sentence alone changes; Shorten
+and More detail remain two pending suggestions that appear in the native panel
+without refresh. Independent editorial review passes all three: shortening is
+26.32% with numbers/citation preserved, and expansion is 51 words without new
+procedure/results. Stale context, protected overlap, unmarked/whole-document
+changes and reads/proposals after local revocation are refused. Native inspection
+confirms exact permitted body delta, pending contents, unchanged policies and
+saved ODT bytes. The owned fixture is closed without saving; the original blank
+document remains unshared and the bridge running. Evidence:
+`artifacts/qualification/wraiter-academic-031/REPORT.md`, `receipt.json` and
+`independent-review.json`; final native guard:
+`artifacts/libreoffice/wraiter-032-final-native-guard.json`. The folder suffix
+records the original trial name; every receipt pins installed version 0.3.2.
+These finite model-authored HTTP calls do not qualify a registered standalone
+ChatGPT connector or guarantee arbitrary semantic prompt compliance. Other
+separately granted filesystem/shell connectors are outside this MCP authority.
+
+The preceding installed Writer package was **wrAIter 0.3.0**. Its independent
+connection/pairing and toolbar source passes **72** pure tests. The package
+`artifacts/libreoffice/wrAIter.oxt` has SHA256
+`2abef29ea49550bb14c26144e4c911c72f49b314e91d3be2d400cd2e48ccfc6a`;
+all 18 packaged source/configuration files match source, and the pinned zrok2
+binary is bundled with its license. The final label-only change makes the
+panel's Close label match its existing hide behavior. Legacy extension IDs and
+document metadata keys remain compatible. The package is registered in the
+normal LibreOffice user profile, and all 22 installed archive entries match.
+See `artifacts/libreoffice/wraiter-package-audit.json`,
+`wraiter-default-install-receipt.json` and `wraiter-unit-tests.log`.
+
+The packaged private broker passes stable-address/owner restart, fresh unshared
+session, unauthorized read and invalid Host checks. Public zrok qualification
+was blocked before creating any share by HTTP 409: the account's 50-name quota
+was full. That initial attempt changed no existing reservation or share. Receipts are under
+`artifacts/qualification/wraiter-public/run-20261017-111102-97464e21/`.
+Following the user's explicit cleanup request, a fixed plan removed 42 old
+unbound reservations with no references in the bounded settings/receipt audit.
+The account now has eight reserved names: all seven originally bound names,
+with their binding/share identity hashes unchanged, plus one idle reservation
+retained for wrAIter. Each deletion required a fresh unbound check and verified
+absence afterward; no share or environment was deleted. Evidence:
+`artifacts/qualification/wraiter-name-audit/cleanup-plan.json` and
+`cleanup-receipt.json`. The Secret Tunnel agent was explicitly asked to repair
+URL regeneration's redundant-name retirement and test its failure paths.
+
+The reused reservation now runs wrAIter's own installed public bridge. Actual
+public HTTPS qualification passes 22 checks: persisted owner identity/version,
+fixed three-tool catalogue, empty shared-document listing, denied unshared
+reads/proposals, ten unavailable mutation/admin tools, wrong capability,
+browser Origin and invalid loopback Host. Both reconnect preferences are saved;
+the document remains blank, unmodified and unshared. This is the real installed
+native bridge, not the earlier synthetic callback. Receipt:
+`artifacts/qualification/wraiter-public/actual-installed-20261017-114014/receipt.json`;
+native setup: `artifacts/libreoffice/wraiter-tunnel-reuse-ui.json`.
+No ChatGPT client/model invocation is established by this HTTP gate.
+
+Normal installed Writer was then closed and reopened with its still-blank,
+unmodified document; all other Writer profiles and UnderTree were preserved.
+Automatic public reconnection passes 26/26 checks before opening MCP settings
+or clicking Start. Configuration bytes, full capability-URL hash and owner
+identity remain identical, and no document is shared. Startup returned six
+404s and one 502 before public initialize succeeded on attempt eight; the full
+bounded check completed in 23.074 seconds. Evidence:
+`artifacts/qualification/wraiter-public/actual-restart-public-20261017-114707/REPORT.md`
+and `receipt.json`. Two bounded controller reads during shutdown timed out;
+exact controller-binding release at that intermediate point remains unverified
+and separately recorded. The later public reconnection is directly verified;
+this does not establish ChatGPT client/model invocation.
+Actual native toolbar gestures pass: single-click marks precisely the selected
+passage, double-click opens rule settings without adding a mark, and arming a
+color marks a subsequent keyboard selection without changing source text.
+The final package opens in the normal user profile with its toolbar visible,
+layout lock count zero, and its empty document unchanged. Receipts/screenshots:
+`artifacts/libreoffice/wraiter-single-click.json`, `wraiter-double-click.json`,
+`wraiter-default-profile-open.json` and the matching `wraiter-*.png` captures.
+The full current-source UNO smoke also exits zero: all 11 shared contract
+groups plus native markers, ODT metadata reopen, Unicode/formatting,
+suggestion approval, direct permission, overlaps, stale rejection, document
+isolation, dialogs, HTTP callbacks and revocation. Its first run caught a test
+focus race; the harness now waits for the actual native review-popup focus
+condition before authorized requests, retaining the editor-focus denial check.
+No production focus guard was weakened. The older 0.2.3 results below remain
+historical and do not qualify the new standalone public transport. Final native
+receipt/log: `artifacts/libreoffice/wraiter-native-qualification.json` and
+`wraiter-native-smoke.log`. Armed marking also passes actual pointer-drag
+qualification: clicking yellow with a collapsed caret and dragging over
+`target words` creates exactly one matching bookmark and native background
+color, leaving all 71 source characters unchanged. Escape then disarms the
+marker; dragging the second line adds no mark or color. Native ruler/chrome
+is excluded; a separate line-number gutter was not enabled. Receipt and
+capture: `artifacts/libreoffice/wraiter-pointer-qualification.json` and
+`wraiter-pointer-qualification.png`. The disposable fixture was closed normally;
+the original blank document, public bridge, earlier user draft and UnderTree
+were preserved.
+
+The connector-fixed native candidate passes **398/398** library tests, four
+focused connector cases, **50/50** integration tests across 12 targets, and
+**166** adversarial MCP calls on both debug and release binaries. The two
+Windows comparisons now retain exact executable/activation identity without
+rejecting equivalent Windows separators. Connector source SHA256 is
+`a00a90b69158a5ea69d08eb67a3bc85506915522cce43f73eb8b789b3cf4814d`;
+debug CLI is
+`3e89bf4bb1ee878fe408418da1a9020127f061fb77dd6d5374354047d2a83999`.
+Copied harnesses, source and CLI bytes remained unchanged during qualification.
+Evidence is under `artifacts/marker-access/connector-identity-final/`,
+`integration-connector-identity-final/`, `connector-authority166-receipt.json`
+and `release-connector-authority166-receipt.json`.
+
+The mandatory full rendered review-UI gate passes, exit 0, against that immutable
+debug CLI and unchanged frontend `manuscript-BCq9sLaC.js` (SHA256
+`d05fb7aaccc15df68103296608c29839ee9a677a58029f6efa14f8b52af8c65c`).
+Its original editing, IME, delayed-save, project-ownership, explicit-build, PDF
+and geometry assertions all completed. The quiet rerun changed no product,
+fixture, assertion, retry bound or timeout; the preceding busy-preview failure
+is retained. Exact inputs and results are in
+`artifacts/marker-access/review-ui-connector-identity-final-receipt.json`.
+The same frontend already passed nine color/context and seven PDF marking
+groups against the preceding `d0baec50` native candidate. Bounded dialog suites
+pass enlarged text, complete-value access, readable no-fit, Cancel and value
+restoration. The quiet Node run passes **529/530**, zero failures, across 69
+files, exit 0, with one explicit Windows symlink-privilege skip; its summary is
+`artifacts/marker-access/node-pdfhash-quiet-final/summary.json`. Frontend source
+and assets stayed unchanged through the native-only connector repair.
+Canonical notices pass with 487 Rust and 27 JavaScript components. Earlier ACL
+subprocess and browser fixture failures remain separately retained.
+
+The new combined installer (SHA256
+`1cafa7be23afed478955cef6b5f8632c001df4cc8c953a89f4b2f2cce873c40b`)
+is installed and locally verified for both publication formats. Installed
+desktop SHA256 is
+`dbb16afa290f940fb664d25237822002469d3f39d2e7ad353f63bc5dc0acf80a`;
+release CLI is
+`4dbe81de420c03a6a94f8f5726510a59243b392450eac46a247bcaa8c3cffcf6`.
+The frontend, publication source and worker are unchanged. Native F5, sealed
+reports and visible, text-verified PDFs pass for both formats, with original
+project state restored. Receipt:
+`artifacts/dual-publication/connector-installed-state/delivery.json`.
+The earlier compile-report mismatch, its repair and previous installers remain
+historical evidence; the compiler-owned section above records their scope.
+
+Writer **0.2.3** is packaged, installed and byte-audited against all 14 archive
+entries. OXT SHA256 is
+`182c58e4c3610bb117f9cbf1edbed995ca87ff6876bf2f006657f596661334dd`.
+Its **14** pure policy/projection tests, **11** native UNO scenario groups,
+full installed-source smoke, protocol factory and consent checks pass. Native
+consent geometry includes enlarged and no-fit states. Source/archive/installed
+bytes match and repeat packaging is deterministic. Qualification is recorded
+in `artifacts/libreoffice/v023-native-qualification.json` and the associated
+installed audit, native contract and consent receipts.
+
+The minimal 0.2.3 response adapter adds `structuredContent` beside unchanged
+complete JSON text. Both projections must agree, and the serialized complete
+response bound counts both copies before issuing a read witness. Mutation
+checks detect omitted structured-response bytes and mismatched projection on
+all three tools. Native editing authority and layout are unchanged. The earlier
+0.2.2 ChatGPT attempt reported an empty read despite an independently complete
+public HTTPS response; no proposal occurred. That failed client receipt is
+preserved, and its exact cause remains unproven. The passing 0.2.3 client run
+does not establish why the earlier attempt failed.
+
+Actual public HTTPS qualification passes **12 checks** through the installed
+connector and a disposable Writer document, including structured/text equality,
+exact tools/inventory, complete context and read witnesses, pending suggestions,
+marked direct replacement without saving, replay, unmarked protection and
+fixture close/revocation. Evidence:
+`artifacts/marker-access/public-writer-v023-final.log` and
+`artifacts/libreoffice/gateway-public-v023-ready.result.json`.
+
+The actual signed-in ChatGPT client also passes the bounded Writer flow in
+[Queue suggestion](https://chatgpt.com/c/6ad30f69-11e0-83eb-bcce-f44f8244e827).
+The existing plugin metadata was refreshed, a fresh conversation was used and
+the complete prompt was verified before sending. An initial read correctly
+refused a changed document generation; a fresh complete read succeeded. The
+client queued one suggestion for local approval, then made the separately
+marked, locally permitted direct replacement after one **Allow once** client
+approval. Always Allow was not selected. A final complete read and independent
+native checks verify the exact full body, unchanged private/unmarked and
+suggestion text, one pending suggestion, the applied direct edit and no MCP
+save. Evidence: `artifacts/marker-access/chatgpt-writer-client-v023.json`,
+`artifacts/libreoffice/gateway-chatgpt-v023-ready.result.json` and
+`artifacts/libreoffice/gateway-chatgpt-v023-qualified.json`.
+
+Final cleanup passes: the owned Writer capability, processes and listener are
+gone; the original unsaved Writer process is preserved. The owned tunnel is
+stopped, App grants are cleared, the configured public share is absent and the
+same six unrelated controller shares remain. The read-only comparison is
+`artifacts/marker-access/public-writer-v023-controller-after-final.log`.
+No private gateway URL or credential is copied here. These are finite Windows
+checks: the actual ChatGPT run covers Writer through the UnderTree gateway,
+while native UnderTree manuscript editing is covered by the recorded native and
+browser gates. This does not establish arbitrary-document, other-platform,
+model-semantic or universal Overleaf parity. Older `f073` and Writer 0.2.1/0.2.2
+receipts below remain historical.
+
+Both hosts consume the shared selective-editor contract: four visible color
+slots, up to 24 rules, presets/custom prompts, passage instructions, protection,
+rejection, discard, and per-prompt Suggestions or Direct edits. Suggestions
+default to local approval. A complete-context read is required before either
+kind of proposal; replacements must fit current highlights. Unmarked text is
+read-only context. The three Review tools cannot change policy, save documents,
+access arbitrary files or run commands.
+
+UnderTree shares explicitly saved, clean sources with consent for the exact
+main/dependency scope. Writer shares its current live document, including unsaved
+text and supported native containers. Incomplete/dynamic scopes, unsupported
+containers, stale witnesses and oversized complete responses refuse proposals;
+context is never truncated and sharing never saves. Native authority enforces
+ranges and operations; semantic compliance with writing prompts depends on the
+model.
+
+- Frozen native CLI: `artifacts/marker-access/undertree-review-windows-final.exe`,
+  SHA256 `f0734cf3a9c811655f3c4c9c9a45f660f3f9aa4ff7a803836bb024358ad55112`.
+  Focused qualification passed 44 selective-editor/context/direct checks, 54
+  native editor/import/history/recovery checks and seven Windows fixture checks.
+  All 12 final integration targets passed: 50 tests, zero failures or ignored
+  cases. Copied harnesses were used; baked CLI children matched the frozen
+  service hash before and after the run.
+  Windows receipt/import repairs retain rooted capabilities, exact receipt
+  identity/bytes, and recovery evidence. Native nested import paths are converted
+  from locally derived path components to canonical source paths.
+- Final-candidate browser qualification passed nine color/context groups,
+  including narrow/enlarged text, consent/cancel, no-save and dirty-buffer
+  refusal. Real native defaults matched the shared contract exactly. The same
+  final CLI/frontend passed seven PDF marking groups with real Typst compilation,
+  source mapping and private positional-metadata exclusion. Focused frontend
+  tests passed 89/89. The final frozen service passed all 166 adversarial MCP
+  policy cases with byte/hash preservation. A real explicit-compile queue race
+  was fixed by awaiting the current PDF's annotation read before releasing the
+  next build. Its deferred-read regression detects the old behavior. Final
+  frontend source SHA256 is
+  `e2c205715ea43bc06c18fd829646bb453b3fb2796f29869173562701fba1cea2`;
+  rebuilt `manuscript-5GLYzJqO.js` passed the nine color/context and seven PDF
+  groups again. The broader review-UI fixture is still being qualified and is
+  not reported as a passing full run.
+- The corrected complete library rerun passed **396/396**, zero ignored, in
+  578.11 seconds. A previous full run exposed a Windows fixture that assumed a
+  held-directory rename could succeed. The corrected test asserts actual OS
+  denial, exact root/source/registry preservation, and no sidecar/journal or
+  replacement directory. The original failure log remains separate from the
+  green full rerun. Documentation tests also passed (zero doctest cases).
+- The current broad JavaScript run recorded 492 tests: 489 passed, two failed,
+  one skipped. Remaining failures are stale compiler notice inputs awaiting the
+  combined build and a legacy server fixture's POSIX file-manager executable on
+  Windows (503 instead of 200). Test-only Windows adaptations retain real Typst
+  PDFs, actual A4/overflow layout checks using process-local Noto fonts from the
+  downloaded suite, and explicit unsupported-WebKit output-preservation checks.
+  Earlier failing runs remain recorded; these counts do not claim all tests pass.
+  The server fixture has since passed its complete focused run with all original
+  assertions: native process hooks and child-only Git Bash/Perl paths retain
+  actual TeX/PDF/Git behavior. A broken external Perl shim remains unchanged.
+- Writer 0.2.1 is an extension, requiring no suite fork. OXT SHA256:
+  `2bb5928631d715403c0531730e33330c94c1893c97ad53ed08471ef7ccd4f1de`.
+  All 14 archive entries matched source/shared-contract/original-icon bytes and
+  the installed disposable profile. Deterministic rebuilds excluded injected
+  secret/cache/generated files. All 12 policy tests passed; deliberate protection
+  and suggestion-permission mutations were detected.
+- Actual LibreOffice 26.8.1.1/UNO checks passed shared UTF-16 scope cases,
+  complete-container/stale-context enforcement, bounds, endpoint lifecycle,
+  native Undo/rollback, durable pending/disjoint local acceptance, settings and
+  consent, minimum/enlarged panel geometry, dropdown accessibility text,
+  persisted rule order and swatch contrast.
+- Actual installed Windows toolbar/menu/popup interaction passed. Accepting the
+  synthetic suggestion changed only its highlighted passage, consumed its marker
+  and reduced pending count to zero. Saved ODT hashes stayed identical and MCP
+  remained stopped. No save was performed.
+- Final Writer 0.2.1 through the frozen Rust gateway passed complete prior reads,
+  read-only unmarked context, pending/no-text-change, scoped direct edit, replay
+  and close revocation. The native fixture independently checked the exact full
+  body and pending count. Its private readiness file, processes and UNO listener
+  were removed. A simulated zrok child was used; public ChatGPT connectivity is
+  unqualified. Writer uses UnderTree's gateway, so both applications must run.
+  Its approval queue is separate from native Track Changes; ODT is the metadata
+  persistence target.
+
+Evidence is under ignored `artifacts/marker-access/` and `artifacts/libreoffice/`:
+`rust-windows-final-*.log`, `policy-continuity-windows-final.log`,
+`expected-root-windows-final.log`, `libreoffice-gateway-v021-final.log`,
+`integration-final/summary.json`, `color-context-annotation-final.json`,
+`native-default-contract-final.json`, `pdf-highlighter-annotation-final.json`,
+`mcp-policy-windows-final.log`, `rust-final-all.log`,
+`rust-final-corrected-all.log`, `rust-final-doc.log`, `node-portable-broad.log`,
+`compile-annotation-mutation.tap`, `layout-portable-final.log`,
+`server-windows-native-perl.log`, `perl-shim-preservation.json`,
+`rust-rooted-create-corrected-focused.log`, `rust-journal-ownership-corrected-group.log`,
+`native-qualification.json`, `native-contract-result.json`,
+`final-byte-mutation-audit.json`, `installed-byte-audit.json`,
+`dropdown-display-result.json`, and `installed-ui-result.json`.
+
+## Direct PDF marking and live suggestions — 2026-10-17
+
+**Final combined delivery supersedes the intermediate installer identities below.**
+The concurrent Smart-tree build initially failed desktop startup because an
+absolute Windows asset directory was interpreted as a URL; its corrected relative
+asset build is now installed and running. Installed desktop SHA-256 is
+`59a47d7ec6d1338cfd9c568d811a3fc276721a65e420dec8ac290ba9f1bc595f`;
+native review CLI remains the identical qualified
+`0d9d39c987a1b9e3f0a6ce304c46572aec9f58d9b8ea795b4b04efeecea542f4`.
+Installed desktop/resources match the isolated combined build, and 165 source
+hashes remain unchanged. Both the review/PDF modules and the final manuscript
+adapter match that frozen source. See
+`artifacts/direct-pdf-realtime-installation/combined-integrity.json` and
+`artifacts/smart-source-tree/final-delivery.json`.
+
+An additional real MCP/UI trial uses that exact installed CLI and combined
+frontend HTML `579317273a344324801fa3c5687183f7d929e4df90cd1d34600cec46e6fc9521`.
+It passes at **317/786/382 ms**, with source and exact dirty-draft preservation,
+three pending proposals, duplicate suppression, local decisions only, and no
+page errors. Evidence:
+`artifacts/direct-pdf-live-final-candidate/qa/review-realtime-installed-combined.json`.
+Native Windows inspection confirms the installed window opens the Study5 main
+manuscript with enabled colors immediately after Search. The initial and combined
+browser receipts below remain distinct; public ChatGPT qualification is absent.
+
+This supersedes the older PDF-selection refusal behavior documented below.
+Choosing a toolbar color arms direct PDF text dragging. Positional annotations
+remain tied to exact PDF bytes/page/UTF-16 range and repaint after zoom, scroll
+and reopening. Repeated, formatted and dirty-source text can be highlighted
+without guessing a source location. Only proven unique literal prose gets an
+ordinary source marker and its AI editing rules. Unlinked restrictive PDF
+annotations block project proposals/acceptance. Source-only MCP reads omit raw
+PDF excerpts and annotation prompts; owner palette prompts remain shared context.
+
+The frozen direct-PDF service candidate has SHA-256
+`a3e65b9ad7196c2c6067a83a143f29d4ecef50e58d84b16681d8b66bea7ab512`.
+84 scoped Rust tests and 164 adversarial real HTTP/MCP calls pass, with source
+and policy byte preservation. Evidence:
+`artifacts/qualification/color-policy-mcp/pdf-annotations-receipt.json`.
+The later live-notification change requires its own candidate/runtime evidence;
+these earlier counts do not establish that follow-up's timing or installation.
+
+Six real PDF drags configured via the actual color popup produce exact source
+links in the synthetic academic fixture. Five model-authored pending proposals
+exercise shortening, restricted elaboration, causal restraint, methods/scoring
+clarity and exact citations; the sixth protected passage rejects proposals.
+Manual second review finds four compliant edits and one partial: the 59-word
+elaboration preserves facts and meets 55–80 words, but repeats the measure's
+definition. All originals remain byte-identical. A wrong-number negative control
+can enter as pending, showing that semantic compliance is not mechanically
+guaranteed. Evidence: `artifacts/pdf-academic-review-scenarios.json` and
+`artifacts/pdf-academic-review-editorial-evaluation.json`. These are finite
+local MCP trials with a synthetic zrok process, not public ChatGPT qualification.
+
+Live-arrival implementation adds bounded owner-only native invalidations and a
+metadata-only refresh that preserves dirty draft text/version, plus explicit
+original/proposed wording and local Accept/Reject. 102 focused frontend tests
+pass (`artifacts/direct-pdf-realtime-units.log`); all 12 rendered overflow/reflow
+checks pass (`artifacts/direct-pdf-realtime-overflow.log`). Fifteen additional
+editor-bridge/review-position/notice tests pass. Architecture, attribution,
+frontend production build and `cargo check --locked -p undertree-desktop
+--features custom-protocol` pass.
+
+The final actual HTTP/MCP-to-DOM trial passes: three unique pending suggestions
+render in **298, 648 and 388 ms** from request start, each below the unchanged
+1500 ms local target. Two arrive while the exact local draft remains unsaved.
+Notification-to-metadata-read tracing, original/proposed wording, automatic
+desktop Review reveal, identical-request deduplication, three pending states,
+saved-source SHA and exact dirty-draft preservation all pass. The receipt records
+scripted transport proposals, not additional editorial model generations:
+`artifacts/direct-pdf-live-final-candidate/qa/review-realtime-smoke.json`.
+The final frontend HTML hash is
+`af5e7a81b4020689e9064ab849fc26fc71df6465262a1032283094f46b3e2598`.
+Earlier failures remain archived: obsolete observation timing and legacy/rooted
+ID assumptions, explicit Share busy refusals, and a genuine pre-coalescing
+loaded-host 2023 ms arrival. Three successful final trials do not establish a
+universal latency bound or arbitrary-load availability.
+
+The exact final unsigned Windows installer was installed (exit 0), binary
+identities verified, and the installed app reopened on
+`manuscript/typst/main.typ`. Its 52-page retained PDF and selectable text are
+visible; native Windows dragging selects the printed title. Colors are enabled
+immediately after Search and the explicit PDF highlighting button is present.
+No user manuscript rule, suggestion or source edit was submitted in that native
+inspection. The existing preview status remains “Last good PDF · recompile or
+verify inputs”; no unsupported current-provenance claim is made.
+
+Installer SHA-256:
+`ee5f7160ed1b83ec2e518c3164c3336a5f866805c54e4842f2c894b7ea497b8c`
+(11,753,260 bytes). Installed desktop SHA-256:
+`4d7492ea81a3565ccd0016b5cfe659742757a360a6199587a746a04e5c0a92b4`.
+The installed CLI matches the exact release; desktop differences are confined
+to Tauri's expected UNK→NSS bundle marker. All 165 freshly baselined project
+source files remain byte-identical. Evidence:
+`artifacts/direct-pdf-realtime-installation/integrity.json`, adjacent pinned
+installer/build receipt, baseline, exit and launch records. Final release record:
+`artifacts/windows-release/2026-10-17T00-09-12-457Z/receipt.json`.
+
+The final seven-group direct PDF gate also passes against that exact frozen
+frontend and the `d84a8549` service:
+`artifacts/direct-pdf-live-final-candidate/qa/pdf-highlighter-policy-settled-smoke.json`.
+It verifies real color-first drags, repeated/formatted/private text, zoom/reopen
+persistence, stale-drag refusal, dirty-draft preservation, actual MCP custom
+prompt propagation, project protection at proposal and local acceptance, removal
+and privacy. Earlier fixture failures are retained: persistent longpolls require
+specific operation-settle waits instead of networkidle; automatic Review reveal
+requires current rendered geometry; aggressive native observation polling can
+exhaust the bounded safe-busy budget. The final runner waits for actual mutation
+responses before native observation; it does not replay unknown outcomes.
+
+Release qualification is pinned to the named assets/binaries. A concurrent Smart
+tree compile-refresh change reached the working `src/manuscript.js` after the
+frozen frontend was built; its new input fingerprint is recorded by regenerated
+working-tree notices. The installed release's original notice payload is pinned
+separately under `artifacts/direct-pdf-realtime-installation/notices/`. No claim
+is made that later unrelated working edits were included in this pinned release.
+
+The notification service candidate SHA-256 is
+`d84a85492dcc180529191f4b4baacd8fec2dd5583c36dc403cd5cf47d58cc8bc`.
+Four new native notification tests and 38 transport tests pass. A new execution
+of 164 adversarial HTTP/MCP calls passes; eight actual successful proposals wake
+an authenticated owner in 531–1744 ms combined submission/notification time on
+the loaded host. Missing/wrong HTTP credentials and forged owner identities are
+denied. Existing editor tests finish 9/11, with two serially reproduced native
+history-receipt durability/atomic-replacement failures. Evidence:
+`artifacts/qualification/color-policy-mcp/review-changes-receipt.json`.
+
+A held fallback-read test reproduced a dropped invalidation before the final
+coalescing fix (one read instead of the required two), then passes with the
+queued refresh. Red evidence: `artifacts/review-live-overlap-red.log`.
+An isolated copy mutation replacing the held PDF drag anchor with the moving
+caret is detected by the pointer test; production files were untouched. Evidence:
+`artifacts/pdf-selection-mutation/result.log`.
+
+## Installed root-logo build — 2026-10-17
+
+The final current-user Windows NSIS installer was installed successfully (exit
+0), and the installed UnderTree executable was opened with the existing
+Study5_Publication project. The desktop matches the final release exactly apart
+from Tauri's expected `UNK` → `NSS` bundle marker; the installed CLI matches
+byte-for-byte. Installer SHA-256 is
+`4bb26cda5f541bef852562f001e3031836faa704c41aef2d72bb9ba30c713e1c`
+(11,629,517 bytes); installed desktop SHA-256 is
+`2266578252008f75fc8c136854678d87ba316502b76e56ca580072c679484cd7`.
+The 165 inventoried project source files remain byte-identical. Evidence:
+`artifacts/color-rules-installation/integrity.json`, adjacent baseline and
+installer exit record, final `artifacts/windows-release/*/receipt.json`, and
+`artifacts/root-logo-final-installer.log`.
+
+Actual Windows Computer Use observed the new white root mark in the titlebar,
+opened manuscript/typst/main.typ, verified enabled color slots immediately after
+Search, and opened the rule popup containing Shorten, More detail, protection
+and Custom prompt. Escape closed it without creating a rule. No replacement
+text, acceptance, policy save or remote grant was submitted. One local Recompile
+restored a selectable 52-page PDF; the app labels it as last good output requiring
+external package input verification, not a fully verified current preview. This
+supersedes the earlier no-installation limitation for this PC; full Windows-suite
+and public ChatGPT qualification gaps below remain.
+
+The new hand-drawn green U/root SVG uses the official Overleaf mark as a style
+reference; its path geometry is original. The root paths are shared unchanged
+between header/favicon and native icon variants. The native variant adds a white
+backplate for dark-taskbar contrast; generated PNG/ICO/ICNS exactly match the
+locked Tauri icon CLI outputs. Preview checks cover 16–256px and light/dark
+backgrounds; the transparent green browser favicon retains a dark-tab contrast
+limitation. All 12 existing rendered header/reflow checks and both notice tests
+pass. Native Windows installation/startup is verified; this is an unsigned local
+build, not a published release or macOS/Linux icon-runtime qualification.
+
+## Color rules, PDF prose and academic model trials — 2026-10-17
+
+The toolbar color slots are immediately after Search. Their popup configures
+color, label, protection/rejection/deletion policy, shortening/more-detail
+presets and custom prompts. Four-color paging bounds the toolbar; empty slots
+remain available up to the existing 24-rule limit. Native `expectedRules`
+validation prevents a stale same-source settings dialog from overwriting newer
+rules. Only the exact native pre-dispatch document-busy refusal is retried,
+with four bounded attempts and renewed source/selection checks; unknown outcomes
+and other failures never replay a mutation.
+
+| Executed gate | Result and evidence |
+| --- | --- |
+| Real Rust/CodeMirror color UI and closed MCP | 7 groups pass: exact byte preservation, keyboard marking/paging, popup focus/reopening, a forced safe-busy refusal, stale selections/Undo/Redo, protection and pending-to-local-Accept flow. `artifacts/color-rules-smoke.json`. |
+| Real Typst/PDF.js annotations | 4 groups pass: exact source/PDF marking, repeated-source and off-screen included-PDF duplicates refused, dirty-source PDF refused. `artifacts/pdf-color-rules-smoke.json`. |
+| Numbered/formatted PDF selection and actual clipboard | 4 groups pass: 7 tagged gutter numbers remain painted but are excluded from copied prose; inline 40/18.2/2026 and bold/italic words survive; exact words inside bold can be marked; a cross-markup source selection is safely refused. `artifacts/pdf-prose-selection-smoke.json`. |
+| MCP adversarial authority | 158 denied adversarial HTTP calls across Typst/HTML with source/policy preservation; 86 scoped Rust tests pass. `artifacts/qualification/color-policy-mcp/receipt.json`. |
+| Independent actual-model academic trials | Six proposals, 5 compliant and 1 partial under manual criteria. Same 62-word source becomes 35 words for shortening and 85 words after the real UI changes the prompt to more detail. Source remains byte-identical; all proposals remain pending. `artifacts/academic-review-scenarios.json` and `artifacts/academic-review-semantic-evaluation.json`. |
+| Semantic negative control | A deliberately incorrect 40-to-999 change is admitted only as a pending suggestion. Custom wording prompts are not mechanically enforced. Native protection and forbidden-write probes still deny changes; original SHA-256 stays `c798294bc1e4011e30d1e07f64107af81558c28d5fa4071f00c9c95cab2e1eef`. |
+| Frontend/native compilation and architecture | Vite build, `cargo check -p undertree-desktop --features custom-protocol`, architecture validation and Windows notice verification pass. Existing three Windows unused-mut warnings remain. |
+
+The rendered matrix includes 320 CSS px, 200% text, independently short/tall
+windows, regrowth, localized/long values and text-spacing overrides. The normal
+desktop popup has no inner scrollbar; smaller/enlarged overlays deliberately
+scroll their middle while retaining heading/actions. Three prompt-preservation
+tests and three PDF artifact-classification tests pass. Deliberately dropping
+custom prompts, PDF duplicate checks, the artifact baseline guard, the palette
+guard and safe busy/selection guards makes the associated regressions fail.
+
+PDF selection is a conservative source-backed feature, not a compiler source
+map: it requires one exact quote in the active saved source and the bounded
+whole PDF (512 pages / two million extracted characters). Cross-formatting,
+line-wrap text mismatches and text originating only in included files can
+require selection in the source editor. Only tagged numeric Artifact runs in a
+verified left gutter are excluded; ordinary numeric data, untagged numbers and
+uncertain/right-side decorations are retained. Annotation overlays do not alter
+exported PDFs. The source editor's gutter is outside its document selection.
+
+The academic fixture uses synthetic data and explicitly fictitious citations.
+An actual model read UI-configured rules and submitted its own proposals through
+real local MCP HTTP, then re-read the changed prompt for the second trial.
+Independent review found that the introduction removed generic praise but did
+not fully establish the requested reader problem. This is finite evidence of
+prompt influence, not proof of general semantic reliability. The tunnel is a
+fixture; successful public ChatGPT shared-document proposals remain untested.
+Live connected calls for an unshared test ID were denied. Other separately
+granted file/command connectors retain independent authority.
+
+Broader Windows suites are **not green**: the final Node run has 445 passed,
+7 failed and 1 skipped of 453 (`artifacts/color-rules-all-unit-final.tap`);
+the full Rust library run has 317 passed and 34 failed of 351
+(`artifacts/color-rules-cargo-test.log`). Failures include Linux-only HTML
+rendering, symlink/filename/TeX fixtures and unrelated Rust import/history/Git
+or filesystem cases. They remain unresolved; this change is not full release
+qualification. A prose fixture initially clicked Compile during startup and
+received a busy failure; its successful run waits for the actual initial editor
+registration before a single Compile click. No broader Compile retry fix or
+new native-window/installer/installed-app update is claimed. Earlier failed
+receipts and narrowly identified temporary cleanup failures are retained;
+automatic approval review blocked removal of two failed-run Temp directories.
+
 ## Shared gateway and discard continuation — 2026-10-16
 
 The discard document harness passes 23 tests; an earlier session/source-binding
@@ -1165,3 +1898,94 @@ navigation on the left, multi-tab TeX editing in the middle, and
 compile/log/PDF controls on the right. Online collaboration, chat, review,
 billing, and hosted-account functions are deliberately omitted because they
 are not part of the user-confirmed UI scope and cannot operate fully offline.
+
+## Smart Typst file tree — Windows, 2026-10-17
+
+The File tree Smart switch filters the native project inventory to the marked
+main document and its project-local Typst dependencies. Full and Smart views
+keep separate folder expansion state. Switching a cached view preserves the
+open editor, dirty buffer, selection and undo history without saving or opening
+another file. Unresolved saved imports have partial-result guidance; a successful
+build supplies evaluated dependencies and refreshes the tree before PDF loading.
+
+- Nine focused native dependency-discovery tests passed. The wider tree tests
+  reproduced an existing Windows held-directory rename sharing violation;
+  Unix symlink cases were not run on Windows.
+- The final focused frontend run passed 64 tests. The existing overflow suite
+  passed 12 checks; a dependency-filter mutation was rejected.
+- The final real Rust/Typst/Chromium integration passed six scenario groups and
+  ten geometry observations, including 150/190/233px panels, a 320px workspace,
+  enlarged text, long heading and regrowth. It verifies dirty-buffer preservation,
+  toggle persistence, main/project changes, folder/focus restoration and actual
+  post-build source discovery. There were zero JS/protocol errors and four
+  incidental background native busy observations. A separate compile-pressure
+  run's Set-as-main busy refusal is preserved in its own receipt.
+- Architecture validation, production Vite build and desktop Cargo check passed.
+  Cargo emitted three existing unused-mut warnings. Broad Rust and live public
+  integration success is not claimed for this UI change.
+
+The immutable final browser HTML SHA256 is
+`579317273a344324801fa3c5687183f7d929e4df90cd1d34600cec46e6fc9521`;
+the qualified native CLI SHA256 is
+`0d9d39c987a1b9e3f0a6ce304c46572aec9f58d9b8ea795b4b04efeecea542f4`.
+Receipts: ignored `artifacts/smart-source-tree-smoke.json`,
+`artifacts/smart-source-tree.png` and `artifacts/smart-source-tree/`.
+
+The exact qualified Windows installer was installed successfully and the
+installed executable relaunched. Native Smart → Full → Smart interaction in
+Study5_Publication showed the main/style/six section Typst sources, restored
+data/figures/other project entries, then returned to the filtered tree. The
+installed app remains running in Smart view. No manuscript was opened or edited
+in this final check, and the project registry hash is unchanged. Installed
+desktop SHA256:
+`59a47d7ec6d1338cfd9c568d811a3fc276721a65e420dec8ac290ba9f1bc595f`.
+Installer exit, installer/CLI/HTML identities and native observations are
+recorded in `artifacts/smart-source-tree/final-delivery.json`.
+
+## Compact host-styled pop-ups — 2026-10-17
+
+UnderTree now uses one shared outside-in dialog layout for thirteen HTML dialogs, with ordered control groups, anchored actions, actual pinned Pretext measurements, and explicit pages/full-value details for long content. The existing context-sharing consent retains its separately guarded pagination. Color rules fit one normal desktop screen with behavior/instructions beside one another; narrow and enlarged-text layouts preserve every option and value. Retained legacy project and action dialogs use the same restrained host palette. Native platform pickers remain native.
+
+Validation passed: 66 focused JavaScript tests; actual Pretext smoke; 102 rendered dialog/tab/detail states, including populated lists and 200% text; complete color value/caret/validation/Save checks; nine real Rust/CodeMirror/MCP color scenarios; architecture and attribution verification; frontend build; desktop Cargo check (three existing unused-mut warnings). Actual installed Windows Tauri WebView2 155.0.4283.60 passed all five Connections tabs, compact one-page color settings, anchored actions and unchanged manuscript inspection. The native qualification initially selected a hidden nested action row and a root-only main-file path; the test selectors were corrected to the real visible footer and nested manuscript path, without relaxing geometry assertions.
+
+Exact final build: `artifacts/dual-publication/final-delivery/2026-10-17T09-58-09-798Z/receipt.json`. Installer SHA256: `bb598b13c4d3a8ce55d65eca901fbf2d8954a50e36c63a7175d089920bccbf71` (23,075,419 bytes). Installed desktop SHA256: `8687f665c4de856ec0d20488329f4fc99f80e23cddecf968387f506780c0e3b7`. Desktop, CLI and unchanged qualified LaTeX worker match the package. The installer preserved the project registry; UnderTree closed through its normal guarded path and was relaunched normally after the diagnostic WebView port closed. Evidence: `artifacts/popup-layout/native-qa.json`, `installed-color.png`, `delivery.json`, and `final-source.json`. The final twelve popup source inputs match the frozen build. An earlier build made before the last PDF-scope description fix was never installed.
+
+wrAIter 0.3.1 uses native UNO measurement/theme/fonts for all eight dialogs. Its default native windows measured 675×400–594 physical pixels here; independent width/height changes and default/18 pt text were checked, including readable no-fit and regrowth. All 72 pure tests, the existing UNO suite and eleven shared scenarios passed. The exact 32,540,830-byte OXT (`artifacts/libreoffice/wrAIter-stretch.oxt`, SHA256 `aa0098b18aee71510e46d577721b1cc4fe543d86a1f2ee2a48abaa9c20e2e55d`) was installed in an isolated profile: all 22 entries matched, all eight dialog checks passed from the installed cache, and registered dispatch opened the compact panel. Both owned test profiles closed normally. The normal Writer profile/public bridge was preserved; its concurrent connection-status task owns a combined normal-profile update. The UI source is frozen and ready for that update; `artifacts/popup-layout/writer-handoff.json` records its ownership and qualification.
+
+Limits: this is bounded Windows/WebView2 and native dark-theme Writer qualification, not a new rendered comparison against a running Overleaf deployment or a live public-tunnel test. Light-theme Writer, multi-monitor behavior, other operating systems and fonts beyond the tested range were not newly qualified. No publication or Git push occurred.
+
+## Integrated Writer tunnel, project access and color settings — 2026-10-17
+
+wrAIter 0.4.1 is one installable add-on with a tunnel toolbar command, native Document review / Project & GitHub pages, explicitly granted folder Read or Read + write, separately enabled GitHub operations, and session-only grants. Double-clicking a palette color opens three compact native settings pages with a 12-swatch/exact-hex picker, custom prompts, ten presets and protection that disables conflicting options. The native theme and outside-in layout preserve ordered controls and anchored actions without an internal scrollbar. UnderTree's source consumes the same preset contract; this delivery does not reinstall its desktop binary.
+
+The final 74,226,310-byte OXT SHA256 is `cb36c91531e82b01536cc9e95c116df53920c7ae00703282bc229126499cb9f3`. All 400 entries match both isolated and normal installed caches. Bundled MinGit 2.56.0.windows.2 executes from the installed cache. All 125 final source-bound pure tests passed without source changes, including Windows path/identity protection, write CAS, grant/revocation races, local Git fixtures, bounded subprocess/HTTP cancellation and tunnel startup with already-granted project/GitHub tools. Installed 0.4.1 native consent/control tests and the actual registered tunnel command passed; it opens one Connections window without a palette panel or document changes.
+
+The installed 0.4.0 full native editor suite and eleven shared scenario groups passed. Its eleven-dialog resize/default/18 pt matrix and visually inspected settings/picker captures apply to 0.4.1's identical UI and document-authority sources. All three color-settings pages fit at 18 pt with visible Save/Cancel; protected prompt controls, live TXT/Save As write denial, minimal picker cancellation and no restored grants are checked again from the installed 0.4.1 cache. Focused JavaScript/parity tests, real Chromium/Pretext color-dialog checks, frontend build and architecture validation passed. The native suite's diagnostic stack dump at 60 seconds is retained with its subsequent successful completion.
+
+After a guarded normal restart, read-only public HTTPS checks report 0.4.1, the same Writer owner and three unshared native tools. Identity/address/configuration hashes and both reconnect preferences match the pre-update snapshot; zero documents are shared. The first startup HTTP failure was transient and is retained separately. A LibreOffice file-association reminder initially vetoed shutdown; closing only that reminder allowed normal termination without changing associations or saving/discarding a document. The new normal Connections window is left open.
+
+Evidence is under ignored `artifacts/writer-connections-redesign/`: `delivery.json`, `final-pure-source-bound.json`, `isolated-041-install.json`, `normal-041-install.json`, `installed-041-command.json`, `installed-041-access.json`, `normal-041-command.json`, `connection-before.json` and `connection-after.json`; unchanged UI/native scenario evidence is in `installed-040-dialogs.json` and `installed-040-smoke.log`. Rendered captures are under `artifacts/libreoffice/stretch-Integrated*.png`. GitHub commit/sync/create are qualified with owned local fixtures and mocked HTTPS, not a live account or publication. The existing separately owned tunnel supervisor and its tests remain unchanged. Other operating systems, light themes and arbitrary fonts are not newly qualified.
+
+## AI-only highlighting and protected passages — 2026-10-17
+
+UnderTree source and release CLI pass the real HTTP MCP/CodeMirror flow: closed four-tool discovery, atomic neutral marking, exact replay, no color-function authority, explicit local Protect assignment, overlapping-color choice, intact citation reordering through pending/local approval and direct edits, Undo/Save and Redo/Save reanchoring, and revocation. The final CLI SHA256 is 39a57940337f8e368507f3384b9855125fdcc382f052866f99364ce3a92b86f6. The actual Typst/PDF.js gate additionally passes PDF-highlight double-click and F4 opening the same local rule form without mutation. Bounded color-dialog layout/accessibility tests pass, including 320 CSS px/200% and explicit stale-choice refusal. Native authority focused tests pass (preservation 6, highlighting 5, transport 38, integration 10); the preceding broad regression passed 402 tests.
+
+The follow-up release CLI/CodeMirror run passes eight checks, adding an older pending proposal P, a later accepted protected rewrite Q, local rejection of P, and actual editor Undo/Save then Redo/Save of Q. P remains rejected throughout. The runtime and frontend are the same frozen installed-package inputs. Evidence and the executed test-source hashes are in artifacts/ai-highlighting/undertree-terminal-rejection/; explicit pre-effect busy refusals remain in the receipt and are not counted as successful editor updates.
+
+The source-frozen Windows installer SHA256 is 25bbdd1c9831846d88f21674195aef848dd8857f5ff564a861b409f51e6a0f2c (23,197,208 bytes). It was installed after normal buffer-preserving application close. Installed desktop/CLI/LaTeX worker hashes match the exact verified package; all 69 pre-existing manuscript/review files and original project configuration remain unchanged. Installed WebView2 qualification now passes five core checks (source/toolbar/keyboard access, explicit local Protect/overlap selection, actual local acceptance, Undo/Save, Redo/Save and reopen) plus one real rendered-PDF rule-access check. Normal installed relaunch restores Study5_Publication, the original Smart file tree, no open file and disconnected ChatGPT. All 69 original sources and installed identities were rechecked after fixture retirement. Evidence: ignored artifacts/ai-highlighting/packages/2026-10-17T12-53-01-466Z/receipt.json, undertree-release/receipt.json, pdf-color-rules.json and installed-state/{before,after,install}.json under artifacts/ai-highlighting/. The machine-derived scoped native report is artifacts/ai-highlighting/native-qualified.json. The native PDF has a stale external-input verification label; exact unique saved-source linking is observed, while current-publication dependency proof remains unqualified. The two failed test assumptions are retained. Original WebView profile isolation is NOT PROVEN, and no storage reset was used.
+
+Writer's final source-frozen OXT, artifacts/libreoffice/ai-highlighting-peer-catalogue.oxt, has SHA256 cdb6d21615c1fb28f14e2b7b77e37a51284ebdb6ba4b6c16ac9dc66aa3658eeb; all 406 installed entries match in the disposable profile. The archive differs from the preceding qualified d50190a1 package only in undertree_peers.py and README.md. Root independently confirms the native authority remains df9a36af5b10e028c87580368b453b3886b4ba7591973a36acfccee34dcff434, with unchanged native UI, MCP schemas, assets and bundled runtime. Its nine native feature checks, 12-dialog matrix, full native regression, 132-test pure suite and additional 25 GitHub checks are retained on that explicit unchanged-component basis. These cover neutral marking/replay, local rule gestures and overlap choice, intact direct/pending moves, bibliographic fields, links/formatting, multiline groups, Undo/Redo, save/reopen and revocation. An earlier loaded run's eight-second GitHub setup timeout is retained and was not weakened.
+
+The changed Writer pairing client passes 21 real-HTTP tests and five actual installed native checks. Its serialized aliases identify highlighting as a mutation; legacy unpinned links retain their addresses but expose no alias before local reconnect, approved schemas are pinned across restoration, and highlighting receives bounded pre-dispatch replay/uncertain-outcome protection. Forbidden function/quote/color-reuse requests leave reads healthy; revocation/unlink removes access without saving. The disposable profile closed normally with zero documents, preserving normal Writer. Root's six actual Rust frozen-gateway checks remain qualified through the identical native authority; artifacts/ai-highlighting/writer-peer-identity.json records the exact archive delta and identity. Full evidence is indexed in artifacts/libreoffice/ai-highlighting-qualification.json. The normal open Writer session has not been upgraded. Unsupported embedded objects, foreign bookmarks/reference marks and ambiguous crossing geometry fail closed.
+
+Writer's follow-up lifecycle check uses that exact final installed authority, without runtime or package changes. Both direct and locally approved Q rewrites preserve native protected identities while an older pending P stays absent from memory, session metadata and native persisted metadata after rejection, Undo, Redo and save/reopen. Same-grant replay stays rejected; a new grant rejects the old context, while an explicitly fresh read starts a new per-grant operation. The owned profile closed normally and the normal profile was untouched. Evidence: artifacts/libreoffice/ai-highlighting-pending-lifecycle.json and the final package evidence index's pendingRejectionLifecycle component.
+
+Word's corrected single-owner candidate passes 74 native assertions, including protected native Track Changes, native Accept/Reject and their Undo paths, rejected-proposal monotonicity, later local Protect preservation, partial native review denial, and durable marking tombstones after Undo or an injected final-persistence failure. An actual DPAPI receipt captured before verification stays applying with original native witnesses; simulated reopening is uncertain, unshared and cannot accept it. The final independent source review found no remaining authority blocker in that frozen candidate. Evidence: artifacts/word/native-integration-20261017-153724/native-1-manifest.json and artifacts/ai-highlighting/word-final-review.md. Its authority-only integration preserved concurrent branding files; the earlier shadow patch is superseded.
+
+The merged Word source additionally passes policy 179, native-review policy 24, text mapping 35, COM 536 with intended ABI mutant rejection, and transport 93 with Origin mutation rejection. The first real Rust-gateway run exposed protocol-level errors for forbidden tool fields; Word now returns a tool refusal and the connection remains usable. The corrected real native Word/Rust frozen-gateway run passes six checks, including complete context, neutral atomicity/replay, denied authority escalation, direct and native-tracked original-field/link reordering, no implicit save, and native revocation while Word remains open. Evidence: artifacts/ai-highlighting/word-gateway.json; the first failure and runner are retained beside it.
+
+Word's original comment/reply loss is fixed without recreating threads or weakening verification. A tracked follow-up retains a shared whole-scalar ending intersecting each original comment anchor and replaces only the prefix; unsupported anchors refuse before effects. Frozen native runs pass 166 review assertions, 74 preservation assertions and 27 Unicode/narrow-anchor assertions. Independent review and exact source binding are in artifacts/word/followup-fix-20261017-1606/DELIVERY.md and artifacts/ai-highlighting/word-followup-review.md. A fresh six-check real native Word/Rust gateway run also passes: artifacts/ai-highlighting/word-final-gateway.json. Earlier failed runs remain retained.
+
+Word's final font cleanup passes 1,136 UI checks/19 renders with GDI 40 to 40 and USER 41 to 41. The later combined source additionally includes exact-native-identity rollback after a COM call mutates then throws, and newest-valid-receipt ownership of preserved anchors. Its 46-input component build matches the current sources and passes policy, mapping, COM, transport, layout and architecture gates in artifacts/word/color-review-delivery/release-components/. The new source-frozen installer candidate is artifacts/word/ai-highlighting-delivery/2026-10-17T14-15-13-591Z/wrAIter-Word_0.1.0_windows-setup.exe, SHA256 c8cf875df0a4189382a10df177fe85fb5fa26c1f7b4ca453474e34a127587e44; DLL SHA256 7016eee1cf0fe46fd59ab2cfd3c99e01cfd9c9e90227206554e9f11264284d2d. Exact-DLL COM checks pass 536 assertions and reject the intended ABI mutant. This candidate is not an installed or fully qualified delivery: the added partial-marker native regression refuses its next operation for a stale context witness and remains under investigation. The normal open Word demo also reports unsaved changes; no save or close is performed without the user's choice. Final installed-host and visible gesture checks remain pending. Older d5d080d6 and c228ac12 packages are historical candidates, not the final delivery.
+
+The existing Connections fixture still reproduces its pre-existing narrow/200%-text overflow with the old help strings; that geometry gate is not recorded as passed. These runs use an owned synthetic tunnel for MCP transport. They do not establish a live ChatGPT connector refresh/public route, arbitrary native-object support, or all-three-host completion. The implementation goal remains active.

@@ -22,8 +22,10 @@ function textBox(element, style) {
 }
 
 function renderedFits(element) {
+  let parent = element.parentElement;
+  while (parent && getComputedStyle(parent).display === 'contents') parent = parent.parentElement;
   return element.scrollWidth <= element.clientWidth + 1 && element.scrollHeight <= element.clientHeight + 2
-    && (!element.parentElement || element.getBoundingClientRect().width <= element.parentElement.clientWidth + 2);
+    && (!parent || element.getBoundingClientRect().width <= parent.clientWidth + 2);
 }
 
 // Measurements validate finite chrome; no manuscript font is changed to fit the viewport.
@@ -105,10 +107,10 @@ export function observeReviewText(root) {
       if (element.closest(documentContent)) continue;
       if (!watched.has(element)) {
         watched.add(element); observer.observe(element);
-        if (element.hasAttribute('data-text-details')) {
-          const detail = createTextDetails(element);
-          details.set(element, detail); slots.set(detail.slot, element); observer.observe(detail.slot);
-        }
+      }
+      if (element.hasAttribute('data-text-details') && !details.has(element)) {
+        const detail = createTextDetails(element);
+        details.set(element, detail); slots.set(detail.slot, element); observer.observe(detail.slot);
       }
       schedule(element);
     }
@@ -122,6 +124,7 @@ export function observeReviewText(root) {
       for (let parent = target; parent; parent = parent.parentElement) if (watched.has(parent)) schedule(parent);
       if (record.type === 'attributes') {
         if (record.attributeName === 'lang') { invalidate(); continue; }
+        if (record.attributeName === 'data-text-details') register(target);
         for (const element of watched) if (element === target || target.contains(element)) schedule(element);
       } else {
         if (target.closest('style') || [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 && node.matches('style, link[rel="stylesheet"]'))) invalidate();
@@ -135,7 +138,7 @@ export function observeReviewText(root) {
       if (detail) { observer.unobserve(detail.slot); slots.delete(detail.slot); detail.destroy(); details.delete(element); }
     }
   });
-  const observe = element => mutation.observe(element, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'lang', 'hidden', 'data-lines', 'data-measure'] });
+  const observe = element => mutation.observe(element, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'lang', 'hidden', 'data-lines', 'data-measure', 'data-text-details'] });
   observe(root);
   if (root !== document.documentElement) mutation.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'lang'] });
   const fonts = () => { if (!disposed) { fontsReady = true; invalidate(); } };

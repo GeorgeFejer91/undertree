@@ -37,6 +37,12 @@ pub(super) struct PolicyContinuity {
     witnessed: BTreeMap<PathBuf, Witness>,
 }
 
+impl PolicyContinuity {
+    pub(super) fn known_paths(&self) -> impl Iterator<Item = &PathBuf> {
+        self.witnessed.keys()
+    }
+}
+
 fn missing() -> Error {
     Error::new("policy_missing", "Previously observed review data is missing or has not been restored exactly. Your source and pending save are preserved. Restore the original review file, then explicitly refresh; sharing changes do not reset this protection.")
 }
@@ -324,5 +330,42 @@ mod tests {
                 "pendingRevisionsAfter":after_value["projects"][0]["pendingRevisions"]
             })
         );
+    }
+
+    #[test]
+    fn source_first_interruption_recovers_only_exact_captured_prior_policy() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("project");
+        fs::create_dir(&root).unwrap();
+        let file = root.join("main.typ");
+        fs::write(&file, "Original protected passage").unwrap();
+        let service = Service::new(temp.path().join("state")).unwrap();
+        let project = service.local(Operation::AddProject { root: root.to_string_lossy().into() }).unwrap()["id"].as_str().unwrap().to_owned();
+        service.local(Operation::Mark { project: project.clone(), path: "main.typ".into(), revision: digest("Original protected passage"), from: 0, to: 26, rule: "protect".into(), prompt: "Keep the policy when recovering.".into() }).unwrap();
+        let prior = fs::read(sidecar(&file)).unwrap();
+        *lock(&service.fail_after_journal).unwrap() = true;
+        assert_eq!(service.local(Operation::Save { project: project.clone(), path: "main.typ".into(), revision: digest("Original protected passage"), content: "Changed protected passage".into() }).unwrap_err().code, "outcome_unknown");
+        let pending = fs::read(journal_path(&file)).unwrap();
+        let journal: Journal = serde_json::from_slice(&pending).unwrap();
+        // Native persistence publishes Source before Review. Reproduce that crash boundary.
+        fs::write(&file, &journal.content).unwrap();
+        let mut foreign: Review = serde_json::from_slice(&prior).unwrap();
+        foreign.rules[0].prompt = "Uncaptured policy".into();
+        let foreign = serde_json::to_vec_pretty(&foreign).unwrap();
+        fs::write(sidecar(&file), &foreign).unwrap();
+        let registry = fs::read(service.state.join("projects.json")).unwrap();
+        assert_eq!(service.local(Operation::Open { project: project.clone(), path: "main.typ".into() }).unwrap_err().code, "recovery_conflict");
+        assert_eq!(fs::read(sidecar(&file)).unwrap(), foreign);
+        assert_eq!(fs::read(journal_path(&file)).unwrap(), pending);
+        assert_eq!(fs::read(service.state.join("projects.json")).unwrap(), registry);
+        assert_eq!(fs::read_to_string(&file).unwrap(), journal.content);
+
+        fs::write(sidecar(&file), &prior).unwrap();
+        let recovered = service.local(Operation::Open { project, path: "main.typ".into() }).unwrap();
+        assert_eq!(recovered["content"], journal.content);
+        assert_eq!(fs::read(sidecar(&file)).unwrap(), serde_json::to_vec_pretty(&journal.review).unwrap());
+        assert_eq!(journal.review.markers[0].rule, "protect");
+        assert!(journal.review.markers[0].anchor.stale);
+        assert!(!journal_path(&file).exists());
     }
 }
