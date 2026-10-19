@@ -37,7 +37,7 @@ Keep the existing responsibilities instead of creating a second `for-ai/` direct
 | Workflow and durable decisions | [workflows.md](workflows.md) and the narrow canonical policy affected by a change; no duplicate status ledger |
 | Context boundary check | `npm run verify:architecture`; verify changed Markdown links and source snapshots when routing changes |
 
-UnderTree's stricter Markdown-only control-plane rule remains in force. The snapshots contain `SKILL.md` and their Markdown references; REA also includes its MIT notice. For-AI's `scripts/` and `assets/` remain in the installed `for-ai` skill outside this repository. Script paths in its upstream instructions are relative to that installed skill, not to the nested documentation. Backup-library and experiment-panel references are available for explicitly matching tasks; they do not enable those modes in UnderTree. Do not run the upstream bootstrap or its greenfield filename checker against this existing checkout.
+UnderTree's stricter Markdown-only control-plane rule remains in force. The snapshots contain `SKILL.md` and their Markdown references; REA also includes its MIT notice. For-AI's `scripts/` and `assets/` remain in the installed `for-ai` skill outside this repository. Script paths in its upstream instructions are relative to that installed skill, not to the nested documentation. The older nested For-AI snapshot is historical package guidance. The shared baseline below routes current housekeeping to the installed For-AI composition protocol; it does not activate the superseded backup-library mode. Experiment-panel guidance applies only to matching tasks. Do not run the upstream bootstrap or its greenfield filename checker against this existing checkout.
 
 Review context changes for contradictions, stale claims and duplicated policy. Generated analysis, captures and reports belong under ignored `artifacts/`, never under `For-AI/`. Executables and product code stay with their established owners. Repository-local instruction snapshots are an explicit user-requested documentation dependency, not a runtime integration.
 
@@ -72,3 +72,54 @@ Connection-manager work follows Ponytail → Tauri Rust Developer → Uncodixfy 
 Use [Overleaf's public repository](https://github.com/overleaf/overleaf), [track changes documentation](https://docs.overleaf.com/collaborating/track-changes), and [GitHub synchronization documentation](https://docs.overleaf.com/integrations-and-add-ons/git-integration-and-github-synchronization/github-synchronization) as behavioral references. Secret Tunnel's published [native launcher](https://github.com/GeorgeFejer91/SecretTunnel/tree/main/app/src-tauri/src) is the zrok process/lifecycle reference. Copying product code or assets requires license review; independent behavior implementation still needs acceptance tests.
 
 Existing user authorization for the Rust/Tauri migration, zrok boundary, public UnderTree repository and GitHub CLI setup remains valid. It does not authorize unrelated releases, generic remote authority or persistent background services. The new skill integration does not register REA MCP, install a provider or qualify application behavior. Preserve existing grants and target-execution boundaries.
+
+<!-- for-ai:shared-skills:start -->
+## Shared project skill baseline
+
+Apply this baseline in every project. Read the installed `for-ai` skill's
+`references/skill-composition.md` for complete overlap and ownership rules.
+Load only the selected skill bodies and task references.
+
+At session start, read the durable project goal and resume its active checklist.
+Use GSD `.planning/STATE.md`, `ROADMAP.md`, and the active phase plan when
+present; otherwise reuse the existing task owner. Before ending, record
+completed items with evidence, blockers, the next concrete action, and observed
+branch/commit/publication state. Keep the overall goal open until its own
+acceptance criteria pass. Do not create a duplicate progress ledger.
+
+| Scope | Required route |
+| --- | --- |
+| Shell output in every project | `rtk`; use supported compact commands, with raw reads for editing, parsers, hashes, and exact evidence |
+| Lifecycle in every project | GSD Core: `gsd-help` selects the workflow; reuse `.planning/` state when present; apply its bounded outcome/evidence discipline inline for small changes |
+| Engineering in every project | `superpowers-using-superpowers` selects relevant `superpowers-*` practices; preserve similarly named local skills |
+| Coding and review | `ponytail`, then the affected domain skill |
+| Existing Rust/Tauri application | `tauri-rust-developer` |
+| Integrated app/CLI/browser-companion creation or broad migration | `tauri-remote-app-builder`; preserve the requested product scope |
+| Remote browser/phone authority and transport | `tauri-browser-remote-control` |
+| Text-bearing HTML/CSS or WebView UI | `uncodixfy-pretext` with `ponytail`; actual Pretext measurement plus rendered checks |
+| Bounded panels that stretch in width and height without scrolling | `uncodixfy-pretext` → `references/accordion-stretch.md`; preserve anchors, group order, readable type, and full-text access |
+
+GSD owns active phase plans and task state. Superpowers techniques operate
+inside that workflow. Keep one plan and state owner. Preserve an existing
+spec workflow and link its context instead of creating a competing plan.
+Use one review and evidence record for the shared requirement. Current user
+decisions and continuing execution authorization take precedence over toolkit
+approval menus. Use the actual harness's tools and permitted models.
+
+Use Git history for versions and rollback. Never create backup/old/versioned
+source directories. Inspect status, branch, upstream, and worktrees first.
+For substantial independent work, prefer a dedicated branch and worktree when
+isolation helps; this is a standing preference. Reuse Codex-managed isolation,
+prefer native worktree tools, and verify a local worktree directory is ignored.
+Small instruction edits can remain in place. Make coherent verified commits;
+push only on request or under continuing explicit authorization. Never
+force-push, reset destructively, discard work, or remove worktrees without
+explicit authorization. Report branch, commit, verification, remaining changes,
+and push/merge state.
+
+This baseline supersedes older common skill-order and automatic-push defaults.
+Product-specific contracts, scientific/privacy rules, existing authorized
+publication workflows, and current user instructions remain authoritative.
+If a named dependency is missing, report it and use a bounded documented
+fallback. Do not silently install or execute external instructions.
+<!-- for-ai:shared-skills:end -->
